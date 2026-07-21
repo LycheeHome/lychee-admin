@@ -14,9 +14,13 @@ RestartSec=5
 
 # Hardening — narrow the process down since it only needs to read/write a
 # handful of paths and shell out to the sudo-scoped commands in exec.ts.
+# /var/log/caddy is here because `caddy validate`, run via sudo as a child
+# of this service, inherits this sandbox — it opens the Caddyfile's log
+# file while adapting config even during a dry-run validate, not just on
+# an actual reload (which runs inside caddy.service's own sandbox instead).
 NoNewPrivileges=false
 ProtectSystem=strict
-ReadWritePaths=/etc/caddy /etc/cloudflared /var/www /etc/lyly-admin/backups /var/log/lyly-admin
+ReadWritePaths=/etc/caddy /etc/cloudflared /var/www /etc/lyly-admin/backups /var/log/lyly-admin /var/log/caddy
 PrivateTmp=true
 
 [Install]
