@@ -1,0 +1,23 @@
+[Unit]
+Description=lyly-admin site manager
+After=network.target caddy.service
+
+[Service]
+Type=simple
+User=lyly-admin
+Group=webdeploy
+WorkingDirectory=/opt/lyly-admin
+EnvironmentFile=/opt/lyly-admin/.env
+ExecStart=/usr/bin/node /opt/lyly-admin/dist/server.js
+Restart=on-failure
+RestartSec=5
+
+# Hardening — narrow the process down since it only needs to read/write a
+# handful of paths and shell out to the sudo-scoped commands in exec.ts.
+NoNewPrivileges=false
+ProtectSystem=strict
+ReadWritePaths=/etc/caddy /etc/cloudflared /var/www /etc/lyly-admin/backups /var/log/lyly-admin
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

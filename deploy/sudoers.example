@@ -1,0 +1,13 @@
+# Install to /etc/sudoers.d/lyly-admin with `visudo -cf` to check syntax first.
+# Grants the dedicated lyly-admin service user exactly the commands
+# src/lib/exec.ts shells out to — nothing else. Do not broaden this to
+# "ALL" for any of these commands.
+
+Cmnd_Alias LYLY_ADMIN_CMDS = \
+    /usr/bin/caddy validate --config /etc/caddy/Caddyfile, \
+    /usr/bin/systemctl reload caddy, \
+    /usr/bin/systemctl restart cloudflared, \
+    /usr/bin/systemctl status caddy --no-pager, \
+    /usr/bin/install -d -m 2775 -o web -g webdeploy /var/www/*
+
+lyly-admin ALL=(root) NOPASSWD: LYLY_ADMIN_CMDS
