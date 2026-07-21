@@ -26,9 +26,17 @@ jobs:
 
       # Sync everything except secrets and dev artifacts. .env lives only on
       # the host (/opt/lyly-admin/.env) and is never written by CI.
+      #
+      # Deliberately not using -a: /opt/lyly-admin is pre-created and owned
+      # by lyly-admin, not github-runner, so preserving perms/owner/group/
+      # times on that existing directory fails even though github-runner (a
+      # webdeploy group member) can write inside it fine. None of those
+      # attributes matter for how this app runs, so just recurse, keep
+      # symlinks as symlinks, and preserve file (not directory) content —
+      # new files get the setgid dir's webdeploy group and default perms.
       - name: Sync app files
         run: |
-          rsync -a --no-owner --no-group --omit-dir-times --delete \
+          rsync -rl --delete \
             --exclude='.git' --exclude='.env' --exclude='node_modules' \
             ./ /opt/lyly-admin/
 
