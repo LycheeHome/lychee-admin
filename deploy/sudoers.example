@@ -2,12 +2,19 @@
 # Grants the dedicated lyly-admin service user exactly the commands
 # src/lib/exec.ts shells out to — nothing else. Do not broaden this to
 # "ALL" for any of these commands.
+#
+# Also install deploy/lyly-admin-write-config.sh to
+# /usr/local/sbin/lyly-admin-write-config (owned root:root, mode 0700) —
+# it's the only way the lyly-admin user can write to the two root-owned
+# config files below, since /etc/caddy and /etc/cloudflared are root:root 755.
 
 Cmnd_Alias LYLY_ADMIN_CMDS = \
     /usr/bin/caddy validate --config /etc/caddy/Caddyfile, \
     /usr/bin/systemctl reload caddy, \
     /usr/bin/systemctl restart cloudflared, \
     /usr/bin/systemctl status caddy --no-pager, \
-    /usr/bin/install -d -m 2775 -o web -g webdeploy /var/www/*
+    /usr/bin/install -d -m 2775 -o web -g webdeploy /var/www/*, \
+    /usr/local/sbin/lyly-admin-write-config /etc/caddy/Caddyfile, \
+    /usr/local/sbin/lyly-admin-write-config /etc/cloudflared/config.yml
 
 lyly-admin ALL=(root) NOPASSWD: LYLY_ADMIN_CMDS

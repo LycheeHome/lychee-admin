@@ -1,4 +1,4 @@
-import { execFile as execFileCb } from "node:child_process";
+import { execFile as execFileCb, spawn } from "node:child_process";
 import { promisify } from "node:util";
 
 const execFile = promisify(execFileCb);
@@ -55,4 +55,34 @@ export function createSiteDirectory(
   group: string,
 ): Promise<{ stdout: string; stderr: string }> {
   return run("sudo", ["/usr/bin/install", "-d", "-m", "2775", "-o", owner, "-g", group, sitePath]);
+}
+
+/**
+ * Writes `content` to a root-owned config file (the Caddyfile or the tunnel
+ * config.yml) by piping it into deploy/lyly-admin-write-config.sh via sudo.
+ * That script only accepts these two exact paths — see sudoers.example.
+ * Needed because /etc/caddy and /etc/cloudflared are root:root 755, so the
+ * dedicated low-privilege app user has no direct write access to either file.
+ */
+export function writeManagedConfig(targetPath: string, content: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("sudo", ["/usr/local/sbin/lyly-admin-write-config", targetPath]);
+
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+
+    child.on("error", (error) => reject(new CommandError(error.message, "", stderr)));
+
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new CommandError(`lyly-admin-write-config exited with code ${code}`, "", stderr));
+      }
+    });
+
+    child.stdin.end(content);
+  });
 }

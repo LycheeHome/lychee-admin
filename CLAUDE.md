@@ -35,7 +35,8 @@ These are non-negotiable properties of the design — preserve them in any imple
 
 - Domain: `lyly.dev`; all managed hostnames are subdomains, `*.lyly.dev` — validate new hostnames against this pattern.
 - Caddy config lives at `/etc/caddy/Caddyfile`. Existing site blocks use explicit `http://` prefixes (Caddy defaults to binding 443 otherwise), and the Caddyfile has a global `auto_https off` since TLS terminates at Cloudflare's edge, not on `lychee`. New site blocks must follow this same `http://` pattern.
-- Cloudflare Tunnel is named `lychee-ssh`, ID `1e9fc42a-0c25-4e64-b5c5-1e229f82a126`. Its ingress config is at `~/.cloudflared/config.yml` — confirm the actual path (`/home/byron/.cloudflared/config.yml` vs `/etc/cloudflared/config.yml`) when implementing, this is not yet confirmed.
+- Cloudflare Tunnel is named `lychee-ssh`, ID `1e9fc42a-0c25-4e64-b5c5-1e229f82a126`. Its ingress config is at `/etc/cloudflared/config.yml` (root:root) — confirmed via SSH: the systemd unit's `ExecStart` points there and it's the file the running `cloudflared` process actually has open. A stale copy at `/home/byron/.cloudflared/config.yml` also exists but is not read by the service — ignore it. `cloudflared` runs as root (no `User=` in the unit file).
+- `/etc/caddy/Caddyfile` and `/etc/cloudflared/config.yml` are both root:root, mode 644, in root:root 755 directories — the dedicated low-privilege app user has no direct write access to either. Config edits go through `deploy/lyly-admin-write-config.sh` (installed as `/usr/local/sbin/lyly-admin-write-config`, root:root, mode 0700), invoked via `sudo` with the target path pinned to one of exactly these two files in `deploy/sudoers.example`. `src/lib/exec.ts`'s `writeManagedConfig()` pipes new file content to it over stdin; never write these files with plain `fs.writeFileSync`.
 - Site files are served from `/var/www/<hostname>/`, owned by a dedicated non-login service user `web` (`-s /usr/sbin/nologin`).
 - Shared group `webdeploy` (members: `web`, `caddy`, `github-runner`) gives read/write access to site directories. New static site directories should be created with `web:webdeploy` ownership and `2775` permissions (setgid, so new files inherit the group).
 - Other users on the box: `byron` (personal/admin), `steam` (Palworld server), `github-runner` (CI) — not directly relevant to this app but useful context for permission decisions.
@@ -49,6 +50,6 @@ These are non-negotiable properties of the design — preserve them in any imple
 
 ## Open questions to resolve while implementing
 
-- Exact path of `cloudflared`'s `config.yml` on `lychee`.
-- Whether `cloudflared` runs under `byron` or `root`, which determines what the sudo rules need to cover.
-- Final choice of the dedicated low-privilege user this Express app runs as.
+- ~~Exact path of `cloudflared`'s `config.yml` on `lychee`.~~ Confirmed: `/etc/cloudflared/config.yml`, see above.
+- ~~Whether `cloudflared` runs under `byron` or `root`.~~ Confirmed: root.
+- Final choice of the dedicated low-privilege user this Express app runs as — not yet created on `lychee` (`id lyly-admin` returns no such user as of this check).

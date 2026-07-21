@@ -11,6 +11,7 @@ import {
   reloadCaddy,
   restartCloudflared,
   validateCaddyfile,
+  writeManagedConfig,
 } from "../lib/exec";
 import { logAction } from "../lib/logger";
 import {
@@ -72,7 +73,10 @@ sitesRouter.post("/sites", async (req, res) => {
     backupFile(config.tunnelConfigPath);
 
     // 2. Append the Caddyfile block.
-    fs.writeFileSync(config.caddyfilePath, caddyfile.appendSite(caddyfileContent, { hostname, type, target }));
+    await writeManagedConfig(
+      config.caddyfilePath,
+      caddyfile.appendSite(caddyfileContent, { hostname, type, target }),
+    );
 
     // 3. Static sites get a directory + placeholder page.
     if (type === "static") {
@@ -82,7 +86,7 @@ sitesRouter.post("/sites", async (req, res) => {
 
     // 4. Append the tunnel ingress rule.
     const tunnelContent = fs.readFileSync(config.tunnelConfigPath, "utf8");
-    fs.writeFileSync(
+    await writeManagedConfig(
       config.tunnelConfigPath,
       tunnelConfig.addIngressRule(tunnelContent, hostname, "http://localhost:80"),
     );
@@ -121,10 +125,10 @@ sitesRouter.post("/sites/:hostname/delete", async (req, res) => {
     backupFile(config.caddyfilePath);
     backupFile(config.tunnelConfigPath);
 
-    fs.writeFileSync(config.caddyfilePath, caddyfile.removeSite(caddyfileContent, hostname));
+    await writeManagedConfig(config.caddyfilePath, caddyfile.removeSite(caddyfileContent, hostname));
 
     const tunnelContent = fs.readFileSync(config.tunnelConfigPath, "utf8");
-    fs.writeFileSync(config.tunnelConfigPath, tunnelConfig.removeIngressRule(tunnelContent, hostname));
+    await writeManagedConfig(config.tunnelConfigPath, tunnelConfig.removeIngressRule(tunnelContent, hostname));
 
     await validateCaddyfile(config.caddyfilePath);
     await reloadCaddy();
