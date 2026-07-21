@@ -80,7 +80,7 @@ sitesRouter.post("/sites", async (req, res) => {
 
     // 3. Static sites get a directory + placeholder page.
     if (type === "static") {
-      await createSiteDirectory(sitePath, config.siteOwnerUser, config.siteOwnerGroup);
+      await createSiteDirectory(hostname);
       fs.writeFileSync(path.join(sitePath, "index.html"), PLACEHOLDER_INDEX_HTML(hostname));
     }
 

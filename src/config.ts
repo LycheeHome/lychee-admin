@@ -19,11 +19,11 @@ export const config = {
 
   caddyfilePath: process.env.CADDYFILE_PATH ?? "/etc/caddy/Caddyfile",
   tunnelConfigPath: process.env.TUNNEL_CONFIG_PATH ?? "/etc/cloudflared/config.yml",
+  // Must stay "/var/www" — deploy/lyly-admin-create-site-dir.sh hardcodes
+  // this path (and the web:webdeploy owner/group) rather than taking it as
+  // an argument, since sudoers can't safely wildcard-match arbitrary paths.
   sitesRoot: process.env.SITES_ROOT ?? "/var/www",
   tunnelId: process.env.TUNNEL_ID ?? "",
-
-  siteOwnerUser: process.env.SITE_OWNER_USER ?? "web",
-  siteOwnerGroup: process.env.SITE_OWNER_GROUP ?? "webdeploy",
 
   backupDir: process.env.BACKUP_DIR ?? "/etc/lyly-admin/backups",
   logFile: process.env.LOG_FILE ?? "/var/log/lyly-admin/actions.log",

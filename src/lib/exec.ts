@@ -45,16 +45,14 @@ export function caddyStatus(): Promise<{ stdout: string; stderr: string }> {
 }
 
 /**
- * Creates a site directory owned by the dedicated web user/group with the
- * setgid bit so new files inherit the group. Requires a scoped sudoers entry
- * for /usr/bin/install restricted to paths under the sites root.
+ * Creates /var/www/<hostname> owned web:webdeploy with the setgid bit so new
+ * files inherit the group, via deploy/lyly-admin-create-site-dir.sh. That
+ * script (not sudoers) validates the hostname and hardcodes the owner/group —
+ * sudoers can't safely restrict install(1)'s arguments to "some path under
+ * /var/www" without wildcards, which aren't supported on every sudo build.
  */
-export function createSiteDirectory(
-  sitePath: string,
-  owner: string,
-  group: string,
-): Promise<{ stdout: string; stderr: string }> {
-  return run("sudo", ["/usr/bin/install", "-d", "-m", "2775", "-o", owner, "-g", group, sitePath]);
+export function createSiteDirectory(hostname: string): Promise<{ stdout: string; stderr: string }> {
+  return run("sudo", ["/usr/local/sbin/lyly-admin-create-site-dir", hostname]);
 }
 
 /**
