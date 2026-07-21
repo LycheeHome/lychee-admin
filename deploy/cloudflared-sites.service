@@ -1,0 +1,21 @@
+[Unit]
+Description=Cloudflare Tunnel client (site hostnames managed by lyly-admin)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+TimeoutStartSec=15
+# Default TimeoutStopSec (90s) let cloudflared hang on SIGTERM during
+# restart, since it doesn't shut down cleanly — lyly-admin restarts this
+# service on every site add/remove, so a slow stop directly means a slow
+# request. 10s caps that wait before systemd force-kills and moves on to
+# starting the new instance; any connections through the old process were
+# already going to get cut once the timeout hit anyway.
+TimeoutStopSec=10
+Type=notify
+ExecStart=/usr/bin/cloudflared --no-autoupdate --config /etc/cloudflared/sites-config.yml tunnel run
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
