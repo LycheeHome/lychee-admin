@@ -1,0 +1,60 @@
+name: Deploy to lychee
+
+# Fires on every push that lands on main, which in a PR-based workflow means
+# "after a PR merges." That alone isn't a real gate — enforce it with a
+# branch protection rule on main (require PR + review, disallow direct
+# pushes/force-pushes) in repo Settings > Branches. This workflow can't do
+# that part for you.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, lychee]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+
+      # Sync everything except secrets and dev artifacts. .env lives only on
+      # the host (/opt/lyly-admin/.env) and is never written by CI.
+      - name: Sync app files
+        run: |
+          rsync -a --delete \
+            --exclude='.git' --exclude='.env' --exclude='node_modules' \
+            ./ /opt/lyly-admin/
+
+      - name: Install production dependencies
+        run: cd /opt/lyly-admin && npm ci --omit=dev
+
+      - name: Restart service
+        run: sudo systemctl restart lyly-admin
+
+      - name: Verify service is active
+        run: |
+          sleep 2
+          sudo systemctl is-active lyly-admin
+
+      # is-active only proves systemd thinks the process is running — it
+      # doesn't prove Express actually bound its port and is answering
+      # requests. A 401 here (unauthenticated) is the real proof: it means
+      # the server accepted the connection and basic-auth middleware ran.
+      - name: Health check
+        run: |
+          set -a
+          . /opt/lyly-admin/.env
+          set +a
+          code=$(curl -s -o /dev/null -w "%{http_code}" "http://${HOST:-127.0.0.1}:${PORT:-8787}/")
+          if [ "$code" != "401" ]; then
+            echo "Unexpected health check status: $code (expected 401)" >&2
+            exit 1
+          fi
+          echo "Health check OK — got 401 as expected"

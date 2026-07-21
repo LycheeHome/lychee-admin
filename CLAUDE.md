@@ -48,6 +48,15 @@ These are non-negotiable properties of the design — preserve them in any imple
 2. **Add a site** — hostname (validated as `*.lyly.dev`) + type (static or reverse proxy w/ port). On submit, in this order: back up configs → append Caddyfile block → if static, create `/var/www/<hostname>/` (`web:webdeploy`, `2775`) with a placeholder `index.html` → append tunnel ingress rule (inserted before the catch-all `http_status:404` line, pointing at `service: http://localhost:80`) → `caddy validate` (abort on failure, no reload) → `systemctl reload caddy` → `systemctl restart cloudflared` → show a reminder to manually run `cloudflared tunnel route dns 1e9fc42a-0c25-4e64-b5c5-1e229f82a126 <hostname>`.
 3. **Remove a site** — remove the Caddyfile block and matching ingress line → validate + reload Caddy → restart cloudflared → confirm before deleting `/var/www/<hostname>/` contents → remind the user to remove the DNS record manually.
 
+## Deployment
+
+CI/CD runs via the existing self-hosted `github-runner` on `lychee` — see `.github/workflows/deploy.yml`. It builds, syncs everything except `.env`/`node_modules` into `/opt/lyly-admin`, installs production deps there, restarts the `lyly-admin` systemd service, and health-checks it (expects a `401` from `/`, since that's proof Express bound its port and basic-auth middleware ran — `systemctl is-active` alone only proves systemd thinks the process is running, not that it's serving traffic). `github-runner`'s sudo scope for this is in `deploy/sudoers-github-runner.example`, separate from the app's own scope in `deploy/sudoers.example`.
+
+One-time host setup this assumes, not done by CI:
+- `/opt/lyly-admin` created, owned `lyly-admin:webdeploy`, mode `2775` (so both the app's own user and `github-runner`, already a `webdeploy` member, can write).
+- `.env` placed there manually once, readable by the `webdeploy` group (e.g. `chown lyly-admin:webdeploy .env && chmod 640 .env`) so the workflow's health-check step can read `HOST`/`PORT` from it — never written or overwritten by CI.
+- A branch protection rule on `main` (require PR + review, disallow direct/force pushes) — the workflow triggers on every push to `main`, which only means "gated behind PR merge" if direct pushes are actually blocked at the repo settings level.
+
 ## Open questions to resolve while implementing
 
 - ~~Exact path of `cloudflared`'s `config.yml` on `lychee`.~~ Confirmed: `/etc/cloudflared/config.yml`, see above.
