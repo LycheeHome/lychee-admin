@@ -28,7 +28,7 @@ jobs:
       # the host (/opt/lyly-admin/.env) and is never written by CI.
       - name: Sync app files
         run: |
-          rsync -a --no-owner --no-group --delete \
+          rsync -a --no-owner --no-group --omit-dir-times --delete \
             --exclude='.git' --exclude='.env' --exclude='node_modules' \
             ./ /opt/lyly-admin/
 
