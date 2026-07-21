@@ -18,10 +18,10 @@
 Cmnd_Alias LYLY_ADMIN_CMDS = \
     /usr/bin/caddy validate --config /etc/caddy/Caddyfile, \
     /usr/bin/systemctl reload caddy, \
-    /usr/bin/systemctl restart cloudflared, \
+    /usr/bin/systemctl restart cloudflared-sites, \
     /usr/bin/systemctl status caddy --no-pager, \
     /usr/local/sbin/lyly-admin-create-site-dir, \
     /usr/local/sbin/lyly-admin-write-config /etc/caddy/Caddyfile, \
-    /usr/local/sbin/lyly-admin-write-config /etc/cloudflared/config.yml
+    /usr/local/sbin/lyly-admin-write-config /etc/cloudflared/sites-config.yml
 
 lyly-admin ALL=(root) NOPASSWD: LYLY_ADMIN_CMDS

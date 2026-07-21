@@ -10,7 +10,7 @@ set -eu
 target="$1"
 
 case "$target" in
-  /etc/caddy/Caddyfile | /etc/cloudflared/config.yml)
+  /etc/caddy/Caddyfile | /etc/cloudflared/sites-config.yml)
     ;;
   *)
     echo "lyly-admin-write-config: refusing to write to $target" >&2

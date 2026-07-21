@@ -36,8 +36,14 @@ export function reloadCaddy(): Promise<{ stdout: string; stderr: string }> {
   return run("sudo", ["/usr/bin/systemctl", "reload", "caddy"]);
 }
 
+/**
+ * Restarts cloudflared-sites, not the box's original cloudflared.service —
+ * lyly-admin only manages hostnames on the split-off "sites" tunnel
+ * (see deploy/cloudflared-sites.service), so this never interrupts
+ * ssh.lyly.dev, which stays on its own separate tunnel/service.
+ */
 export function restartCloudflared(): Promise<{ stdout: string; stderr: string }> {
-  return run("sudo", ["/usr/bin/systemctl", "restart", "cloudflared"]);
+  return run("sudo", ["/usr/bin/systemctl", "restart", "cloudflared-sites"]);
 }
 
 export function caddyStatus(): Promise<{ stdout: string; stderr: string }> {

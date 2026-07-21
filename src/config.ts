@@ -18,7 +18,9 @@ export const config = {
   domain: process.env.DOMAIN ?? "lyly.dev",
 
   caddyfilePath: process.env.CADDYFILE_PATH ?? "/etc/caddy/Caddyfile",
-  tunnelConfigPath: process.env.TUNNEL_CONFIG_PATH ?? "/etc/cloudflared/config.yml",
+  // The "sites" tunnel's config — split off from the lychee-ssh tunnel so
+  // restarting cloudflared for a site change never drops ssh.lyly.dev.
+  tunnelConfigPath: process.env.TUNNEL_CONFIG_PATH ?? "/etc/cloudflared/sites-config.yml",
   // Must stay "/var/www" — deploy/lyly-admin-create-site-dir.sh hardcodes
   // this path (and the web:webdeploy owner/group) rather than taking it as
   // an argument, since sudoers can't safely wildcard-match arbitrary paths.
