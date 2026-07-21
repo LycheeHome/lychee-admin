@@ -25,6 +25,10 @@ import {
 
 export const sitesRouter = Router();
 
+// Caddy's built-in admin API — always on localhost:2019 regardless of
+// what's in the Caddyfile, so it can't be caught by parsing existing sites.
+const CADDY_ADMIN_PORT = 2019;
+
 const hostnamePattern = new RegExp(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?\\.${escapeRegex(config.domain)}$`, "i");
 
 function escapeRegex(value: string): string {
@@ -66,6 +70,20 @@ sitesRouter.post("/sites", async (req, res) => {
     const caddyfileContent = fs.readFileSync(config.caddyfilePath, "utf8");
     if (caddyfile.hostnameExists(caddyfileContent, hostname)) {
       throw new Error(`${hostname} already exists in the Caddyfile`);
+    }
+
+    if (type === "reverse-proxy") {
+      const reservedPorts = new Set([config.port, CADDY_ADMIN_PORT]);
+      if (reservedPorts.has(Number(port))) {
+        throw new Error(`Port ${port} is reserved (used by lyly-admin itself or Caddy's admin API)`);
+      }
+
+      const conflictingSite = caddyfile
+        .parseSites(caddyfileContent)
+        .find((site) => site.type === "reverse-proxy" && site.target === port);
+      if (conflictingSite) {
+        throw new Error(`Port ${port} is already used by ${conflictingSite.hostname}`);
+      }
     }
 
     // 1. Back up both config files before touching either.
