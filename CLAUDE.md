@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-This repository is a fresh scaffold — no source code exists yet. There is no package.json, build tooling, or commit history. The content below is the project spec this app should be built against; update this file with real commands (build/lint/test/run) as soon as the project is scaffolded.
+Deployed and verified working end-to-end on `lychee` — add-site, remove-site (including the confirm-then-delete file step), and the reverse-proxy port-conflict check have all been exercised for real through the UI, with every affected file (Caddyfile, tunnel config, `/var/www/<hostname>`, audit log) confirmed to change correctly on add and fully revert on remove.
+
+Commands: `npm run dev` (tsx watch), `npm run build` (tsc), `npm run typecheck`, `npm run lint`, `npm start` (runs `dist/server.js`).
 
 ## Purpose
 
@@ -48,8 +50,8 @@ These are non-negotiable properties of the design — preserve them in any imple
 ## Core v1 feature flow
 
 1. **List sites** — parse `/etc/caddy/Caddyfile` into site blocks (hostname, type: static/reverse-proxy, local path or port), and show live status (`systemctl status caddy` / a health-check `curl`).
-2. **Add a site** — hostname (validated as `*.lyly.dev`) + type (static or reverse proxy w/ port). On submit, in this order: back up configs → append Caddyfile block → if static, create `/var/www/<hostname>/` (`web:webdeploy`, `2775`) with a placeholder `index.html` → append tunnel ingress rule (inserted before the catch-all `http_status:404` line, pointing at `service: http://localhost:80`) → `caddy validate` (abort on failure, no reload) → `systemctl reload caddy` → `systemctl restart cloudflared` → show a reminder to manually run `cloudflared tunnel route dns 1e9fc42a-0c25-4e64-b5c5-1e229f82a126 <hostname>`.
-3. **Remove a site** — remove the Caddyfile block and matching ingress line → validate + reload Caddy → restart cloudflared → confirm before deleting `/var/www/<hostname>/` contents → remind the user to remove the DNS record manually.
+2. **Add a site** — hostname (validated as `*.lyly.dev`) + type (static or reverse proxy w/ port). Reverse-proxy ports are checked for conflicts first: rejected if another reverse-proxy site already uses that port, or if it's a reserved port (`lyly-admin`'s own `PORT`, or Caddy's admin API on `2019`). On submit, in this order: back up configs → append Caddyfile block → if static, create `/var/www/<hostname>/` (`web:webdeploy`, `2775`, via `deploy/lyly-admin-create-site-dir.sh`) with a placeholder `index.html` → append tunnel ingress rule to the `lychee-sites` tunnel's config (inserted before the catch-all `http_status:404` line, pointing at `service: http://localhost:80`) → `caddy validate` (abort on failure, no reload) → `systemctl reload caddy` → `systemctl restart cloudflared-sites` → show a reminder to manually run `cloudflared tunnel route dns c7081f91-61c2-476b-8505-42d219bb6d7e <hostname>` (or the dashboard CNAME equivalent).
+3. **Remove a site** — remove the Caddyfile block and matching ingress line → validate + reload Caddy → restart `cloudflared-sites` → remind the user to remove the DNS record manually. For static sites, an optional "also delete site files" checkbox leads to a separate confirm page (`renderConfirmDeleteFiles`) — actual deletion only happens on a second, explicit POST to `/sites/:hostname/delete-files`, never in the same request that removes the site from Caddy/tunnel config.
 
 ## Deployment
 
@@ -60,8 +62,12 @@ One-time host setup this assumes, not done by CI:
 - `.env` placed there manually once, readable by the `webdeploy` group (e.g. `chown lyly-admin:webdeploy .env && chmod 640 .env`) so the workflow's health-check step can read `HOST`/`PORT` from it — never written or overwritten by CI.
 - A branch protection rule on `main` (require PR + review, disallow direct/force pushes) — the workflow triggers on every push to `main`, which only means "gated behind PR merge" if direct pushes are actually blocked at the repo settings level.
 
-## Open questions to resolve while implementing
+## Reverse-proxy sites
 
-- ~~Exact path of `cloudflared`'s `config.yml` on `lychee`.~~ Confirmed: `/etc/cloudflared/config.yml`, see above.
-- ~~Whether `cloudflared` runs under `byron` or `root`.~~ Confirmed: root.
-- Final choice of the dedicated low-privilege user this Express app runs as — not yet created on `lychee` (`id lyly-admin` returns no such user as of this check).
+Choosing "reverse proxy" instead of "static" means `lyly-admin` only wires up Caddy/tunnel routing to `localhost:<port>` — it does not run, deploy, or supervise whatever's listening there. You're responsible for keeping that process alive yourself (its own systemd unit, PM2, Docker, etc.), the same way the Palworld server and `swee` bot are managed independently of this app. This is how you'd host something like a Next.js app: run `next start` (or equivalent) on a local port, then add it here as a reverse-proxy site pointing at that port.
+
+## Resolved questions from initial spec
+
+- `cloudflared`'s config path: confirmed via SSH — see the two-tunnel setup above.
+- `cloudflared` runs as root (no `User=` in either tunnel's unit file).
+- Dedicated low-privilege user is `lyly-admin` (system user, member of `webdeploy`), created and running in production.
