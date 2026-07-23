@@ -39,12 +39,20 @@ function isValidHostname(hostname: string): boolean {
   return hostnamePattern.test(hostname);
 }
 
+// Caddyfile blocks lyly-admin doesn't own (e.g. a manually added local-LAN
+// block like lychee.local for admin access) must never show up as a managed
+// site, since removing them here would still delete their local directory
+// or tunnel ingress rule.
+function isManagedHostname(hostname: string): boolean {
+  return hostname === config.domain || isValidHostname(hostname);
+}
+
 const PLACEHOLDER_INDEX_HTML = (hostname: string) =>
   `<!doctype html>\n<html><head><title>${hostname}</title></head><body><h1>${hostname}</h1><p>Site created by lyly-admin. Replace this file with your content.</p></body></html>\n`;
 
 sitesRouter.get("/", (req, res) => {
   const content = fs.readFileSync(config.caddyfilePath, "utf8");
-  const sites = caddyfile.parseSites(content);
+  const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname));
   res.send(renderSiteList(sites, config.domain));
 });
 
