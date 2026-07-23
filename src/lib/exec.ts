@@ -1,7 +1,19 @@
 import { execFile as execFileCb, spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import { promisify } from "node:util";
+import { config } from "../config";
 
 const execFile = promisify(execFileCb);
+
+/**
+ * Local dev/test escape hatch — set MOCK_SYSTEM=true to run the full
+ * add/remove flow against fixture files without sudo, systemctl, caddy, or
+ * cloudflared installed (e.g. developing on Windows/macOS, not on lychee).
+ * Never set in production; production always goes through the real
+ * privileged commands below.
+ */
+const MOCK_SYSTEM = process.env.MOCK_SYSTEM === "true";
 
 export class CommandError extends Error {
   constructor(
@@ -29,10 +41,16 @@ async function run(command: string, args: string[]): Promise<{ stdout: string; s
 }
 
 export function validateCaddyfile(caddyfilePath: string): Promise<{ stdout: string; stderr: string }> {
+  if (MOCK_SYSTEM) {
+    return Promise.resolve({ stdout: `[mock] validated ${caddyfilePath}`, stderr: "" });
+  }
   return run("sudo", ["/usr/bin/caddy", "validate", "--config", caddyfilePath]);
 }
 
 export function reloadCaddy(): Promise<{ stdout: string; stderr: string }> {
+  if (MOCK_SYSTEM) {
+    return Promise.resolve({ stdout: "[mock] reloaded caddy", stderr: "" });
+  }
   return run("sudo", ["/usr/bin/systemctl", "reload", "caddy"]);
 }
 
@@ -43,10 +61,16 @@ export function reloadCaddy(): Promise<{ stdout: string; stderr: string }> {
  * ssh.lyly.dev, which stays on its own separate tunnel/service.
  */
 export function restartCloudflared(): Promise<{ stdout: string; stderr: string }> {
+  if (MOCK_SYSTEM) {
+    return Promise.resolve({ stdout: "[mock] restarted cloudflared-sites", stderr: "" });
+  }
   return run("sudo", ["/usr/bin/systemctl", "restart", "cloudflared-sites"]);
 }
 
 export function caddyStatus(): Promise<{ stdout: string; stderr: string }> {
+  if (MOCK_SYSTEM) {
+    return Promise.resolve({ stdout: "[mock] active (running)", stderr: "" });
+  }
   return run("sudo", ["/usr/bin/systemctl", "status", "caddy", "--no-pager"]);
 }
 
@@ -58,6 +82,10 @@ export function caddyStatus(): Promise<{ stdout: string; stderr: string }> {
  * /var/www" without wildcards, which aren't supported on every sudo build.
  */
 export function createSiteDirectory(hostname: string): Promise<{ stdout: string; stderr: string }> {
+  if (MOCK_SYSTEM) {
+    fs.mkdirSync(path.join(config.sitesRoot, hostname), { recursive: true });
+    return Promise.resolve({ stdout: `[mock] created ${path.join(config.sitesRoot, hostname)}`, stderr: "" });
+  }
   return run("sudo", ["/usr/local/sbin/lyly-admin-create-site-dir", hostname]);
 }
 
@@ -69,6 +97,10 @@ export function createSiteDirectory(hostname: string): Promise<{ stdout: string;
  * dedicated low-privilege app user has no direct write access to either file.
  */
 export function writeManagedConfig(targetPath: string, content: string): Promise<void> {
+  if (MOCK_SYSTEM) {
+    fs.writeFileSync(targetPath, content);
+    return Promise.resolve();
+  }
   return new Promise((resolve, reject) => {
     const child = spawn("sudo", ["/usr/local/sbin/lyly-admin-write-config", targetPath]);
 

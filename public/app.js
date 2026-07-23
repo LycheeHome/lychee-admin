@@ -17,3 +17,27 @@ function syncPortField() {
 
 typeInputs.forEach((input) => input.addEventListener("change", syncPortField));
 syncPortField();
+
+document.querySelectorAll("[data-open-dialog]").forEach((trigger) => {
+  trigger.addEventListener("click", () => {
+    document.getElementById(trigger.dataset.openDialog)?.showModal();
+  });
+});
+
+document.querySelectorAll("[data-close-dialog]").forEach((trigger) => {
+  trigger.addEventListener("click", () => {
+    document.getElementById(trigger.dataset.closeDialog)?.close();
+  });
+});
+
+document.querySelectorAll("dialog.modal").forEach((dialog) => {
+  dialog.addEventListener("click", (event) => {
+    const rect = dialog.getBoundingClientRect();
+    const inside =
+      event.clientX >= rect.left &&
+      event.clientX <= rect.right &&
+      event.clientY >= rect.top &&
+      event.clientY <= rect.bottom;
+    if (!inside) dialog.close();
+  });
+});
