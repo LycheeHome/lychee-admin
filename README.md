@@ -23,7 +23,7 @@ cp .env.example .env   # fill in ADMIN_PASSWORD_HASH at minimum
 npm run dev
 ```
 
-Other scripts: `npm run build`, `npm run typecheck`, `npm run lint`, `npm start` (runs the built `dist/server.js`).
+`npm run dev` runs the TypeScript server and the Tailwind CSS build in watch mode side by side. Other scripts: `npm run build` (also rebuilds `public/style.css`), `npm run build:css`, `npm run typecheck`, `npm run lint`, `npm start` (runs the built `dist/server.js`).
 
 ## Deployment
 
