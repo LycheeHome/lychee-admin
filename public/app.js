@@ -1,6 +1,9 @@
 let pendingDeleteForm = null;
 let pendingDeleteHostname = null;
 let pendingDeleteCard = null;
+let deleteInFlight = false;
+
+const portOwners = JSON.parse(document.getElementById("port-owners-data")?.textContent ?? "{}");
 
 const confirmRemoveDialog = document.getElementById("confirm-remove-dialog");
 const confirmRemoveHostname = document.getElementById("confirm-remove-hostname");
@@ -21,6 +24,11 @@ function showBanner(message, kind) {
   if (kind === "error") {
     flashBanner.classList.add("bg-red-950/60", "border-red-400/70");
     flashBannerClose.classList.remove("hidden");
+  } else if (kind === "info") {
+    flashBanner.classList.add("bg-rose-950/60", "border-rose-400/70");
+    flashBannerClose.classList.add("hidden");
+    // No auto-dismiss: the caller replaces this banner with a terminal
+    // success/error banner once the in-flight operation resolves.
   } else {
     flashBanner.classList.add("bg-rose-950/60", "border-rose-400/70");
     flashBannerClose.classList.add("hidden");
@@ -35,7 +43,12 @@ function hideBanner() {
 
 flashBannerClose?.addEventListener("click", hideBanner);
 
-function removeCard(card) {
+function removeCard(card, hostname) {
+  if (hostname) {
+    for (const [port, owner] of Object.entries(portOwners)) {
+      if (owner === hostname) delete portOwners[port];
+    }
+  }
   if (!card) return;
   const grid = card.closest(".sites-grid");
   card.remove();
@@ -55,6 +68,7 @@ document.querySelectorAll(".delete-form").forEach((form) => {
 });
 
 document.getElementById("confirm-remove-submit")?.addEventListener("click", async () => {
+  if (deleteInFlight) return;
   confirmRemoveDialog?.close();
   const form = pendingDeleteForm;
   pendingDeleteForm = null;
@@ -64,6 +78,8 @@ document.getElementById("confirm-remove-submit")?.addEventListener("click", asyn
   const deleteFilesChecked = form.querySelector('input[name="deleteFiles"]')?.checked ?? false;
   const card = form.closest("article");
 
+  deleteInFlight = true;
+  showBanner(`Removing ${hostname}…`, "info");
   try {
     const response = await fetch(form.getAttribute("action"), {
       method: "POST",
@@ -78,17 +94,21 @@ document.getElementById("confirm-remove-submit")?.addEventListener("click", asyn
       if (confirmDeleteFilesHostname) confirmDeleteFilesHostname.textContent = hostname;
       if (confirmDeleteFilesPath) confirmDeleteFilesPath.textContent = result.sitePath ?? "";
       confirmDeleteFilesDialog?.showModal();
+      hideBanner();
       return;
     }
 
-    removeCard(card);
+    removeCard(card, hostname);
     showBanner(`Removed ${hostname}. Remember to remove the DNS record in Cloudflare manually.`, "success");
   } catch (error) {
     showBanner(error.message, "error");
+  } finally {
+    deleteInFlight = false;
   }
 });
 
 document.getElementById("confirm-delete-files-submit")?.addEventListener("click", async () => {
+  if (deleteInFlight) return;
   confirmDeleteFilesDialog?.close();
   const hostname = pendingDeleteHostname;
   const card = pendingDeleteCard;
@@ -96,15 +116,19 @@ document.getElementById("confirm-delete-files-submit")?.addEventListener("click"
   pendingDeleteCard = null;
   if (!hostname) return;
 
+  deleteInFlight = true;
+  showBanner(`Removing ${hostname}…`, "info");
   try {
     const response = await fetch(`/sites/${encodeURIComponent(hostname)}/delete-files`, { method: "POST" });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? "Failed to delete site files");
 
-    removeCard(card);
+    removeCard(card, hostname);
     showBanner(`Deleted files for ${hostname}. Remember to remove the DNS record in Cloudflare manually.`, "success");
   } catch (error) {
     showBanner(error.message, "error");
+  } finally {
+    deleteInFlight = false;
   }
 });
 
@@ -119,7 +143,6 @@ function syncPortField() {
 typeInputs.forEach((input) => input.addEventListener("change", syncPortField));
 syncPortField();
 
-const portOwners = JSON.parse(document.getElementById("port-owners-data")?.textContent ?? "{}");
 const portField = document.getElementById("port-field");
 const portError = document.querySelector(".port-error");
 
