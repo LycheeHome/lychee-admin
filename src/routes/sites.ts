@@ -53,7 +53,18 @@ const PLACEHOLDER_INDEX_HTML = (hostname: string) =>
 sitesRouter.get("/", (req, res) => {
   const content = fs.readFileSync(config.caddyfilePath, "utf8");
   const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname));
-  res.send(renderSiteList(sites, config.domain));
+
+  // Ports already spoken for, so the add-site form can flag a conflict
+  // client-side as the user types instead of only on submit.
+  const portOwners: Record<string, string> = {
+    [String(config.port)]: "reserved (lyly-admin itself)",
+    [String(CADDY_ADMIN_PORT)]: "reserved (Caddy admin API)",
+  };
+  for (const site of sites) {
+    if (site.type === "reverse-proxy") portOwners[site.target] = site.hostname;
+  }
+
+  res.send(renderSiteList(sites, config.domain, undefined, portOwners));
 });
 
 sitesRouter.post("/sites", async (req, res) => {

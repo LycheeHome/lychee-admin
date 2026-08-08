@@ -8,15 +8,34 @@ document.querySelectorAll(".delete-form").forEach((form) => {
 });
 
 const typeInputs = document.querySelectorAll('input[name="type"]');
-const portField = document.querySelector(".port-input");
+const portFieldWrapper = document.querySelector(".port-input");
 
 function syncPortField() {
   const isProxy = document.querySelector('input[name="type"]:checked')?.value === "reverse-proxy";
-  if (portField) portField.style.display = isProxy ? "flex" : "none";
+  if (portFieldWrapper) portFieldWrapper.style.display = isProxy ? "flex" : "none";
 }
 
 typeInputs.forEach((input) => input.addEventListener("change", syncPortField));
 syncPortField();
+
+const portOwners = JSON.parse(document.getElementById("port-owners-data")?.textContent ?? "{}");
+const portField = document.getElementById("port-field");
+const portError = document.querySelector(".port-error");
+
+function validatePortField() {
+  if (!portField || !portError) return;
+  const owner = portOwners[portField.value];
+  if (owner) {
+    portField.setCustomValidity(`Port ${portField.value} is already in use by ${owner}`);
+    portError.textContent = `Already in use by ${owner}`;
+    portError.classList.remove("hidden");
+  } else {
+    portField.setCustomValidity("");
+    portError.classList.add("hidden");
+  }
+}
+
+portField?.addEventListener("input", validatePortField);
 
 document.querySelectorAll("[data-open-dialog]").forEach((trigger) => {
   trigger.addEventListener("click", () => {

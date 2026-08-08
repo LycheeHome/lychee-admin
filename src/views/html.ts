@@ -62,7 +62,12 @@ function icon(name: keyof typeof ICONS): string {
   return `<svg class="w-[1em] h-[1em] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
 }
 
-export function renderSiteList(sites: Site[], domain: string, error?: string): string {
+export function renderSiteList(
+  sites: Site[],
+  domain: string,
+  error?: string,
+  portOwners: Record<string, string> = {},
+): string {
   const cards = sites
     .map(
       (site) => `
@@ -125,8 +130,10 @@ export function renderSiteList(sites: Site[], domain: string, error?: string): s
 
         <label class="port-input hidden ${FORM_LABEL}">
           Local port (reverse proxy only)
-          <input type="number" name="port" min="1" max="65535" class="${INPUT}" />
+          <input type="number" name="port" min="1" max="65535" class="${INPUT}" id="port-field" />
+          <span class="port-error hidden text-red-300 text-[0.8rem]"></span>
         </label>
+        <script type="application/json" id="port-owners-data">${JSON.stringify(portOwners)}</script>
 
         <div class="flex justify-end gap-2.5">
           <button type="button" class="${BUTTON_SECONDARY}" data-close-dialog="add-site-dialog">Cancel</button>
