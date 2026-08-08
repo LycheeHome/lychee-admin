@@ -43,7 +43,13 @@ function layout(title: string, body: string, variant: "grid" | "result" = "grid"
   <header class="max-w-[1080px] mx-auto py-10 pb-12">
     <h1 class="font-display text-2xl font-semibold tracking-wide text-stone-50 m-0">lyly<span class="text-rose-400">.</span>admin</h1>
   </header>
-  <main class="${mainClass}">${body}</main>
+  <main class="${mainClass}">
+    <div id="flash-banner" class="hidden font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 max-w-[1080px] mx-auto mb-5 border flex items-center justify-between gap-3" role="status" aria-live="polite">
+      <span id="flash-banner-message"></span>
+      <button type="button" id="flash-banner-close" class="hidden shrink-0 text-stone-400 hover:text-stone-50 bg-transparent border-none cursor-pointer text-base leading-none" aria-label="Dismiss">&times;</button>
+    </div>
+    ${body}
+  </main>
   <script src="/app.js"></script>
 </body>
 </html>`;
@@ -109,7 +115,7 @@ export function renderSiteList(
         <h2 class="font-mono text-[0.85rem] font-semibold uppercase tracking-[0.08em] text-stone-400 m-0">Existing sites</h2>
         <button type="button" class="${BUTTON_PRIMARY} font-mono" data-open-dialog="add-site-dialog">${icon("plus")}Add site</button>
       </div>
-      <div class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5">
+      <div class="sites-grid grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5">
         ${cards || `<p class="col-span-full text-stone-400 italic m-0">No sites configured yet.</p>`}
       </div>
     </section>
@@ -148,6 +154,18 @@ export function renderSiteList(
       <div class="flex justify-end gap-2.5">
         <button type="button" class="${BUTTON_SECONDARY}" data-close-dialog="confirm-remove-dialog">Cancel</button>
         <button type="button" id="confirm-remove-submit" class="${BUTTON_DANGER}">${icon("trash")}Remove</button>
+      </div>
+    </dialog>
+
+    <dialog id="confirm-delete-files-dialog" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
+      <h2 class="font-mono text-[0.85rem] font-semibold uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Delete site files</h2>
+      <p class="m-0 mb-5 leading-relaxed">
+        <strong id="confirm-delete-files-hostname"></strong> has been removed from Caddy and the tunnel config.
+        Permanently delete <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50" id="confirm-delete-files-path"></code> and everything in it? This cannot be undone.
+      </p>
+      <div class="flex justify-end gap-2.5">
+        <button type="button" class="${BUTTON_SECONDARY}" data-close-dialog="confirm-delete-files-dialog">Leave files in place</button>
+        <button type="button" id="confirm-delete-files-submit" class="${BUTTON_DANGER}">${icon("trash")}Delete permanently</button>
       </div>
     </dialog>
     `,
