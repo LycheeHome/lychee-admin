@@ -14,14 +14,7 @@ import {
   writeManagedConfig,
 } from "../lib/exec";
 import { logAction } from "../lib/logger";
-import {
-  renderAddResult,
-  renderConfirmDeleteFiles,
-  renderError,
-  renderFilesDeletedResult,
-  renderRemoveResult,
-  renderSiteList,
-} from "../views/html";
+import { renderAddResult, renderError, renderSiteList } from "../views/html";
 
 export const sitesRouter = Router();
 
@@ -176,15 +169,15 @@ sitesRouter.post("/sites/:hostname/delete", async (req, res) => {
     // Site file deletion is a separate, explicit confirmation step — never
     // triggered by the same request that removes the site from Caddy/tunnel.
     if (wantsFileDelete && existingSite?.type === "static") {
-      res.send(renderConfirmDeleteFiles(hostname, existingSite.target));
+      res.json({ removed: true, needsFileConfirm: true, sitePath: existingSite.target });
       return;
     }
 
-    res.send(renderRemoveResult(hostname));
+    res.json({ removed: true, needsFileConfirm: false });
   } catch (error) {
     const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
     logAction({ action: "remove-site-failed", hostname, detail: message });
-    res.status(500).send(renderError("Failed to remove site", message));
+    res.status(500).json({ error: message });
   }
 });
 
@@ -192,7 +185,7 @@ sitesRouter.post("/sites/:hostname/delete-files", (req, res) => {
   const hostname = req.params.hostname.toLowerCase();
 
   if (!isValidHostname(hostname)) {
-    res.status(400).send(renderError("Invalid hostname", `"${hostname}" must be a subdomain of ${config.domain}`));
+    res.status(400).json({ error: `"${hostname}" must be a subdomain of ${config.domain}` });
     return;
   }
 
@@ -201,10 +194,10 @@ sitesRouter.post("/sites/:hostname/delete-files", (req, res) => {
   try {
     fs.rmSync(sitePath, { recursive: true, force: true });
     logAction({ action: "delete-site-files", hostname, detail: sitePath });
-    res.send(renderFilesDeletedResult(hostname, sitePath));
+    res.json({ deleted: true });
   } catch (error) {
     const message = String(error);
     logAction({ action: "delete-site-files-failed", hostname, detail: message });
-    res.status(500).send(renderError("Failed to delete site files", message));
+    res.status(500).json({ error: message });
   }
 });
