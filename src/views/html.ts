@@ -94,7 +94,7 @@ export function renderSiteList(
                 </label>`
               : ""
           }
-          <button type="submit" class="${BUTTON_DANGER}">${icon("trash")}Remove</button>
+          <button type="button" class="delete-trigger ${BUTTON_DANGER}">${icon("trash")}Remove</button>
         </form>
       </article>`,
     )
@@ -140,6 +140,15 @@ export function renderSiteList(
           <button type="submit" class="${BUTTON_PRIMARY}">Add site</button>
         </div>
       </form>
+    </dialog>
+
+    <dialog id="confirm-remove-dialog" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
+      <h2 class="font-mono text-[0.85rem] font-semibold uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Remove site</h2>
+      <p class="m-0 mb-5 leading-relaxed">Remove <strong id="confirm-remove-hostname"></strong>? This removes it from Caddy and the tunnel config immediately.</p>
+      <div class="flex justify-end gap-2.5">
+        <button type="button" class="${BUTTON_SECONDARY}" data-close-dialog="confirm-remove-dialog">Cancel</button>
+        <button type="button" id="confirm-remove-submit" class="${BUTTON_DANGER}">${icon("trash")}Remove</button>
+      </div>
     </dialog>
     `,
   );

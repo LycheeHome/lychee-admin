@@ -1,10 +1,20 @@
+let pendingDeleteForm = null;
+const confirmRemoveDialog = document.getElementById("confirm-remove-dialog");
+const confirmRemoveHostname = document.getElementById("confirm-remove-hostname");
+
 document.querySelectorAll(".delete-form").forEach((form) => {
-  form.addEventListener("submit", (event) => {
-    const hostname = form.getAttribute("action").split("/")[2];
-    if (!confirm(`Remove ${hostname}? This removes it from Caddy and the tunnel config immediately.`)) {
-      event.preventDefault();
-    }
+  const trigger = form.querySelector(".delete-trigger");
+  trigger?.addEventListener("click", () => {
+    pendingDeleteForm = form;
+    const hostname = decodeURIComponent(form.getAttribute("action").split("/")[2]);
+    if (confirmRemoveHostname) confirmRemoveHostname.textContent = hostname;
+    confirmRemoveDialog?.showModal();
   });
+});
+
+document.getElementById("confirm-remove-submit")?.addEventListener("click", () => {
+  confirmRemoveDialog?.close();
+  pendingDeleteForm?.submit();
 });
 
 const typeInputs = document.querySelectorAll('input[name="type"]');
