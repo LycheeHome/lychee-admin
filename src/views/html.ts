@@ -169,48 +169,6 @@ export function renderAddResult(hostname: string, tunnelId: string): string {
   );
 }
 
-export function renderRemoveResult(hostname: string): string {
-  return layout(
-    "Site removed",
-    resultPanel(`
-    <p class="m-0 leading-relaxed">Removed <strong>${escapeHtml(hostname)}</strong> from Caddy and the tunnel ingress config.</p>
-    <p class="font-mono text-[0.85rem] bg-stone-700/60 border border-stone-700 border-l-[3px] border-l-rose-400 px-4 py-3.5 rounded-md leading-relaxed">Remember to remove the DNS record for this hostname in Cloudflare manually.</p>
-    <p class="m-0 leading-relaxed"><a href="/" class="${RESULT_LINK}">&larr; Back to sites</a></p>
-    `),
-    "result",
-  );
-}
-
-export function renderConfirmDeleteFiles(hostname: string, sitePath: string): string {
-  return layout(
-    "Confirm delete site files",
-    resultPanel(`
-    <p class="m-0 leading-relaxed">${escapeHtml(hostname)} has been removed from Caddy and the tunnel ingress config.</p>
-    <p class="font-mono text-[0.85rem] text-stone-50 bg-red-950/60 border border-red-400/70 rounded-md px-4 py-3">
-      This next step will permanently delete <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">${escapeHtml(sitePath)}</code> and everything in it.
-      This cannot be undone.
-    </p>
-    <form method="post" action="/sites/${encodeURIComponent(hostname)}/delete-files">
-      <button type="submit" class="${BUTTON_DANGER}">Delete permanently</button>
-    </form>
-    <p class="m-0 leading-relaxed"><a href="/" class="${RESULT_LINK}">Cancel &mdash; leave the files in place</a></p>
-    `),
-    "result",
-  );
-}
-
-export function renderFilesDeletedResult(hostname: string, sitePath: string): string {
-  return layout(
-    "Site files deleted",
-    resultPanel(`
-    <p class="m-0 leading-relaxed">Deleted <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">${escapeHtml(sitePath)}</code>.</p>
-    <p class="font-mono text-[0.85rem] bg-stone-700/60 border border-stone-700 border-l-[3px] border-l-rose-400 px-4 py-3.5 rounded-md leading-relaxed">Remember to remove the DNS record for this hostname in Cloudflare manually.</p>
-    <p class="m-0 leading-relaxed"><a href="/" class="${RESULT_LINK}">&larr; Back to sites</a></p>
-    `),
-    "result",
-  );
-}
-
 export function renderError(title: string, message: string): string {
   return layout(
     title,
