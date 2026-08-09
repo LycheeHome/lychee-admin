@@ -78,8 +78,14 @@ sitesRouter.post("/sites", async (req, res) => {
   const sitePath = path.posix.join(config.sitesRoot, hostname);
   const target = type === "static" ? sitePath : port;
 
+  // Captured so a validate/reload failure below can restore the pre-edit
+  // content — see the equivalent rollback in the /delete handler.
+  let caddyfileContent: string | undefined;
+  let tunnelContent: string | undefined;
+  let caddyReloaded = false;
+
   try {
-    const caddyfileContent = fs.readFileSync(config.caddyfilePath, "utf8");
+    caddyfileContent = fs.readFileSync(config.caddyfilePath, "utf8");
     if (caddyfile.hostnameExists(caddyfileContent, hostname)) {
       throw new Error(`${hostname} already exists in the Caddyfile`);
     }
@@ -98,6 +104,8 @@ sitesRouter.post("/sites", async (req, res) => {
       }
     }
 
+    tunnelContent = fs.readFileSync(config.tunnelConfigPath, "utf8");
+
     // 1. Back up both config files before touching either.
     backupFile(config.caddyfilePath);
     backupFile(config.tunnelConfigPath);
@@ -115,7 +123,6 @@ sitesRouter.post("/sites", async (req, res) => {
     }
 
     // 4. Append the tunnel ingress rule.
-    const tunnelContent = fs.readFileSync(config.tunnelConfigPath, "utf8");
     await writeManagedConfig(
       config.tunnelConfigPath,
       tunnelConfig.addIngressRule(tunnelContent, hostname, "http://localhost:80"),
@@ -126,6 +133,7 @@ sitesRouter.post("/sites", async (req, res) => {
 
     // 6. Reload Caddy, then restart cloudflared (ingress changes need a restart).
     await reloadCaddy();
+    caddyReloaded = true;
     await restartCloudflared();
 
     logAction({ action: "add-site", hostname, detail: `type=${type} target=${target}` });
@@ -133,6 +141,33 @@ sitesRouter.post("/sites", async (req, res) => {
   } catch (error) {
     const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
     logAction({ action: "add-site-failed", hostname, detail: message });
+
+    // Only roll back if Caddy never actually reloaded with the edited
+    // config — once it has, the live server already matches the edited
+    // files, and restoring the old content would desync them the other way.
+    if (!caddyReloaded && caddyfileContent !== undefined && tunnelContent !== undefined) {
+      try {
+        await writeManagedConfig(config.caddyfilePath, caddyfileContent);
+        await writeManagedConfig(config.tunnelConfigPath, tunnelContent);
+        logAction({ action: "add-site-rolled-back", hostname });
+      } catch (rollbackError) {
+        const rollbackMessage =
+          rollbackError instanceof CommandError
+            ? `${rollbackError.message}\n${rollbackError.stderr}`
+            : String(rollbackError);
+        logAction({ action: "add-site-rollback-failed", hostname, detail: rollbackMessage });
+        res
+          .status(500)
+          .send(
+            renderError(
+              "Failed to add site",
+              `${message}\n\nAdditionally, restoring the original config failed: ${rollbackMessage}\n\nManual recovery needed — backups are in ${config.backupDir}.`,
+            ),
+          );
+        return;
+      }
+    }
+
     res
       .status(500)
       .send(

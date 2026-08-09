@@ -7,6 +7,8 @@ export interface AuditEntry {
     | "add-site"
     | "remove-site"
     | "add-site-failed"
+    | "add-site-rolled-back"
+    | "add-site-rollback-failed"
     | "remove-site-failed"
     | "remove-site-rolled-back"
     | "remove-site-rollback-failed"
