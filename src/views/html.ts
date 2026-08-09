@@ -44,7 +44,7 @@ function layout(title: string, body: string, variant: "grid" | "result" = "grid"
     <h1 class="font-display text-2xl font-semibold tracking-wide text-stone-50 m-0">lyly<span class="text-rose-400">.</span>admin</h1>
   </header>
   <main class="${mainClass}">
-    <div id="flash-banner" class="hidden font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 max-w-[1080px] mx-auto mb-5 border flex items-center justify-between gap-3" role="status" aria-live="polite">
+    <div id="flash-banner" class="hidden fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[min(480px,calc(100vw-2rem))] font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 border shadow-lg shadow-black/40 flex items-center justify-between gap-3" role="status" aria-live="polite">
       <span id="flash-banner-message"></span>
       <button type="button" id="flash-banner-close" class="hidden shrink-0 text-stone-400 hover:text-stone-50 bg-transparent border-none cursor-pointer text-base leading-none" aria-label="Dismiss">&times;</button>
     </div>
