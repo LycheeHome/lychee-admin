@@ -119,17 +119,17 @@ document.getElementById("confirm-remove-submit")?.addEventListener("click", asyn
 
 const typeInputs = document.querySelectorAll('input[name="type"]');
 const portFieldWrapper = document.querySelector(".port-input");
+const portField = document.getElementById("port-field");
+const portError = document.querySelector(".port-error");
 
 function syncPortField() {
   const isProxy = document.querySelector('input[name="type"]:checked')?.value === "reverse-proxy";
   if (portFieldWrapper) portFieldWrapper.style.display = isProxy ? "flex" : "none";
+  if (portField) portField.required = isProxy;
 }
 
 typeInputs.forEach((input) => input.addEventListener("change", syncPortField));
 syncPortField();
-
-const portField = document.getElementById("port-field");
-const portError = document.querySelector(".port-error");
 
 function validatePortField() {
   if (!portField || !portError) return;
