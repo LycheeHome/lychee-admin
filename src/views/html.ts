@@ -17,13 +17,9 @@ const BUTTON_DANGER =
 const INPUT =
   "font-mono bg-stone-900 border border-stone-700 rounded-md text-stone-50 px-2.5 py-2 text-sm placeholder:text-stone-400/60 focus:outline focus:outline-2 focus:outline-rose-400 focus:outline-offset-2";
 const FORM_LABEL = "flex flex-col gap-1.5 text-[0.85rem] text-stone-400";
-const RESULT_LINK = "text-rose-400 no-underline font-mono text-[0.85rem] hover:underline";
 
-function layout(title: string, body: string, variant: "grid" | "result" = "grid"): string {
-  const mainClass =
-    variant === "result"
-      ? "max-w-[640px] mx-auto py-6 pb-8 block"
-      : "max-w-[1080px] mx-auto py-6 pb-8 flex flex-col gap-6";
+function layout(title: string, body: string): string {
+  const mainClass = "max-w-[1080px] mx-auto py-6 pb-8 flex flex-col gap-6";
 
   return `<!doctype html>
 <html lang="en" class="[color-scheme:dark]">
@@ -53,10 +49,6 @@ function layout(title: string, body: string, variant: "grid" | "result" = "grid"
   <script src="/app.js"></script>
 </body>
 </html>`;
-}
-
-function resultPanel(body: string): string {
-  return `<section class="bg-stone-800 border border-stone-700 rounded-[10px] p-6 flex flex-col gap-4">${body}</section>`;
 }
 
 const ICONS = {
@@ -114,7 +106,7 @@ export function renderSiteList(
 
     <dialog id="add-site-dialog" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
       <h2 class="font-mono text-[0.85rem] font-semibold uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Add a site</h2>
-      <form method="post" action="/sites" class="flex flex-col gap-4">
+      <form id="add-site-form" method="post" action="/sites" class="flex flex-col gap-4">
         <label class="${FORM_LABEL}">
           Hostname
           <input type="text" name="hostname" placeholder="blog.${escapeHtml(domain)}" required class="${INPUT}" />
@@ -133,9 +125,11 @@ export function renderSiteList(
         </label>
         <script type="application/json" id="port-owners-data">${JSON.stringify(portOwners)}</script>
 
+        <p id="add-site-error" class="hidden font-mono text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0"></p>
+
         <div class="flex justify-end gap-2.5">
           <button type="button" class="${BUTTON_SECONDARY}" data-close-dialog="add-site-dialog">Cancel</button>
-          <button type="submit" class="${BUTTON_PRIMARY}">Add site</button>
+          <button type="submit" id="add-site-submit" class="${BUTTON_PRIMARY}">Add site</button>
         </div>
       </form>
     </dialog>
@@ -153,28 +147,5 @@ export function renderSiteList(
       </div>
     </dialog>
     `,
-  );
-}
-
-export function renderAddResult(hostname: string, tunnelId: string): string {
-  return layout(
-    "Site added",
-    resultPanel(`
-    <p class="m-0 leading-relaxed">Added <strong>${escapeHtml(hostname)}</strong>.</p>
-    <p class="font-mono text-[0.85rem] bg-stone-700/60 border border-stone-700 border-l-[3px] border-l-rose-400 px-4 py-3.5 rounded-md leading-relaxed">
-      Don't forget to add the DNS record:<br />
-      <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">cloudflared tunnel route dns ${escapeHtml(tunnelId)} ${escapeHtml(hostname)}</code>
-    </p>
-    <p class="m-0 leading-relaxed"><a href="/" class="${RESULT_LINK}">&larr; Back to sites</a></p>
-    `),
-    "result",
-  );
-}
-
-export function renderError(title: string, message: string): string {
-  return layout(
-    title,
-    resultPanel(`<p class="font-mono text-[0.85rem] text-stone-50 bg-red-950/60 border border-red-400/70 rounded-md px-4 py-3">${escapeHtml(message)}</p><p class="m-0 leading-relaxed"><a href="/" class="${RESULT_LINK}">&larr; Back to sites</a></p>`),
-    "result",
   );
 }

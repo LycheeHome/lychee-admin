@@ -27,6 +27,10 @@ function showBanner(message, kind) {
     flashBannerClose.classList.add("hidden");
     // No auto-dismiss: the caller replaces this banner with a terminal
     // success/error banner once the in-flight operation resolves.
+  } else if (kind === "persistent") {
+    flashBanner.classList.add("bg-rose-950/60", "border-rose-400/70");
+    flashBannerClose.classList.remove("hidden");
+    // No auto-dismiss: stays until the user dismisses it themselves.
   } else {
     flashBanner.classList.add("bg-rose-950/60", "border-rose-400/70");
     flashBannerClose.classList.add("hidden");
@@ -55,21 +59,38 @@ function removeCard(card, hostname) {
   }
 }
 
-document.querySelectorAll(".delete-form").forEach((form) => {
-  const trigger = form.querySelector(".delete-trigger");
-  trigger?.addEventListener("click", () => {
-    pendingDeleteForm = form;
-    const hostname = decodeURIComponent(form.getAttribute("action").split("/")[2]);
-    if (confirmRemoveHostname) confirmRemoveHostname.textContent = hostname;
+function wireDeleteForms() {
+  document.querySelectorAll(".delete-form").forEach((form) => {
+    const trigger = form.querySelector(".delete-trigger");
+    trigger?.addEventListener("click", () => {
+      pendingDeleteForm = form;
+      const hostname = decodeURIComponent(form.getAttribute("action").split("/")[2]);
+      if (confirmRemoveHostname) confirmRemoveHostname.textContent = hostname;
 
-    const isStatic = trigger.dataset.siteType === "static";
-    confirmRemoveDeleteFilesLabel?.classList.toggle("hidden", !isStatic);
-    if (confirmRemoveDeleteFilesCheckbox) confirmRemoveDeleteFilesCheckbox.checked = false;
-    if (confirmRemovePath) confirmRemovePath.textContent = trigger.dataset.sitePath ?? "";
+      const isStatic = trigger.dataset.siteType === "static";
+      confirmRemoveDeleteFilesLabel?.classList.toggle("hidden", !isStatic);
+      if (confirmRemoveDeleteFilesCheckbox) confirmRemoveDeleteFilesCheckbox.checked = false;
+      if (confirmRemovePath) confirmRemovePath.textContent = trigger.dataset.sitePath ?? "";
 
-    confirmRemoveDialog?.showModal();
+      confirmRemoveDialog?.showModal();
+    });
   });
-});
+}
+
+wireDeleteForms();
+
+// After adding a site, the freshly rendered card comes from the server
+// (not hand-built here) so it can never drift from the real template —
+// re-fetch the list and swap in just the grid, then re-wire the new cards.
+async function refreshSitesGrid() {
+  const response = await fetch("/");
+  const html = await response.text();
+  const newGrid = new DOMParser().parseFromString(html, "text/html").querySelector(".sites-grid");
+  const currentGrid = document.querySelector(".sites-grid");
+  if (!newGrid || !currentGrid) return;
+  currentGrid.innerHTML = newGrid.innerHTML;
+  wireDeleteForms();
+}
 
 document.getElementById("confirm-remove-submit")?.addEventListener("click", async () => {
   if (deleteInFlight) return;
@@ -145,6 +166,56 @@ function validatePortField() {
 }
 
 portField?.addEventListener("input", validatePortField);
+
+const addSiteDialog = document.getElementById("add-site-dialog");
+const addSiteForm = document.getElementById("add-site-form");
+const addSiteError = document.getElementById("add-site-error");
+let addSiteInFlight = false;
+
+// Fires on every close (Cancel, backdrop click, Esc, or our own .close()
+// after a successful add) so the dialog always starts fresh next time.
+addSiteDialog?.addEventListener("close", () => {
+  addSiteError?.classList.add("hidden");
+  addSiteForm?.reset();
+  syncPortField();
+  validatePortField();
+});
+
+addSiteForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (addSiteInFlight) return;
+
+  const formData = new FormData(addSiteForm);
+  const hostname = String(formData.get("hostname") ?? "").trim();
+  const type = formData.get("type");
+  const port = String(formData.get("port") ?? "").trim();
+
+  addSiteInFlight = true;
+  addSiteError?.classList.add("hidden");
+  try {
+    const response = await fetch("/sites", {
+      method: "POST",
+      body: new URLSearchParams({ hostname, type, port }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error ?? "Failed to add site");
+
+    addSiteDialog?.close();
+    await refreshSitesGrid();
+    if (result.type === "reverse-proxy") portOwners[result.target] = result.hostname;
+    showBanner(
+      `Added ${result.hostname}. Don't forget to add the DNS record: cloudflared tunnel route dns ${result.tunnelId} ${result.hostname}`,
+      "persistent",
+    );
+  } catch (error) {
+    if (addSiteError) {
+      addSiteError.textContent = error.message;
+      addSiteError.classList.remove("hidden");
+    }
+  } finally {
+    addSiteInFlight = false;
+  }
+});
 
 document.querySelectorAll("[data-open-dialog]").forEach((trigger) => {
   trigger.addEventListener("click", () => {

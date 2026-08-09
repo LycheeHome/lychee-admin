@@ -14,7 +14,7 @@ import {
   writeManagedConfig,
 } from "../lib/exec";
 import { logAction } from "../lib/logger";
-import { renderAddResult, renderError, renderSiteList } from "../views/html";
+import { renderSiteList } from "../views/html";
 
 export const sitesRouter = Router();
 
@@ -66,12 +66,12 @@ sitesRouter.post("/sites", async (req, res) => {
   const port = String(req.body?.port ?? "").trim();
 
   if (!isValidHostname(hostname)) {
-    res.status(400).send(renderError("Invalid hostname", `"${hostname}" must be a subdomain of ${config.domain}`));
+    res.status(400).json({ error: `"${hostname}" must be a subdomain of ${config.domain}` });
     return;
   }
 
   if (type === "reverse-proxy" && (!port || Number(port) < 1 || Number(port) > 65535)) {
-    res.status(400).send(renderError("Invalid port", "A valid local port is required for a reverse proxy site"));
+    res.status(400).json({ error: "A valid local port is required for a reverse proxy site" });
     return;
   }
 
@@ -137,7 +137,7 @@ sitesRouter.post("/sites", async (req, res) => {
     await restartCloudflared();
 
     logAction({ action: "add-site", hostname, detail: `type=${type} target=${target}` });
-    res.send(renderAddResult(hostname, config.tunnelId));
+    res.json({ added: true, hostname, type, target, tunnelId: config.tunnelId });
   } catch (error) {
     const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
     logAction({ action: "add-site-failed", hostname, detail: message });
@@ -156,26 +156,16 @@ sitesRouter.post("/sites", async (req, res) => {
             ? `${rollbackError.message}\n${rollbackError.stderr}`
             : String(rollbackError);
         logAction({ action: "add-site-rollback-failed", hostname, detail: rollbackMessage });
-        res
-          .status(500)
-          .send(
-            renderError(
-              "Failed to add site",
-              `${message}\n\nAdditionally, restoring the original config failed: ${rollbackMessage}\n\nManual recovery needed — backups are in ${config.backupDir}.`,
-            ),
-          );
+        res.status(500).json({
+          error: `${message}\n\nAdditionally, restoring the original config failed: ${rollbackMessage}\n\nManual recovery needed — backups are in ${config.backupDir}.`,
+        });
         return;
       }
     }
 
-    res
-      .status(500)
-      .send(
-        renderError(
-          "Failed to add site",
-          `${message}\n\nBacked-up copies of the Caddyfile and tunnel config were saved to ${config.backupDir} before this attempt — review and restore manually if the configs were left in a bad state.`,
-        ),
-      );
+    res.status(500).json({
+      error: `${message}\n\nBacked-up copies of the Caddyfile and tunnel config were saved to ${config.backupDir} before this attempt — review and restore manually if the configs were left in a bad state.`,
+    });
   }
 });
 
