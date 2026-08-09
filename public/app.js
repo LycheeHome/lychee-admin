@@ -7,6 +7,9 @@ const portOwners = JSON.parse(document.getElementById("port-owners-data")?.textC
 
 const confirmRemoveDialog = document.getElementById("confirm-remove-dialog");
 const confirmRemoveHostname = document.getElementById("confirm-remove-hostname");
+const confirmRemoveDeleteFilesLabel = document.getElementById("confirm-remove-delete-files-label");
+const confirmRemoveDeleteFilesCheckbox = document.getElementById("confirm-remove-delete-files");
+const confirmRemovePath = document.getElementById("confirm-remove-path");
 const confirmDeleteFilesDialog = document.getElementById("confirm-delete-files-dialog");
 const confirmDeleteFilesHostname = document.getElementById("confirm-delete-files-hostname");
 const confirmDeleteFilesPath = document.getElementById("confirm-delete-files-path");
@@ -63,6 +66,12 @@ document.querySelectorAll(".delete-form").forEach((form) => {
     pendingDeleteForm = form;
     const hostname = decodeURIComponent(form.getAttribute("action").split("/")[2]);
     if (confirmRemoveHostname) confirmRemoveHostname.textContent = hostname;
+
+    const isStatic = trigger.dataset.siteType === "static";
+    confirmRemoveDeleteFilesLabel?.classList.toggle("hidden", !isStatic);
+    if (confirmRemoveDeleteFilesCheckbox) confirmRemoveDeleteFilesCheckbox.checked = false;
+    if (confirmRemovePath) confirmRemovePath.textContent = trigger.dataset.sitePath ?? "";
+
     confirmRemoveDialog?.showModal();
   });
 });
@@ -75,7 +84,7 @@ document.getElementById("confirm-remove-submit")?.addEventListener("click", asyn
   if (!form) return;
 
   const hostname = decodeURIComponent(form.getAttribute("action").split("/")[2]);
-  const deleteFilesChecked = form.querySelector('input[name="deleteFiles"]')?.checked ?? false;
+  const deleteFilesChecked = confirmRemoveDeleteFilesCheckbox?.checked ?? false;
   const card = form.closest("article");
 
   deleteInFlight = true;

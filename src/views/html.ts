@@ -92,15 +92,7 @@ export function renderSiteList(
             : `<span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">localhost:</span>${escapeHtml(site.target)}`
         }</p>
         <form method="post" action="/sites/${encodeURIComponent(site.hostname)}/delete" class="delete-form mt-auto pt-2.5 flex items-center gap-2.5 flex-wrap">
-          ${
-            site.type === "static"
-              ? `<label class="flex-row items-center text-[0.75rem] text-stone-400 gap-1.5 flex">
-                  <input type="checkbox" name="deleteFiles" value="on" />
-                  Also delete files at ${escapeHtml(site.target)}
-                </label>`
-              : ""
-          }
-          <button type="button" class="delete-trigger ${BUTTON_DANGER}">${icon("trash")}Remove</button>
+          <button type="button" class="delete-trigger ${BUTTON_DANGER}" data-site-type="${site.type}" data-site-path="${escapeHtml(site.target)}">${icon("trash")}Remove</button>
         </form>
       </article>`,
     )
@@ -150,7 +142,11 @@ export function renderSiteList(
 
     <dialog id="confirm-remove-dialog" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
       <h2 class="font-mono text-[0.85rem] font-semibold uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Remove site</h2>
-      <p class="m-0 mb-5 leading-relaxed">Remove <strong id="confirm-remove-hostname"></strong>? This removes it from Caddy and the tunnel config immediately.</p>
+      <p class="m-0 mb-4 leading-relaxed">Remove <strong id="confirm-remove-hostname"></strong>? This removes it from Caddy and the tunnel config immediately.</p>
+      <label id="confirm-remove-delete-files-label" class="hidden flex-row items-center text-[0.8rem] text-stone-400 gap-1.5 flex mb-5">
+        <input type="checkbox" id="confirm-remove-delete-files" />
+        Also delete files at <span id="confirm-remove-path" class="font-mono"></span>
+      </label>
       <div class="flex justify-end gap-2.5">
         <button type="button" class="${BUTTON_SECONDARY}" data-close-dialog="confirm-remove-dialog">Cancel</button>
         <button type="button" id="confirm-remove-submit" class="${BUTTON_DANGER}">${icon("trash")}Remove</button>
