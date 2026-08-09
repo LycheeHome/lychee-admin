@@ -152,18 +152,6 @@ export function renderSiteList(
         <button type="button" id="confirm-remove-submit" class="${BUTTON_DANGER}">${icon("trash")}Remove</button>
       </div>
     </dialog>
-
-    <dialog id="confirm-delete-files-dialog" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
-      <h2 class="font-mono text-[0.85rem] font-semibold uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Delete site files</h2>
-      <p class="m-0 mb-5 leading-relaxed">
-        <strong id="confirm-delete-files-hostname"></strong> has been removed from Caddy and the tunnel config.
-        Permanently delete <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50" id="confirm-delete-files-path"></code> and everything in it? This cannot be undone.
-      </p>
-      <div class="flex justify-end gap-2.5">
-        <button type="button" class="${BUTTON_SECONDARY}" data-close-dialog="confirm-delete-files-dialog">Leave files in place</button>
-        <button type="button" id="confirm-delete-files-submit" class="${BUTTON_DANGER}">${icon("trash")}Delete permanently</button>
-      </div>
-    </dialog>
     `,
   );
 }
