@@ -8,6 +8,8 @@ export interface AuditEntry {
     | "remove-site"
     | "add-site-failed"
     | "remove-site-failed"
+    | "remove-site-rolled-back"
+    | "remove-site-rollback-failed"
     | "delete-site-files"
     | "delete-site-files-failed";
   hostname: string;

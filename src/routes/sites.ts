@@ -148,8 +148,16 @@ sitesRouter.post("/sites/:hostname/delete", async (req, res) => {
   const hostname = req.params.hostname.toLowerCase();
   const wantsFileDelete = req.body?.deleteFiles === "on";
 
+  // Captured so a validate/reload failure below can restore the pre-edit
+  // content — Caddy never actually reloaded in that case, so leaving the
+  // edited-but-unapplied file on disk would desync the site list (which
+  // reads straight off this file) from what's still actually being served.
+  let caddyfileContent: string | undefined;
+  let tunnelContent: string | undefined;
+  let caddyReloaded = false;
+
   try {
-    const caddyfileContent = fs.readFileSync(config.caddyfilePath, "utf8");
+    caddyfileContent = fs.readFileSync(config.caddyfilePath, "utf8");
     const existingSite = caddyfile.parseSites(caddyfileContent).find((site) => site.hostname === hostname);
 
     backupFile(config.caddyfilePath);
@@ -157,17 +165,18 @@ sitesRouter.post("/sites/:hostname/delete", async (req, res) => {
 
     await writeManagedConfig(config.caddyfilePath, caddyfile.removeSite(caddyfileContent, hostname));
 
-    const tunnelContent = fs.readFileSync(config.tunnelConfigPath, "utf8");
+    tunnelContent = fs.readFileSync(config.tunnelConfigPath, "utf8");
     await writeManagedConfig(config.tunnelConfigPath, tunnelConfig.removeIngressRule(tunnelContent, hostname));
 
     await validateCaddyfile(config.caddyfilePath);
     await reloadCaddy();
+    caddyReloaded = true;
     await restartCloudflared();
 
     logAction({ action: "remove-site", hostname });
 
-    // Site file deletion is a separate, explicit confirmation step — never
-    // triggered by the same request that removes the site from Caddy/tunnel.
+    // Site file deletion is a separate, explicit request — never triggered
+    // by the same request that removes the site from Caddy/tunnel config.
     if (wantsFileDelete && existingSite?.type === "static") {
       res.json({ removed: true, needsFileConfirm: true, sitePath: existingSite.target });
       return;
@@ -177,6 +186,28 @@ sitesRouter.post("/sites/:hostname/delete", async (req, res) => {
   } catch (error) {
     const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
     logAction({ action: "remove-site-failed", hostname, detail: message });
+
+    // Only roll back if Caddy never actually reloaded with the edited
+    // config — once it has, the live server already matches the edited
+    // files, and restoring the old content would desync them the other way.
+    if (!caddyReloaded && caddyfileContent !== undefined && tunnelContent !== undefined) {
+      try {
+        await writeManagedConfig(config.caddyfilePath, caddyfileContent);
+        await writeManagedConfig(config.tunnelConfigPath, tunnelContent);
+        logAction({ action: "remove-site-rolled-back", hostname });
+      } catch (rollbackError) {
+        const rollbackMessage =
+          rollbackError instanceof CommandError
+            ? `${rollbackError.message}\n${rollbackError.stderr}`
+            : String(rollbackError);
+        logAction({ action: "remove-site-rollback-failed", hostname, detail: rollbackMessage });
+        res.status(500).json({
+          error: `${message}\n\nAdditionally, restoring the original config failed: ${rollbackMessage}\n\nManual recovery needed — backups are in ${config.backupDir}.`,
+        });
+        return;
+      }
+    }
+
     res.status(500).json({ error: message });
   }
 });
