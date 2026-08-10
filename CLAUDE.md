@@ -6,8 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Deployed and verified working end-to-end on `lychee` — add-site, remove-site, and the reverse-proxy port-conflict check have all been exercised for real through the UI, with every affected file (Caddyfile, tunnel config, `/var/www/<hostname>`, audit log) confirmed to change correctly on add and fully revert on remove. The remove-site UI has since been reworked to modals/`fetch` instead of full-page navigation, and the delete-files confirmation was folded into the initial remove-site modal (see Core v1 feature flow below) — not yet re-verified live on `lychee`.
 
-Commands: `npm run dev` (tsx watch), `npm run build` (tsc), `npm run typecheck`, `npm run lint`, `npm start` (runs `dist/server.js`).
-
 ## Purpose
 
 `lyly-admin` is a small local web app that runs on a host named `lychee` (Ubuntu Server, `192.168.1.10`) and automates adding/removing subdomains for an existing Caddy + Cloudflare Tunnel setup. It replaces manually editing the Caddyfile and tunnel ingress config by hand.
@@ -16,7 +14,6 @@ Commands: `npm run dev` (tsx watch), `npm run build` (tsc), `npm run typecheck`,
 
 ## Stack
 
-- Backend: Node.js + TypeScript + Express
 - Frontend: server-rendered HTML/vanilla JS — no frontend framework, this is a single-purpose internal tool
 - Auth: Basic auth, single user, bcrypt-hashed password stored in `.env` or a local config file (never plaintext)
 - Process management: runs as its own systemd service on `lychee`
