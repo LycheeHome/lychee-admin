@@ -1,14 +1,9 @@
-let pendingDeleteForm = null;
 let deleteInFlight = false;
 
 const portOwners = JSON.parse(document.getElementById("port-owners-data")?.textContent ?? "{}");
 
 const confirmRemoveDialog = document.getElementById("confirm-remove-dialog");
-const confirmRemoveHostname = document.getElementById("confirm-remove-hostname");
-const confirmRemoveDeleteFilesSection = document.getElementById("confirm-remove-delete-files-section");
-const confirmRemoveDockerWarning = document.getElementById("confirm-remove-docker-warning");
 const confirmRemoveDeleteFilesCheckbox = document.getElementById("confirm-remove-delete-files");
-const confirmRemovePath = document.getElementById("confirm-remove-path");
 
 const flashBanner = document.getElementById("flash-banner");
 const flashBannerMessage = document.getElementById("flash-banner-message");
@@ -46,41 +41,11 @@ function hideBanner() {
 
 flashBannerClose?.addEventListener("click", hideBanner);
 
-function removeCard(card, hostname) {
-  if (hostname) {
-    for (const [port, owner] of Object.entries(portOwners)) {
-      if (owner === hostname) delete portOwners[port];
-    }
-  }
-  if (!card) return;
-  const grid = card.closest(".sites-grid");
-  card.remove();
-  if (grid && !grid.querySelector("article")) {
-    grid.innerHTML = `<p class="col-span-full text-stone-400 italic m-0">No sites configured yet.</p>`;
-  }
+const removedHostname = new URLSearchParams(window.location.search).get("removed");
+if (removedHostname) {
+  showBanner(`Removed ${removedHostname}. Remember to remove the DNS record in Cloudflare manually.`, "success");
+  history.replaceState(null, "", "/");
 }
-
-function wireDeleteForms() {
-  document.querySelectorAll(".delete-form").forEach((form) => {
-    const trigger = form.querySelector(".delete-trigger");
-    trigger?.addEventListener("click", () => {
-      pendingDeleteForm = form;
-      const hostname = decodeURIComponent(form.getAttribute("action").split("/")[2]);
-      if (confirmRemoveHostname) confirmRemoveHostname.textContent = hostname;
-
-      const hasFiles = Boolean(trigger.dataset.sitePath);
-      const hasFramework = Boolean(trigger.dataset.framework);
-      confirmRemoveDeleteFilesSection?.classList.toggle("hidden", !hasFiles);
-      confirmRemoveDockerWarning?.classList.toggle("hidden", !hasFramework);
-      if (confirmRemoveDeleteFilesCheckbox) confirmRemoveDeleteFilesCheckbox.checked = false;
-      if (confirmRemovePath) confirmRemovePath.textContent = trigger.dataset.sitePath ?? "";
-
-      confirmRemoveDialog?.showModal();
-    });
-  });
-}
-
-wireDeleteForms();
 
 // After adding a site, the freshly rendered card comes from the server
 // (not hand-built here) so it can never drift from the real template —
@@ -92,24 +57,20 @@ async function refreshSitesGrid() {
   const currentGrid = document.querySelector(".sites-grid");
   if (!newGrid || !currentGrid) return;
   currentGrid.innerHTML = newGrid.innerHTML;
-  wireDeleteForms();
 }
 
-document.getElementById("confirm-remove-submit")?.addEventListener("click", async () => {
+document.getElementById("confirm-remove-submit")?.addEventListener("click", async (event) => {
   if (deleteInFlight) return;
   confirmRemoveDialog?.close();
-  const form = pendingDeleteForm;
-  pendingDeleteForm = null;
-  if (!form) return;
+  const hostname = event.currentTarget.dataset.hostname;
+  if (!hostname) return;
 
-  const hostname = decodeURIComponent(form.getAttribute("action").split("/")[2]);
   const deleteFilesChecked = confirmRemoveDeleteFilesCheckbox?.checked ?? false;
-  const card = form.closest("article");
 
   deleteInFlight = true;
   showBanner(`Removing ${hostname}…`, "info");
   try {
-    const response = await fetch(form.getAttribute("action"), {
+    const response = await fetch(`/sites/${encodeURIComponent(hostname)}/delete`, {
       method: "POST",
       body: new URLSearchParams({ deleteFiles: deleteFilesChecked ? "on" : "" }),
     });
@@ -117,23 +78,20 @@ document.getElementById("confirm-remove-submit")?.addEventListener("click", asyn
     if (!response.ok) throw new Error(result.error ?? "Failed to remove site");
 
     if (!result.needsFileConfirm) {
-      removeCard(card, hostname);
-      showBanner(`Removed ${hostname}. Remember to remove the DNS record in Cloudflare manually.`, "success");
+      window.location.href = `/?removed=${encodeURIComponent(hostname)}`;
       return;
     }
 
-    // Site removal already succeeded at this point, so the card comes out
-    // of the DOM regardless of whether the follow-up file deletion below
-    // succeeds — it's a separate request specifically so a failure here
-    // can't be confused with the (already-completed) config removal.
+    // Site removal already succeeded at this point — files deletion is a
+    // separate request specifically so a failure here can't be confused
+    // with the (already-completed) config removal.
     const filesResponse = await fetch(`/sites/${encodeURIComponent(hostname)}/delete-files`, { method: "POST" });
     const filesResult = await filesResponse.json();
-    removeCard(card, hostname);
     if (!filesResponse.ok) {
       showBanner(`Removed ${hostname}, but failed to delete its files: ${filesResult.error ?? "unknown error"}`, "error");
       return;
     }
-    showBanner(`Removed ${hostname} and deleted its files. Remember to remove the DNS record in Cloudflare manually.`, "success");
+    window.location.href = `/?removed=${encodeURIComponent(hostname)}`;
   } catch (error) {
     showBanner(error.message, "error");
   } finally {
