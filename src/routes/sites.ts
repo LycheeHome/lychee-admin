@@ -220,8 +220,19 @@ sitesRouter.post("/sites/:hostname/delete", async (req, res) => {
 
     // Site file deletion is a separate, explicit request — never triggered
     // by the same request that removes the site from Caddy/tunnel config.
-    if (wantsFileDelete && existingSite?.type === "static") {
-      res.json({ removed: true, needsFileConfirm: true, sitePath: existingSite.target });
+    // filesPath covers both static sites (target is already the path) and
+    // Next.js-scaffolded reverse-proxy sites (target is a port, not a path
+    // — the scaffold directory has to be computed the same way the site
+    // list already does).
+    const filesPath =
+      existingSite?.type === "static"
+        ? existingSite.target
+        : existingSite?.type === "reverse-proxy" && existingSite.framework
+          ? path.posix.join(config.sitesRoot, hostname)
+          : undefined;
+
+    if (wantsFileDelete && filesPath) {
+      res.json({ removed: true, needsFileConfirm: true, sitePath: filesPath });
       return;
     }
 
