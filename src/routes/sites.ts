@@ -13,6 +13,7 @@ import {
   validateCaddyfile,
   writeManagedConfig,
 } from "../lib/exec";
+import { getFrameworkScaffold } from "../lib/frameworkScaffold";
 import { logAction } from "../lib/logger";
 import { renderSiteList } from "../views/html";
 
@@ -64,6 +65,8 @@ sitesRouter.post("/sites", async (req, res) => {
   const hostname = String(req.body?.hostname ?? "").trim().toLowerCase();
   const type = req.body?.type === "reverse-proxy" ? "reverse-proxy" : "static";
   const port = String(req.body?.port ?? "").trim();
+  const rawFramework = String(req.body?.framework ?? "").trim();
+  const framework = type === "reverse-proxy" && rawFramework === "nextjs" ? "nextjs" : undefined;
 
   if (!isValidHostname(hostname)) {
     res.status(400).json({ error: `"${hostname}" must be a subdomain of ${config.domain}` });
@@ -113,13 +116,24 @@ sitesRouter.post("/sites", async (req, res) => {
     // 2. Append the Caddyfile block.
     await writeManagedConfig(
       config.caddyfilePath,
-      caddyfile.appendSite(caddyfileContent, { hostname, type, target }),
+      caddyfile.appendSite(caddyfileContent, { hostname, type, target, framework }),
     );
 
-    // 3. Static sites get a directory + placeholder page.
+    // 3. Static sites get a directory + placeholder page; Next.js
+    // reverse-proxy sites get a directory + Dockerfile/docker-compose
+    // scaffold. Not covered by the rollback below if a later step fails —
+    // same deliberate asymmetry that already applies to the static
+    // placeholder file.
     if (type === "static") {
       await createSiteDirectory(hostname);
       fs.writeFileSync(path.join(sitePath, "index.html"), PLACEHOLDER_INDEX_HTML(hostname));
+    } else if (framework) {
+      const scaffold = getFrameworkScaffold(framework, port);
+      if (scaffold) {
+        await createSiteDirectory(hostname);
+        fs.writeFileSync(path.join(sitePath, "Dockerfile"), scaffold.dockerfile);
+        fs.writeFileSync(path.join(sitePath, "docker-compose.yml"), scaffold.compose);
+      }
     }
 
     // 4. Append the tunnel ingress rule.
@@ -136,8 +150,12 @@ sitesRouter.post("/sites", async (req, res) => {
     caddyReloaded = true;
     await restartCloudflared();
 
-    logAction({ action: "add-site", hostname, detail: `type=${type} target=${target}` });
-    res.json({ added: true, hostname, type, target, tunnelId: config.tunnelId });
+    logAction({
+      action: "add-site",
+      hostname,
+      detail: `type=${type} target=${target}${framework ? ` framework=${framework}` : ""}`,
+    });
+    res.json({ added: true, hostname, type, target, framework: framework ?? "none", tunnelId: config.tunnelId });
   } catch (error) {
     const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
     logAction({ action: "add-site-failed", hostname, detail: message });
