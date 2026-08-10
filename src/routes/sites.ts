@@ -15,7 +15,8 @@ import {
 } from "../lib/exec";
 import { getFrameworkScaffold } from "../lib/frameworkScaffold";
 import { logAction } from "../lib/logger";
-import { renderSiteList } from "../views/html";
+import { checkPortOpen } from "../lib/portStatus";
+import { renderSiteDetail, renderSiteList, renderSiteNotFound } from "../views/html";
 
 export const sitesRouter = Router();
 
@@ -59,6 +60,28 @@ sitesRouter.get("/", (req, res) => {
   }
 
   res.send(renderSiteList(sites, config.domain, config.sitesRoot, undefined, portOwners));
+});
+
+sitesRouter.get("/sites/:hostname", async (req, res) => {
+  const hostname = req.params.hostname.toLowerCase();
+  const content = fs.readFileSync(config.caddyfilePath, "utf8");
+  const site = caddyfile.parseSites(content).find((s) => s.hostname === hostname && isManagedHostname(s.hostname));
+
+  if (!site) {
+    res.status(404).send(renderSiteNotFound(hostname));
+    return;
+  }
+
+  if (site.type === "static") {
+    res.send(renderSiteDetail(site, config.sitesRoot));
+    return;
+  }
+
+  const respondingOnPort = await checkPortOpen(Number(site.target));
+  const scaffold = site.framework ? getFrameworkScaffold(site.framework, site.target) : null;
+  const scaffoldCommands = scaffold ? { buildCommand: scaffold.buildCommand, runCommand: scaffold.runCommand } : undefined;
+
+  res.send(renderSiteDetail(site, config.sitesRoot, respondingOnPort, scaffoldCommands));
 });
 
 sitesRouter.post("/sites", async (req, res) => {
@@ -221,17 +244,7 @@ sitesRouter.post("/sites/:hostname/delete", async (req, res) => {
 
     // Site file deletion is a separate, explicit request — never triggered
     // by the same request that removes the site from Caddy/tunnel config.
-    // filesPath covers both static sites and Next.js-scaffolded
-    // reverse-proxy sites. Always computed as sitesRoot/hostname — the same
-    // path /delete-files actually removes — rather than trusting
-    // existingSite.target for static sites, since a hand-edited Caddyfile
-    // block could root a *.lyly.dev static site somewhere else, which would
-    // otherwise make the confirm dialog show a different path than the one
-    // that actually gets deleted.
-    const filesPath =
-      existingSite?.type === "static" || (existingSite?.type === "reverse-proxy" && existingSite.framework)
-        ? path.posix.join(config.sitesRoot, hostname)
-        : undefined;
+    const filesPath = existingSite ? caddyfile.computeFilesPath(existingSite, config.sitesRoot) : null;
 
     if (wantsFileDelete && filesPath) {
       res.json({ removed: true, needsFileConfirm: true, sitePath: filesPath });
