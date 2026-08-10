@@ -195,6 +195,19 @@ document.querySelectorAll("[data-close-dialog]").forEach((trigger) => {
   });
 });
 
+document.querySelectorAll("[data-copy-target]").forEach((button) => {
+  const originalLabel = button.textContent;
+  button.addEventListener("click", () => {
+    const target = document.getElementById(button.dataset.copyTarget);
+    if (!target) return;
+    navigator.clipboard.writeText(target.textContent ?? "");
+    button.textContent = "Copied!";
+    setTimeout(() => {
+      button.textContent = originalLabel;
+    }, 1500);
+  });
+});
+
 document.querySelectorAll("dialog.modal").forEach((dialog) => {
   dialog.addEventListener("click", (event) => {
     const rect = dialog.getBoundingClientRect();
