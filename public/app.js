@@ -5,7 +5,8 @@ const portOwners = JSON.parse(document.getElementById("port-owners-data")?.textC
 
 const confirmRemoveDialog = document.getElementById("confirm-remove-dialog");
 const confirmRemoveHostname = document.getElementById("confirm-remove-hostname");
-const confirmRemoveDeleteFilesLabel = document.getElementById("confirm-remove-delete-files-label");
+const confirmRemoveDeleteFilesSection = document.getElementById("confirm-remove-delete-files-section");
+const confirmRemoveDockerWarning = document.getElementById("confirm-remove-docker-warning");
 const confirmRemoveDeleteFilesCheckbox = document.getElementById("confirm-remove-delete-files");
 const confirmRemovePath = document.getElementById("confirm-remove-path");
 
@@ -67,8 +68,10 @@ function wireDeleteForms() {
       const hostname = decodeURIComponent(form.getAttribute("action").split("/")[2]);
       if (confirmRemoveHostname) confirmRemoveHostname.textContent = hostname;
 
-      const isStatic = trigger.dataset.siteType === "static";
-      confirmRemoveDeleteFilesLabel?.classList.toggle("hidden", !isStatic);
+      const hasFiles = Boolean(trigger.dataset.sitePath);
+      const hasFramework = Boolean(trigger.dataset.framework);
+      confirmRemoveDeleteFilesSection?.classList.toggle("hidden", !hasFiles);
+      confirmRemoveDockerWarning?.classList.toggle("hidden", !hasFramework);
       if (confirmRemoveDeleteFilesCheckbox) confirmRemoveDeleteFilesCheckbox.checked = false;
       if (confirmRemovePath) confirmRemovePath.textContent = trigger.dataset.sitePath ?? "";
 
@@ -189,13 +192,14 @@ addSiteForm?.addEventListener("submit", async (event) => {
   const hostname = String(formData.get("hostname") ?? "").trim();
   const type = formData.get("type");
   const port = String(formData.get("port") ?? "").trim();
+  const framework = String(formData.get("framework") ?? "").trim();
 
   addSiteInFlight = true;
   addSiteError?.classList.add("hidden");
   try {
     const response = await fetch("/sites", {
       method: "POST",
-      body: new URLSearchParams({ hostname, type, port }),
+      body: new URLSearchParams({ hostname, type, port, framework }),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? "Failed to add site");
@@ -203,8 +207,12 @@ addSiteForm?.addEventListener("submit", async (event) => {
     addSiteDialog?.close();
     await refreshSitesGrid();
     if (result.type === "reverse-proxy") portOwners[result.target] = result.hostname;
+    const scaffoldNote =
+      result.framework === "nextjs"
+        ? ` A Next.js scaffold was created at /var/www/${result.hostname}/ — add your app source and run "docker compose up -d --build" there.`
+        : "";
     showBanner(
-      `Added ${result.hostname}. Don't forget to add the DNS record: cloudflared tunnel route dns ${result.tunnelId} ${result.hostname}`,
+      `Added ${result.hostname}.${scaffoldNote} Don't forget to add the DNS record: cloudflared tunnel route dns ${result.tunnelId} ${result.hostname}`,
       "persistent",
     );
   } catch (error) {
