@@ -75,11 +75,9 @@ export function renderSiteList(
   const cards = sites
     .map((site) => {
       const filesPath =
-        site.type === "static"
-          ? site.target
-          : site.type === "reverse-proxy" && site.framework
-            ? path.posix.join(sitesRoot, site.hostname)
-            : null;
+        site.type === "static" || (site.type === "reverse-proxy" && site.framework)
+          ? path.posix.join(sitesRoot, site.hostname)
+          : null;
       const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
 
       return `

@@ -133,6 +133,7 @@ sitesRouter.post("/sites", async (req, res) => {
         await createSiteDirectory(hostname);
         fs.writeFileSync(path.join(sitePath, "Dockerfile"), scaffold.dockerfile);
         fs.writeFileSync(path.join(sitePath, "docker-compose.yml"), scaffold.compose);
+        fs.writeFileSync(path.join(sitePath, ".dockerignore"), scaffold.dockerignore);
       }
     }
 
@@ -220,16 +221,17 @@ sitesRouter.post("/sites/:hostname/delete", async (req, res) => {
 
     // Site file deletion is a separate, explicit request — never triggered
     // by the same request that removes the site from Caddy/tunnel config.
-    // filesPath covers both static sites (target is already the path) and
-    // Next.js-scaffolded reverse-proxy sites (target is a port, not a path
-    // — the scaffold directory has to be computed the same way the site
-    // list already does).
+    // filesPath covers both static sites and Next.js-scaffolded
+    // reverse-proxy sites. Always computed as sitesRoot/hostname — the same
+    // path /delete-files actually removes — rather than trusting
+    // existingSite.target for static sites, since a hand-edited Caddyfile
+    // block could root a *.lyly.dev static site somewhere else, which would
+    // otherwise make the confirm dialog show a different path than the one
+    // that actually gets deleted.
     const filesPath =
-      existingSite?.type === "static"
-        ? existingSite.target
-        : existingSite?.type === "reverse-proxy" && existingSite.framework
-          ? path.posix.join(config.sitesRoot, hostname)
-          : undefined;
+      existingSite?.type === "static" || (existingSite?.type === "reverse-proxy" && existingSite.framework)
+        ? path.posix.join(config.sitesRoot, hostname)
+        : undefined;
 
     if (wantsFileDelete && filesPath) {
       res.json({ removed: true, needsFileConfirm: true, sitePath: filesPath });

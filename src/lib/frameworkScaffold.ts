@@ -1,6 +1,7 @@
 export interface Scaffold {
   dockerfile: string;
   compose: string;
+  dockerignore: string;
 }
 
 const NEXTJS_DOCKERFILE = `FROM node:20-alpine AS deps
@@ -21,8 +22,16 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/next.config.js* /app/next.config.mjs* ./
 EXPOSE 3000
 CMD ["npm", "start"]
+`;
+
+const NEXTJS_DOCKERIGNORE = `node_modules
+.next
+Dockerfile
+docker-compose.yml
+.git
 `;
 
 function nextjsCompose(port: string): string {
@@ -37,5 +46,5 @@ function nextjsCompose(port: string): string {
 
 export function getFrameworkScaffold(framework: string, port: string): Scaffold | null {
   if (framework !== "nextjs") return null;
-  return { dockerfile: NEXTJS_DOCKERFILE, compose: nextjsCompose(port) };
+  return { dockerfile: NEXTJS_DOCKERFILE, compose: nextjsCompose(port), dockerignore: NEXTJS_DOCKERIGNORE };
 }
