@@ -120,7 +120,7 @@ export function renderSiteList(
               <input type="radio" name="type" value="static" checked class="accent-stone-300" />
               Static site
             </span>
-            <span class="text-stone-400 text-[0.75rem] leading-snug pl-[1.55rem]">Serves plain files. Creates <code class="font-mono">/var/www/&lt;hostname&gt;</code> with a placeholder page you replace with your own HTML/CSS/JS — no server process to run yourself.</span>
+            <span class="text-stone-400 text-[0.75rem] leading-snug pl-[1.55rem]">Serves plain files from <code class="font-mono">/var/www/&lt;hostname&gt;</code>, which lyly-admin creates for you with a placeholder page — no process to run yourself.</span>
           </label>
 
           <label class="flex flex-col gap-1 rounded-md border border-stone-700 bg-transparent px-3 py-2.5 cursor-pointer transition-colors hover:bg-stone-800/40 has-[:checked]:bg-rose-950/50 has-[:checked]:border-rose-800/70">
@@ -128,7 +128,7 @@ export function renderSiteList(
               <input type="radio" name="type" value="reverse-proxy" class="accent-rose-400" />
               Reverse proxy
             </span>
-            <span class="text-stone-400 text-[0.75rem] leading-snug pl-[1.55rem]">Routes to a process you run yourself on a local port — a Next.js app (<code class="font-mono">next start</code>), a Node/Express or Python/Flask server, a Docker container's published port, anything with its own process manager (PM2, systemd, Docker). lyly-admin only wires up Caddy/tunnel routing — it doesn't start, stop, or supervise that process.</span>
+            <span class="text-stone-400 text-[0.75rem] leading-snug pl-[1.55rem]">Routes to a process you already run and manage yourself on a local port (e.g. <code class="font-mono">next start</code>). lyly-admin only wires up the routing — it won't start, stop, or restart that process for you.</span>
           </label>
         </fieldset>
 
