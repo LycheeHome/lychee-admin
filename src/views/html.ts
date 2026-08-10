@@ -104,7 +104,7 @@ export function renderSiteList(
       </div>
     </section>
 
-    <dialog id="add-site-dialog" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
+    <dialog id="add-site-dialog" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(460px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
       <h2 class="font-mono text-[0.85rem] font-semibold uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Add a site</h2>
       <form id="add-site-form" method="post" action="/sites" class="flex flex-col gap-4">
         <label class="${FORM_LABEL}">
@@ -112,19 +112,27 @@ export function renderSiteList(
           <input type="text" name="hostname" placeholder="blog.${escapeHtml(domain)}" required class="${INPUT}" />
         </label>
 
-        <fieldset class="border border-stone-700 rounded-md px-3 py-2.5 flex flex-col gap-3">
-          <legend class="font-mono text-[0.7rem] uppercase tracking-[0.06em] text-stone-400 px-1">Type</legend>
-          <div>
-            <label class="flex flex-row items-center text-stone-50 text-[0.9rem] gap-2"><input type="radio" name="type" value="static" checked /> Static site</label>
-            <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mt-1 pl-[1.4rem]">Serves plain files. Creates <code class="font-mono">/var/www/&lt;hostname&gt;</code> with a placeholder page you replace with your own HTML/CSS/JS — no server process to run yourself.</p>
-          </div>
-          <div>
-            <label class="flex flex-row items-center text-stone-50 text-[0.9rem] gap-2"><input type="radio" name="type" value="reverse-proxy" /> Reverse proxy</label>
-            <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mt-1 pl-[1.4rem]">Routes to a process you run yourself on a local port — a Next.js app (<code class="font-mono">next start</code>), a Node/Express or Python/Flask server, a Docker container's published port, anything with its own process manager (PM2, systemd, Docker). lyly-admin only wires up Caddy/tunnel routing — it doesn't start, stop, or supervise that process.</p>
-          </div>
+        <fieldset class="border-0 p-0 m-0 flex flex-col gap-2.5">
+          <legend class="font-mono text-[0.7rem] uppercase tracking-[0.06em] text-stone-400 px-0 mb-2">Type</legend>
+
+          <label class="flex flex-col gap-1 rounded-md border border-stone-600 bg-stone-700/50 px-3 py-2.5 cursor-pointer transition-colors hover:bg-stone-700/80 has-[:checked]:bg-stone-700 has-[:checked]:border-stone-500">
+            <span class="flex items-center gap-2 text-stone-50 text-[0.9rem] font-semibold">
+              <input type="radio" name="type" value="static" checked class="accent-stone-300" />
+              Static site
+            </span>
+            <span class="text-stone-400 text-[0.75rem] leading-snug pl-[1.55rem]">Serves plain files. Creates <code class="font-mono">/var/www/&lt;hostname&gt;</code> with a placeholder page you replace with your own HTML/CSS/JS — no server process to run yourself.</span>
+          </label>
+
+          <label class="flex flex-col gap-1 rounded-md border border-stone-700 bg-transparent px-3 py-2.5 cursor-pointer transition-colors hover:bg-stone-800/40 has-[:checked]:bg-rose-950/50 has-[:checked]:border-rose-800/70">
+            <span class="flex items-center gap-2 text-stone-50 text-[0.9rem] font-semibold">
+              <input type="radio" name="type" value="reverse-proxy" class="accent-rose-400" />
+              Reverse proxy
+            </span>
+            <span class="text-stone-400 text-[0.75rem] leading-snug pl-[1.55rem]">Routes to a process you run yourself on a local port — a Next.js app (<code class="font-mono">next start</code>), a Node/Express or Python/Flask server, a Docker container's published port, anything with its own process manager (PM2, systemd, Docker). lyly-admin only wires up Caddy/tunnel routing — it doesn't start, stop, or supervise that process.</span>
+          </label>
         </fieldset>
 
-        <label class="port-input hidden ${FORM_LABEL}">
+        <label class="port-input hidden flex-col gap-1.5 text-[0.85rem] text-stone-400 border-l-2 border-l-rose-800/70 pl-3 ml-1">
           Local port (reverse proxy only)
           <input type="number" name="port" min="1" max="65535" class="${INPUT}" id="port-field" />
           <span class="port-error hidden text-red-300 text-[0.8rem]"></span>
