@@ -1,3 +1,5 @@
+import path from "node:path";
+
 export type SiteType = "static" | "reverse-proxy";
 
 export interface Site {
@@ -107,4 +109,18 @@ export function removeSite(content: string, hostname: string): string {
 
 export function hostnameExists(content: string, hostname: string): boolean {
   return splitBlocks(content).some((block) => block.hostname === hostname);
+}
+
+/**
+ * Where this site's on-disk files live, if anywhere — static sites always
+ * have one; reverse-proxy sites only do when scaffolded with a framework.
+ * Always sitesRoot/hostname, the same path createSiteDirectory() and
+ * /delete-files use — never derived from a Caddyfile directive like
+ * `root *`, so a hand-edited block can't make the displayed path diverge
+ * from the path that actually gets deleted.
+ */
+export function computeFilesPath(site: Site, sitesRoot: string): string | null {
+  if (site.type === "static") return path.posix.join(sitesRoot, site.hostname);
+  if (site.type === "reverse-proxy" && site.framework) return path.posix.join(sitesRoot, site.hostname);
+  return null;
 }
