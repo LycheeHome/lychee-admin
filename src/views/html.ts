@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { Site } from "../lib/caddyfile";
 
 function escapeHtml(value: string): string {
@@ -60,15 +61,28 @@ function icon(name: keyof typeof ICONS): string {
   return `<svg class="w-[1em] h-[1em] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
 }
 
+const FRAMEWORK_LABELS: Record<string, string> = {
+  nextjs: "Next.js",
+};
+
 export function renderSiteList(
   sites: Site[],
   domain: string,
+  sitesRoot: string,
   error?: string,
   portOwners: Record<string, string> = {},
 ): string {
   const cards = sites
-    .map(
-      (site) => `
+    .map((site) => {
+      const filesPath =
+        site.type === "static"
+          ? site.target
+          : site.type === "reverse-proxy" && site.framework
+            ? path.posix.join(sitesRoot, site.hostname)
+            : null;
+      const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
+
+      return `
       <article class="bg-stone-800 border border-stone-700 rounded-[10px] p-6 flex flex-col gap-3.5 motion-safe:transition-colors motion-safe:duration-150 hover:border-rose-800/70">
         <div class="flex items-start justify-between gap-2">
           <p class="font-display text-base leading-relaxed text-stone-50 m-0 break-words">${escapeHtml(site.hostname)}</p>
@@ -81,13 +95,13 @@ export function renderSiteList(
         <p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0 break-words">${
           site.type === "static"
             ? `<span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">path:</span> ${escapeHtml(site.target)}`
-            : `<span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">localhost:</span>${escapeHtml(site.target)}`
+            : `<span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">localhost:</span>${escapeHtml(site.target)}${frameworkLabel ? ` · ${escapeHtml(frameworkLabel)}` : ""}`
         }</p>
         <form method="post" action="/sites/${encodeURIComponent(site.hostname)}/delete" class="delete-form mt-auto pt-2.5 flex items-center gap-2.5 flex-wrap">
-          <button type="button" class="delete-trigger ${BUTTON_DANGER}" data-site-type="${site.type}" data-site-path="${escapeHtml(site.target)}">${icon("trash")}Remove</button>
+          <button type="button" class="delete-trigger ${BUTTON_DANGER}" data-site-type="${site.type}" data-site-path="${escapeHtml(filesPath ?? "")}" data-framework="${escapeHtml(site.framework ?? "")}">${icon("trash")}Remove</button>
         </form>
-      </article>`,
-    )
+      </article>`;
+    })
     .join("");
 
   return layout(
@@ -132,11 +146,20 @@ export function renderSiteList(
           </label>
         </fieldset>
 
-        <label class="port-input hidden flex-col gap-1.5 text-[0.85rem] text-stone-400 border-l-2 border-l-rose-800/70 pl-3 ml-1">
-          Local port (reverse proxy only)
-          <input type="number" name="port" min="1" max="65535" class="${INPUT}" id="port-field" />
-          <span class="port-error hidden text-red-300 text-[0.8rem]"></span>
-        </label>
+        <div class="port-input hidden flex-col gap-3 border-l-2 border-l-rose-800/70 pl-3 ml-1">
+          <label class="flex flex-col gap-1.5 text-[0.85rem] text-stone-400">
+            Local port (reverse proxy only)
+            <input type="number" name="port" min="1" max="65535" class="${INPUT}" id="port-field" />
+            <span class="port-error hidden text-red-300 text-[0.8rem]"></span>
+          </label>
+          <label class="flex flex-col gap-1.5 text-[0.85rem] text-stone-400">
+            Framework (optional)
+            <select name="framework" class="${INPUT}" id="framework-field">
+              <option value="none">None</option>
+              <option value="nextjs">Next.js — generates a Dockerfile + docker-compose.yml</option>
+            </select>
+          </label>
+        </div>
         <script type="application/json" id="port-owners-data">${JSON.stringify(portOwners)}</script>
 
         <p id="add-site-error" class="hidden font-mono text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0"></p>
@@ -151,10 +174,15 @@ export function renderSiteList(
     <dialog id="confirm-remove-dialog" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
       <h2 class="font-mono text-[0.85rem] font-semibold uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Remove site</h2>
       <p class="m-0 mb-4 leading-relaxed">Remove <strong id="confirm-remove-hostname"></strong>? This removes it from Caddy and the tunnel config immediately.</p>
-      <label id="confirm-remove-delete-files-label" class="hidden flex-row items-center text-[0.8rem] text-stone-400 gap-1.5 flex mb-5">
-        <input type="checkbox" id="confirm-remove-delete-files" />
-        Also delete files at <span id="confirm-remove-path" class="font-mono"></span>
-      </label>
+      <div id="confirm-remove-delete-files-section" class="hidden flex flex-col gap-2 mb-5">
+        <label class="flex flex-row items-center text-[0.8rem] text-stone-400 gap-1.5">
+          <input type="checkbox" id="confirm-remove-delete-files" />
+          Also delete files at <span id="confirm-remove-path" class="font-mono"></span>
+        </label>
+        <p id="confirm-remove-docker-warning" class="hidden text-[0.75rem] text-red-300 bg-red-950/40 border border-red-800/50 rounded-md px-2.5 py-2 leading-snug m-0">
+          If a Docker container is running from this directory, stop it first with <code class="font-mono">docker compose down</code> — deleting the files won't stop it.
+        </p>
+      </div>
       <div class="flex justify-end gap-2.5">
         <button type="button" class="${BUTTON_SECONDARY}" data-close-dialog="confirm-remove-dialog">Cancel</button>
         <button type="button" id="confirm-remove-submit" class="${BUTTON_DANGER}">${icon("trash")}Remove</button>

@@ -58,7 +58,7 @@ sitesRouter.get("/", (req, res) => {
     if (site.type === "reverse-proxy") portOwners[site.target] = site.hostname;
   }
 
-  res.send(renderSiteList(sites, config.domain, undefined, portOwners));
+  res.send(renderSiteList(sites, config.domain, config.sitesRoot, undefined, portOwners));
 });
 
 sitesRouter.post("/sites", async (req, res) => {
