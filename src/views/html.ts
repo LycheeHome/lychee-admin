@@ -120,7 +120,7 @@ export function renderSiteList(
           </div>
           <div>
             <label class="flex flex-row items-center text-stone-50 text-[0.9rem] gap-2"><input type="radio" name="type" value="reverse-proxy" /> Reverse proxy</label>
-            <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mt-1 pl-[1.4rem]">Routes to a process you run yourself on a local port (e.g. <code class="font-mono">next start</code>). lyly-admin only wires up Caddy/tunnel routing — it doesn't start, stop, or supervise that process.</p>
+            <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mt-1 pl-[1.4rem]">Routes to a process you run yourself on a local port — a Next.js app (<code class="font-mono">next start</code>), a Node/Express or Python/Flask server, a Docker container's published port, anything with its own process manager (PM2, systemd, Docker). lyly-admin only wires up Caddy/tunnel routing — it doesn't start, stop, or supervise that process.</p>
           </div>
         </fieldset>
 
