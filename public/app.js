@@ -197,11 +197,21 @@ document.querySelectorAll("[data-close-dialog]").forEach((trigger) => {
 
 document.querySelectorAll("[data-copy-target]").forEach((button) => {
   const originalLabel = button.textContent;
-  button.addEventListener("click", () => {
+  button.addEventListener("click", async () => {
     const target = document.getElementById(button.dataset.copyTarget);
     if (!target) return;
-    navigator.clipboard.writeText(target.textContent ?? "");
-    button.textContent = "Copied!";
+    try {
+      await navigator.clipboard.writeText(target.textContent ?? "");
+      button.textContent = "Copied!";
+    } catch {
+      // Insecure context (plain http over the LAN, which is how this app is
+      // actually deployed — see CLAUDE.md) or clipboard permission denied.
+      // navigator.clipboard is undefined outside secure contexts, so even
+      // accessing .writeText throws synchronously; select the text so the
+      // user can still copy it manually with Ctrl+C.
+      window.getSelection()?.selectAllChildren(target);
+      button.textContent = "Press Ctrl+C to copy";
+    }
     setTimeout(() => {
       button.textContent = originalLabel;
     }, 1500);
