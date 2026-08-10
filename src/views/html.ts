@@ -1,5 +1,4 @@
-import path from "node:path";
-import type { Site } from "../lib/caddyfile";
+import { computeFilesPath, type Site } from "../lib/caddyfile";
 
 function escapeHtml(value: string): string {
   return value
@@ -74,14 +73,10 @@ export function renderSiteList(
 ): string {
   const cards = sites
     .map((site) => {
-      const filesPath =
-        site.type === "static" || (site.type === "reverse-proxy" && site.framework)
-          ? path.posix.join(sitesRoot, site.hostname)
-          : null;
       const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
 
       return `
-      <article class="bg-stone-800 border border-stone-700 rounded-[10px] p-6 flex flex-col gap-3.5 motion-safe:transition-colors motion-safe:duration-150 hover:border-rose-800/70">
+      <a href="/sites/${encodeURIComponent(site.hostname)}" class="bg-stone-800 border border-stone-700 rounded-[10px] p-6 flex flex-col gap-3.5 motion-safe:transition-colors motion-safe:duration-150 hover:border-rose-800/70 no-underline">
         <div class="flex items-start justify-between gap-2">
           <p class="font-display text-base leading-relaxed text-stone-50 m-0 break-words">${escapeHtml(site.hostname)}</p>
           <span class="inline-block shrink-0 font-mono text-[0.7rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border ${
@@ -95,10 +90,7 @@ export function renderSiteList(
             ? `<span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">path:</span> ${escapeHtml(site.target)}`
             : `<span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">localhost:</span>${escapeHtml(site.target)}${frameworkLabel ? ` · ${escapeHtml(frameworkLabel)}` : ""}`
         }</p>
-        <form method="post" action="/sites/${encodeURIComponent(site.hostname)}/delete" class="delete-form mt-auto pt-2.5 flex items-center gap-2.5 flex-wrap">
-          <button type="button" class="delete-trigger ${BUTTON_DANGER}" data-site-type="${site.type}" data-site-path="${escapeHtml(filesPath ?? "")}" data-framework="${escapeHtml(site.framework ?? "")}">${icon("trash")}Remove</button>
-        </form>
-      </article>`;
+      </a>`;
     })
     .join("");
 
@@ -168,24 +160,108 @@ export function renderSiteList(
         </div>
       </form>
     </dialog>
+    `,
+  );
+}
+
+export function renderSiteDetail(
+  site: Site,
+  sitesRoot: string,
+  respondingOnPort?: boolean,
+  scaffold?: { buildCommand: string; runCommand: string },
+): string {
+  const filesPath = computeFilesPath(site, sitesRoot);
+  const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
+
+  const statusLine =
+    respondingOnPort === undefined
+      ? ""
+      : respondingOnPort
+        ? `<p class="text-rose-300 text-[0.85rem] leading-relaxed m-0">&#9679; Responding on localhost:${escapeHtml(site.target)}</p>`
+        : `<p class="text-stone-400 text-[0.85rem] leading-relaxed m-0">&#9679; Not responding on localhost:${escapeHtml(site.target)}<br />
+        <span class="text-[0.75rem]">Run <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">docker compose up -d --build</code> in <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">${escapeHtml(filesPath ?? "")}/</code> to deploy.</span></p>`;
+
+  const commandsBlock = scaffold
+    ? `
+        <div class="flex flex-col gap-1 mt-2">
+          <span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em] font-mono">build command</span>
+          <code class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 text-[0.85rem] text-stone-50">${escapeHtml(scaffold.buildCommand)}</code>
+        </div>
+        <div class="flex flex-col gap-1">
+          <span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em] font-mono">run command</span>
+          <code class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 text-[0.85rem] text-stone-50">${escapeHtml(scaffold.runCommand)}</code>
+        </div>`
+    : "";
+
+  const detailsBody =
+    site.type === "static"
+      ? `<p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0 break-words"><span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">path:</span> ${escapeHtml(site.target)}</p>`
+      : `
+        <p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0"><span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">local port:</span> ${escapeHtml(site.target)}</p>
+        ${frameworkLabel ? `<p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0"><span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">framework:</span> ${escapeHtml(frameworkLabel)}</p>` : ""}
+        ${statusLine}
+        ${commandsBlock}`;
+
+  const deleteFilesSection = filesPath
+    ? `
+      <div class="flex flex-col gap-2 mb-5">
+        <label class="flex flex-row items-center text-[0.8rem] text-stone-400 gap-1.5">
+          <input type="checkbox" id="confirm-remove-delete-files" />
+          Also delete files at <span class="font-mono">${escapeHtml(filesPath)}</span>
+        </label>
+        ${
+          site.framework
+            ? `<p class="text-[0.75rem] text-red-300 bg-red-950/40 border border-red-800/50 rounded-md px-2.5 py-2 leading-snug m-0">
+          If a Docker container is running from this directory, stop it first with <code class="font-mono">docker compose down</code> — deleting the files won't stop it.
+        </p>`
+            : ""
+        }
+      </div>`
+    : "";
+
+  return layout(
+    site.hostname,
+    `
+    <div class="max-w-[640px] mx-auto flex flex-col gap-5 w-full">
+      <p class="m-0"><a href="/" class="text-rose-400 no-underline font-mono text-[0.85rem] hover:underline">&larr; Back to sites</a></p>
+
+      <div class="flex items-start justify-between gap-2">
+        <h2 class="font-display text-xl leading-relaxed text-stone-50 m-0 break-words">${escapeHtml(site.hostname)}</h2>
+        <span class="inline-block shrink-0 font-mono text-[0.7rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border ${
+          site.type === "static"
+            ? "border-stone-600 text-stone-50 bg-stone-700"
+            : "border-transparent text-rose-300 bg-rose-950"
+        }">${site.type === "static" ? "static" : "proxy"}</span>
+      </div>
+
+      <section class="bg-stone-800 border border-stone-700 rounded-[10px] p-6 flex flex-col gap-3">
+        ${detailsBody}
+      </section>
+
+      <button type="button" class="${BUTTON_DANGER} self-start" data-open-dialog="confirm-remove-dialog">${icon("trash")}Remove site</button>
+    </div>
 
     <dialog id="confirm-remove-dialog" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
       <h2 class="font-mono text-[0.85rem] font-semibold uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Remove site</h2>
-      <p class="m-0 mb-4 leading-relaxed">Remove <strong id="confirm-remove-hostname"></strong>? This removes it from Caddy and the tunnel config immediately.</p>
-      <div id="confirm-remove-delete-files-section" class="hidden flex flex-col gap-2 mb-5">
-        <label class="flex flex-row items-center text-[0.8rem] text-stone-400 gap-1.5">
-          <input type="checkbox" id="confirm-remove-delete-files" />
-          Also delete files at <span id="confirm-remove-path" class="font-mono"></span>
-        </label>
-        <p id="confirm-remove-docker-warning" class="hidden text-[0.75rem] text-red-300 bg-red-950/40 border border-red-800/50 rounded-md px-2.5 py-2 leading-snug m-0">
-          If a Docker container is running from this directory, stop it first with <code class="font-mono">docker compose down</code> — deleting the files won't stop it.
-        </p>
-      </div>
+      <p class="m-0 mb-4 leading-relaxed">Remove <strong>${escapeHtml(site.hostname)}</strong>? This removes it from Caddy and the tunnel config immediately.</p>
+      ${deleteFilesSection}
       <div class="flex justify-end gap-2.5">
         <button type="button" class="${BUTTON_SECONDARY}" data-close-dialog="confirm-remove-dialog">Cancel</button>
-        <button type="button" id="confirm-remove-submit" class="${BUTTON_DANGER}">${icon("trash")}Remove</button>
+        <button type="button" id="confirm-remove-submit" class="${BUTTON_DANGER}" data-hostname="${escapeHtml(site.hostname)}">${icon("trash")}Remove</button>
       </div>
     </dialog>
+    `,
+  );
+}
+
+export function renderSiteNotFound(hostname: string): string {
+  return layout(
+    "Site not found",
+    `
+    <div class="max-w-[640px] mx-auto flex flex-col gap-4">
+      <p class="font-mono text-[0.85rem] text-stone-50 bg-red-950/60 border border-red-400/70 rounded-md px-4 py-3">No managed site found for "${escapeHtml(hostname)}".</p>
+      <p class="m-0"><a href="/" class="text-rose-400 no-underline font-mono text-[0.85rem] hover:underline">&larr; Back to sites</a></p>
+    </div>
     `,
   );
 }
