@@ -85,8 +85,10 @@ sitesRouter.get("/sites/:hostname", async (req, res) => {
     // letting an invalid value reach net.connect inside checkPortOpen.
     const port = Number(site.target);
     const respondingOnPort = port >= 1 && port <= 65535 ? await checkPortOpen(port) : false;
-    const scaffold = site.framework ? getFrameworkScaffold(site.framework, site.target) : null;
-    const scaffoldCommands = scaffold ? { buildCommand: scaffold.buildCommand, runCommand: scaffold.runCommand } : undefined;
+    const scaffold = site.framework ? getFrameworkScaffold(site.framework, site.target, hostname, config.sitesRoot) : null;
+    const scaffoldCommands = scaffold
+      ? { buildCommand: scaffold.buildCommand, runCommand: scaffold.runCommand, deployWorkflow: scaffold.deployWorkflow }
+      : undefined;
 
     res.send(renderSiteDetail(site, config.sitesRoot, respondingOnPort, scaffoldCommands));
   } catch (error) {
@@ -162,7 +164,7 @@ sitesRouter.post("/sites", async (req, res) => {
       await createSiteDirectory(hostname);
       fs.writeFileSync(path.join(sitePath, "index.html"), PLACEHOLDER_INDEX_HTML(hostname));
     } else if (framework) {
-      const scaffold = getFrameworkScaffold(framework, port);
+      const scaffold = getFrameworkScaffold(framework, port, hostname, config.sitesRoot);
       if (scaffold) {
         await createSiteDirectory(hostname);
         fs.writeFileSync(path.join(sitePath, "Dockerfile"), scaffold.dockerfile);
