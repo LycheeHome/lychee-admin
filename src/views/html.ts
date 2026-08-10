@@ -112,10 +112,16 @@ export function renderSiteList(
           <input type="text" name="hostname" placeholder="blog.${escapeHtml(domain)}" required class="${INPUT}" />
         </label>
 
-        <fieldset class="border border-stone-700 rounded-md px-3 py-2.5 flex flex-col gap-2">
+        <fieldset class="border border-stone-700 rounded-md px-3 py-2.5 flex flex-col gap-3">
           <legend class="font-mono text-[0.7rem] uppercase tracking-[0.06em] text-stone-400 px-1">Type</legend>
-          <label class="flex flex-row items-center text-stone-50 text-[0.9rem] gap-2"><input type="radio" name="type" value="static" checked /> Static site</label>
-          <label class="flex flex-row items-center text-stone-50 text-[0.9rem] gap-2"><input type="radio" name="type" value="reverse-proxy" /> Reverse proxy</label>
+          <div>
+            <label class="flex flex-row items-center text-stone-50 text-[0.9rem] gap-2"><input type="radio" name="type" value="static" checked /> Static site</label>
+            <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mt-1 pl-[1.4rem]">Serves plain files. Creates <code class="font-mono">/var/www/&lt;hostname&gt;</code> with a placeholder page you replace with your own HTML/CSS/JS — no server process to run yourself.</p>
+          </div>
+          <div>
+            <label class="flex flex-row items-center text-stone-50 text-[0.9rem] gap-2"><input type="radio" name="type" value="reverse-proxy" /> Reverse proxy</label>
+            <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mt-1 pl-[1.4rem]">Routes to a process you run yourself on a local port (e.g. <code class="font-mono">next start</code>). lyly-admin only wires up Caddy/tunnel routing — it doesn't start, stop, or supervise that process.</p>
+          </div>
         </fieldset>
 
         <label class="port-input hidden ${FORM_LABEL}">
