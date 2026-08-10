@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Development workflow
+
+Any code change to this repo — however small it looks — goes through the superpowers workflow: `superpowers:brainstorming` to design it (propose approaches, ask clarifying questions, get explicit sign-off), `superpowers:writing-plans` to turn the approved design into a task-by-task implementation plan, then `superpowers:subagent-driven-development` to execute it with a fresh subagent per task, a task-scoped review after each, and a final whole-branch review before merge. Don't skip straight to editing files. Documentation-only edits (README, this file) and pure investigation/analysis don't need the full pipeline, but anything that changes `src/`, `public/`, or `deploy/` does.
+
 ## Project status
 
 Deployed and verified working end-to-end on `lychee` — add-site, remove-site, and the reverse-proxy port-conflict check have all been exercised for real through the UI, with every affected file (Caddyfile, tunnel config, `/var/www/<hostname>`, audit log) confirmed to change correctly on add and fully revert on remove. The remove-site UI has since been reworked to modals/`fetch` instead of full-page navigation, the delete-files confirmation was folded into the initial remove-site modal, and reverse-proxy sites gained optional Next.js scaffold generation (see Core v1 feature flow and Reverse-proxy sites below) — none of this has been re-verified live on `lychee` yet.
