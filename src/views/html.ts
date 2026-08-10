@@ -168,7 +168,7 @@ export function renderSiteDetail(
   site: Site,
   sitesRoot: string,
   respondingOnPort?: boolean,
-  scaffold?: { buildCommand: string; runCommand: string },
+  scaffold?: { buildCommand: string; runCommand: string; deployWorkflow: string },
 ): string {
   const filesPath = computeFilesPath(site, sitesRoot);
   const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
@@ -197,6 +197,18 @@ export function renderSiteDetail(
         </div>`
     : "";
 
+  const workflowBlock = scaffold
+    ? `
+        <div class="flex flex-col gap-1 mt-2">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em] font-mono">github actions workflow</span>
+            <button type="button" class="${BUTTON_SECONDARY}" data-copy-target="github-workflow-yaml">Copy</button>
+          </div>
+          <pre id="github-workflow-yaml" class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 text-[0.8rem] text-stone-50 overflow-x-auto whitespace-pre">${escapeHtml(scaffold.deployWorkflow)}</pre>
+          <p class="text-stone-400 text-[0.75rem] leading-snug m-0">Paste this into <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">.github/workflows/deploy.yml</code> in your app's repo.</p>
+        </div>`
+    : "";
+
   const detailsBody =
     site.type === "static"
       ? `<p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0 break-words"><span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">path:</span> ${escapeHtml(site.target)}</p>`
@@ -204,7 +216,8 @@ export function renderSiteDetail(
         <p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0"><span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">local port:</span> ${escapeHtml(site.target)}</p>
         ${frameworkLabel ? `<p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0"><span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">framework:</span> ${escapeHtml(frameworkLabel)}</p>` : ""}
         ${statusLine}
-        ${commandsBlock}`;
+        ${commandsBlock}
+        ${workflowBlock}`;
 
   const deleteFilesSection = filesPath
     ? `
