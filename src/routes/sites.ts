@@ -64,24 +64,35 @@ sitesRouter.get("/", (req, res) => {
 
 sitesRouter.get("/sites/:hostname", async (req, res) => {
   const hostname = req.params.hostname.toLowerCase();
-  const content = fs.readFileSync(config.caddyfilePath, "utf8");
-  const site = caddyfile.parseSites(content).find((s) => s.hostname === hostname && isManagedHostname(s.hostname));
 
-  if (!site) {
-    res.status(404).send(renderSiteNotFound(hostname));
-    return;
+  try {
+    const content = fs.readFileSync(config.caddyfilePath, "utf8");
+    const site = caddyfile.parseSites(content).find((s) => s.hostname === hostname && isManagedHostname(s.hostname));
+
+    if (!site) {
+      res.status(404).send(renderSiteNotFound(hostname));
+      return;
+    }
+
+    if (site.type === "static") {
+      res.send(renderSiteDetail(site, config.sitesRoot));
+      return;
+    }
+
+    // Guard against a hand-edited Caddyfile block with an out-of-range port
+    // (caddyfile.parseSites only checks the target is digits, not a valid
+    // port number) — treat it as simply "not responding" rather than
+    // letting an invalid value reach net.connect inside checkPortOpen.
+    const port = Number(site.target);
+    const respondingOnPort = port >= 1 && port <= 65535 ? await checkPortOpen(port) : false;
+    const scaffold = site.framework ? getFrameworkScaffold(site.framework, site.target) : null;
+    const scaffoldCommands = scaffold ? { buildCommand: scaffold.buildCommand, runCommand: scaffold.runCommand } : undefined;
+
+    res.send(renderSiteDetail(site, config.sitesRoot, respondingOnPort, scaffoldCommands));
+  } catch (error) {
+    const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
+    res.status(500).send(renderSiteList([], config.domain, config.sitesRoot, message));
   }
-
-  if (site.type === "static") {
-    res.send(renderSiteDetail(site, config.sitesRoot));
-    return;
-  }
-
-  const respondingOnPort = await checkPortOpen(Number(site.target));
-  const scaffold = site.framework ? getFrameworkScaffold(site.framework, site.target) : null;
-  const scaffoldCommands = scaffold ? { buildCommand: scaffold.buildCommand, runCommand: scaffold.runCommand } : undefined;
-
-  res.send(renderSiteDetail(site, config.sitesRoot, respondingOnPort, scaffoldCommands));
 });
 
 sitesRouter.post("/sites", async (req, res) => {

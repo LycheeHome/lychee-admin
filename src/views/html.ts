@@ -178,8 +178,12 @@ export function renderSiteDetail(
       ? ""
       : respondingOnPort
         ? `<p class="text-rose-300 text-[0.85rem] leading-relaxed m-0">&#9679; Responding on localhost:${escapeHtml(site.target)}</p>`
-        : `<p class="text-stone-400 text-[0.85rem] leading-relaxed m-0">&#9679; Not responding on localhost:${escapeHtml(site.target)}<br />
-        <span class="text-[0.75rem]">Run <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">docker compose up -d --build</code> in <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">${escapeHtml(filesPath ?? "")}/</code> to deploy.</span></p>`;
+        : `<p class="text-stone-400 text-[0.85rem] leading-relaxed m-0">&#9679; Not responding on localhost:${escapeHtml(site.target)}${
+            filesPath
+              ? `<br />
+        <span class="text-[0.75rem]">Run <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">docker compose up -d --build</code> in <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">${escapeHtml(filesPath)}/</code> to deploy.</span>`
+              : ""
+          }</p>`;
 
   const commandsBlock = scaffold
     ? `
