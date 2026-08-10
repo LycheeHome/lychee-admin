@@ -5,6 +5,8 @@ export interface Site {
   type: SiteType;
   /** local path for static sites, local port for reverse proxies */
   target: string;
+  /** only set for reverse-proxy sites scaffolded with a known framework, e.g. "nextjs" */
+  framework?: string;
 }
 
 interface ParsedBlock {
@@ -57,7 +59,13 @@ export function parseSites(content: string): Site[] {
   return splitBlocks(content).map((block) => {
     const proxyMatch = /reverse_proxy\s+localhost:(\d+)/.exec(block.body);
     if (proxyMatch) {
-      return { hostname: block.hostname, type: "reverse-proxy", target: proxyMatch[1] };
+      const frameworkMatch = /#\s*lyly-admin-framework:\s*(\S+)/.exec(block.body);
+      return {
+        hostname: block.hostname,
+        type: "reverse-proxy",
+        target: proxyMatch[1],
+        ...(frameworkMatch ? { framework: frameworkMatch[1] } : {}),
+      };
     }
 
     const rootMatch = /root\s+\*\s+(\S+)/.exec(block.body);
@@ -69,18 +77,19 @@ function renderStaticBlock(hostname: string, sitePath: string): string {
   return `http://${hostname} {\n\troot * ${sitePath}\n\tfile_server\n}\n`;
 }
 
-function renderReverseProxyBlock(hostname: string, port: string): string {
-  return `http://${hostname} {\n\treverse_proxy localhost:${port}\n}\n`;
+function renderReverseProxyBlock(hostname: string, port: string, framework?: string): string {
+  const frameworkComment = framework ? `\t# lyly-admin-framework: ${framework}\n` : "";
+  return `http://${hostname} {\n${frameworkComment}\treverse_proxy localhost:${port}\n}\n`;
 }
 
 export function appendSite(
   content: string,
-  site: { hostname: string; type: SiteType; target: string },
+  site: { hostname: string; type: SiteType; target: string; framework?: string },
 ): string {
   const block =
     site.type === "static"
       ? renderStaticBlock(site.hostname, site.target)
-      : renderReverseProxyBlock(site.hostname, site.target);
+      : renderReverseProxyBlock(site.hostname, site.target, site.framework);
 
   const trimmed = content.trimEnd();
   return `${trimmed}\n\n${block}`.trimEnd() + "\n";
