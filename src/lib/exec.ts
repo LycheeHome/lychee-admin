@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { config } from "../config";
+import { parseComposePsOutput, type ContainerStatus } from "./containerStatus";
 
 const execFile = promisify(execFileCb);
 
@@ -121,4 +122,24 @@ export function writeManagedConfig(targetPath: string, content: string): Promise
 
     child.stdin.end(content);
   });
+}
+
+/**
+ * Reads container lifecycle state + Docker health (if the image defines a
+ * HEALTHCHECK) for a Next.js-scaffolded site via deploy/lyly-admin-docker-status.sh.
+ * Unlike every other function in this file, failures are swallowed into
+ * { state: "unknown" } rather than thrown — this is best-effort display
+ * data for the detail page, not a mutating action a caller needs to detect
+ * and roll back. No raw stderr reaches the page.
+ */
+export async function checkContainerStatus(hostname: string): Promise<ContainerStatus> {
+  if (MOCK_SYSTEM) {
+    return { state: "running", health: "healthy" };
+  }
+  try {
+    const { stdout } = await run("sudo", ["/usr/local/sbin/lyly-admin-docker-status", hostname]);
+    return parseComposePsOutput(stdout);
+  } catch {
+    return { state: "unknown" };
+  }
 }

@@ -3,17 +3,19 @@
 # src/lib/exec.ts shells out to — nothing else. Do not broaden this to
 # "ALL" for any of these commands.
 #
-# Also install these two wrapper scripts to /usr/local/sbin/ (owned root:root,
+# Also install these three wrapper scripts to /usr/local/sbin/ (owned root:root,
 # mode 0700):
 #   deploy/lyly-admin-write-config.sh      -> lyly-admin-write-config
 #   deploy/lyly-admin-create-site-dir.sh   -> lyly-admin-create-site-dir
+#   deploy/lyly-admin-docker-status.sh     -> lyly-admin-docker-status
 #
 # lyly-admin-write-config is the only way the lyly-admin user can write to the
 # two root-owned config files below, since /etc/caddy and /etc/cloudflared are
-# root:root 755. lyly-admin-create-site-dir is invoked with NO argument
-# restriction here deliberately — sudo's wildcard argument matching isn't
-# available on every sudo build (and is bypassable regardless), so hostname
-# validation happens inside the script instead of in this file.
+# root:root 755. lyly-admin-create-site-dir and lyly-admin-docker-status are
+# both invoked with NO argument restriction here deliberately — sudo's
+# wildcard argument matching isn't available on every sudo build (and is
+# bypassable regardless), so hostname validation happens inside each script
+# instead of in this file.
 
 Cmnd_Alias LYLY_ADMIN_CMDS = \
     /usr/bin/caddy validate --config /etc/caddy/Caddyfile, \
@@ -21,6 +23,7 @@ Cmnd_Alias LYLY_ADMIN_CMDS = \
     /usr/bin/systemctl restart cloudflared-sites, \
     /usr/bin/systemctl status caddy --no-pager, \
     /usr/local/sbin/lyly-admin-create-site-dir, \
+    /usr/local/sbin/lyly-admin-docker-status, \
     /usr/local/sbin/lyly-admin-write-config /etc/caddy/Caddyfile, \
     /usr/local/sbin/lyly-admin-write-config /etc/cloudflared/sites-config.yml
 
