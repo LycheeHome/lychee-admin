@@ -73,7 +73,7 @@ jobs:
   deploy:
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Sync app source into the directory lyly-admin scaffolded, without
       # touching the generated Dockerfile/docker-compose.yml/.dockerignore.
