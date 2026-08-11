@@ -7,6 +7,7 @@ import * as caddyfile from "../lib/caddyfile";
 import * as tunnelConfig from "../lib/tunnelConfig";
 import {
   CommandError,
+  checkContainerStatus,
   createSiteDirectory,
   reloadCaddy,
   restartCloudflared,
@@ -16,7 +17,7 @@ import {
 import { getFrameworkScaffold } from "../lib/frameworkScaffold";
 import { logAction } from "../lib/logger";
 import { checkPortOpen } from "../lib/portStatus";
-import { renderSiteDetail, renderSiteList, renderSiteNotFound } from "../views/html";
+import { renderSiteDetail, renderSiteList, renderSiteNotFound, type SiteStatus } from "../views/html";
 
 export const sitesRouter = Router();
 
@@ -25,6 +26,8 @@ export const sitesRouter = Router();
 const CADDY_ADMIN_PORT = 2019;
 
 const hostnamePattern = new RegExp(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?\\.${escapeRegex(config.domain)}$`, "i");
+
+const HEALTHCHECK_PATH_PATTERN = /^\/[A-Za-z0-9._~\-/]{0,199}$/;
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -84,13 +87,17 @@ sitesRouter.get("/sites/:hostname", async (req, res) => {
     // port number) — treat it as simply "not responding" rather than
     // letting an invalid value reach net.connect inside checkPortOpen.
     const port = Number(site.target);
-    const respondingOnPort = port >= 1 && port <= 65535 ? await checkPortOpen(port) : false;
-    const scaffold = site.framework ? getFrameworkScaffold(site.framework, site.target, hostname, config.sitesRoot) : null;
+    const status: SiteStatus = site.framework
+      ? { kind: "container", ...(await checkContainerStatus(hostname)) }
+      : { kind: "tcp", responding: port >= 1 && port <= 65535 ? await checkPortOpen(port) : false };
+    const scaffold = site.framework
+      ? getFrameworkScaffold(site.framework, site.target, hostname, config.sitesRoot, site.healthcheckPath ?? "/")
+      : null;
     const scaffoldCommands = scaffold
       ? { buildCommand: scaffold.buildCommand, runCommand: scaffold.runCommand, deployWorkflow: scaffold.deployWorkflow }
       : undefined;
 
-    res.send(renderSiteDetail(site, config.sitesRoot, respondingOnPort, scaffoldCommands));
+    res.send(renderSiteDetail(site, config.sitesRoot, status, scaffoldCommands));
   } catch (error) {
     const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
     res.status(500).send(renderSiteList([], config.domain, config.sitesRoot, message));
@@ -103,6 +110,8 @@ sitesRouter.post("/sites", async (req, res) => {
   const port = String(req.body?.port ?? "").trim();
   const rawFramework = String(req.body?.framework ?? "").trim();
   const framework = type === "reverse-proxy" && rawFramework === "nextjs" ? "nextjs" : undefined;
+  const rawHealthcheckPath = String(req.body?.healthcheckPath ?? "").trim();
+  const healthcheckPath = framework === "nextjs" ? rawHealthcheckPath || "/" : undefined;
 
   if (!isValidHostname(hostname)) {
     res.status(400).json({ error: `"${hostname}" must be a subdomain of ${config.domain}` });
@@ -111,6 +120,11 @@ sitesRouter.post("/sites", async (req, res) => {
 
   if (type === "reverse-proxy" && (!port || Number(port) < 1 || Number(port) > 65535)) {
     res.status(400).json({ error: "A valid local port is required for a reverse proxy site" });
+    return;
+  }
+
+  if (healthcheckPath && !HEALTHCHECK_PATH_PATTERN.test(healthcheckPath)) {
+    res.status(400).json({ error: `"${healthcheckPath}" is not a valid healthcheck path` });
     return;
   }
 
@@ -152,7 +166,7 @@ sitesRouter.post("/sites", async (req, res) => {
     // 2. Append the Caddyfile block.
     await writeManagedConfig(
       config.caddyfilePath,
-      caddyfile.appendSite(caddyfileContent, { hostname, type, target, framework }),
+      caddyfile.appendSite(caddyfileContent, { hostname, type, target, framework, healthcheckPath }),
     );
 
     // 3. Static sites get a directory + placeholder page; Next.js
@@ -164,7 +178,7 @@ sitesRouter.post("/sites", async (req, res) => {
       await createSiteDirectory(hostname);
       fs.writeFileSync(path.join(sitePath, "index.html"), PLACEHOLDER_INDEX_HTML(hostname));
     } else if (framework) {
-      const scaffold = getFrameworkScaffold(framework, port, hostname, config.sitesRoot);
+      const scaffold = getFrameworkScaffold(framework, port, hostname, config.sitesRoot, healthcheckPath ?? "/");
       if (scaffold) {
         await createSiteDirectory(hostname);
         fs.writeFileSync(path.join(sitePath, "Dockerfile"), scaffold.dockerfile);

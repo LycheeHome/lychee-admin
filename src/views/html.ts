@@ -1,4 +1,5 @@
 import { computeFilesPath, type Site } from "../lib/caddyfile";
+import type { ContainerHealth, ContainerState } from "../lib/containerStatus";
 
 function escapeHtml(value: string): string {
   return value
@@ -173,19 +174,71 @@ export function renderSiteList(
   );
 }
 
+export type SiteStatus =
+  | { kind: "tcp"; responding: boolean }
+  | { kind: "container"; state: ContainerState; health?: ContainerHealth };
+
+function renderContainerStatusLine(
+  status: { kind: "container"; state: ContainerState; health?: ContainerHealth },
+  site: Site,
+  filesPath: string | null,
+): string {
+  const port = escapeHtml(site.target);
+  const deployHint = filesPath
+    ? `<br />
+        <span class="text-[0.75rem] text-stone-400">Run <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">docker compose up -d --build</code> in <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">${escapeHtml(filesPath)}/</code> to deploy.</span>`
+    : "";
+  const logsHint = (reason: string) =>
+    filesPath
+      ? `<br />
+        <span class="text-[0.75rem] text-stone-400">${reason} Check <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">docker compose logs</code> in <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">${escapeHtml(filesPath)}/</code>.</span>`
+      : "";
+
+  if (status.state === "not-created") {
+    return `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Not deployed yet on localhost:${port}.${deployHint}</p>`;
+  }
+  if (status.state === "exited") {
+    return `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Exited on localhost:${port}.${logsHint("The container stopped unexpectedly.")}</p>`;
+  }
+  if (status.state === "restarting") {
+    return `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Restarting on localhost:${port}.${logsHint("The container is crash-looping.")}</p>`;
+  }
+  if (status.state === "paused") {
+    return `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Paused on localhost:${port}.</p>`;
+  }
+  if (status.state === "unknown") {
+    return `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Unable to check container status.</p>`;
+  }
+  // status.state === "running"
+  if (status.health === "unhealthy") {
+    return `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Running on localhost:${port}, but unhealthy.${logsHint("The health check is failing.")}</p>`;
+  }
+  if (status.health === "starting") {
+    return `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Running on localhost:${port}, health check still starting.</p>`;
+  }
+  return `<p class="text-green-300 text-[0.85rem] leading-relaxed m-0">&#9679; Running on localhost:${port}.${status.health === "healthy" ? " Healthy." : ""}</p>`;
+}
+
 export function renderSiteDetail(
   site: Site,
   sitesRoot: string,
-  respondingOnPort?: boolean,
+  status?: SiteStatus,
   scaffold?: { buildCommand: string; runCommand: string; deployWorkflow: string },
 ): string {
   const filesPath = computeFilesPath(site, sitesRoot);
   const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
 
+  const isLive =
+    status?.kind === "tcp"
+      ? status.responding
+      : status?.kind === "container"
+        ? status.state === "running" && (status.health === undefined || status.health === "healthy")
+        : undefined;
+
   const statusPill =
-    respondingOnPort === undefined
+    isLive === undefined
       ? ""
-      : respondingOnPort
+      : isLive
         ? `<span class="${STATUS_PILL_LIVE}">&#9679; live</span>`
         : `<span class="${STATUS_PILL_DOWN}">&#9679; down</span>`;
 
@@ -204,13 +257,14 @@ export function renderSiteDetail(
       </section>`;
 
   const statusCard =
-    site.type === "static"
+    site.type === "static" || !status
       ? ""
-      : `
+      : status.kind === "tcp"
+        ? `
       <section class="${DETAIL_CARD}">
         <h3 class="${SECTION_LABEL}">Status</h3>
         ${
-          respondingOnPort
+          status.responding
             ? `<p class="text-green-300 text-[0.85rem] leading-relaxed m-0">&#9679; Responding on localhost:${escapeHtml(site.target)}</p>`
             : `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Not responding on localhost:${escapeHtml(site.target)}${
                 filesPath
@@ -219,6 +273,11 @@ export function renderSiteDetail(
                   : ""
               }</p>`
         }
+      </section>`
+        : `
+      <section class="${DETAIL_CARD}">
+        <h3 class="${SECTION_LABEL}">Status</h3>
+        ${renderContainerStatusLine(status, site, filesPath)}
       </section>`;
 
   const deployCard = scaffold
