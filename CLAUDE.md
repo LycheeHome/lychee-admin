@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development workflow
 
-Any code change to this repo — however small it looks — goes through the superpowers workflow: `superpowers:brainstorming` to design it (propose approaches, ask clarifying questions, get explicit sign-off), `superpowers:writing-plans` to turn the approved design into a task-by-task implementation plan, then `superpowers:subagent-driven-development` to execute it with a fresh subagent per task, a task-scoped review after each, and a final whole-branch review before merge. Don't skip straight to editing files. Documentation-only edits (README, this file) and pure investigation/analysis don't need the full pipeline, but anything that changes `src/`, `public/`, or `deploy/` does.
+Code changes that involve a real judgment call — a new feature, a behavior change, anything with more than one reasonable way to build it — go through the superpowers workflow: `superpowers:brainstorming` to design it (propose approaches, ask clarifying questions, get explicit sign-off), `superpowers:writing-plans` to turn the approved design into a task-by-task implementation plan, then `superpowers:subagent-driven-development` to execute it with a fresh subagent per task, a task-scoped review after each, and a final whole-branch review before merge. Don't skip straight to editing files for these.
+
+Trivial, mechanical changes with no design decision to make — a version-pin bump, a typo fix, a one-line config value change, updating a comment to match code that already changed — can be edited directly: make the change, verify with `npm run typecheck`/`npm run build`/`npm run lint`, and commit normally. If it's not obvious which category a change falls into, err toward the full pipeline. Documentation-only edits (README, this file) and pure investigation/analysis never need the full pipeline either way.
 
 ## Project status
 
