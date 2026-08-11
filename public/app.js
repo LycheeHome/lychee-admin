@@ -196,24 +196,30 @@ document.querySelectorAll("[data-close-dialog]").forEach((trigger) => {
 });
 
 document.querySelectorAll("[data-copy-target]").forEach((button) => {
-  const originalLabel = button.textContent;
+  const idleIcon = button.querySelector('[data-copy-icon="idle"]');
+  const copiedIcon = button.querySelector('[data-copy-icon="copied"]');
   button.addEventListener("click", async () => {
     const target = document.getElementById(button.dataset.copyTarget);
     if (!target) return;
     try {
       await navigator.clipboard.writeText(target.textContent ?? "");
-      button.textContent = "Copied!";
+      button.setAttribute("aria-label", "Copied!");
+      idleIcon?.classList.add("hidden");
+      copiedIcon?.classList.remove("hidden");
     } catch {
       // Insecure context (plain http over the LAN, which is how this app is
       // actually deployed — see CLAUDE.md) or clipboard permission denied.
       // navigator.clipboard is undefined outside secure contexts, so even
       // accessing .writeText throws synchronously; select the text so the
-      // user can still copy it manually with Ctrl+C.
+      // user can still copy it manually with Ctrl+C. No icon change here —
+      // the selected/highlighted text is the real signal for this case.
       window.getSelection()?.selectAllChildren(target);
-      button.textContent = "Press Ctrl+C to copy";
+      button.setAttribute("aria-label", "Press Ctrl+C to copy");
     }
     setTimeout(() => {
-      button.textContent = originalLabel;
+      button.setAttribute("aria-label", "Copy to clipboard");
+      idleIcon?.classList.remove("hidden");
+      copiedIcon?.classList.add("hidden");
     }, 1500);
   });
 });
