@@ -17,6 +17,13 @@ const BUTTON_DANGER =
 const INPUT =
   "font-mono bg-stone-900 border border-stone-700 rounded-md text-stone-50 px-2.5 py-2 text-sm placeholder:text-stone-400/60 focus:outline focus:outline-2 focus:outline-rose-400 focus:outline-offset-2";
 const FORM_LABEL = "flex flex-col gap-1.5 text-[0.85rem] text-stone-400";
+const SECTION_LABEL =
+  "font-mono text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-stone-400 m-0 mb-2";
+const DETAIL_CARD = "bg-stone-800 border border-stone-700 rounded-[10px] p-6 flex flex-col gap-3";
+const STATUS_PILL_BASE =
+  "inline-flex items-center gap-1 shrink-0 font-mono text-[0.65rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-transparent";
+const STATUS_PILL_LIVE = `${STATUS_PILL_BASE} text-green-300 bg-green-950/60`;
+const STATUS_PILL_DOWN = `${STATUS_PILL_BASE} text-red-300 bg-red-950/60`;
 
 function layout(title: string, body: string): string {
   const mainClass = "max-w-[1080px] mx-auto py-6 pb-8 flex flex-col gap-6";
@@ -175,33 +182,58 @@ export function renderSiteDetail(
   const filesPath = computeFilesPath(site, sitesRoot);
   const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
 
-  const statusLine =
+  const statusPill =
     respondingOnPort === undefined
       ? ""
       : respondingOnPort
-        ? `<p class="text-rose-300 text-[0.85rem] leading-relaxed m-0">&#9679; Responding on localhost:${escapeHtml(site.target)}</p>`
-        : `<p class="text-stone-400 text-[0.85rem] leading-relaxed m-0">&#9679; Not responding on localhost:${escapeHtml(site.target)}${
-            filesPath
-              ? `<br />
-        <span class="text-[0.75rem]">Run <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">docker compose up -d --build</code> in <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">${escapeHtml(filesPath)}/</code> to deploy.</span>`
-              : ""
-          }</p>`;
+        ? `<span class="${STATUS_PILL_LIVE}">&#9679; live</span>`
+        : `<span class="${STATUS_PILL_DOWN}">&#9679; down</span>`;
 
-  const commandsBlock = scaffold
+  const overviewCard =
+    site.type === "static"
+      ? `
+      <section class="${DETAIL_CARD}">
+        <h3 class="${SECTION_LABEL}">Overview</h3>
+        <p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0 break-words"><span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">path:</span> ${escapeHtml(site.target)}</p>
+      </section>`
+      : `
+      <section class="${DETAIL_CARD}">
+        <h3 class="${SECTION_LABEL}">Overview</h3>
+        <p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0"><span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">local port:</span> ${escapeHtml(site.target)}</p>
+        ${frameworkLabel ? `<p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0"><span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">framework:</span> ${escapeHtml(frameworkLabel)}</p>` : ""}
+      </section>`;
+
+  const statusCard =
+    site.type === "static"
+      ? ""
+      : `
+      <section class="${DETAIL_CARD}">
+        <h3 class="${SECTION_LABEL}">Status</h3>
+        ${
+          respondingOnPort
+            ? `<p class="text-green-300 text-[0.85rem] leading-relaxed m-0">&#9679; Responding on localhost:${escapeHtml(site.target)}</p>`
+            : `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Not responding on localhost:${escapeHtml(site.target)}${
+                filesPath
+                  ? `<br />
+        <span class="text-[0.75rem] text-stone-400">Run <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">docker compose up -d --build</code> in <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">${escapeHtml(filesPath)}/</code> to deploy.</span>`
+                  : ""
+              }</p>`
+        }
+      </section>`;
+
+  const deployCard = scaffold
     ? `
-        <div class="flex flex-col gap-1 mt-2">
+      <section class="${DETAIL_CARD}">
+        <h3 class="${SECTION_LABEL}">Deploy</h3>
+        <div class="flex flex-col gap-1">
           <span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em] font-mono">build command</span>
           <code class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 text-[0.85rem] text-stone-50">${escapeHtml(scaffold.buildCommand)}</code>
         </div>
         <div class="flex flex-col gap-1">
           <span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em] font-mono">run command</span>
           <code class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 text-[0.85rem] text-stone-50">${escapeHtml(scaffold.runCommand)}</code>
-        </div>`
-    : "";
-
-  const workflowBlock = scaffold
-    ? `
-        <div class="flex flex-col gap-1 mt-2">
+        </div>
+        <div class="flex flex-col gap-1">
           <span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em] font-mono">github actions workflow</span>
           <div class="relative">
             <button type="button" class="absolute top-2 right-2 p-1.5 rounded-md bg-stone-800 border border-stone-700 text-stone-400 hover:text-stone-50 hover:bg-stone-700 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2" data-copy-target="github-workflow-yaml" aria-label="Copy to clipboard">
@@ -211,18 +243,9 @@ export function renderSiteDetail(
             <pre id="github-workflow-yaml" class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 pr-10 text-[0.8rem] text-stone-50 overflow-x-auto whitespace-pre">${escapeHtml(scaffold.deployWorkflow)}</pre>
           </div>
           <p class="text-stone-400 text-[0.75rem] leading-snug m-0">Paste this into <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">.github/workflows/deploy.yml</code> in your app's repo.</p>
-        </div>`
+        </div>
+      </section>`
     : "";
-
-  const detailsBody =
-    site.type === "static"
-      ? `<p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0 break-words"><span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">path:</span> ${escapeHtml(site.target)}</p>`
-      : `
-        <p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0"><span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">local port:</span> ${escapeHtml(site.target)}</p>
-        ${frameworkLabel ? `<p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0"><span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">framework:</span> ${escapeHtml(frameworkLabel)}</p>` : ""}
-        ${statusLine}
-        ${commandsBlock}
-        ${workflowBlock}`;
 
   const deleteFilesSection = filesPath
     ? `
@@ -248,17 +271,20 @@ export function renderSiteDetail(
       <p class="m-0"><a href="/" class="text-rose-400 no-underline font-mono text-[0.85rem] hover:underline">&larr; Back to sites</a></p>
 
       <div class="flex items-start justify-between gap-2">
-        <h2 class="font-display text-xl leading-relaxed text-stone-50 m-0 break-words">${escapeHtml(site.hostname)}</h2>
-        <span class="inline-block shrink-0 font-mono text-[0.7rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border ${
-          site.type === "static"
-            ? "border-stone-600 text-stone-50 bg-stone-700"
-            : "border-transparent text-rose-300 bg-rose-950"
-        }">${site.type === "static" ? "static" : "proxy"}</span>
+        <h2 class="font-display text-3xl leading-relaxed text-stone-50 m-0 break-words">${escapeHtml(site.hostname)}</h2>
+        <div class="flex items-center gap-2 shrink-0">
+          <span class="inline-block font-mono text-[0.7rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border ${
+            site.type === "static"
+              ? "border-stone-600 text-stone-50 bg-stone-700"
+              : "border-transparent text-rose-300 bg-rose-950"
+          }">${site.type === "static" ? "static" : "proxy"}</span>
+          ${statusPill}
+        </div>
       </div>
 
-      <section class="bg-stone-800 border border-stone-700 rounded-[10px] p-6 flex flex-col gap-3">
-        ${detailsBody}
-      </section>
+      ${overviewCard}
+      ${statusCard}
+      ${deployCard}
 
       <button type="button" class="${BUTTON_DANGER} self-start" data-open-dialog="confirm-remove-dialog">${icon("trash")}Remove site</button>
     </div>
