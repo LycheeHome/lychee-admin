@@ -9,6 +9,8 @@ export interface Site {
   target: string;
   /** only set for reverse-proxy sites scaffolded with a known framework, e.g. "nextjs" */
   framework?: string;
+  /** only set for reverse-proxy sites with a framework — HTTP path Docker polls for HEALTHCHECK */
+  healthcheckPath?: string;
 }
 
 interface ParsedBlock {
@@ -62,11 +64,13 @@ export function parseSites(content: string): Site[] {
     const proxyMatch = /reverse_proxy\s+localhost:(\d+)/.exec(block.body);
     if (proxyMatch) {
       const frameworkMatch = /#\s*lyly-admin-framework:\s*(\S+)/.exec(block.body);
+      const healthcheckMatch = /#\s*lyly-admin-healthcheck:\s*(\S+)/.exec(block.body);
       return {
         hostname: block.hostname,
         type: "reverse-proxy",
         target: proxyMatch[1],
         ...(frameworkMatch ? { framework: frameworkMatch[1] } : {}),
+        ...(healthcheckMatch ? { healthcheckPath: healthcheckMatch[1] } : {}),
       };
     }
 
@@ -79,19 +83,21 @@ function renderStaticBlock(hostname: string, sitePath: string): string {
   return `http://${hostname} {\n\troot * ${sitePath}\n\tfile_server\n}\n`;
 }
 
-function renderReverseProxyBlock(hostname: string, port: string, framework?: string): string {
-  const frameworkComment = framework ? `\t# lyly-admin-framework: ${framework}\n` : "";
+function renderReverseProxyBlock(hostname: string, port: string, framework?: string, healthcheckPath?: string): string {
+  const frameworkComment = framework
+    ? `\t# lyly-admin-framework: ${framework}\n\t# lyly-admin-healthcheck: ${healthcheckPath ?? "/"}\n`
+    : "";
   return `http://${hostname} {\n${frameworkComment}\treverse_proxy localhost:${port}\n}\n`;
 }
 
 export function appendSite(
   content: string,
-  site: { hostname: string; type: SiteType; target: string; framework?: string },
+  site: { hostname: string; type: SiteType; target: string; framework?: string; healthcheckPath?: string },
 ): string {
   const block =
     site.type === "static"
       ? renderStaticBlock(site.hostname, site.target)
-      : renderReverseProxyBlock(site.hostname, site.target, site.framework);
+      : renderReverseProxyBlock(site.hostname, site.target, site.framework, site.healthcheckPath);
 
   const trimmed = content.trimEnd();
   return `${trimmed}\n\n${block}`.trimEnd() + "\n";
