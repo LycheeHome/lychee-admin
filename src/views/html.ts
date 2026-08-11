@@ -159,6 +159,11 @@ export function renderSiteList(
               <option value="nextjs">Next.js — generates a Dockerfile + docker-compose.yml</option>
             </select>
           </label>
+          <label class="hidden flex-col gap-1.5 text-[0.85rem] text-stone-400" id="healthcheck-field-wrapper">
+            Healthcheck path (optional)
+            <input type="text" name="healthcheckPath" placeholder="/" class="${INPUT}" id="healthcheck-field" />
+            <span class="text-[0.75rem] text-stone-400 leading-snug">Path Docker will poll inside the container to decide if it's healthy. Defaults to <code class="font-mono">/</code>.</span>
+          </label>
         </div>
         <script type="application/json" id="port-owners-data">${JSON.stringify(portOwners)}</script>
 

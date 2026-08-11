@@ -113,6 +113,17 @@ function syncPortField() {
 typeInputs.forEach((input) => input.addEventListener("change", syncPortField));
 syncPortField();
 
+const frameworkField = document.getElementById("framework-field");
+const healthcheckFieldWrapper = document.getElementById("healthcheck-field-wrapper");
+
+function syncFrameworkFields() {
+  const isNextjs = frameworkField?.value === "nextjs";
+  if (healthcheckFieldWrapper) healthcheckFieldWrapper.style.display = isNextjs ? "flex" : "none";
+}
+
+frameworkField?.addEventListener("change", syncFrameworkFields);
+syncFrameworkFields();
+
 function validatePortField() {
   if (!portField || !portError) return;
   const owner = portOwners[portField.value];
@@ -139,6 +150,7 @@ addSiteDialog?.addEventListener("close", () => {
   addSiteError?.classList.add("hidden");
   addSiteForm?.reset();
   syncPortField();
+  syncFrameworkFields();
   validatePortField();
 });
 
@@ -151,13 +163,14 @@ addSiteForm?.addEventListener("submit", async (event) => {
   const type = formData.get("type");
   const port = String(formData.get("port") ?? "").trim();
   const framework = String(formData.get("framework") ?? "").trim();
+  const healthcheckPath = String(formData.get("healthcheckPath") ?? "").trim();
 
   addSiteInFlight = true;
   addSiteError?.classList.add("hidden");
   try {
     const response = await fetch("/sites", {
       method: "POST",
-      body: new URLSearchParams({ hostname, type, port, framework }),
+      body: new URLSearchParams({ hostname, type, port, framework, healthcheckPath }),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? "Failed to add site");
