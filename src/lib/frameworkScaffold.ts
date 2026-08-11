@@ -19,7 +19,7 @@ function toExecForm(command: string): string {
   return JSON.stringify(command.split(" "));
 }
 
-function nextjsDockerfile(buildCommand: string, runCommand: string): string {
+function nextjsDockerfile(buildCommand: string, runCommand: string, healthcheckPath: string): string {
   return `FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
@@ -40,6 +40,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/next.config.js* /app/next.config.mjs* ./
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s CMD wget -q --spider "http://localhost:3000${healthcheckPath}" || exit 1
 CMD ${toExecForm(runCommand)}
 `;
 }
@@ -91,11 +92,17 @@ jobs:
 `;
 }
 
-export function getFrameworkScaffold(framework: string, port: string, hostname: string, sitesRoot: string): Scaffold | null {
+export function getFrameworkScaffold(
+  framework: string,
+  port: string,
+  hostname: string,
+  sitesRoot: string,
+  healthcheckPath: string,
+): Scaffold | null {
   if (framework !== "nextjs") return null;
   const deployPath = path.posix.join(sitesRoot, hostname);
   return {
-    dockerfile: nextjsDockerfile(NEXTJS_BUILD_COMMAND, NEXTJS_RUN_COMMAND),
+    dockerfile: nextjsDockerfile(NEXTJS_BUILD_COMMAND, NEXTJS_RUN_COMMAND, healthcheckPath),
     compose: nextjsCompose(port),
     dockerignore: NEXTJS_DOCKERIGNORE,
     buildCommand: NEXTJS_BUILD_COMMAND,
