@@ -35,4 +35,4 @@ if [ ! -f "$compose_file" ]; then
   exit 0
 fi
 
-docker compose -f "$compose_file" ps --format json
+docker compose -f "$compose_file" ps --all --format json

@@ -40,7 +40,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/next.config.js* /app/next.config.mjs* ./
 EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s CMD wget -q --spider "http://localhost:3000${healthcheckPath}" || exit 1
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s CMD wget -q -O /dev/null "http://localhost:3000${healthcheckPath}" || exit 1
 CMD ${toExecForm(runCommand)}
 `;
 }

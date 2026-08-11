@@ -11,6 +11,8 @@ const STATE_MAP: Record<string, ContainerState> = {
   exited: "exited",
   restarting: "restarting",
   paused: "paused",
+  created: "not-created",
+  dead: "exited",
 };
 
 const HEALTH_MAP: Record<string, ContainerHealth> = {

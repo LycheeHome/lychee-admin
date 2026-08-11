@@ -216,7 +216,7 @@ function renderContainerStatusLine(
   }
   // status.state === "running"
   if (status.health === "unhealthy") {
-    return `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Running on localhost:${port}, but unhealthy.${logsHint("The health check is failing.")}</p>`;
+    return `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Running on localhost:${port}, but unhealthy.${logsHint(`The health check at ${escapeHtml(site.healthcheckPath ?? "/")} is failing.`)}</p>`;
   }
   if (status.health === "starting") {
     return `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Running on localhost:${port}, health check still starting.</p>`;

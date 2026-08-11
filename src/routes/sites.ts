@@ -90,6 +90,8 @@ sitesRouter.get("/sites/:hostname", async (req, res) => {
     const status: SiteStatus = site.framework
       ? { kind: "container", ...(await checkContainerStatus(hostname)) }
       : { kind: "tcp", responding: port >= 1 && port <= 65535 ? await checkPortOpen(port) : false };
+    // site.healthcheckPath is unvalidated on this read path (only POST /sites validates it);
+    // safe here only because scaffold.dockerfile is discarded below and never rendered.
     const scaffold = site.framework
       ? getFrameworkScaffold(site.framework, site.target, hostname, config.sitesRoot, site.healthcheckPath ?? "/")
       : null;
