@@ -8,6 +8,8 @@ Code changes that involve a real judgment call — a new feature, a behavior cha
 
 Trivial, mechanical changes with no design decision to make — a version-pin bump, a typo fix, a one-line config value change, updating a comment to match code that already changed — can be edited directly: make the change, verify with `npm run typecheck`/`npm run build`/`npm run lint`, and commit normally. If it's not obvious which category a change falls into, err toward the full pipeline. Documentation-only edits (README, this file) and pure investigation/analysis never need the full pipeline either way.
 
+Any UI/UX update or decision — new markup, layout changes, styling, copy, interaction design — invoke the `frontend-design` skill before making the change, even when the change is otherwise small enough to skip the superpowers pipeline above.
+
 ## Project status
 
 Deployed and verified working end-to-end on `lychee` — add-site, remove-site, and the reverse-proxy port-conflict check have all been exercised for real through the UI, with every affected file (Caddyfile, tunnel config, `/var/www/<hostname>`, audit log) confirmed to change correctly on add and fully revert on remove. The remove-site UI has since been reworked to modals/`fetch` instead of full-page navigation, the delete-files confirmation was folded into the initial remove-site modal, and reverse-proxy sites gained optional Next.js scaffold generation (see Core v1 feature flow and Reverse-proxy sites below) — none of this has been re-verified live on `lychee` yet.
