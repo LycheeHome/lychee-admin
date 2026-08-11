@@ -54,6 +54,8 @@ function layout(title: string, body: string): string {
 const ICONS = {
   plus: `<path d="M5 12h14" /><path d="M12 5v14" />`,
   trash: `<path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" />`,
+  clipboard: `<rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />`,
+  check: `<path d="M20 6 9 17l-5-5" />`,
 };
 
 function icon(name: keyof typeof ICONS): string {
@@ -200,11 +202,14 @@ export function renderSiteDetail(
   const workflowBlock = scaffold
     ? `
         <div class="flex flex-col gap-1 mt-2">
-          <div class="flex items-center justify-between gap-2">
-            <span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em] font-mono">github actions workflow</span>
-            <button type="button" class="${BUTTON_SECONDARY}" data-copy-target="github-workflow-yaml">Copy</button>
+          <span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em] font-mono">github actions workflow</span>
+          <div class="relative">
+            <button type="button" class="absolute top-2 right-2 p-1.5 rounded-md bg-stone-800 border border-stone-700 text-stone-400 hover:text-stone-50 hover:bg-stone-700 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2" data-copy-target="github-workflow-yaml" aria-label="Copy to clipboard">
+              <span data-copy-icon="idle">${icon("clipboard")}</span>
+              <span data-copy-icon="copied" class="hidden">${icon("check")}</span>
+            </button>
+            <pre id="github-workflow-yaml" class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 pr-10 text-[0.8rem] text-stone-50 overflow-x-auto whitespace-pre">${escapeHtml(scaffold.deployWorkflow)}</pre>
           </div>
-          <pre id="github-workflow-yaml" class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 text-[0.8rem] text-stone-50 overflow-x-auto whitespace-pre">${escapeHtml(scaffold.deployWorkflow)}</pre>
           <p class="text-stone-400 text-[0.75rem] leading-snug m-0">Paste this into <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">.github/workflows/deploy.yml</code> in your app's repo.</p>
         </div>`
     : "";
