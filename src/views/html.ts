@@ -240,12 +240,14 @@ export function renderSiteDetail(
         ? status.state === "running" && (status.health === undefined || status.health === "healthy")
         : undefined;
 
+  const downLabel = status?.kind === "container" && status.state === "not-created" ? "not deployed" : "down";
+
   const statusPill =
     isLive === undefined
       ? ""
       : isLive
         ? `<span class="${STATUS_PILL_LIVE}">&#9679; live</span>`
-        : `<span class="${STATUS_PILL_DOWN}">&#9679; down</span>`;
+        : `<span class="${STATUS_PILL_DOWN}">&#9679; ${downLabel}</span>`;
 
   const overviewCard =
     site.type === "static"
