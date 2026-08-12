@@ -27,6 +27,6 @@ npm run dev
 
 ## Deployment
 
-Runs as its own systemd service (`deploy/lyly-admin.service`) under a dedicated low-privilege user with narrowly scoped `sudo` rights — see `deploy/sudoers.example` and the wrapper scripts in `deploy/` for exactly what it's allowed to do (validate/reload Caddy, restart the tunnel, write two specific config files, create site directories). CI/CD is a self-hosted GitHub Actions runner (`.github/workflows/deploy.yml`) that builds, syncs, and restarts the service on push to `main`.
+Runs as its own systemd service (`deploy/lyly-admin.service`) under a dedicated low-privilege user with narrowly scoped `sudo` rights — see `deploy/sudoers.example` and the wrapper scripts in `deploy/` for exactly what it's allowed to do (validate/reload Caddy, restart the tunnel, write two specific config files, create site directories, check a Next.js site's container status). CI/CD is a self-hosted GitHub Actions runner (`.github/workflows/deploy.yml`) that builds, syncs, and restarts the service on push to `main`.
 
 Full architecture notes, safety constraints, and host-specific details live in [`CLAUDE.md`](./CLAUDE.md).
