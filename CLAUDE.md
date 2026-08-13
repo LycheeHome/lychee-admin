@@ -82,7 +82,7 @@ These are non-negotiable properties of the design — preserve them in any imple
 
 ## Deployment
 
-CI/CD runs via the existing self-hosted `github-runner` on `lychee` — see `.github/workflows/deploy.yml`. It builds, syncs everything except `.env`/`node_modules` into `/opt/lyly-admin`, installs production deps there, restarts the `lyly-admin` systemd service, and health-checks it (expects a `401` from `/`, since that's proof Express bound its port and basic-auth middleware ran — `systemctl is-active` alone only proves systemd thinks the process is running, not that it's serving traffic). `github-runner`'s sudo scope for this is in `deploy/sudoers-github-runner.example`, separate from the app's own scope in `deploy/sudoers.example`.
+CI/CD runs via the existing self-hosted `github-runner` on `lychee` — see `.github/workflows/deploy.yml`. It builds, syncs everything except `.git`, `.env`, `node_modules`, `src/dev/`, and `*.test.ts` into `/opt/lyly-admin`, installs production deps there, restarts the `lyly-admin` systemd service, and health-checks it (expects a `401` from `/`, since that's proof Express bound its port and basic-auth middleware ran — `systemctl is-active` alone only proves systemd thinks the process is running, not that it's serving traffic). `github-runner`'s sudo scope for this is in `deploy/sudoers-github-runner.example`, separate from the app's own scope in `deploy/sudoers.example`.
 
 One-time host setup this assumes, not done by CI:
 - `/opt/lyly-admin` created, owned `lyly-admin:webdeploy`, mode `2775` (so both the app's own user and `github-runner`, already a `webdeploy` member, can write).
