@@ -6,6 +6,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "concurrently -n tsx,css \"tsx watch src/server.ts\" \"tailwindcss -i src/styles/tailwind.css -o public/style.css --watch\"",
+    "dev:mock": "concurrently -n tsx,css \"tsx watch src/dev/server.ts\" \"tailwindcss -i src/styles/tailwind.css -o public/style.css --watch\"",
     "build:css": "tailwindcss -i src/styles/tailwind.css -o public/style.css --minify",
     "build": "npm run build:css && tsc -p tsconfig.build.json",
     "start": "node dist/server.js",

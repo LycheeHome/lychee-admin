@@ -1,0 +1,16 @@
+/**
+ * Local development credentials, committed deliberately.
+ *
+ * This is a known throwaway password ("dev") for an app that binds
+ * 127.0.0.1, and this whole directory ships to neither dist/ nor lychee —
+ * see tsconfig.build.json and the rsync excludes in
+ * .github/workflows/deploy.yml. Production reads its own .env through
+ * src/server.ts, which never imports this file.
+ *
+ * This module exists separately from src/dev/server.ts because src/config.ts
+ * calls required() at module evaluation time and import declarations are
+ * hoisted — so the assignments have to live in a module that is imported
+ * before config, not in a statement alongside the import.
+ */
+process.env.ADMIN_USERNAME ??= "dev";
+process.env.ADMIN_PASSWORD_HASH ??= "$2b$12$X/UB7NklDWv8CQTaRZpFzOWt9lYBcJYK1UwtOG9EgG6wwegHeFmAS";

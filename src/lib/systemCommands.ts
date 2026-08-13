@@ -1,19 +1,8 @@
 import { execFile as execFileCb, spawn } from "node:child_process";
-import fs from "node:fs";
-import path from "node:path";
 import { promisify } from "node:util";
-import { config } from "../config";
 import { parseComposePsOutput, type ContainerStatus } from "./containerStatus";
 
 const execFile = promisify(execFileCb);
-
-/**
- * Temporary: retained only until src/dev/ supplies fake implementations and
- * the route tests switch to them. Removed in the same change that adds
- * src/dev/fakes.ts — production mock behavior is then unreachable by
- * construction rather than guarded by an environment variable.
- */
-const MOCK_SYSTEM = process.env.MOCK_SYSTEM === "true";
 
 export class CommandError extends Error {
   constructor(
@@ -56,16 +45,10 @@ export interface SystemCommands {
 
 export const realSystemCommands: SystemCommands = {
   validateCaddyfile(caddyfilePath) {
-    if (MOCK_SYSTEM) {
-      return Promise.resolve({ stdout: `[mock] validated ${caddyfilePath}`, stderr: "" });
-    }
     return run("sudo", ["/usr/bin/caddy", "validate", "--config", caddyfilePath]);
   },
 
   reloadCaddy() {
-    if (MOCK_SYSTEM) {
-      return Promise.resolve({ stdout: "[mock] reloaded caddy", stderr: "" });
-    }
     return run("sudo", ["/usr/bin/systemctl", "reload", "caddy"]);
   },
 
@@ -76,9 +59,6 @@ export const realSystemCommands: SystemCommands = {
    * ssh.lyly.dev, which stays on its own separate tunnel/service.
    */
   restartCloudflared() {
-    if (MOCK_SYSTEM) {
-      return Promise.resolve({ stdout: "[mock] restarted cloudflared-sites", stderr: "" });
-    }
     return run("sudo", ["/usr/bin/systemctl", "restart", "cloudflared-sites"]);
   },
 
@@ -90,10 +70,6 @@ export const realSystemCommands: SystemCommands = {
    * /var/www" without wildcards, which aren't supported on every sudo build.
    */
   createSiteDirectory(hostname) {
-    if (MOCK_SYSTEM) {
-      fs.mkdirSync(path.join(config.sitesRoot, hostname), { recursive: true });
-      return Promise.resolve({ stdout: `[mock] created ${path.join(config.sitesRoot, hostname)}`, stderr: "" });
-    }
     return run("sudo", ["/usr/local/sbin/lyly-admin-create-site-dir", hostname]);
   },
 
@@ -105,10 +81,6 @@ export const realSystemCommands: SystemCommands = {
    * dedicated low-privilege app user has no direct write access to either file.
    */
   writeManagedConfig(targetPath, content) {
-    if (MOCK_SYSTEM) {
-      fs.writeFileSync(targetPath, content);
-      return Promise.resolve();
-    }
     return new Promise((resolve, reject) => {
       const child = spawn("sudo", ["/usr/local/sbin/lyly-admin-write-config", targetPath]);
 
@@ -140,9 +112,6 @@ export const realSystemCommands: SystemCommands = {
    * and roll back. No raw stderr reaches the page.
    */
   async checkContainerStatus(hostname) {
-    if (MOCK_SYSTEM) {
-      return { state: "running", health: "healthy" };
-    }
     try {
       const { stdout } = await run("sudo", ["/usr/local/sbin/lyly-admin-docker-status", hostname]);
       return parseComposePsOutput(stdout);

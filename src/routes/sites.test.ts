@@ -1,33 +1,27 @@
 import { after, before, beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { once } from "node:events";
 import type { Server } from "node:http";
 import bcrypt from "bcrypt";
+import type { createInMemoryFileSystem } from "../dev/fakes";
 
 // --- Fixture layout -------------------------------------------------------
-// Every path config reads is redirected into one temp directory. This must
-// happen before the app modules are imported, because src/config.ts reads
-// process.env when it is evaluated (see Step 1).
+// These must match what config resolves to, since nothing redirects them
+// any more. This must happen before the app modules are imported, because
+// src/config.ts reads process.env when it is evaluated (see Step 1).
 
-const TEMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "lyly-admin-test-"));
-const CADDYFILE = path.join(TEMP_ROOT, "Caddyfile");
-const TUNNEL_CONFIG = path.join(TEMP_ROOT, "sites-config.yml");
-const SITES_ROOT = path.join(TEMP_ROOT, "www");
+const CADDYFILE = "/etc/caddy/Caddyfile";
+const TUNNEL_CONFIG = "/etc/cloudflared/sites-config.yml";
+const SITES_ROOT = "/var/www";
+const LOG_FILE = "/var/log/lyly-admin/actions.log";
 const PASSWORD = "test-password";
 
-process.env.MOCK_SYSTEM = "true";
 process.env.ADMIN_USERNAME = "tester";
 process.env.ADMIN_PASSWORD_HASH = bcrypt.hashSync(PASSWORD, 4);
 process.env.DOMAIN = "lyly.dev";
 process.env.PORT = "8787";
-process.env.CADDYFILE_PATH = CADDYFILE;
-process.env.TUNNEL_CONFIG_PATH = TUNNEL_CONFIG;
-process.env.SITES_ROOT = SITES_ROOT;
-process.env.BACKUP_DIR = path.join(TEMP_ROOT, "backups");
-process.env.LOG_FILE = path.join(TEMP_ROOT, "actions.log");
+process.env.LOG_FILE = LOG_FILE;
 
 const SEED_CADDYFILE = `{
 \tauto_https off
@@ -57,11 +51,13 @@ ingress:
   - service: http_status:404
 `;
 
+let fakeFs: ReturnType<typeof createInMemoryFileSystem>;
+
 function writeFixtures(caddyfile = SEED_CADDYFILE, tunnel = SEED_TUNNEL): void {
-  fs.rmSync(SITES_ROOT, { recursive: true, force: true });
-  fs.mkdirSync(SITES_ROOT, { recursive: true });
-  fs.writeFileSync(CADDYFILE, caddyfile);
-  fs.writeFileSync(TUNNEL_CONFIG, tunnel);
+  fakeFs.rmRecursive(SITES_ROOT);
+  fakeFs.mkdir(SITES_ROOT);
+  fakeFs.writeFile(CADDYFILE, caddyfile);
+  fakeFs.writeFile(TUNNEL_CONFIG, tunnel);
 }
 
 // --- Server harness -------------------------------------------------------
@@ -95,21 +91,22 @@ async function json<T>(response: Response): Promise<T> {
 }
 
 before(async () => {
-  writeFixtures();
-
   // Dynamic imports: config must not be evaluated until the assignments
-  // above have run. Task 7 replaces this block with createApp(deps).
+  // above have run.
   const { createApp } = await import("../app");
   const { createBackup } = await import("../lib/backup");
   const { createLogger } = await import("../lib/logger");
-  const { realFileSystem } = await import("../lib/fileSystem");
-  const { realSystemCommands } = await import("../lib/systemCommands");
+  const { createFakes } = await import("../dev/fakes");
+
+  const fakes = createFakes();
+  fakeFs = fakes.fs;
+  writeFixtures();
 
   const app = createApp({
-    commands: realSystemCommands,
-    fs: realFileSystem,
-    backup: createBackup(realFileSystem),
-    logger: createLogger(realFileSystem),
+    commands: fakes.commands,
+    fs: fakes.fs,
+    backup: createBackup(fakes.fs),
+    logger: createLogger(fakes.fs),
   });
 
   server = app.listen(0);
@@ -122,7 +119,6 @@ before(async () => {
 after(async () => {
   server.close();
   await once(server, "close");
-  fs.rmSync(TEMP_ROOT, { recursive: true, force: true });
 });
 
 beforeEach(() => {
@@ -164,10 +160,10 @@ describe("POST /sites — static", () => {
       tunnelId: "c7081f91-61c2-476b-8505-42d219bb6d7e",
     });
 
-    assert.match(fs.readFileSync(CADDYFILE, "utf8"), /http:\/\/new\.lyly\.dev \{/);
-    assert.match(fs.readFileSync(TUNNEL_CONFIG, "utf8"), /hostname: new\.lyly\.dev/);
+    assert.match(fakeFs.readFile(CADDYFILE), /http:\/\/new\.lyly\.dev \{/);
+    assert.match(fakeFs.readFile(TUNNEL_CONFIG), /hostname: new\.lyly\.dev/);
     assert.match(
-      fs.readFileSync(path.join(SITES_ROOT, "new.lyly.dev", "index.html"), "utf8"),
+      fakeFs.readFile(path.join(SITES_ROOT, "new.lyly.dev", "index.html")),
       /Site created by lyly-admin/,
     );
   });
@@ -194,20 +190,20 @@ describe("POST /sites — reverse proxy", () => {
     assert.equal(response.status, 200);
     assert.equal((await json<{ framework: string }>(response)).framework, "nextjs");
 
-    const caddyfile = fs.readFileSync(CADDYFILE, "utf8");
+    const caddyfile = fakeFs.readFile(CADDYFILE);
     assert.match(caddyfile, /# lyly-admin-framework: nextjs/);
     assert.match(caddyfile, /# lyly-admin-healthcheck: \/api\/health/);
 
     const siteDir = path.join(SITES_ROOT, "app.lyly.dev");
-    assert.match(fs.readFileSync(path.join(siteDir, "Dockerfile"), "utf8"), /HEALTHCHECK .*\/api\/health/);
-    assert.match(fs.readFileSync(path.join(siteDir, "docker-compose.yml"), "utf8"), /127\.0\.0\.1:3000:3000/);
-    assert.ok(fs.existsSync(path.join(siteDir, ".dockerignore")));
+    assert.match(fakeFs.readFile(path.join(siteDir, "Dockerfile")), /HEALTHCHECK .*\/api\/health/);
+    assert.match(fakeFs.readFile(path.join(siteDir, "docker-compose.yml")), /127\.0\.0\.1:3000:3000/);
+    assert.ok(fakeFs.files.has(path.join(siteDir, ".dockerignore")));
   });
 
   test("creates no directory for a reverse proxy with no framework", async () => {
     const response = await request("/sites", form({ hostname: "plain.lyly.dev", type: "reverse-proxy", port: "5000" }));
     assert.equal(response.status, 200);
-    assert.equal(fs.existsSync(path.join(SITES_ROOT, "plain.lyly.dev")), false);
+    assert.equal(fakeFs.dirs.has(path.join(SITES_ROOT, "plain.lyly.dev")), false);
   });
 
   test("rejects a port already used by another reverse-proxy site", async () => {
@@ -245,8 +241,8 @@ describe("POST /sites/:hostname/delete", () => {
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { removed: true, needsFileConfirm: false });
 
-    assert.doesNotMatch(fs.readFileSync(CADDYFILE, "utf8"), /http:\/\/blog\.lyly\.dev \{/);
-    assert.doesNotMatch(fs.readFileSync(TUNNEL_CONFIG, "utf8"), /hostname: blog\.lyly\.dev/);
+    assert.doesNotMatch(fakeFs.readFile(CADDYFILE), /http:\/\/blog\.lyly\.dev \{/);
+    assert.doesNotMatch(fakeFs.readFile(TUNNEL_CONFIG), /hostname: blog\.lyly\.dev/);
   });
 
   test("reports the path to confirm when file deletion was requested", async () => {
@@ -259,24 +255,24 @@ describe("POST /sites/:hostname/delete", () => {
   });
 
   test("does not delete files as part of the same request", async () => {
-    fs.mkdirSync(path.join(SITES_ROOT, "blog.lyly.dev"), { recursive: true });
-    fs.writeFileSync(path.join(SITES_ROOT, "blog.lyly.dev", "index.html"), "content");
+    fakeFs.mkdir(path.join(SITES_ROOT, "blog.lyly.dev"));
+    fakeFs.writeFile(path.join(SITES_ROOT, "blog.lyly.dev", "index.html"), "content");
 
     await request("/sites/blog.lyly.dev/delete", form({ deleteFiles: "on" }));
 
-    assert.equal(fs.existsSync(path.join(SITES_ROOT, "blog.lyly.dev", "index.html")), true);
+    assert.equal(fakeFs.files.has(path.join(SITES_ROOT, "blog.lyly.dev", "index.html")), true);
   });
 });
 
 describe("POST /sites/:hostname/delete-files", () => {
   test("removes the site directory", async () => {
-    fs.mkdirSync(path.join(SITES_ROOT, "blog.lyly.dev"), { recursive: true });
-    fs.writeFileSync(path.join(SITES_ROOT, "blog.lyly.dev", "index.html"), "content");
+    fakeFs.mkdir(path.join(SITES_ROOT, "blog.lyly.dev"));
+    fakeFs.writeFile(path.join(SITES_ROOT, "blog.lyly.dev", "index.html"), "content");
 
     const response = await request("/sites/blog.lyly.dev/delete-files", form({}));
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { deleted: true });
-    assert.equal(fs.existsSync(path.join(SITES_ROOT, "blog.lyly.dev")), false);
+    assert.equal(fakeFs.dirs.has(path.join(SITES_ROOT, "blog.lyly.dev")), false);
   });
 
   test("refuses a hostname outside the managed domain", async () => {
@@ -290,30 +286,30 @@ describe("rollback", () => {
     // A tunnel config with no `ingress` key makes addIngressRule throw at
     // step 4 — after the Caddyfile has been written, before caddy validate.
     writeFixtures(SEED_CADDYFILE, "tunnel: c7081f91-61c2-476b-8505-42d219bb6d7e\n");
-    const before = fs.readFileSync(CADDYFILE, "utf8");
+    const before = fakeFs.readFile(CADDYFILE);
 
     const response = await request("/sites", form({ hostname: "new.lyly.dev", type: "static" }));
 
     assert.equal(response.status, 500);
-    assert.equal(fs.readFileSync(CADDYFILE, "utf8"), before);
+    assert.equal(fakeFs.readFile(CADDYFILE), before);
   });
 
   test("restores the Caddyfile when the tunnel edit fails during remove", async () => {
     // lychee.local has a Caddyfile block but deliberately no ingress rule,
     // so removeIngressRule throws after the Caddyfile has been rewritten.
-    const before = fs.readFileSync(CADDYFILE, "utf8");
+    const before = fakeFs.readFile(CADDYFILE);
 
     const response = await request("/sites/lychee.local/delete", form({}));
 
     assert.equal(response.status, 500);
-    assert.equal(fs.readFileSync(CADDYFILE, "utf8"), before);
+    assert.equal(fakeFs.readFile(CADDYFILE), before);
   });
 });
 
 describe("audit log", () => {
   test("records a line for a successful add", async () => {
     await request("/sites", form({ hostname: "new.lyly.dev", type: "static" }));
-    const log = fs.readFileSync(path.join(TEMP_ROOT, "actions.log"), "utf8");
+    const log = fakeFs.readFile(LOG_FILE);
     const entry = JSON.parse(log.trim().split("\n").at(-1)!);
     assert.equal(entry.action, "add-site");
     assert.equal(entry.hostname, "new.lyly.dev");
