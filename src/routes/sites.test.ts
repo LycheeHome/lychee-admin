@@ -99,14 +99,18 @@ before(async () => {
 
   // Dynamic imports: config must not be evaluated until the assignments
   // above have run. Task 7 replaces this block with createApp(deps).
-  const express = (await import("express")).default;
-  const { basicAuth } = await import("../middleware/auth");
-  const { sitesRouter } = await import("./sites");
+  const { createApp } = await import("../app");
+  const { createBackup } = await import("../lib/backup");
+  const { createLogger } = await import("../lib/logger");
+  const { realFileSystem } = await import("../lib/fileSystem");
+  const { realSystemCommands } = await import("../lib/systemCommands");
 
-  const app = express();
-  app.use(express.urlencoded({ extended: false }));
-  app.use(basicAuth);
-  app.use(sitesRouter);
+  const app = createApp({
+    commands: realSystemCommands,
+    fs: realFileSystem,
+    backup: createBackup(realFileSystem),
+    logger: createLogger(realFileSystem),
+  });
 
   server = app.listen(0);
   await once(server, "listening");
