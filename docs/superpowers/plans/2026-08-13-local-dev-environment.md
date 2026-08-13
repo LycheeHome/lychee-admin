@@ -1327,7 +1327,7 @@ git commit -m "Extract a SystemCommands interface and drop the dead caddyStatus"
 ### Task 7: Introduce Deps, createApp, and the router factory
 
 **Files:**
-- Create: `src/app.ts`
+- Create: `src/deps.ts`, `src/app.ts`
 - Modify: `src/routes/sites.ts` (export shape and every injected call site)
 - Modify: `src/server.ts` (whole file)
 - Modify: `src/routes/sites.test.ts` (the `before` hook only)
@@ -1335,19 +1335,17 @@ git commit -m "Extract a SystemCommands interface and drop the dead caddyStatus"
 **Interfaces:**
 - Consumes: `SystemCommands` and `realSystemCommands` (Task 6); `FileSystem`, `realFileSystem`, `createBackup`, `createLogger` (Task 5)
 - Produces:
-  - `interface Deps { commands: SystemCommands; fs: FileSystem; backup: ReturnType<typeof createBackup>; logger: ReturnType<typeof createLogger> }` exported from `src/app.ts`
+  - `interface Deps { commands: SystemCommands; fs: FileSystem; backup: ReturnType<typeof createBackup>; logger: ReturnType<typeof createLogger> }` exported from `src/deps.ts` (its own module, so no import cycle forms between the app and route modules)
   - `createApp(deps: Deps): express.Express` exported from `src/app.ts`
   - `createSitesRouter(deps: Deps): Router` exported from `src/routes/sites.ts`, replacing the `sitesRouter` const
 
-- [ ] **Step 1: Create src/app.ts**
+- [ ] **Step 1: Create src/deps.ts and src/app.ts**
 
-Create `src/app.ts`:
+`Deps` lives in its own module rather than in `src/app.ts`. Putting it in `app.ts` would mean `src/routes/sites.ts` imports a type from the app module while the app module imports a value back from the route module — erased at compile time and harmless immediately, but it inverts the dependency direction and becomes a real runtime cycle the moment the route module needs a value from `app.ts`.
+
+Create `src/deps.ts`:
 
 ```ts
-import express from "express";
-import path from "node:path";
-import { basicAuth } from "./middleware/auth";
-import { createSitesRouter } from "./routes/sites";
 import type { FileSystem } from "./lib/fileSystem";
 import type { SystemCommands } from "./lib/systemCommands";
 import type { createBackup } from "./lib/backup";
@@ -1364,6 +1362,16 @@ export interface Deps {
   backup: ReturnType<typeof createBackup>;
   logger: ReturnType<typeof createLogger>;
 }
+```
+
+Then create `src/app.ts`:
+
+```ts
+import express from "express";
+import path from "node:path";
+import { basicAuth } from "./middleware/auth";
+import { createSitesRouter } from "./routes/sites";
+import type { Deps } from "./deps";
 
 export function createApp(deps: Deps): express.Express {
   const app = express();
@@ -1385,7 +1393,7 @@ In `src/routes/sites.ts`:
 
 1. Delete the temporary wiring added in Tasks 5 and 6 — the `createBackup`/`createLogger`/`realSystemCommands` destructuring consts and the `realFileSystem` import.
 2. Keep importing `CommandError` as a value (it is used in `instanceof` checks): `import { CommandError } from "../lib/systemCommands";`
-3. Add `import type { Deps } from "../app";`
+3. Add `import type { Deps } from "../deps";` — from the `deps` module, never from `../app`, which is what keeps the dependency direction one-way
 4. Replace `export const sitesRouter = Router();` with a factory that wraps every route registration:
 
 ```ts
@@ -1463,7 +1471,8 @@ Replace the whole of `src/server.ts`:
 
 ```ts
 import { config } from "./config";
-import { createApp, type Deps } from "./app";
+import { createApp } from "./app";
+import type { Deps } from "./deps";
 import { createBackup } from "./lib/backup";
 import { createLogger } from "./lib/logger";
 import { realFileSystem } from "./lib/fileSystem";
@@ -1749,7 +1758,8 @@ Create `src/dev/server.ts`. The `import "./env"` **must** be the first import �
 ```ts
 import "./env";
 import { config } from "../config";
-import { createApp, type Deps } from "../app";
+import { createApp } from "../app";
+import type { Deps } from "../deps";
 import { createBackup } from "../lib/backup";
 import { createLogger } from "../lib/logger";
 import { createFakes } from "./fakes";
