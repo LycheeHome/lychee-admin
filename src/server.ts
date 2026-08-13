@@ -1,5 +1,6 @@
 import { config } from "./config";
-import { createApp, type Deps } from "./app";
+import { createApp } from "./app";
+import type { Deps } from "./deps";
 import { createBackup } from "./lib/backup";
 import { createLogger } from "./lib/logger";
 import { realFileSystem } from "./lib/fileSystem";

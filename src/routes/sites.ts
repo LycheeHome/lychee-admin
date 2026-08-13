@@ -7,7 +7,7 @@ import { CommandError } from "../lib/systemCommands";
 import { getFrameworkScaffold } from "../lib/frameworkScaffold";
 import { checkPortOpen } from "../lib/portStatus";
 import { renderSiteDetail, renderSiteList, renderSiteNotFound, type SiteStatus } from "../views/html";
-import type { Deps } from "../app";
+import type { Deps } from "../deps";
 
 // Caddy's built-in admin API — always on localhost:2019 regardless of
 // what's in the Caddyfile, so it can't be caught by parsing existing sites.
