@@ -563,7 +563,7 @@ This is the safety net for the whole refactor. It must be written and green **be
 
 **Interfaces:**
 - Consumes: `npm test` from Task 1
-- Produces: a route suite that Task 7 re-points at `createApp(deps)` and Task 8 re-points at `createFakes()`. The helper names `startServer`, `request`, and `writeFixtures` are relied on by both.
+- Produces: a route suite that Task 7 re-points at `createApp(deps)` and Task 8 re-points at `createFakes()`. The named helpers `request`, `form`, and `writeFixtures` are relied on by both. There is deliberately no `startServer` helper — the server-start logic is inline in the `before()` hook, which Tasks 7 and 8 edit in place rather than calling through a named function.
 
 - [ ] **Step 1: Understand the two constraints this file works around**
 
