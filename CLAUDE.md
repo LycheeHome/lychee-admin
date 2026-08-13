@@ -25,6 +25,28 @@ Deployed and verified working end-to-end on `lychee` — add-site, remove-site, 
 - Frontend: server-rendered HTML/vanilla JS — no frontend framework, this is a single-purpose internal tool
 - Auth: Basic auth, single user, bcrypt-hashed password stored in `.env` or a local config file (never plaintext)
 - Process management: runs as its own systemd service on `lychee`
+- Entry points: `src/server.ts` (production — real system access) and `src/dev/server.ts` (local development — in-memory fakes). Both build a `Deps` object and hand it to `createApp` in `src/app.ts`. `src/dev/` and every `*.test.ts` are excluded from `tsconfig.build.json` and from the deploy rsync, so neither reaches `dist/` or `lychee`. There is no mock-mode environment flag: mock behavior is unreachable from the production entry point because it never imports the fakes.
+
+## Running and testing locally
+
+`npm run dev:mock` runs the whole app off-host — macOS or Windows — against
+`src/dev/fakes.ts`, which supplies an in-memory filesystem and stubbed
+privileged commands. It needs no `.env` (dev credentials are `dev`/`dev`,
+set in `src/dev/env.ts`) and touches nothing on the machine. Seeded site
+data lives in `src/dev/seed.ts` and covers every branch the Caddyfile parser
+has, including one deliberately unmanaged `lychee.local` block that must
+never appear in the site list. State is in memory only, so it resets on
+every restart — including the automatic restarts `tsx watch` performs when
+you edit a view.
+
+`npm test` runs `tsx --test` (no new dependency — Node's built-in runner,
+driven through `tsx` so the codebase's extensionless imports resolve). The
+suite covers the four pure modules plus the add/remove/rollback route flows
+against the fakes.
+
+What local mode cannot tell you: sudoers scope, the wrapper scripts' own
+validation, `web:webdeploy` ownership, and real `caddy validate` behavior
+are all faked. Those remain verifiable only on `lychee`.
 
 ## Critical safety/security constraints
 
@@ -44,9 +66,9 @@ These are non-negotiable properties of the design — preserve them in any imple
 - Caddy config lives at `/etc/caddy/Caddyfile`. Existing site blocks use explicit `http://` prefixes (Caddy defaults to binding 443 otherwise), and the Caddyfile has a global `auto_https off` since TLS terminates at Cloudflare's edge, not on `lychee`. New site blocks must follow this same `http://` pattern.
 - There are now **two** Cloudflare Tunnels on `lychee`, split deliberately so lyly-admin's restarts never interrupt SSH:
   - `lychee-ssh` (ID `1e9fc42a-0c25-4e64-b5c5-1e229f82a126`), config at `/etc/cloudflared/config.yml`, service `cloudflared.service`. Carries `ssh.lyly.dev` only. **lyly-admin must never touch this tunnel, its config, or its service.**
-  - `lychee-sites` (ID `c7081f91-61c2-476b-8505-42d219bb6d7e`), config at `/etc/cloudflared/sites-config.yml`, service `cloudflared-sites.service` (`deploy/cloudflared-sites.service`, `TimeoutStopSec=10` so restarts don't hang ~90s the way the original service's default 90s stop timeout did). Carries `lyly.dev` and every hostname lyly-admin manages. This is the one `src/lib/exec.ts`'s `restartCloudflared()` restarts and `writeManagedConfig()`/`TUNNEL_CONFIG_PATH` edit.
+  - `lychee-sites` (ID `c7081f91-61c2-476b-8505-42d219bb6d7e`), config at `/etc/cloudflared/sites-config.yml`, service `cloudflared-sites.service` (`deploy/cloudflared-sites.service`, `TimeoutStopSec=10` so restarts don't hang ~90s the way the original service's default 90s stop timeout did). Carries `lyly.dev` and every hostname lyly-admin manages. This is the one `src/lib/systemCommands.ts`'s `restartCloudflared()` restarts and `writeManagedConfig()`/`TUNNEL_CONFIG_PATH` edit.
   - A stale copy at `/home/byron/.cloudflared/config.yml` from initial setup was deleted; `cert.pem`/credentials for both tunnels live transiently in `~/.cloudflared` only during `cloudflared tunnel login`/`create`, then get copied to `/etc/cloudflared/` and the home copy is deleted again. Both tunnels run as root (no `User=` in either unit file).
-- `/etc/caddy/Caddyfile` and `/etc/cloudflared/sites-config.yml` are both root:root, mode 644, in root:root 755 directories — the dedicated low-privilege app user has no direct write access to either. Config edits go through `deploy/lyly-admin-write-config.sh` (installed as `/usr/local/sbin/lyly-admin-write-config`, root:root, mode 0700), invoked via `sudo` with the target path pinned to one of exactly these two files in `deploy/sudoers.example`. `src/lib/exec.ts`'s `writeManagedConfig()` pipes new file content to it over stdin; never write these files with plain `fs.writeFileSync`.
+- `/etc/caddy/Caddyfile` and `/etc/cloudflared/sites-config.yml` are both root:root, mode 644, in root:root 755 directories — the dedicated low-privilege app user has no direct write access to either. Config edits go through `deploy/lyly-admin-write-config.sh` (installed as `/usr/local/sbin/lyly-admin-write-config`, root:root, mode 0700), invoked via `sudo` with the target path pinned to one of exactly these two files in `deploy/sudoers.example`. `src/lib/systemCommands.ts`'s `writeManagedConfig()` pipes new file content to it over stdin; never write these files with plain `fs.writeFileSync`.
 - Site files are served from `/var/www/<hostname>/`, owned by a dedicated non-login service user `web` (`-s /usr/sbin/nologin`).
 - Shared group `webdeploy` (members: `web`, `caddy`, `github-runner`) gives read/write access to site directories. New static site directories should be created with `web:webdeploy` ownership and `2775` permissions (setgid, so new files inherit the group).
 - Other users on the box: `byron` (personal/admin), `steam` (Palworld server), `github-runner` (CI) — not directly relevant to this app but useful context for permission decisions.
