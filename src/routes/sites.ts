@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { Router } from "express";
 import { config } from "../config";
-import { backupFile } from "../lib/backup";
+import { createBackup } from "../lib/backup";
 import * as caddyfile from "../lib/caddyfile";
 import * as tunnelConfig from "../lib/tunnelConfig";
 import {
@@ -15,9 +15,13 @@ import {
   writeManagedConfig,
 } from "../lib/exec";
 import { getFrameworkScaffold } from "../lib/frameworkScaffold";
-import { logAction } from "../lib/logger";
+import { createLogger } from "../lib/logger";
 import { checkPortOpen } from "../lib/portStatus";
+import { realFileSystem } from "../lib/fileSystem";
 import { renderSiteDetail, renderSiteList, renderSiteNotFound, type SiteStatus } from "../views/html";
+
+const { backupFile } = createBackup(realFileSystem);
+const { logAction } = createLogger(realFileSystem);
 
 export const sitesRouter = Router();
 
