@@ -3,12 +3,15 @@ import type { FileSystem } from "../lib/fileSystem";
 
 /**
  * Covers every branch parseSites has: the apex domain, a static subdomain, a
- * plain reverse proxy, a Next.js site carrying both marker comments, and one
- * deliberately unmanaged block. lychee.local must never appear in the site
- * list — it is the live check that isManagedHostname still filters.
+ * plain reverse proxy, a Next.js site carrying both marker comments, a
+ * Next.js site carrying only the framework comment (the pre-healthcheck
+ * legacy shape — sites created before the healthcheck-path field existed),
+ * and one deliberately unmanaged block. lychee.local must never appear in
+ * the site list — it is the live check that isManagedHostname still filters.
  *
- * Ports 4000 and 3000 leave 8787 (lyly-admin itself) and 2019 (Caddy's admin
- * API) free, so the reserved-port rejection can be triggered from the UI.
+ * Ports 4000, 3000, and 3001 leave 8787 (lyly-admin itself) and 2019
+ * (Caddy's admin API) free, so the reserved-port rejection can be triggered
+ * from the UI.
  */
 export const SEED_CADDYFILE = `{
 \tauto_https off
@@ -34,6 +37,11 @@ http://app.lyly.dev {
 \treverse_proxy localhost:3000
 }
 
+http://legacy.lyly.dev {
+\t# lyly-admin-framework: nextjs
+\treverse_proxy localhost:3001
+}
+
 http://lychee.local {
 \troot * /var/www/lychee.local
 \tfile_server
@@ -51,6 +59,8 @@ ingress:
   - hostname: api.lyly.dev
     service: http://localhost:80
   - hostname: app.lyly.dev
+    service: http://localhost:80
+  - hostname: legacy.lyly.dev
     service: http://localhost:80
   - service: http_status:404
 `;

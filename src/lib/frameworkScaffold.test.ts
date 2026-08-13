@@ -33,7 +33,7 @@ describe("getFrameworkScaffold", () => {
   test("keeps the generated container files out of the deploy rsync", () => {
     const scaffold = getFrameworkScaffold("nextjs", "3000", "app.lyly.dev", "/var/www", "/");
     for (const excluded of ["Dockerfile", "docker-compose.yml", ".dockerignore"]) {
-      assert.match(scaffold!.deployWorkflow, new RegExp(`--exclude='${excluded.replace(".", "\\.")}'`));
+      assert.match(scaffold!.deployWorkflow, new RegExp(`--exclude='${excluded.replace(/\./g, "\\.")}'`));
     }
   });
 

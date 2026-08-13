@@ -4,6 +4,7 @@
   "private": true,
   "description": "Local admin app for managing Caddy + Cloudflare Tunnel sites on lychee",
   "main": "dist/server.js",
+  "engines": { "node": ">=22" },
   "scripts": {
     "dev": "concurrently -n tsx,css \"tsx watch src/server.ts\" \"tailwindcss -i src/styles/tailwind.css -o public/style.css --watch\"",
     "dev:mock": "concurrently -n tsx,css \"tsx watch src/dev/server.ts\" \"tailwindcss -i src/styles/tailwind.css -o public/style.css --watch\"",

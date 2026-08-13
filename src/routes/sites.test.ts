@@ -137,6 +137,12 @@ describe("authentication", () => {
     const response = await fetch(`${baseUrl}/`);
     assert.equal(response.status, 401);
   });
+
+  test("rejects a request with the correct username but the wrong password", async () => {
+    const wrongAuth = `Basic ${Buffer.from("tester:wrong-password").toString("base64")}`;
+    const response = await fetch(`${baseUrl}/`, { headers: { Authorization: wrongAuth } });
+    assert.equal(response.status, 401);
+  });
 });
 
 describe("GET /", () => {

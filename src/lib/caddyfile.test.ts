@@ -56,6 +56,17 @@ describe("parseSites", () => {
   test("returns an empty array for content with no site blocks", () => {
     assert.deepEqual(parseSites("{\n\tauto_https off\n}\n"), []);
   });
+
+  test("reads the framework marker with no healthcheck comment (pre-healthcheck legacy shape)", () => {
+    const LEGACY_FRAMEWORK_ONLY = `http://legacy.lyly.dev {
+\t# lyly-admin-framework: nextjs
+\treverse_proxy localhost:3001
+}
+`;
+    const site = parseSites(LEGACY_FRAMEWORK_ONLY).find((s) => s.hostname === "legacy.lyly.dev");
+    assert.equal(site?.framework, "nextjs");
+    assert.equal(site?.healthcheckPath, undefined);
+  });
 });
 
 describe("appendSite", () => {

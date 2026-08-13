@@ -8,6 +8,10 @@ import type { SystemCommands } from "../lib/systemCommands";
  * and the same path built with native path.join land on one map key. On a
  * real filesystem the difference is cosmetic; against a Map it would create
  * a silent duplicate on Windows.
+ *
+ * Assumes POSIX-rooted inputs (e.g. "/var/www/x") — this app's paths always
+ * are, so a Windows drive root like "C:\\" (which this would collapse to
+ * "C:") is unreachable here and left unhandled.
  */
 function normalizePath(target: string): string {
   const collapsed = target.split(/[\\/]+/).join("/");
@@ -15,8 +19,6 @@ function normalizePath(target: string): string {
 }
 
 export function createInMemoryFileSystem(): FileSystem & {
-  files: Map<string, string>;
-  dirs: Set<string>;
   hasFile(target: string): boolean;
   hasDir(target: string): boolean;
 } {
@@ -70,7 +72,7 @@ export function createInMemoryFileSystem(): FileSystem & {
     return dirs.has(normalizePath(target));
   }
 
-  return { files, dirs, readFile, writeFile, mkdir, appendFile, copyFile, rmRecursive, hasFile, hasDir };
+  return { readFile, writeFile, mkdir, appendFile, copyFile, rmRecursive, hasFile, hasDir };
 }
 
 /**
