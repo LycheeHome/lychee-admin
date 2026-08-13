@@ -22,6 +22,7 @@ jobs:
 
       - run: npm ci
       - run: npm run typecheck
+      - run: npm test
       - run: npm run build
 
       # Sync everything except secrets and dev artifacts. .env lives only on

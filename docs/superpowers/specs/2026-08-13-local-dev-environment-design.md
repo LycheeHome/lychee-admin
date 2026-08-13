@@ -445,8 +445,12 @@ byte-for-byte the current behavior.
   state each reload is reasonable, and the seed is rich enough that adding a
   site by hand is rarely necessary. Revisit only if it proves annoying.
 - **Exhaustive route failure-branch tests.** One rollback case per flow is
-  covered. The rollback-failed branches (`src/routes/sites.ts:224-234` and
-  `296-306`), which require the restore write itself to fail, are not.
+  covered, plus the `caddyReloaded` guard itself (a fake with a rejecting
+  `restartCloudflared`, asserting the add-site request fails but the
+  Caddyfile is *not* restored — the state that guard exists to protect once
+  Caddy has already reloaded). The rollback-failed branches
+  (`src/routes/sites.ts:224-234` and `296-306`), where the restore write
+  itself fails, remain uncovered.
 - **Fixing the `path.posix.join` / `path.join` inconsistency at its source**
   in `routes/sites.ts`. The fake normalizes instead. Changing the real path
   construction would alter displayed paths in production and deserves its

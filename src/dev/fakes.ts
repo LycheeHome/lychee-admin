@@ -77,8 +77,12 @@ export function createInMemoryFileSystem(): FileSystem & {
  * Fakes for both outward-facing interfaces, sharing one store — the fake
  * createSiteDirectory must create its directory in the same filesystem the
  * routes then write scaffold files into.
+ *
+ * `overrides` lets a test replace one or more commands (e.g. to make
+ * `restartCloudflared` reject) without having to reimplement the rest —
+ * a minimal fault seam for exercising failure-branch behavior.
  */
-export function createFakes(): {
+export function createFakes(overrides: Partial<SystemCommands> = {}): {
   fs: ReturnType<typeof createInMemoryFileSystem>;
   commands: SystemCommands;
 } {
@@ -106,5 +110,5 @@ export function createFakes(): {
     checkContainerStatus: () => Promise.resolve({ state: "running", health: "healthy" }),
   };
 
-  return { fs, commands };
+  return { fs, commands: { ...commands, ...overrides } };
 }

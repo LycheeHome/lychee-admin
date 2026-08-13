@@ -22,6 +22,11 @@ process.env.ADMIN_PASSWORD_HASH = bcrypt.hashSync(PASSWORD, 4);
 process.env.DOMAIN = "lyly.dev";
 process.env.PORT = "8787";
 process.env.LOG_FILE = LOG_FILE;
+process.env.TUNNEL_ID = "c7081f91-61c2-476b-8505-42d219bb6d7e";
+process.env.CADDYFILE_PATH = CADDYFILE;
+process.env.TUNNEL_CONFIG_PATH = TUNNEL_CONFIG;
+process.env.SITES_ROOT = SITES_ROOT;
+process.env.BACKUP_DIR = "/etc/lyly-admin/backups";
 
 const SEED_CADDYFILE = `{
 \tauto_https off
@@ -306,6 +311,53 @@ describe("rollback", () => {
 
     assert.equal(response.status, 500);
     assert.equal(fakeFs.readFile(CADDYFILE), before);
+  });
+
+  test("does not roll back once Caddy has already reloaded, even if cloudflared then fails", async () => {
+    // A failure point after reloadCaddy() has resolved is the one case the
+    // !caddyReloaded guard exists for: the live server already matches the
+    // edited files, so restoring the old content here would desync them the
+    // other way. This needs its own app/server (a fake with a rejecting
+    // restartCloudflared) rather than the shared before/after ones, since
+    // every other test in this file needs restartCloudflared to succeed.
+    const { createApp } = await import("../app");
+    const { createBackup } = await import("../lib/backup");
+    const { createLogger } = await import("../lib/logger");
+    const { createFakes } = await import("../dev/fakes");
+
+    const fakes = createFakes({
+      restartCloudflared: () => Promise.reject(new Error("cloudflared-sites restart failed")),
+    });
+    fakes.fs.mkdir(SITES_ROOT);
+    fakes.fs.writeFile(CADDYFILE, SEED_CADDYFILE);
+    fakes.fs.writeFile(TUNNEL_CONFIG, SEED_TUNNEL);
+
+    const app = createApp({
+      commands: fakes.commands,
+      fs: fakes.fs,
+      backup: createBackup(fakes.fs),
+      logger: createLogger(fakes.fs),
+    });
+
+    const localServer = app.listen(0);
+    await once(localServer, "listening");
+    const address = localServer.address();
+    assert.ok(address && typeof address === "object");
+    const localBaseUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const formInit = form({ hostname: "new.lyly.dev", type: "static" });
+      const response = await fetch(`${localBaseUrl}/sites`, {
+        ...formInit,
+        headers: { Authorization: AUTH, ...formInit.headers },
+      });
+
+      assert.equal(response.status, 500);
+      assert.match(fakes.fs.readFile(CADDYFILE), /http:\/\/new\.lyly\.dev \{/);
+    } finally {
+      localServer.close();
+      await once(localServer, "close");
+    }
   });
 });
 
