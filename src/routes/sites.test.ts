@@ -162,6 +162,7 @@ describe("POST /sites — static", () => {
 
     assert.match(fakeFs.readFile(CADDYFILE), /http:\/\/new\.lyly\.dev \{/);
     assert.match(fakeFs.readFile(TUNNEL_CONFIG), /hostname: new\.lyly\.dev/);
+    assert.equal(fakeFs.hasDir(path.join(SITES_ROOT, "new.lyly.dev")), true);
     assert.match(
       fakeFs.readFile(path.join(SITES_ROOT, "new.lyly.dev", "index.html")),
       /Site created by lyly-admin/,
@@ -195,15 +196,16 @@ describe("POST /sites — reverse proxy", () => {
     assert.match(caddyfile, /# lyly-admin-healthcheck: \/api\/health/);
 
     const siteDir = path.join(SITES_ROOT, "app.lyly.dev");
+    assert.equal(fakeFs.hasDir(siteDir), true);
     assert.match(fakeFs.readFile(path.join(siteDir, "Dockerfile")), /HEALTHCHECK .*\/api\/health/);
     assert.match(fakeFs.readFile(path.join(siteDir, "docker-compose.yml")), /127\.0\.0\.1:3000:3000/);
-    assert.ok(fakeFs.files.has(path.join(siteDir, ".dockerignore")));
+    assert.ok(fakeFs.hasFile(path.join(siteDir, ".dockerignore")));
   });
 
   test("creates no directory for a reverse proxy with no framework", async () => {
     const response = await request("/sites", form({ hostname: "plain.lyly.dev", type: "reverse-proxy", port: "5000" }));
     assert.equal(response.status, 200);
-    assert.equal(fakeFs.dirs.has(path.join(SITES_ROOT, "plain.lyly.dev")), false);
+    assert.equal(fakeFs.hasDir(path.join(SITES_ROOT, "plain.lyly.dev")), false);
   });
 
   test("rejects a port already used by another reverse-proxy site", async () => {
@@ -260,7 +262,7 @@ describe("POST /sites/:hostname/delete", () => {
 
     await request("/sites/blog.lyly.dev/delete", form({ deleteFiles: "on" }));
 
-    assert.equal(fakeFs.files.has(path.join(SITES_ROOT, "blog.lyly.dev", "index.html")), true);
+    assert.equal(fakeFs.hasFile(path.join(SITES_ROOT, "blog.lyly.dev", "index.html")), true);
   });
 });
 
@@ -272,7 +274,8 @@ describe("POST /sites/:hostname/delete-files", () => {
     const response = await request("/sites/blog.lyly.dev/delete-files", form({}));
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { deleted: true });
-    assert.equal(fakeFs.dirs.has(path.join(SITES_ROOT, "blog.lyly.dev")), false);
+    assert.equal(fakeFs.hasDir(path.join(SITES_ROOT, "blog.lyly.dev")), false);
+    assert.equal(fakeFs.hasFile(path.join(SITES_ROOT, "blog.lyly.dev", "index.html")), false);
   });
 
   test("refuses a hostname outside the managed domain", async () => {

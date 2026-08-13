@@ -14,7 +14,12 @@ function normalizePath(target: string): string {
   return collapsed.length > 1 ? collapsed.replace(/\/$/, "") : collapsed;
 }
 
-export function createInMemoryFileSystem(): FileSystem & { files: Map<string, string>; dirs: Set<string> } {
+export function createInMemoryFileSystem(): FileSystem & {
+  files: Map<string, string>;
+  dirs: Set<string>;
+  hasFile(target: string): boolean;
+  hasDir(target: string): boolean;
+} {
   const files = new Map<string, string>();
   const dirs = new Set<string>();
 
@@ -57,7 +62,15 @@ export function createInMemoryFileSystem(): FileSystem & { files: Map<string, st
     }
   }
 
-  return { files, dirs, readFile, writeFile, mkdir, appendFile, copyFile, rmRecursive };
+  function hasFile(target: string): boolean {
+    return files.has(normalizePath(target));
+  }
+
+  function hasDir(target: string): boolean {
+    return dirs.has(normalizePath(target));
+  }
+
+  return { files, dirs, readFile, writeFile, mkdir, appendFile, copyFile, rmRecursive, hasFile, hasDir };
 }
 
 /**
