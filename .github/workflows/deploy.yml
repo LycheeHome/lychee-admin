@@ -38,6 +38,7 @@ jobs:
         run: |
           rsync -rl --delete \
             --exclude='.git' --exclude='.env' --exclude='node_modules' \
+            --exclude='src/dev' --exclude='*.test.ts' \
             ./ /opt/lyly-admin/
 
       - name: Install production dependencies

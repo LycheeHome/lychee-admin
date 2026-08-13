@@ -7,8 +7,9 @@
   "scripts": {
     "dev": "concurrently -n tsx,css \"tsx watch src/server.ts\" \"tailwindcss -i src/styles/tailwind.css -o public/style.css --watch\"",
     "build:css": "tailwindcss -i src/styles/tailwind.css -o public/style.css --minify",
-    "build": "npm run build:css && tsc -p tsconfig.json",
+    "build": "npm run build:css && tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
+    "test": "tsx --test",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src"
   },
