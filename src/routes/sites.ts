@@ -5,15 +5,7 @@ import { config } from "../config";
 import { createBackup } from "../lib/backup";
 import * as caddyfile from "../lib/caddyfile";
 import * as tunnelConfig from "../lib/tunnelConfig";
-import {
-  CommandError,
-  checkContainerStatus,
-  createSiteDirectory,
-  reloadCaddy,
-  restartCloudflared,
-  validateCaddyfile,
-  writeManagedConfig,
-} from "../lib/exec";
+import { CommandError, realSystemCommands } from "../lib/systemCommands";
 import { getFrameworkScaffold } from "../lib/frameworkScaffold";
 import { createLogger } from "../lib/logger";
 import { checkPortOpen } from "../lib/portStatus";
@@ -22,6 +14,14 @@ import { renderSiteDetail, renderSiteList, renderSiteNotFound, type SiteStatus }
 
 const { backupFile } = createBackup(realFileSystem);
 const { logAction } = createLogger(realFileSystem);
+const {
+  checkContainerStatus,
+  createSiteDirectory,
+  reloadCaddy,
+  restartCloudflared,
+  validateCaddyfile,
+  writeManagedConfig,
+} = realSystemCommands;
 
 export const sitesRouter = Router();
 
