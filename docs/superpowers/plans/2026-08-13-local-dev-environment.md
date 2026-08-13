@@ -2035,6 +2035,6 @@ After Task 9, before opening a PR:
 - [ ] `npm run build` — clean, and `dist/` contains no `dev/` directory and no `*.test.js`
 - [ ] `grep -rn "MOCK_SYSTEM\|lib/exec\|caddyStatus\|dev-fixtures" src/ .github/ README.md CLAUDE.md .gitignore` — no output
 - [ ] `npm run dev:mock` serves a working add/remove flow at http://127.0.0.1:8787 with `dev`/`dev`
-- [ ] `git log --oneline` shows nine focused commits on `local-dev-environment`
+- [ ] `git log --oneline main..HEAD` shows one focused commit per task, in order, plus the spec and plan commits. Review-driven fix rounds and corrections to this plan file add their own commits on top — that is expected, not a defect, and history is not to be rewritten to match a predicted count.
 
 Then open a PR against `main`. Do not push to `main` directly — the deploy workflow fires on every push there.
