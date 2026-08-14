@@ -22,6 +22,7 @@ jobs:
 
       - run: npm ci
       - run: npm run typecheck
+      - run: npm test
       - run: npm run build
 
       # Sync everything except secrets and dev artifacts. .env lives only on
@@ -38,6 +39,7 @@ jobs:
         run: |
           rsync -rl --delete \
             --exclude='.git' --exclude='.env' --exclude='node_modules' \
+            --exclude='src/dev' --exclude='*.test.ts' \
             ./ /opt/lyly-admin/
 
       - name: Install production dependencies

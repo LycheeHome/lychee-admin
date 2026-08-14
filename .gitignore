@@ -3,7 +3,6 @@ dist/
 .env
 *.log
 .idea/
-dev-fixtures/
 public/style.css
 .claude/worktrees/
 .superpowers/

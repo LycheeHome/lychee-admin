@@ -1,6 +1,6 @@
-import fs from "node:fs";
 import path from "node:path";
 import { config } from "../config";
+import type { FileSystem } from "./fileSystem";
 
 export interface AuditEntry {
   action:
@@ -18,8 +18,12 @@ export interface AuditEntry {
   detail?: string;
 }
 
-export function logAction(entry: AuditEntry): void {
-  const line = JSON.stringify({ timestamp: new Date().toISOString(), ...entry });
-  fs.mkdirSync(path.dirname(config.logFile), { recursive: true });
-  fs.appendFileSync(config.logFile, line + "\n");
+export function createLogger(fs: FileSystem) {
+  return {
+    logAction(entry: AuditEntry): void {
+      const line = JSON.stringify({ timestamp: new Date().toISOString(), ...entry });
+      fs.mkdir(path.dirname(config.logFile));
+      fs.appendFile(config.logFile, line + "\n");
+    },
+  };
 }

@@ -1,6 +1,6 @@
 # Install to /etc/sudoers.d/lyly-admin with `visudo -cf` to check syntax first.
 # Grants the dedicated lyly-admin service user exactly the commands
-# src/lib/exec.ts shells out to — nothing else. Do not broaden this to
+# src/lib/systemCommands.ts shells out to — nothing else. Do not broaden this to
 # "ALL" for any of these commands.
 #
 # Also install these three wrapper scripts to /usr/local/sbin/ (owned root:root,

@@ -19,11 +19,22 @@ Node.js + TypeScript + Express, server-rendered HTML/vanilla JS (no frontend fra
 
 ```bash
 npm install
-cp .env.example .env   # fill in ADMIN_PASSWORD_HASH at minimum
-npm run dev
+npm run dev:mock
 ```
 
-`npm run dev` runs the TypeScript server and the Tailwind CSS build in watch mode side by side. Other scripts: `npm run build` (also rebuilds `public/style.css`), `npm run build:css`, `npm run typecheck`, `npm run lint`, `npm start` (runs the built `dist/server.js`).
+Then open http://127.0.0.1:8787 and sign in with `dev` / `dev`.
+
+`dev:mock` runs the app against in-memory fakes — no `.env`, no fixture
+files, no sudo, and nothing on your machine is modified. Adding and removing
+sites works fully, so the modal flows can be developed locally; the state
+resets to a seeded set of sites on every restart.
+
+`npm run dev` is the same thing wired to the real host: it expects a `.env`
+and the actual Caddy/`cloudflared` files, so it only works on `lychee`.
+
+Other scripts: `npm test` (`tsx --test`), `npm run build`, `npm run build:css`,
+`npm run typecheck`, `npm run lint`, `npm start` (runs the built
+`dist/server.js`).
 
 ## Deployment
 

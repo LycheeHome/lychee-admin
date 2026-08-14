@@ -1,16 +1,18 @@
-import express from "express";
-import path from "node:path";
 import { config } from "./config";
-import { basicAuth } from "./middleware/auth";
-import { sitesRouter } from "./routes/sites";
+import { createApp } from "./app";
+import type { Deps } from "./deps";
+import { createBackup } from "./lib/backup";
+import { createLogger } from "./lib/logger";
+import { realFileSystem } from "./lib/fileSystem";
+import { realSystemCommands } from "./lib/systemCommands";
 
-const app = express();
+const deps: Deps = {
+  commands: realSystemCommands,
+  fs: realFileSystem,
+  backup: createBackup(realFileSystem),
+  logger: createLogger(realFileSystem),
+};
 
-app.use(express.urlencoded({ extended: false }));
-app.use(basicAuth);
-app.use(express.static(path.join(__dirname, "..", "public")));
-app.use(sitesRouter);
-
-app.listen(config.port, config.host, () => {
+createApp(deps).listen(config.port, config.host, () => {
   console.log(`lyly-admin listening on http://${config.host}:${config.port}`);
 });
