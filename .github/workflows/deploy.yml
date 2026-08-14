@@ -1,18 +1,32 @@
-name: Deploy to lychee
+name: CI and deploy
 
-# Fires on every push that lands on main, which in a PR-based workflow means
-# "after a PR merges." That alone isn't a real gate — enforce it with a
-# branch protection rule on main (require PR + review, disallow direct
-# pushes/force-pushes) in repo Settings > Branches. This workflow can't do
-# that part for you.
+# The test job runs on every pull request targeting main and on every push
+# to main. Make `test` a required status check in branch protection
+# (Settings > Branches) — that is what actually blocks merging a PR whose
+# checks failed. Branch protection also needs to require a PR and disallow
+# direct/force pushes to main; this workflow cannot configure that part.
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
   workflow_dispatch: {}
 
 jobs:
-  deploy:
-    runs-on: self-hosted
+  # Runs on a GitHub-hosted runner, not the self-hosted one: these checks
+  # need only npm, and an ephemeral VM means pull-request code never
+  # executes on lychee, where github-runner holds sudo rights.
+  test:
+    runs-on: ubuntu-latest
+
+    # Cancel superseded runs on a pull request, so pushing three commits
+    # leaves only the newest run. Deliberately does NOT cancel on main:
+    # the deploy job needs this one, so a cancelled test run would take
+    # its deploy with it and leave that merge silently undeployed.
+    concurrency:
+      group: test-${{ github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
     steps:
       - uses: actions/checkout@v7
 
@@ -22,7 +36,40 @@ jobs:
 
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run lint
       - run: npm test
+      - run: npm run build
+
+  deploy:
+    # needs: test is the real gate — Actions will not start this job unless
+    # the checks passed, so a failing suite cannot reach lychee even on a
+    # direct push to main. The `if` keeps it off pull requests while still
+    # allowing workflow_dispatch, which runs both jobs and is gated too.
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: self-hosted
+
+    # One group for every deploy, so two merges queue rather than overlap.
+    # Never cancelled, unlike the test job: interrupting a deploy could
+    # stop rsync --delete partway through, leaving /opt/lyly-admin
+    # half-synced, or land between the sync and the service restart.
+    concurrency:
+      group: deploy-lychee
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      # Installs dev dependencies as well, because npm run build needs tsc
+      # and tailwindcss. Unrelated to the --omit=dev install further down,
+      # which runs inside /opt/lyly-admin and installs only what the
+      # running service needs. typecheck and test are not repeated here —
+      # they ran in the test job, and needs: guarantees they passed.
+      - run: npm ci
       - run: npm run build
 
       # Sync everything except secrets and dev artifacts. .env lives only on
