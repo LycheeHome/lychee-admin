@@ -150,6 +150,24 @@ check** in branch protection, which is what actually blocks merging a red
 PR, and that branch protection remains the part this workflow cannot
 configure for itself.
 
+**Correction, discovered after implementation:** that last paragraph assumed
+branch protection was available. It is not. The `Lychee-Home` org is on
+GitHub Free and this repository is private — a combination for which both
+branch protection and rulesets are gated behind GitHub Pro or making the
+repository public. Both APIs return `403 Upgrade to GitHub Pro or make this
+repository public`. So the `test` job cannot be marked required, and nothing
+mechanically prevents merging a red pull request.
+
+This does not undermine the design's goal, but it does narrow what the goal
+achieved. `deploy` carries `needs: test`, and that applies to pushes on
+`main` as much as to pull requests — so a red merge leaves `main` red and
+the deploy **skipped**, and the host keeps serving the last good deploy. The
+property the split was really protecting, that broken code never reaches
+`lychee`, holds without any repository setting. What is genuinely missing is
+only the merge-time block, which on this plan is a matter of reading the
+check before clicking merge. The workflow header comment and `CLAUDE.md`
+were corrected to say so rather than instructing a step that returns 403.
+
 ### Consequence worth recording
 
 Pull requests now consume GitHub Actions minutes, where previously they
