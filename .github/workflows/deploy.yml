@@ -25,7 +25,11 @@ jobs:
     # Cancel superseded runs on a pull request, so pushing three commits
     # leaves only the newest run. Deliberately does NOT cancel on main:
     # the deploy job needs this one, so a cancelled test run would take
-    # its deploy with it and leave that merge silently undeployed.
+    # its deploy with it and leave that merge silently undeployed. That
+    # holds for two merges arriving close together; the same one-pending-
+    # entry-per-group queue behavior as the deploy job's group means a
+    # third merge in quick succession can still cancel the middle one's
+    # (queued, not yet started) test run.
     concurrency:
       group: test-${{ github.ref }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -46,16 +50,25 @@ jobs:
   deploy:
     # needs: test is the real gate — Actions will not start this job unless
     # the checks passed, so a failing suite cannot reach lychee even on a
-    # direct push to main. The `if` keeps it off pull requests while still
-    # allowing workflow_dispatch, which runs both jobs and is gated too.
+    # direct push to main. The `if` adds two more independent conditions:
+    # it keeps this off pull requests while still allowing workflow_dispatch
+    # (which runs both jobs and is gated too), and it restricts that
+    # dispatch to the main ref — workflow_dispatch can otherwise be run
+    # against any branch, which would rsync that branch onto the host.
     needs: test
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: self-hosted
+    timeout-minutes: 15
 
     # One group for every deploy, so two merges queue rather than overlap.
-    # Never cancelled, unlike the test job: interrupting a deploy could
-    # stop rsync --delete partway through, leaving /opt/lyly-admin
-    # half-synced, or land between the sync and the service restart.
+    # Never cancelled once running, unlike the test job: interrupting a
+    # deploy could stop rsync --delete partway through, leaving
+    # /opt/lyly-admin half-synced, or land between the sync and the service
+    # restart. This only protects a run that has started — the concurrency
+    # queue still holds just one pending entry per group, so if a third
+    # deploy arrives while one is running and another is already queued,
+    # the previously queued (not yet started) one is cancelled and its
+    # merge does not get deployed on its own.
     concurrency:
       group: deploy-lychee
       cancel-in-progress: false
