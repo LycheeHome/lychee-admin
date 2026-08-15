@@ -12,6 +12,9 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 jobs:
   # Runs on a GitHub-hosted runner, not the self-hosted one: these checks
   # need only npm, and an ephemeral VM means pull-request code never
