@@ -38,6 +38,6 @@ Other scripts: `npm test` (`tsx --test`), `npm run build`, `npm run build:css`,
 
 ## Deployment
 
-Runs as its own systemd service (`deploy/lyly-admin.service`) under a dedicated low-privilege user with narrowly scoped `sudo` rights — see `deploy/sudoers.example` and the wrapper scripts in `deploy/` for exactly what it's allowed to do (validate/reload Caddy, restart the tunnel, write two specific config files, create site directories, check a Next.js site's container status). CI/CD is a self-hosted GitHub Actions runner (`.github/workflows/deploy.yml`) that builds, syncs, and restarts the service on push to `main`.
+Runs as its own systemd service (`deploy/lyly-admin.service`) under a dedicated low-privilege user with narrowly scoped `sudo` rights — see `deploy/sudoers.example` and the wrapper scripts in `deploy/` for exactly what it's allowed to do (validate/reload Caddy, restart the tunnel, write two specific config files, create site directories, check a Next.js site's container status). CI/CD (`.github/workflows/deploy.yml`) is split into two jobs: `test` runs on a GitHub-hosted runner for every pull request and push to `main`, and `deploy` runs on the self-hosted runner — builds, syncs, and restarts the service — only on `main` and only once `test` passes.
 
 Full architecture notes, safety constraints, and host-specific details live in [`CLAUDE.md`](./CLAUDE.md).
