@@ -72,7 +72,14 @@ export function createSitesRouter(deps: Deps): Router {
       }
 
       if (site.type === "static") {
-        res.send(renderSiteDetail(site, config.sitesRoot));
+        res.send(
+          renderSiteDetail(site, {
+            sitesRoot: config.sitesRoot,
+            domain: config.domain,
+            tunnelId: config.tunnelId,
+            caddyfilePath: config.caddyfilePath,
+          }),
+        );
         return;
       }
 
@@ -93,7 +100,16 @@ export function createSitesRouter(deps: Deps): Router {
         ? { buildCommand: scaffold.buildCommand, runCommand: scaffold.runCommand, deployWorkflow: scaffold.deployWorkflow }
         : undefined;
 
-      res.send(renderSiteDetail(site, config.sitesRoot, status, scaffoldCommands));
+      res.send(
+        renderSiteDetail(site, {
+          sitesRoot: config.sitesRoot,
+          domain: config.domain,
+          tunnelId: config.tunnelId,
+          caddyfilePath: config.caddyfilePath,
+          status,
+          scaffold: scaffoldCommands,
+        }),
+      );
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
       res.status(500).send(renderSiteList([], config.domain, config.sitesRoot, message));

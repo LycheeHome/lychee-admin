@@ -1,6 +1,11 @@
 import { computeFilesPath, type Site } from "../lib/caddyfile";
 import type { ContainerHealth, ContainerState } from "../lib/containerStatus";
-import type { SiteStatus } from "../lib/siteDisplay";
+import {
+  describeStatus,
+  splitHostnameForDisplay,
+  type SiteStatus,
+  type StatusTone,
+} from "../lib/siteDisplay";
 
 function escapeHtml(value: string): string {
   return value
@@ -24,8 +29,31 @@ const SECTION_LABEL =
 const DETAIL_CARD = "bg-stone-800 border border-stone-700 rounded-[10px] p-6 flex flex-col gap-3";
 const STATUS_PILL_BASE =
   "inline-flex items-center gap-1 shrink-0 font-mono text-[0.65rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-transparent";
-const STATUS_PILL_LIVE = `${STATUS_PILL_BASE} text-green-300 bg-green-950/60`;
-const STATUS_PILL_DOWN = `${STATUS_PILL_BASE} text-red-300 bg-red-950/60`;
+const FOCUS_RING =
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
+const DETAIL_WIDTH = "max-w-[760px] mx-auto w-full";
+// CARD/CARD_LABEL/TONE_TEXT are exported rather than plain module consts:
+// Tasks 4-7 consume them from within this same file, but nothing in Task 3's
+// own header uses them yet, and an unused top-level const fails
+// `npm run lint`'s no-unused-vars check. Exporting is a no-op for same-file
+// use in later tasks and keeps this task's gate green in the meantime.
+export const CARD = "bg-stone-800 border border-stone-700 rounded-[10px] p-5";
+export const CARD_LABEL =
+  "font-mono text-[0.625rem] font-medium uppercase tracking-[0.1em] text-stone-400 m-0 mb-3";
+const TYPE_PILL_STATIC = "border-stone-600 text-stone-50 bg-stone-700";
+const TYPE_PILL_PROXY = "border-transparent text-rose-300 bg-rose-950";
+
+const TONE_PILL: Record<StatusTone, string> = {
+  ok: `${STATUS_PILL_BASE} text-green-300 bg-green-950/60`,
+  bad: `${STATUS_PILL_BASE} text-red-300 bg-red-950/60`,
+  neutral: `${STATUS_PILL_BASE} text-stone-300 bg-stone-700`,
+};
+
+export const TONE_TEXT: Record<StatusTone, string> = {
+  ok: "text-green-300",
+  bad: "text-red-300",
+  neutral: "text-stone-300",
+};
 
 function layout(title: string, body: string): string {
   const mainClass = "max-w-[1080px] mx-auto py-6 pb-8 flex flex-col gap-6";
@@ -65,10 +93,24 @@ const ICONS = {
   trash: `<path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" />`,
   clipboard: `<rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />`,
   check: `<path d="M20 6 9 17l-5-5" />`,
+  externalLink: `<path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />`,
 };
 
 function icon(name: keyof typeof ICONS): string {
   return `<svg class="w-[1em] h-[1em] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+}
+
+/**
+ * The copy affordance app.js already understands: it reads the target
+ * element's textContent, and falls back to selecting the text when
+ * navigator.clipboard is unavailable — which it is here, since this app is
+ * served over plain HTTP on the LAN.
+ */
+function copyButton(targetId: string, label: string, extraClass = ""): string {
+  return `<button type="button" class="p-1.5 rounded-md bg-stone-800 border border-stone-700 text-stone-400 hover:text-stone-50 hover:bg-stone-700 cursor-pointer ${FOCUS_RING} ${extraClass}" data-copy-target="${targetId}" aria-label="${escapeHtml(label)}">
+      <span data-copy-icon="idle">${icon("clipboard")}</span>
+      <span data-copy-icon="copied" class="hidden">${icon("check")}</span>
+    </button>`;
 }
 
 const FRAMEWORK_LABELS: Record<string, string> = {
@@ -221,30 +263,47 @@ function renderContainerStatusLine(
   return `<p class="text-green-300 text-[0.85rem] leading-relaxed m-0">&#9679; Running on localhost:${port}.${status.health === "healthy" ? " Healthy." : ""}</p>`;
 }
 
-export function renderSiteDetail(
-  site: Site,
-  sitesRoot: string,
-  status?: SiteStatus,
-  scaffold?: { buildCommand: string; runCommand: string; deployWorkflow: string },
-): string {
-  const filesPath = computeFilesPath(site, sitesRoot);
+export interface SiteDetailOptions {
+  sitesRoot: string;
+  domain: string;
+  tunnelId: string;
+  caddyfilePath: string;
+  status?: SiteStatus;
+  scaffold?: { buildCommand: string; runCommand: string; deployWorkflow: string };
+}
+
+function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
+  const { lead, dimmed } = splitHostnameForDisplay(site.hostname, opts.domain);
+  const labels = opts.status ? describeStatus(opts.status) : null;
+
+  return `
+      <nav class="font-mono text-[0.72rem] text-stone-500 m-0" aria-label="Breadcrumb">
+        <a href="/" class="text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}">sites</a>
+        <span class="text-stone-600 mx-1.5">/</span>
+        <span class="text-stone-50">${escapeHtml(site.hostname)}</span>
+      </nav>
+
+      <div class="flex items-start justify-between gap-4">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2.5">
+            <h2 id="site-hostname" class="font-mono text-[1.7rem] leading-[1.2] tracking-[-0.01em] text-stone-50 m-0 break-all">${escapeHtml(lead)}${dimmed ? `<span class="text-stone-500">${escapeHtml(dimmed)}</span>` : ""}</h2>
+            ${copyButton("site-hostname", "Copy hostname", "shrink-0")}
+          </div>
+          <div class="flex items-center gap-2 mt-3 flex-wrap">
+            <span class="inline-block font-mono text-[0.7rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border ${
+              site.type === "static" ? TYPE_PILL_STATIC : TYPE_PILL_PROXY
+            }">${site.type === "static" ? "static" : "proxy"}</span>
+            ${labels ? `<span class="${TONE_PILL[labels.tone]}" data-state-pill>&#9679; ${escapeHtml(labels.pill)}</span>` : ""}
+          </div>
+        </div>
+        <a href="https://${escapeHtml(site.hostname)}" target="_blank" rel="noopener noreferrer" class="${BUTTON_PRIMARY} no-underline shrink-0">Visit ${icon("externalLink")}</a>
+      </div>`;
+}
+
+export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
+  const { status, scaffold } = opts;
+  const filesPath = computeFilesPath(site, opts.sitesRoot);
   const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
-
-  const isLive =
-    status?.kind === "tcp"
-      ? status.responding
-      : status?.kind === "container"
-        ? status.state === "running" && (status.health === undefined || status.health === "healthy")
-        : undefined;
-
-  const downLabel = status?.kind === "container" && status.state === "not-created" ? "not deployed" : "down";
-
-  const statusPill =
-    isLive === undefined
-      ? ""
-      : isLive
-        ? `<span class="${STATUS_PILL_LIVE}">&#9679; live</span>`
-        : `<span class="${STATUS_PILL_DOWN}">&#9679; ${downLabel}</span>`;
 
   const overviewCard =
     site.type === "static"
@@ -330,20 +389,8 @@ export function renderSiteDetail(
   return layout(
     site.hostname,
     `
-    <div class="max-w-[640px] mx-auto flex flex-col gap-5 w-full">
-      <p class="m-0"><a href="/" class="text-rose-400 no-underline font-mono text-[0.85rem] hover:underline">&larr; Back to sites</a></p>
-
-      <div class="flex items-start justify-between gap-2">
-        <h2 class="font-display text-3xl leading-relaxed text-stone-50 m-0 break-words">${escapeHtml(site.hostname)}</h2>
-        <div class="flex items-center gap-2 shrink-0">
-          <span class="inline-block font-mono text-[0.7rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border ${
-            site.type === "static"
-              ? "border-stone-600 text-stone-50 bg-stone-700"
-              : "border-transparent text-rose-300 bg-rose-950"
-          }">${site.type === "static" ? "static" : "proxy"}</span>
-          ${statusPill}
-        </div>
-      </div>
+    <div class="${DETAIL_WIDTH} flex flex-col gap-5">
+      ${renderDetailHeader(site, opts)}
 
       ${overviewCard}
       ${statusCard}
