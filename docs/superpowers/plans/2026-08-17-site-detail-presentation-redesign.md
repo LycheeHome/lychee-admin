@@ -1111,21 +1111,28 @@ const CODE_LINE =
   "font-mono text-[0.72rem] bg-stone-900 border border-stone-700 rounded-md pl-2.5 pr-10 py-1.5 text-stone-50 overflow-x-auto whitespace-nowrap m-0";
 
 interface ManualStep {
+  /** Plain sentence. Escaped at render time — never carries markup. */
   text: string;
-  command?: { id: string; value: string };
+  command?: {
+    id: string;
+    value: string;
+    /** Directory the command must run in, shown as a caption beneath it. */
+    cwd?: string;
+  };
 }
 
 function renderStep(step: ManualStep, index: number): string {
   return `<div class="flex gap-3">
           <span class="${STEP_NUMBER}">${index + 1}</span>
           <div class="flex-1 min-w-0">
-            <p class="${STEP_TEXT}">${step.text}</p>
+            <p class="${STEP_TEXT}">${escapeHtml(step.text)}</p>
             ${
               step.command
                 ? `<div class="relative">
               <pre id="${step.command.id}" class="${CODE_LINE}">${escapeHtml(step.command.value)}</pre>
               ${copyButton(step.command.id, "Copy command", "absolute top-1 right-1")}
-            </div>`
+            </div>
+            ${step.command.cwd ? `<p class="font-mono text-[0.65rem] text-stone-500 m-0 mt-1">in ${escapeHtml(step.command.cwd)}/</p>` : ""}`
                 : ""
             }
           </div>
@@ -1162,15 +1169,15 @@ function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
 
   if (site.framework && filesPath) {
     steps.push({
-      text: `Build and start the container yourself, in <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">${escapeHtml(filesPath)}/</code>. lyly-admin never starts, stops, or rebuilds it.`,
-      command: { id: "cmd-compose", value: "docker compose up -d --build" },
+      text: "Build and start the container yourself. lyly-admin never starts, stops, or rebuilds it.",
+      command: { id: "cmd-compose", value: "docker compose up -d --build", cwd: filesPath },
     });
   }
 
   if (site.framework && filesPath && containerIsBroken) {
     steps.push({
-      text: `Find out why it stopped, in <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">${escapeHtml(filesPath)}/</code>.`,
-      command: { id: "cmd-logs", value: "docker compose logs" },
+      text: "Find out why it stopped.",
+      command: { id: "cmd-logs", value: "docker compose logs", cwd: filesPath },
     });
   }
 
@@ -1185,9 +1192,11 @@ function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
 }
 ```
 
-Note: `step.text` is interpolated unescaped because it contains intentional
-`<code>` markup, and every value inside it is escaped at the point it is built.
-`ManualStep.text` is the only unescaped interpolation anywhere in this plan.
+**Nothing here is interpolated unescaped.** `text` is a plain sentence escaped
+by `renderStep`, and a directory a command must run in travels in
+`command.cwd`, which `renderStep` escapes and renders as its own caption line
+beneath the command. Keep it that way: no `ManualStep` field may carry HTML,
+so a later edit cannot accidentally introduce an unescaped interpolation.
 
 - [ ] **Step 4: Render it**
 
@@ -1626,5 +1635,5 @@ Use the `superpowers:requesting-code-review` skill for a final review across all
 - **`public/app.js` is never edited.** If a task seems to need it, the markup is wrong: the copy handler needs `data-copy-target="<id>"` on the button plus a matching `id` on the element and the two `data-copy-icon` spans; the fold needs no JS at all.
 - **`renderSiteList` is out of scope.** It changes appearance only as a side effect of the `--font-mono` fix in Task 2. Do not restructure it.
 - **The remove flow's request sequence does not change.** `POST /sites/:hostname/delete` followed by a separate `POST /sites/:hostname/delete-files` stays exactly as it is; only the modal's wording changes.
-- **`escapeHtml` every interpolated value.** The one exception is `ManualStep.text`, which deliberately carries `<code>` markup and escapes its own interpolations at the point of construction.
+- **`escapeHtml` every interpolated value, with no exceptions.** No data-carrying type in this plan may hold HTML; `ManualStep` in particular splits prose (`text`) from a path (`command.cwd`) precisely so the renderer escapes both.
 - `npm test` uses `tsx --test` with Node's default discovery, so new `*.test.ts` files anywhere under `src/` are picked up with no config change. `tsconfig.build.json` already excludes them from `dist/`.
