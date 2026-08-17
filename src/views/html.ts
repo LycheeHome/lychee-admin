@@ -20,7 +20,7 @@ const INPUT =
   "font-mono bg-stone-900 border border-stone-700 rounded-md text-stone-50 px-2.5 py-2 text-sm placeholder:text-stone-400/60 focus:outline focus:outline-2 focus:outline-rose-400 focus:outline-offset-2";
 const FORM_LABEL = "flex flex-col gap-1.5 text-[0.85rem] text-stone-400";
 const SECTION_LABEL =
-  "font-mono text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-stone-400 m-0 mb-2";
+  "font-mono text-[0.7rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-2";
 const DETAIL_CARD = "bg-stone-800 border border-stone-700 rounded-[10px] p-6 flex flex-col gap-3";
 const STATUS_PILL_BASE =
   "inline-flex items-center gap-1 shrink-0 font-mono text-[0.65rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-transparent";
@@ -39,7 +39,7 @@ function layout(title: string, body: string): string {
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Poetsen+One&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;1,500&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Poetsen+One&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;1,500&family=DM+Mono:wght@300;400;500&display=swap"
     rel="stylesheet"
   />
   <link rel="stylesheet" href="/style.css" />
@@ -111,8 +111,8 @@ export function renderSiteList(
     ${error ? `<p class="font-mono text-[0.85rem] text-stone-50 bg-red-950/60 border border-red-400/70 rounded-md px-4 py-3 max-w-[1080px] mx-auto mb-5">${escapeHtml(error)}</p>` : ""}
     <section>
       <div class="flex items-center justify-between gap-4 mb-5">
-        <h2 class="font-mono text-[0.85rem] font-semibold uppercase tracking-[0.08em] text-stone-400 m-0">Existing sites</h2>
-        <button type="button" class="${BUTTON_PRIMARY} font-mono" data-open-dialog="add-site-dialog">${icon("plus")}Add site</button>
+        <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Existing sites</h2>
+        <button type="button" class="${BUTTON_PRIMARY}" data-open-dialog="add-site-dialog">${icon("plus")}Add site</button>
       </div>
       <div class="sites-grid grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5">
         ${cards || `<p class="col-span-full text-stone-400 italic m-0">No sites configured yet.</p>`}
@@ -120,7 +120,7 @@ export function renderSiteList(
     </section>
 
     <dialog id="add-site-dialog" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(460px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
-      <h2 class="font-mono text-[0.85rem] font-semibold uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Add a site</h2>
+      <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Add a site</h2>
       <form id="add-site-form" method="post" action="/sites" class="flex flex-col gap-4">
         <label class="${FORM_LABEL}">
           Hostname
@@ -353,7 +353,7 @@ export function renderSiteDetail(
     </div>
 
     <dialog id="confirm-remove-dialog" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
-      <h2 class="font-mono text-[0.85rem] font-semibold uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Remove site</h2>
+      <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Remove site</h2>
       <p class="m-0 mb-4 leading-relaxed">Remove <strong>${escapeHtml(site.hostname)}</strong>? This removes it from Caddy and the tunnel config immediately.</p>
       ${deleteFilesSection}
       <div class="flex justify-end gap-2.5">
