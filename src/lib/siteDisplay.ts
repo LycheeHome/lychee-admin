@@ -63,6 +63,12 @@ export function describeStatus(status: SiteStatus): StatusLabels {
       return { pill: "not deployed", hop: "not deployed", tone: "bad" };
     case "unknown":
       return { pill: "unknown", hop: "can't check", tone: "neutral" };
+    // Exhaustiveness guard: if a new ContainerState member is added,
+    // this becomes a compile error instead of a silent runtime undefined.
+    default: {
+      const unreachable: never = status.state;
+      return unreachable;
+    }
   }
 }
 
