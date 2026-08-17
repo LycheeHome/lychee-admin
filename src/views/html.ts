@@ -348,7 +348,14 @@ function renderStep(step: ManualStep, index: number): string {
 function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
   const filesPath = computeFilesPath(site, opts.sitesRoot);
   const labels = opts.status ? describeStatus(opts.status) : null;
-  const containerIsBroken = opts.status?.kind === "container" && labels?.tone === "bad";
+  const containerStatus = opts.status?.kind === "container" ? opts.status : null;
+  const containerIsBroken =
+    containerStatus !== null &&
+    labels?.tone === "bad" &&
+    // A container that was never created has no logs to read, and step 2
+    // already says how to start it — "find out why it stopped" is nonsense
+    // for a site that has never been deployed.
+    containerStatus.state !== "not-created";
 
   const steps: ManualStep[] = [
     {

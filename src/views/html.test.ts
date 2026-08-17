@@ -252,6 +252,14 @@ describe("renderSiteDetail manual steps", () => {
     const html = renderSiteDetail(NEXT_SITE, { ...OPTS, status: { kind: "container", state: "unknown" } });
     assert.doesNotMatch(html, /docker compose logs/);
   });
+
+  test("a never-deployed container gets steps 1 and 2 but not the logs step", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...OPTS, status: { kind: "container", state: "not-created" } });
+    assert.match(html, /id="cmd-dns"/);
+    assert.match(html, /id="cmd-compose"/);
+    assert.doesNotMatch(html, /docker compose logs/);
+    assert.doesNotMatch(html, /id="cmd-logs"/);
+  });
 });
 
 const SCAFFOLD = {
