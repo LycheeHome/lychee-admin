@@ -50,6 +50,8 @@ describe("renderSiteDetail header", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     assert.match(html, /data-copy-target="site-hostname"/);
     assert.match(html, /id="site-hostname"/);
+    assert.match(html, /data-copy-icon="idle"/);
+    assert.match(html, /data-copy-icon="copied"/);
   });
 
   test("a static site gets a type pill and no state pill", () => {
@@ -63,13 +65,13 @@ describe("renderSiteDetail header", () => {
       ...OPTS,
       status: { kind: "container", state: "running", health: "unhealthy" },
     });
-    assert.match(html, /data-state-pill[^>]*>[\s\S]*?unhealthy/);
+    assert.match(html, /data-state-pill>&#9679; unhealthy<\/span>/);
     assert.doesNotMatch(html, /&#9679; live|>\s*live\s*</);
   });
 
   test("a plain proxy's pill reports responding", () => {
     const html = renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: true } });
-    assert.match(html, /data-state-pill[^>]*>[\s\S]*?responding/);
+    assert.match(html, /data-state-pill>&#9679; responding<\/span>/);
   });
 
   test("widens the column past the old 640px", () => {
@@ -85,7 +87,7 @@ describe("renderSiteDetail request path", () => {
       status: { kind: "container", state: "running", health: "healthy" },
     });
     for (const label of ["Cloudflare DNS", "Tunnel", "Caddy", "Your app"]) {
-      assert.match(html, new RegExp(label));
+      assert.match(html, new RegExp(">" + label + "</p>"));
     }
   });
 
@@ -96,8 +98,8 @@ describe("renderSiteDetail request path", () => {
 
   test("derives the tunnel hop from config instead of hardcoding a tunnel name", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
-    assert.match(html, /c7081f91/);
-    assert.match(html, /cloudflared-sites/);
+    assert.match(html, />c7081f91…<\/p>/);
+    assert.match(html, />cloudflared-sites<\/p>/);
     assert.doesNotMatch(html, /lychee-sites/);
   });
 
@@ -110,7 +112,7 @@ describe("renderSiteDetail request path", () => {
 
   test("derives the Caddy hop's path from the configured Caddyfile", () => {
     const html = renderSiteDetail(STATIC_SITE, { ...OPTS, caddyfilePath: "/opt/caddy/Caddyfile" });
-    assert.match(html, /\/opt\/caddy/);
+    assert.match(html, />\/opt\/caddy<\/p>/);
   });
 
   test("a static site's last hop is its files, and the path is not repeated as a detail row", () => {
@@ -228,7 +230,7 @@ describe("renderSiteDetail manual steps", () => {
     });
     assert.match(html, /docker compose up -d --build/);
     assert.match(html, /id="cmd-compose"/);
-    assert.match(html, /\/var\/www\/app\.lyly\.dev/);
+    assert.match(html, /in \/var\/www\/app\.lyly\.dev\//);
     assert.match(html, /never starts, stops, or rebuilds/);
   });
 
@@ -336,8 +338,7 @@ describe("renderSiteDetail danger zone", () => {
 
   test("a site with files offers the delete checkbox naming the exact path", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
-    assert.match(html, /id="confirm-remove-delete-files"/);
-    assert.match(html, /\/var\/www\/blog\.lyly\.dev/);
+    assert.match(html, /id="confirm-remove-delete-files"[\s\S]{0,200}?\/var\/www\/blog\.lyly\.dev/);
   });
 
   test("a plain proxy has no directory, so no delete checkbox", () => {
@@ -352,5 +353,28 @@ describe("renderSiteDetail danger zone", () => {
     });
     assert.match(html, /docker compose down/);
     assert.match(html, /won't stop it/);
+  });
+});
+
+describe("renderSiteDetail escaping", () => {
+  test("escapes a hostile hostname and healthcheckPath everywhere they render", () => {
+    // Hostnames are validated on write (POST /sites), but GET /sites/:hostname
+    // renders whatever a hand-edited Caddyfile contains, and healthcheckPath is
+    // explicitly unvalidated on this read path (see src/routes/sites.ts). This
+    // locks in the spec's no-exceptions escaping rule across both fields.
+    const hostileSite: Site = {
+      hostname: "<script>alert(1)</script>.lyly.dev",
+      type: "reverse-proxy",
+      target: "3000",
+      framework: "nextjs",
+      healthcheckPath: '/"><script>alert(2)</script>',
+    };
+    const html = renderSiteDetail(hostileSite, OPTS);
+
+    assert.doesNotMatch(html, /<script>alert\(1\)<\/script>/);
+    assert.doesNotMatch(html, /<script>alert\(2\)<\/script>/);
+    assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+    assert.match(html, /&lt;script&gt;alert\(2\)&lt;\/script&gt;/);
+    assert.match(html, /&quot;&gt;&lt;script&gt;alert\(2\)/);
   });
 });
