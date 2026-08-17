@@ -1,5 +1,6 @@
 import { computeFilesPath, type Site } from "../lib/caddyfile";
 import type { ContainerHealth, ContainerState } from "../lib/containerStatus";
+import type { SiteStatus } from "../lib/siteDisplay";
 
 function escapeHtml(value: string): string {
   return value
@@ -178,10 +179,6 @@ export function renderSiteList(
     `,
   );
 }
-
-export type SiteStatus =
-  | { kind: "tcp"; responding: boolean }
-  | { kind: "container"; state: ContainerState; health?: ContainerHealth };
 
 function renderContainerStatusLine(
   status: { kind: "container"; state: ContainerState; health?: ContainerHealth },

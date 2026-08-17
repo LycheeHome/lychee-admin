@@ -6,7 +6,8 @@ import * as tunnelConfig from "../lib/tunnelConfig";
 import { CommandError } from "../lib/systemCommands";
 import { getFrameworkScaffold } from "../lib/frameworkScaffold";
 import { checkPortOpen } from "../lib/portStatus";
-import { renderSiteDetail, renderSiteList, renderSiteNotFound, type SiteStatus } from "../views/html";
+import { renderSiteDetail, renderSiteList, renderSiteNotFound } from "../views/html";
+import type { SiteStatus } from "../lib/siteDisplay";
 import type { Deps } from "../deps";
 
 // Caddy's built-in admin API — always on localhost:2019 regardless of
