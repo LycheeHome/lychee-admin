@@ -140,7 +140,7 @@ sub-line:
 | 1 | `Cloudflare DNS` | `<hostname>` | `manual step` |
 | 2 | `Tunnel` | first 8 chars of `<tunnelId>` + `…` | `cloudflared-sites` |
 | 3 | `Caddy` | `:80` | dirname of `<caddyfilePath>` |
-| 4 | `Your app` | see per-variant table | live state, see below |
+| 4 | `Your app` (`Your files` for static sites) | see per-variant table | live state, see below |
 
 Every hop value is derived, never asserted. Hop 2 shows the tunnel **ID** from
 `config.tunnelId` and the service name `cloudflared-sites`, which
@@ -193,10 +193,14 @@ the seed, and any site created before the healthcheck feature, whose already-bui
 image has no `HEALTHCHECK`.
 
 This mapping is the only real logic in an otherwise presentational change, so it
-becomes a pure module beside `containerStatus.ts`:
+becomes a pure module beside `containerStatus.ts`. It shipped as
+`src/lib/siteDisplay.ts` rather than `siteStatusLabels.ts` (a deviation
+documented in the implementation plan): the same module also holds
+`splitHostnameForDisplay`, the other pure display derivation this redesign
+introduces, so both live together instead of splitting one small file in two.
 
 ```ts
-// src/lib/siteStatusLabels.ts
+// src/lib/siteDisplay.ts
 export type SiteStatus =
   | { kind: "tcp"; responding: boolean }
   | { kind: "container"; state: ContainerState; health?: ContainerHealth };
@@ -231,7 +235,10 @@ Numbered, because these genuinely are sequential:
    directory named. Shown only when the site has a scaffold. Body text restates
    that lyly-admin never starts, stops, or rebuilds the container.
 3. **Find out why it stopped.** `docker compose logs`. Shown only when the
-   container tone is `bad`.
+   container tone is `bad`, with one exception: `not-created` is also in the
+   `bad` bucket, but a container that was never created has no logs to read,
+   and step 2 already covers it — so step 3 is suppressed specifically for
+   `not-created`, even though its tone is `bad`.
 
 Every command is a copyable block using the existing copy-button markup, with
 distinct ids (`cmd-dns`, `cmd-compose`, `cmd-logs`, `github-workflow-yaml`).
@@ -311,8 +318,9 @@ animation; the existing `animate-modal-in` stays `motion-safe:`-gated.
 - `src/views/html.ts` — `renderSiteDetail` rebuilt; `layout()` fonts link;
   `SECTION_LABEL` and heading weights; new shared constants for the hop, detail
   row, command block, step, and danger styles.
-- `src/lib/siteStatusLabels.ts` — new pure module (`SiteStatus` moves here).
-- `src/lib/siteStatusLabels.test.ts` — new.
+- `src/lib/siteDisplay.ts` — new pure module (`SiteStatus` moves here, alongside
+  `splitHostnameForDisplay`).
+- `src/lib/siteDisplay.test.ts` — new.
 - `src/routes/sites.ts` — imports `SiteStatus` from its new home and passes
   `domain`, `tunnelId`, and `caddyfilePath` through.
 
@@ -337,7 +345,7 @@ rather than growing to seven positional parameters.
 ## Testing
 
 - `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`.
-- `src/lib/siteStatusLabels.test.ts` covers all nine container rows and both TCP
+- `src/lib/siteDisplay.test.ts` covers all nine container rows and both TCP
   cases. `describeStatus` is never called for a static site — the route passes no
   `status` for them — so "static shows no pill" is a `renderSiteDetail` branch,
   covered by the manual pass rather than by this unit test.
