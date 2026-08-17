@@ -186,3 +186,68 @@ describe("renderSiteDetail request path", () => {
     assert.doesNotMatch(html, /&#9679; Running on localhost/);
   });
 });
+
+describe("renderSiteDetail manual steps", () => {
+  test("gives the DNS command permanently, not only in a post-create banner", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    assert.match(
+      html,
+      /cloudflared tunnel route dns c7081f91-61c2-476b-8505-42d219bb6d7e blog\.lyly\.dev/,
+    );
+    assert.match(html, /id="cmd-dns"/);
+    assert.match(html, /data-copy-target="cmd-dns"/);
+  });
+
+  test("warns that a missing DNS record still reads as running here", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    assert.match(html, /only checks localhost/);
+  });
+
+  test("never emits a command with an empty tunnel id", () => {
+    const html = renderSiteDetail(STATIC_SITE, { ...OPTS, tunnelId: "" });
+    assert.doesNotMatch(html, /tunnel route dns\s+[a-z]/);
+    assert.doesNotMatch(html, /id="cmd-dns"/);
+    assert.match(html, /Cloudflare dashboard/);
+  });
+
+  test("a static site's only manual step is DNS", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    assert.doesNotMatch(html, /docker compose up/);
+    assert.doesNotMatch(html, /docker compose logs/);
+  });
+
+  test("a plain proxy gets no docker step — lyly-admin scaffolded nothing", () => {
+    const html = renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: false } });
+    assert.doesNotMatch(html, /docker compose/);
+  });
+
+  test("a scaffolded site is told to build and start the container itself", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...OPTS,
+      status: { kind: "container", state: "running", health: "healthy" },
+    });
+    assert.match(html, /docker compose up -d --build/);
+    assert.match(html, /id="cmd-compose"/);
+    assert.match(html, /\/var\/www\/app\.lyly\.dev/);
+    assert.match(html, /never starts, stops, or rebuilds/);
+  });
+
+  test("a healthy site is not offered the logs step", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...OPTS,
+      status: { kind: "container", state: "running", health: "healthy" },
+    });
+    assert.doesNotMatch(html, /docker compose logs/);
+  });
+
+  test("a broken container adds the logs step", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...OPTS, status: { kind: "container", state: "exited" } });
+    assert.match(html, /docker compose logs/);
+    assert.match(html, /id="cmd-logs"/);
+  });
+
+  test("an unreadable container status is not treated as broken", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...OPTS, status: { kind: "container", state: "unknown" } });
+    assert.doesNotMatch(html, /docker compose logs/);
+  });
+});

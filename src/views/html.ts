@@ -306,6 +306,93 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
       </section>`;
 }
 
+const STEP_NUMBER =
+  "font-mono text-[0.625rem] text-rose-400 border border-rose-400/40 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5";
+const STEP_TEXT = "text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5";
+const CODE_LINE =
+  "font-mono text-[0.72rem] bg-stone-900 border border-stone-700 rounded-md pl-2.5 pr-10 py-1.5 text-stone-50 overflow-x-auto whitespace-nowrap m-0";
+
+interface ManualStep {
+  /** Plain sentence. Escaped at render time — never carries markup. */
+  text: string;
+  command?: {
+    id: string;
+    value: string;
+    /** Directory the command must run in, shown as a caption beneath it. */
+    cwd?: string;
+  };
+}
+
+function renderStep(step: ManualStep, index: number): string {
+  return `<div class="flex gap-3">
+          <span class="${STEP_NUMBER}">${index + 1}</span>
+          <div class="flex-1 min-w-0">
+            <p class="${STEP_TEXT}">${escapeHtml(step.text)}</p>
+            ${
+              step.command
+                ? `<div class="relative">
+              <pre id="${step.command.id}" class="${CODE_LINE}">${escapeHtml(step.command.value)}</pre>
+              ${copyButton(step.command.id, "Copy command", "absolute top-1 right-1")}
+            </div>
+            ${step.command.cwd ? `<p class="font-mono text-[0.65rem] text-stone-500 m-0 mt-1">in ${escapeHtml(step.command.cwd)}/</p>` : ""}`
+                : ""
+            }
+          </div>
+        </div>`;
+}
+
+/**
+ * The steps lyly-admin deliberately does not take. DNS is Tier 1 scope — the
+ * app never touches Cloudflare DNS — and it never starts, stops, or rebuilds
+ * a container. Both used to be one-shot flash banners that vanished on
+ * reload; a missing DNS record is permanent state, so it needs a permanent
+ * home.
+ */
+function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
+  const filesPath = computeFilesPath(site, opts.sitesRoot);
+  const labels = opts.status ? describeStatus(opts.status) : null;
+  const containerIsBroken = opts.status?.kind === "container" && labels?.tone === "bad";
+
+  const steps: ManualStep[] = [
+    {
+      text: opts.tunnelId
+        ? "Create the DNS record, once per hostname. Until it exists this page still reports the site running, because lyly-admin only checks localhost."
+        : "Create the DNS record, once per hostname — add a CNAME for this hostname to your tunnel from the Cloudflare dashboard. Until it exists this page still reports the site running, because lyly-admin only checks localhost.",
+      ...(opts.tunnelId
+        ? {
+            command: {
+              id: "cmd-dns",
+              value: `cloudflared tunnel route dns ${opts.tunnelId} ${site.hostname}`,
+            },
+          }
+        : {}),
+    },
+  ];
+
+  if (site.framework && filesPath) {
+    steps.push({
+      text: "Build and start the container yourself. lyly-admin never starts, stops, or rebuilds it.",
+      command: { id: "cmd-compose", value: "docker compose up -d --build", cwd: filesPath },
+    });
+  }
+
+  if (site.framework && filesPath && containerIsBroken) {
+    steps.push({
+      text: "Find out why it stopped.",
+      command: { id: "cmd-logs", value: "docker compose logs", cwd: filesPath },
+    });
+  }
+
+  return `
+      <section class="${CARD}">
+        <h3 class="${CARD_LABEL}">Manual steps</h3>
+        <p class="text-stone-400 text-[0.8rem] leading-snug m-0 mb-4">lyly-admin wires up routing only. These are yours.</p>
+        <div class="flex flex-col gap-4">
+          ${steps.map((step, index) => renderStep(step, index)).join("\n          ")}
+        </div>
+      </section>`;
+}
+
 export interface SiteDetailOptions {
   sitesRoot: string;
   domain: string;
@@ -397,6 +484,7 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       ${renderDetailHeader(site, opts)}
 
       ${renderRequestPath(site, opts)}
+      ${renderManualSteps(site, opts)}
       ${deployCard}
 
       <button type="button" class="${BUTTON_DANGER} self-start" data-open-dialog="confirm-remove-dialog">${icon("trash")}Remove site</button>
