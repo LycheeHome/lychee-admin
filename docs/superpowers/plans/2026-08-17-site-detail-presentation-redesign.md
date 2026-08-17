@@ -802,7 +802,12 @@ describe("renderSiteDetail request path", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     assert.match(html, /Your files/);
     assert.match(html, /file_server/);
-    assert.equal(html.match(/\/var\/www\/blog\.lyly\.dev/g)?.length, 1);
+    // Deliberately not a page-wide occurrence count. The remove-confirmation
+    // modal — untouched until Task 7 — names this same path in its "Also
+    // delete files at ..." label, so the raw path legitimately appears twice
+    // on the page. What this guards is the narrower claim: no redundant
+    // "files" detail row below the hairline duplicating the hop 4 value.
+    assert.doesNotMatch(html, /files<\/span>/);
   });
 
   test("a container site's last hop carries the fuller status line", () => {
