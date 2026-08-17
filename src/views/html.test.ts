@@ -251,3 +251,49 @@ describe("renderSiteDetail manual steps", () => {
     assert.doesNotMatch(html, /docker compose logs/);
   });
 });
+
+const SCAFFOLD = {
+  buildCommand: "npm run build",
+  runCommand: "npm start",
+  deployWorkflow: "name: Deploy app.lyly.dev\non:\n  push:\n    branches: [main]\n",
+};
+
+describe("renderSiteDetail deploy fold", () => {
+  test("reference material is collapsed by default", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...OPTS,
+      status: { kind: "container", state: "running", health: "healthy" },
+      scaffold: SCAFFOLD,
+    });
+    assert.match(html, /<details/);
+    assert.doesNotMatch(html, /<details[^>]*\sopen[\s>]/);
+    assert.match(html, /<summary/);
+  });
+
+  test("keeps every deploy command copyable", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...OPTS,
+      status: { kind: "container", state: "running", health: "healthy" },
+      scaffold: SCAFFOLD,
+    });
+    assert.match(html, /npm run build/);
+    assert.match(html, /npm start/);
+    assert.match(html, /data-copy-target="cmd-build"/);
+    assert.match(html, /data-copy-target="cmd-run"/);
+    assert.match(html, /data-copy-target="github-workflow-yaml"/);
+  });
+
+  test("a site with no scaffold has no fold at all", () => {
+    const html = renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: true } });
+    assert.doesNotMatch(html, /<details/);
+  });
+
+  test("the summary is keyboard reachable and shows a focus ring", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...OPTS,
+      status: { kind: "container", state: "running", health: "healthy" },
+      scaffold: SCAFFOLD,
+    });
+    assert.match(html, /<summary[^>]*focus-visible:outline/);
+  });
+});

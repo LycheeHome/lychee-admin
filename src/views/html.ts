@@ -24,9 +24,6 @@ const BUTTON_DANGER =
 const INPUT =
   "font-mono bg-stone-900 border border-stone-700 rounded-md text-stone-50 px-2.5 py-2 text-sm placeholder:text-stone-400/60 focus:outline focus:outline-2 focus:outline-rose-400 focus:outline-offset-2";
 const FORM_LABEL = "flex flex-col gap-1.5 text-[0.85rem] text-stone-400";
-const SECTION_LABEL =
-  "font-mono text-[0.7rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-2";
-const DETAIL_CARD = "bg-stone-800 border border-stone-700 rounded-[10px] p-6 flex flex-col gap-3";
 const STATUS_PILL_BASE =
   "inline-flex items-center gap-1 shrink-0 font-mono text-[0.65rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-transparent";
 const FOCUS_RING =
@@ -402,6 +399,50 @@ export interface SiteDetailOptions {
   scaffold?: { buildCommand: string; runCommand: string; deployWorkflow: string };
 }
 
+// Same look as CARD_LABEL but without its bottom margin — the summary row
+// centres its children, so a stray mb-3 would push the label off-axis.
+// Do not write `${CARD_LABEL} mb-0`: Tailwind resolves conflicting utilities
+// by stylesheet order, not by the order they appear in a class attribute.
+const FOLD_LABEL =
+  "font-mono text-[0.625rem] font-medium uppercase tracking-[0.1em] text-stone-400 m-0";
+
+function renderDeployCommand(label: string, id: string, value: string): string {
+  return `<div class="flex flex-col gap-1">
+            <span class="text-stone-500 uppercase text-[0.65rem] tracking-[0.09em] font-mono">${escapeHtml(label)}</span>
+            <div class="relative">
+              <pre id="${id}" class="${CODE_LINE}">${escapeHtml(value)}</pre>
+              ${copyButton(id, `Copy ${label}`, "absolute top-1 right-1")}
+            </div>
+          </div>`;
+}
+
+/**
+ * Commands and CI config you consult when setting a site up and rarely after,
+ * so this starts closed rather than competing with status you read every
+ * visit. A native <details> keeps it keyboard-accessible with no JS.
+ */
+function renderDeployFold(scaffold: NonNullable<SiteDetailOptions["scaffold"]>): string {
+  return `
+      <details class="group bg-stone-800 border border-stone-700 rounded-[10px]">
+        <summary class="flex items-center gap-2 px-5 py-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden ${FOCUS_RING} rounded-[10px]">
+          <span class="text-stone-500 text-[0.6rem] motion-safe:transition-transform group-open:rotate-90" aria-hidden="true">&#9656;</span>
+          <span class="${FOLD_LABEL}">Deploy</span>
+        </summary>
+        <div class="flex flex-col gap-3 px-5 pb-5">
+          ${renderDeployCommand("build command", "cmd-build", scaffold.buildCommand)}
+          ${renderDeployCommand("run command", "cmd-run", scaffold.runCommand)}
+          <div class="flex flex-col gap-1">
+            <span class="text-stone-500 uppercase text-[0.65rem] tracking-[0.09em] font-mono">github actions workflow</span>
+            <div class="relative">
+              <pre id="github-workflow-yaml" class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 pr-10 text-[0.72rem] text-stone-50 overflow-x-auto whitespace-pre">${escapeHtml(scaffold.deployWorkflow)}</pre>
+              ${copyButton("github-workflow-yaml", "Copy workflow", "absolute top-2 right-2")}
+            </div>
+            <p class="text-stone-400 text-[0.72rem] leading-snug m-0">Paste this into <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">.github/workflows/deploy.yml</code> in your app's repo.</p>
+          </div>
+        </div>
+      </details>`;
+}
+
 function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
   const { lead, dimmed } = splitHostnameForDisplay(site.hostname, opts.domain);
   const labels = opts.status ? describeStatus(opts.status) : null;
@@ -434,32 +475,6 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
   const { scaffold } = opts;
   const filesPath = computeFilesPath(site, opts.sitesRoot);
 
-  const deployCard = scaffold
-    ? `
-      <section class="${DETAIL_CARD}">
-        <h3 class="${SECTION_LABEL}">Deploy</h3>
-        <div class="flex flex-col gap-1">
-          <span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em] font-mono">build command</span>
-          <code class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 text-[0.85rem] text-stone-50">${escapeHtml(scaffold.buildCommand)}</code>
-        </div>
-        <div class="flex flex-col gap-1">
-          <span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em] font-mono">run command</span>
-          <code class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 text-[0.85rem] text-stone-50">${escapeHtml(scaffold.runCommand)}</code>
-        </div>
-        <div class="flex flex-col gap-1">
-          <span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em] font-mono">github actions workflow</span>
-          <div class="relative">
-            <button type="button" class="absolute top-2 right-2 p-1.5 rounded-md bg-stone-800 border border-stone-700 text-stone-400 hover:text-stone-50 hover:bg-stone-700 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2" data-copy-target="github-workflow-yaml" aria-label="Copy to clipboard">
-              <span data-copy-icon="idle">${icon("clipboard")}</span>
-              <span data-copy-icon="copied" class="hidden">${icon("check")}</span>
-            </button>
-            <pre id="github-workflow-yaml" class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 pr-10 text-[0.8rem] text-stone-50 overflow-x-auto whitespace-pre">${escapeHtml(scaffold.deployWorkflow)}</pre>
-          </div>
-          <p class="text-stone-400 text-[0.75rem] leading-snug m-0">Paste this into <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">.github/workflows/deploy.yml</code> in your app's repo.</p>
-        </div>
-      </section>`
-    : "";
-
   const deleteFilesSection = filesPath
     ? `
       <div class="flex flex-col gap-2 mb-5">
@@ -485,7 +500,7 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
 
       ${renderRequestPath(site, opts)}
       ${renderManualSteps(site, opts)}
-      ${deployCard}
+      ${scaffold ? renderDeployFold(scaffold) : ""}
 
       <button type="button" class="${BUTTON_DANGER} self-start" data-open-dialog="confirm-remove-dialog">${icon("trash")}Remove site</button>
     </div>
