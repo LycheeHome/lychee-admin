@@ -32,14 +32,6 @@ const STATUS_PILL_BASE =
 const FOCUS_RING =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
 const DETAIL_WIDTH = "max-w-[760px] mx-auto w-full";
-// CARD/CARD_LABEL/TONE_TEXT are exported rather than plain module consts:
-// Tasks 4-7 consume them from within this same file, but nothing in Task 3's
-// own header uses them yet, and an unused top-level const fails
-// `npm run lint`'s no-unused-vars check. Exporting is a no-op for same-file
-// use in later tasks and keeps this task's gate green in the meantime.
-export const CARD = "bg-stone-800 border border-stone-700 rounded-[10px] p-5";
-export const CARD_LABEL =
-  "font-mono text-[0.625rem] font-medium uppercase tracking-[0.1em] text-stone-400 m-0 mb-3";
 const TYPE_PILL_STATIC = "border-stone-600 text-stone-50 bg-stone-700";
 const TYPE_PILL_PROXY = "border-transparent text-rose-300 bg-rose-950";
 
@@ -47,12 +39,6 @@ const TONE_PILL: Record<StatusTone, string> = {
   ok: `${STATUS_PILL_BASE} text-green-300 bg-green-950/60`,
   bad: `${STATUS_PILL_BASE} text-red-300 bg-red-950/60`,
   neutral: `${STATUS_PILL_BASE} text-stone-300 bg-stone-700`,
-};
-
-export const TONE_TEXT: Record<StatusTone, string> = {
-  ok: "text-green-300",
-  bad: "text-red-300",
-  neutral: "text-stone-300",
 };
 
 function layout(title: string, body: string): string {
