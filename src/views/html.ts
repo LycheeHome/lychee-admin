@@ -390,6 +390,22 @@ function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
       </section>`;
 }
 
+/**
+ * Destructive action, isolated and labelled. The consequence line states what
+ * actually happens because the ordering matters: files are a separate second
+ * request, so a failed config removal can never cascade into a deletion.
+ */
+function renderDangerZone(): string {
+  return `
+      <section class="border border-red-900/60 bg-red-950/20 rounded-[10px] p-5 mt-4 flex items-center justify-between gap-4 flex-wrap">
+        <div class="min-w-0">
+          <h3 class="font-mono text-[0.625rem] font-medium uppercase tracking-[0.1em] text-red-300 m-0 mb-1.5">Danger</h3>
+          <p class="text-stone-400 text-[0.8rem] leading-snug m-0">Removing takes the site out of the Caddyfile and the tunnel route, reloads Caddy, then restarts the tunnel. Your DNS record and files stay unless you ask otherwise.</p>
+        </div>
+        <button type="button" class="${BUTTON_DANGER} shrink-0" data-open-dialog="confirm-remove-dialog">${icon("trash")}Remove site</button>
+      </section>`;
+}
+
 export interface SiteDetailOptions {
   sitesRoot: string;
   domain: string;
@@ -502,16 +518,23 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       ${renderManualSteps(site, opts)}
       ${scaffold ? renderDeployFold(scaffold) : ""}
 
-      <button type="button" class="${BUTTON_DANGER} self-start" data-open-dialog="confirm-remove-dialog">${icon("trash")}Remove site</button>
+      ${renderDangerZone()}
     </div>
 
     <dialog id="confirm-remove-dialog" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
       <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Remove site</h2>
-      <p class="m-0 mb-4 leading-relaxed">Remove <strong>${escapeHtml(site.hostname)}</strong>? This removes it from Caddy and the tunnel config immediately.</p>
+      <p class="m-0 mb-3 leading-relaxed">Remove <strong>${escapeHtml(site.hostname)}</strong>? In this order:</p>
+      <ol class="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 pl-5 grid gap-1 sm:grid-cols-2 list-decimal">
+        <li>Caddyfile block removed</li>
+        <li>Tunnel route removed</li>
+        <li>Caddy validated and reloaded</li>
+        <li>cloudflared-sites restarted</li>
+      </ol>
+      <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mb-4">If a step fails, the ones after it don't run.</p>
       ${deleteFilesSection}
       <div class="flex justify-end gap-2.5">
         <button type="button" class="${BUTTON_SECONDARY}" data-close-dialog="confirm-remove-dialog">Cancel</button>
-        <button type="button" id="confirm-remove-submit" class="${BUTTON_DANGER}" data-hostname="${escapeHtml(site.hostname)}">${icon("trash")}Remove</button>
+        <button type="button" id="confirm-remove-submit" class="${BUTTON_DANGER}" data-hostname="${escapeHtml(site.hostname)}">${icon("trash")}Remove site</button>
       </div>
     </dialog>
     `,

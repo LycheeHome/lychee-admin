@@ -297,3 +297,52 @@ describe("renderSiteDetail deploy fold", () => {
     assert.match(html, /<summary[^>]*focus-visible:outline/);
   });
 });
+
+describe("renderSiteDetail danger zone", () => {
+  test("isolates the destructive action in a titled block with its consequence stated", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    assert.match(html, /Danger/);
+    assert.match(html, /reloads Caddy, then restarts the tunnel/);
+  });
+
+  test("the remove action keeps one name from button to modal confirm", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    const matches = html.match(/Remove site/g) ?? [];
+    assert.ok(matches.length >= 2, `expected the danger button and modal confirm to share a name, saw ${matches.length}`);
+    // The old confirm button said just "Remove".
+    assert.doesNotMatch(html, />Remove<\/button>/);
+  });
+
+  test("the modal names the sequence, in order", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    for (const step of [
+      "Caddyfile block removed",
+      "Tunnel route removed",
+      "Caddy validated and reloaded",
+      "cloudflared-sites restarted",
+    ]) {
+      assert.match(html, new RegExp(step));
+    }
+    assert.match(html, /the ones after it don't run/);
+  });
+
+  test("a site with files offers the delete checkbox naming the exact path", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    assert.match(html, /id="confirm-remove-delete-files"/);
+    assert.match(html, /\/var\/www\/blog\.lyly\.dev/);
+  });
+
+  test("a plain proxy has no directory, so no delete checkbox", () => {
+    const html = renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: true } });
+    assert.doesNotMatch(html, /id="confirm-remove-delete-files"/);
+  });
+
+  test("a scaffolded site keeps the running-container warning", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...OPTS,
+      status: { kind: "container", state: "running", health: "healthy" },
+    });
+    assert.match(html, /docker compose down/);
+    assert.match(html, /won't stop it/);
+  });
+});
