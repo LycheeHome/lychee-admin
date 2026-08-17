@@ -810,13 +810,17 @@ describe("renderSiteDetail request path", () => {
     assert.doesNotMatch(html, /files<\/span>/);
   });
 
+  // Both colour assertions below are anchored to the hop's own sub-line, not
+  // matched page-wide. The header pill renders the same tone class for the
+  // same status, so a page-wide `assert.match(html, /text-red-300/)` would
+  // still pass if the hop lost its subClass entirely and fell back to the
+  // default muted stone — which is exactly the regression this card replaced.
   test("a container site's last hop carries the fuller status line", () => {
     const html = renderSiteDetail(NEXT_SITE, {
       ...OPTS,
       status: { kind: "container", state: "restarting" },
     });
-    assert.match(html, /restarting · crash-looping/);
-    assert.match(html, /text-red-300/);
+    assert.match(html, /text-red-300[^"]*">● restarting · crash-looping/);
   });
 
   test("a starting health check is not painted red", () => {
@@ -824,8 +828,8 @@ describe("renderSiteDetail request path", () => {
       ...OPTS,
       status: { kind: "container", state: "running", health: "starting" },
     });
-    assert.match(html, /running · health check starting/);
-    assert.match(html, /text-stone-300/);
+    assert.match(html, /text-stone-300[^"]*">● running · health check starting/);
+    assert.doesNotMatch(html, /text-red-300[^"]*">● running/);
   });
 
   test("shows the healthcheck path for a healthy site, not only when it fails", () => {
