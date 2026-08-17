@@ -1,5 +1,5 @@
+import path from "node:path";
 import { computeFilesPath, type Site } from "../lib/caddyfile";
-import type { ContainerHealth, ContainerState } from "../lib/containerStatus";
 import {
   describeStatus,
   splitHostnameForDisplay,
@@ -39,6 +39,16 @@ const TONE_PILL: Record<StatusTone, string> = {
   ok: `${STATUS_PILL_BASE} text-green-300 bg-green-950/60`,
   bad: `${STATUS_PILL_BASE} text-red-300 bg-red-950/60`,
   neutral: `${STATUS_PILL_BASE} text-stone-300 bg-stone-700`,
+};
+
+const CARD = "bg-stone-800 border border-stone-700 rounded-[10px] p-5";
+const CARD_LABEL =
+  "font-mono text-[0.625rem] font-medium uppercase tracking-[0.1em] text-stone-400 m-0 mb-3";
+
+const TONE_TEXT: Record<StatusTone, string> = {
+  ok: "text-green-300",
+  bad: "text-red-300",
+  neutral: "text-stone-300",
 };
 
 function layout(title: string, body: string): string {
@@ -208,45 +218,92 @@ export function renderSiteList(
   );
 }
 
-function renderContainerStatusLine(
-  status: { kind: "container"; state: ContainerState; health?: ContainerHealth },
-  site: Site,
-  filesPath: string | null,
-): string {
-  const port = escapeHtml(site.target);
-  const deployHint = filesPath
-    ? `<br />
-        <span class="text-[0.75rem] text-stone-400">Run <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">docker compose up -d --build</code> in <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">${escapeHtml(filesPath)}/</code> to deploy.</span>`
-    : "";
-  const logsHint = (reason: string) =>
-    filesPath
-      ? `<br />
-        <span class="text-[0.75rem] text-stone-400">${reason} Check <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">docker compose logs</code> in <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">${escapeHtml(filesPath)}/</code>.</span>`
-      : "";
+interface Hop {
+  label: string;
+  value: string;
+  sub?: string;
+  /** Tailwind text-colour class for the sub-line; defaults to muted stone. */
+  subClass?: string;
+}
 
-  if (status.state === "not-created") {
-    return `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Not deployed yet on localhost:${port}.${deployHint}</p>`;
-  }
-  if (status.state === "exited") {
-    return `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Exited on localhost:${port}.${logsHint("The container stopped unexpectedly.")}</p>`;
-  }
-  if (status.state === "restarting") {
-    return `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Restarting on localhost:${port}.${logsHint("The container is crash-looping.")}</p>`;
-  }
-  if (status.state === "paused") {
-    return `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Paused on localhost:${port}.</p>`;
-  }
-  if (status.state === "unknown") {
-    return `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Unable to check container status.</p>`;
-  }
-  // status.state === "running"
-  if (status.health === "unhealthy") {
-    return `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Running on localhost:${port}, but unhealthy.${logsHint(`The health check at ${escapeHtml(site.healthcheckPath ?? "/")} is failing.`)}</p>`;
-  }
-  if (status.health === "starting") {
-    return `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Running on localhost:${port}, health check still starting.</p>`;
-  }
-  return `<p class="text-green-300 text-[0.85rem] leading-relaxed m-0">&#9679; Running on localhost:${port}.${status.health === "healthy" ? " Healthy." : ""}</p>`;
+const HOP_LABEL =
+  "font-mono text-[0.6rem] font-medium uppercase tracking-[0.09em] text-stone-500 m-0 mb-1.5";
+const HOP_VALUE = "font-mono text-[0.8rem] text-stone-50 m-0 mb-0.5 break-all";
+const DETAIL_ROW = "font-mono text-[0.8rem] m-0 mb-1 flex gap-3 last:mb-0";
+const DETAIL_KEY = "text-stone-500 min-w-[7.5rem] shrink-0";
+
+function renderHop(hop: Hop): string {
+  return `<div class="flex-1 min-w-0">
+            <p class="${HOP_LABEL}">${escapeHtml(hop.label)}</p>
+            <p class="${HOP_VALUE}">${escapeHtml(hop.value)}</p>
+            ${hop.sub ? `<p class="font-mono text-[0.65rem] ${hop.subClass ?? "text-stone-500"} m-0 break-all">${escapeHtml(hop.sub)}</p>` : ""}
+          </div>`;
+}
+
+/**
+ * The chain a request actually travels, which is the whole point of this app:
+ * Cloudflare DNS → the sites tunnel → Caddy → whatever serves the site.
+ *
+ * Every value is derived from config or the parsed site — the human-readable
+ * tunnel name ("lychee-sites") lives only in documentation, never in config,
+ * so this shows the tunnel ID and the service name instead of asserting it.
+ *
+ * Hops 1-3 carry no live state: nothing here verifies them. Hop 1's sub-line
+ * says "manual step", which stays true forever rather than going stale the
+ * moment a DNS record is created.
+ */
+function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
+  const filesPath = computeFilesPath(site, opts.sitesRoot);
+  const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
+  const labels = opts.status ? describeStatus(opts.status) : null;
+
+  const lastHop: Hop =
+    site.type === "static"
+      ? { label: "Your files", value: "file_server", ...(filesPath ? { sub: filesPath } : {}) }
+      : {
+          label: "Your app",
+          value: `localhost:${site.target}`,
+          ...(labels ? { sub: `● ${labels.hop}`, subClass: TONE_TEXT[labels.tone] } : {}),
+        };
+
+  const hops: Hop[] = [
+    { label: "Cloudflare DNS", value: site.hostname, sub: "manual step" },
+    {
+      label: "Tunnel",
+      value: opts.tunnelId ? `${opts.tunnelId.slice(0, 8)}…` : "cloudflared-sites",
+      ...(opts.tunnelId ? { sub: "cloudflared-sites" } : {}),
+    },
+    { label: "Caddy", value: ":80", sub: path.posix.dirname(opts.caddyfilePath) },
+    lastHop,
+  ];
+
+  const arrow = `<div class="flex items-center justify-center text-stone-600 text-sm shrink-0 sm:px-3" aria-hidden="true"><span class="sm:hidden">&darr;</span><span class="hidden sm:inline">&rarr;</span></div>`;
+
+  // Static sites carry their path in the last hop, so it is not repeated here.
+  const rows = [
+    ...(frameworkLabel ? [["framework", frameworkLabel]] : []),
+    ...(site.healthcheckPath ? [["healthcheck", site.healthcheckPath]] : []),
+    ...(site.type !== "static" && filesPath ? [["files", filesPath]] : []),
+  ];
+
+  return `
+      <section class="${CARD}">
+        <h3 class="${CARD_LABEL}">Request path</h3>
+        <div class="flex flex-col sm:flex-row sm:items-stretch gap-3 sm:gap-0">
+          ${hops.map((hop) => renderHop(hop)).join(arrow)}
+        </div>
+        ${
+          rows.length
+            ? `<div class="h-px bg-stone-700 my-4"></div>
+        ${rows
+          .map(
+            ([key, value]) =>
+              `<p class="${DETAIL_ROW}"><span class="${DETAIL_KEY}">${escapeHtml(key)}</span><span class="text-stone-50 break-all">${escapeHtml(value)}</span></p>`,
+          )
+          .join("\n        ")}`
+            : ""
+        }
+      </section>`;
 }
 
 export interface SiteDetailOptions {
@@ -287,47 +344,8 @@ function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
 }
 
 export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
-  const { status, scaffold } = opts;
+  const { scaffold } = opts;
   const filesPath = computeFilesPath(site, opts.sitesRoot);
-  const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
-
-  const overviewCard =
-    site.type === "static"
-      ? `
-      <section class="${DETAIL_CARD}">
-        <h3 class="${SECTION_LABEL}">Overview</h3>
-        <p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0 break-words"><span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">path:</span> ${escapeHtml(site.target)}</p>
-      </section>`
-      : `
-      <section class="${DETAIL_CARD}">
-        <h3 class="${SECTION_LABEL}">Overview</h3>
-        <p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0"><span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">local port:</span> ${escapeHtml(site.target)}</p>
-        ${frameworkLabel ? `<p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0"><span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">framework:</span> ${escapeHtml(frameworkLabel)}</p>` : ""}
-      </section>`;
-
-  const statusCard =
-    site.type === "static" || !status
-      ? ""
-      : status.kind === "tcp"
-        ? `
-      <section class="${DETAIL_CARD}">
-        <h3 class="${SECTION_LABEL}">Status</h3>
-        ${
-          status.responding
-            ? `<p class="text-green-300 text-[0.85rem] leading-relaxed m-0">&#9679; Responding on localhost:${escapeHtml(site.target)}</p>`
-            : `<p class="text-red-300 text-[0.85rem] leading-relaxed m-0">&#9679; Not responding on localhost:${escapeHtml(site.target)}${
-                filesPath
-                  ? `<br />
-        <span class="text-[0.75rem] text-stone-400">Run <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">docker compose up -d --build</code> in <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">${escapeHtml(filesPath)}/</code> to deploy.</span>`
-                  : ""
-              }</p>`
-        }
-      </section>`
-        : `
-      <section class="${DETAIL_CARD}">
-        <h3 class="${SECTION_LABEL}">Status</h3>
-        ${renderContainerStatusLine(status, site, filesPath)}
-      </section>`;
 
   const deployCard = scaffold
     ? `
@@ -378,8 +396,7 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
     <div class="${DETAIL_WIDTH} flex flex-col gap-5">
       ${renderDetailHeader(site, opts)}
 
-      ${overviewCard}
-      ${statusCard}
+      ${renderRequestPath(site, opts)}
       ${deployCard}
 
       <button type="button" class="${BUTTON_DANGER} self-start" data-open-dialog="confirm-remove-dialog">${icon("trash")}Remove site</button>
