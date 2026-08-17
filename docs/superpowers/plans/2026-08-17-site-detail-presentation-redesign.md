@@ -453,7 +453,7 @@ button keeps font-sans."
 
 **Interfaces:**
 - Consumes: `describeStatus`, `splitHostnameForDisplay`, `SiteStatus`, `StatusTone` from Task 1.
-- Produces: `SiteDetailOptions`, the `renderSiteDetail(site, opts)` signature, and the constants `DETAIL_WIDTH`, `CARD`, `CARD_LABEL`, `FOCUS_RING`, `TONE_PILL`, `TONE_TEXT`, `copyButton()` — all used by Tasks 4–7.
+- Produces: `SiteDetailOptions`, the `renderSiteDetail(site, opts)` signature, and the constants `DETAIL_WIDTH`, `FOCUS_RING`, `TYPE_PILL_STATIC`, `TYPE_PILL_PROXY`, `TONE_PILL`, plus `copyButton()` — used by Tasks 4–7. `CARD`, `CARD_LABEL`, and `TONE_TEXT` are declared in Task 4, the task that first uses them. Every one of these stays module-private; none is exported.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -561,9 +561,6 @@ and add, next to the existing style constants:
 const FOCUS_RING =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
 const DETAIL_WIDTH = "max-w-[760px] mx-auto w-full";
-const CARD = "bg-stone-800 border border-stone-700 rounded-[10px] p-5";
-const CARD_LABEL =
-  "font-mono text-[0.625rem] font-medium uppercase tracking-[0.1em] text-stone-400 m-0 mb-3";
 const TYPE_PILL_STATIC = "border-stone-600 text-stone-50 bg-stone-700";
 const TYPE_PILL_PROXY = "border-transparent text-rose-300 bg-rose-950";
 
@@ -572,13 +569,13 @@ const TONE_PILL: Record<StatusTone, string> = {
   bad: `${STATUS_PILL_BASE} text-red-300 bg-red-950/60`,
   neutral: `${STATUS_PILL_BASE} text-stone-300 bg-stone-700`,
 };
-
-const TONE_TEXT: Record<StatusTone, string> = {
-  ok: "text-green-300",
-  bad: "text-red-300",
-  neutral: "text-stone-300",
-};
 ```
+
+Declare **only** these here. `CARD`, `CARD_LABEL`, and `TONE_TEXT` belong to
+Task 4, which is where they are first used — declaring them now leaves them
+unused, and `npm run lint`'s `no-unused-vars` fails this task's gate. Do not
+work around that by exporting them; a module-private constant that nothing
+outside the module reads should stay private.
 
 Update the imports at the top of the file:
 
@@ -758,8 +755,8 @@ parameter."
 - Modify: `src/views/html.test.ts` — add the request-path describe block
 
 **Interfaces:**
-- Consumes: `CARD`, `CARD_LABEL`, `TONE_TEXT`, `describeStatus`, `SiteDetailOptions` from Task 3; `computeFilesPath` from `src/lib/caddyfile.ts`.
-- Produces: `renderRequestPath(site, opts)`. Nothing later depends on it.
+- Consumes: `describeStatus`, `SiteDetailOptions` from Task 3; `computeFilesPath` from `src/lib/caddyfile.ts`.
+- Produces: `renderRequestPath(site, opts)`, plus the constants `CARD`, `CARD_LABEL` and `TONE_TEXT`, which **Tasks 5 and 6 also use**. Declare them exactly as written here, module-private.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -877,6 +874,20 @@ First add the import Task 3 deliberately left out — `renderRequestPath` needs 
 
 ```ts
 import path from "node:path";
+```
+
+Then add the three shared constants Task 3 deliberately left out, because this is the task that first uses them — module-private, not exported:
+
+```ts
+const CARD = "bg-stone-800 border border-stone-700 rounded-[10px] p-5";
+const CARD_LABEL =
+  "font-mono text-[0.625rem] font-medium uppercase tracking-[0.1em] text-stone-400 m-0 mb-3";
+
+const TONE_TEXT: Record<StatusTone, string> = {
+  ok: "text-green-300",
+  bad: "text-red-300",
+  neutral: "text-stone-300",
+};
 ```
 
 Then add above `renderSiteDetail` in `src/views/html.ts`:
