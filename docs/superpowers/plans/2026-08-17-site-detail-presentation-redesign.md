@@ -1422,8 +1422,16 @@ describe("renderSiteDetail danger zone", () => {
 
   test("the remove action keeps one name from button to modal confirm", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
-    const matches = html.match(/Remove site/g) ?? [];
-    assert.ok(matches.length >= 2, `expected the danger button and modal confirm to share a name, saw ${matches.length}`);
+    // Scoped to each button's own markup rather than counting the string
+    // page-wide: the danger-zone button already read "Remove site" before this
+    // task and the modal heading reads it too, so a whole-document count of 2+
+    // was satisfied before anything changed. Each regex walks forward from a
+    // button's identifying attribute without crossing a </button>, so it can
+    // only match that button's own label.
+    const labelled = (attr: string) =>
+      new RegExp(`${attr}(?:(?!<\\/button>)[\\s\\S])*Remove site<\\/button>`);
+    assert.match(html, labelled('data-open-dialog="confirm-remove-dialog"'));
+    assert.match(html, labelled('id="confirm-remove-submit"'));
     // The old confirm button said just "Remove".
     assert.doesNotMatch(html, />Remove<\/button>/);
   });
