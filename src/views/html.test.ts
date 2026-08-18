@@ -98,16 +98,20 @@ describe("renderSiteDetail request path", () => {
 
   test("derives the tunnel hop from config instead of hardcoding a tunnel name", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
-    assert.match(html, />11111111…<\/p>/);
+    // The service name leads; the abbreviated id qualifies it. Both anchored to
+    // their own <p>, and the title assertion pins the tooltip and the visible
+    // abbreviation to the same element so neither can drift from the other.
     assert.match(html, />cloudflared-sites<\/p>/);
+    assert.match(html, /title="11111111-2222-3333-4444-555555555555">11111111…<\/p>/);
     assert.doesNotMatch(html, /lychee-sites/);
   });
 
   test("falls back to the service name when no tunnel id is configured", () => {
     const html = renderSiteDetail(STATIC_SITE, { ...OPTS, tunnelId: "" });
-    assert.match(html, /cloudflared-sites/);
-    // No truncation ellipsis, because there was no id to truncate.
+    assert.match(html, />cloudflared-sites<\/p>/);
+    // No truncation ellipsis and no tooltip, because there was no id at all.
     assert.doesNotMatch(html, /…/);
+    assert.doesNotMatch(html, /title="/);
   });
 
   test("derives the Caddy hop's path from the configured Caddyfile", () => {
