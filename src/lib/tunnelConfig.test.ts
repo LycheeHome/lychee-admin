@@ -7,8 +7,8 @@ interface ParsedConfig {
   ingress: Array<{ hostname?: string; service: string }>;
 }
 
-const TUNNEL = `tunnel: c7081f91-61c2-476b-8505-42d219bb6d7e
-credentials-file: /etc/cloudflared/c7081f91-61c2-476b-8505-42d219bb6d7e.json
+const TUNNEL = `tunnel: 11111111-2222-3333-4444-555555555555
+credentials-file: /etc/cloudflared/11111111-2222-3333-4444-555555555555.json
 ingress:
   - hostname: lyly.dev
     service: http://localhost:80
@@ -36,8 +36,8 @@ describe("addIngressRule", () => {
 
   test("preserves the tunnel id and credentials-file keys", () => {
     const result = yaml.load(addIngressRule(TUNNEL, "new.lyly.dev", "http://localhost:80")) as Record<string, unknown>;
-    assert.equal(result.tunnel, "c7081f91-61c2-476b-8505-42d219bb6d7e");
-    assert.equal(result["credentials-file"], "/etc/cloudflared/c7081f91-61c2-476b-8505-42d219bb6d7e.json");
+    assert.equal(result.tunnel, "11111111-2222-3333-4444-555555555555");
+    assert.equal(result["credentials-file"], "/etc/cloudflared/11111111-2222-3333-4444-555555555555.json");
   });
 
   test("appends at the end when there is no catch-all", () => {

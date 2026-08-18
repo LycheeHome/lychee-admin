@@ -6,7 +6,7 @@ import { renderSiteDetail } from "./html";
 const OPTS = {
   sitesRoot: "/var/www",
   domain: "lyly.dev",
-  tunnelId: "c7081f91-61c2-476b-8505-42d219bb6d7e",
+  tunnelId: "11111111-2222-3333-4444-555555555555",
   caddyfilePath: "/etc/caddy/Caddyfile",
 };
 
@@ -98,7 +98,7 @@ describe("renderSiteDetail request path", () => {
 
   test("derives the tunnel hop from config instead of hardcoding a tunnel name", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
-    assert.match(html, />c7081f91…<\/p>/);
+    assert.match(html, />11111111…<\/p>/);
     assert.match(html, />cloudflared-sites<\/p>/);
     assert.doesNotMatch(html, /lychee-sites/);
   });
@@ -194,7 +194,7 @@ describe("renderSiteDetail manual steps", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     assert.match(
       html,
-      /cloudflared tunnel route dns c7081f91-61c2-476b-8505-42d219bb6d7e blog\.lyly\.dev/,
+      /cloudflared tunnel route dns 11111111-2222-3333-4444-555555555555 blog\.lyly\.dev/,
     );
     assert.match(html, /id="cmd-dns"/);
     assert.match(html, /data-copy-target="cmd-dns"/);

@@ -49,8 +49,8 @@ http://lychee.local {
 `;
 
 /** lychee.local deliberately has no ingress rule — it is not tunnel-managed. */
-export const SEED_TUNNEL_CONFIG = `tunnel: c7081f91-61c2-476b-8505-42d219bb6d7e
-credentials-file: /etc/cloudflared/c7081f91-61c2-476b-8505-42d219bb6d7e.json
+export const SEED_TUNNEL_CONFIG = `tunnel: 11111111-2222-3333-4444-555555555555
+credentials-file: /etc/cloudflared/11111111-2222-3333-4444-555555555555.json
 ingress:
   - hostname: lyly.dev
     service: http://localhost:80

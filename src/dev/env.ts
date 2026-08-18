@@ -19,4 +19,4 @@
  */
 process.env.ADMIN_USERNAME ??= "dev";
 process.env.ADMIN_PASSWORD_HASH ??= "$2b$12$X/UB7NklDWv8CQTaRZpFzOWt9lYBcJYK1UwtOG9EgG6wwegHeFmAS";
-process.env.TUNNEL_ID ??= "c7081f91-61c2-476b-8505-42d219bb6d7e";
+process.env.TUNNEL_ID ??= "11111111-2222-3333-4444-555555555555";
