@@ -230,7 +230,7 @@ const DETAIL_ROW = "font-mono text-[0.8rem] m-0 mb-1 flex gap-3 last:mb-0";
 const DETAIL_KEY = "text-stone-500 min-w-[7.5rem] shrink-0";
 
 function renderHop(hop: Hop): string {
-  return `<div class="flex-1 min-w-0">
+  return `<div class="min-w-0">
             <p class="${HOP_LABEL}">${escapeHtml(hop.label)}</p>
             <p class="${HOP_VALUE}">${escapeHtml(hop.value)}</p>
             ${hop.sub ? `<p class="font-mono text-[0.65rem] ${hop.subClass ?? "text-stone-500"} m-0 break-all">${escapeHtml(hop.sub)}</p>` : ""}
@@ -274,7 +274,7 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
     lastHop,
   ];
 
-  const arrow = `<div class="flex items-center justify-center text-stone-600 text-sm shrink-0 sm:px-3" aria-hidden="true"><span class="sm:hidden">&darr;</span><span class="hidden sm:inline">&rarr;</span></div>`;
+  const arrow = `<div class="flex items-center justify-center text-stone-600 text-sm sm:flex-1 sm:min-w-[2rem]" aria-hidden="true"><span class="sm:hidden">&darr;</span><span class="hidden sm:inline">&rarr;</span></div>`;
 
   // Static sites carry their path in the last hop, so it is not repeated here.
   const rows = [
