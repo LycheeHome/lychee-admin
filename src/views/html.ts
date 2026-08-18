@@ -464,13 +464,20 @@ function renderDeployCommand(label: string, id: string, value: string): string {
 }
 
 /**
- * Commands and CI config for a scaffolded site. Not collapsed: the two commands
- * are ~120px between them and hiding those bought nothing, while the generated
- * workflow is 27 lines / ~485px and would dominate the page. So the workflow
- * alone is capped at max-h-64 and scrolls inside itself — visible, so you know
- * it exists, without a disclosure widget to discover. Its copy button stays
- * overlaid like the others; on a platform with persistent scrollbars it will
- * sit over the track's top edge, which macOS overlay scrollbars avoid.
+ * Commands and CI config for a scaffolded site. Deliberately a plain card: it
+ * was a collapsed <details>, then a height-capped scroll box, and both hid
+ * content to solve a problem that was not real. The generated workflow renders
+ * ~485px, but this section sits above only Danger, so its length costs little,
+ * and it is a file you may want to read — the branch filter, the rsync
+ * excludes — not only copy. Nesting a vertical scrollbar inside a page you are
+ * already scrolling is worse than a tall block.
+ *
+ * Horizontal scroll stays: the longest generated line is 85 characters, wider
+ * than the column, and that is conventional for preformatted content.
+ *
+ * A cap would only earn its place if this content could be arbitrarily long.
+ * It cannot — getFrameworkScaffold generates it, so its length changes only
+ * when the template does.
  */
 function renderDeploy(scaffold: NonNullable<SiteDetailOptions["scaffold"]>): string {
   return `
@@ -482,7 +489,7 @@ function renderDeploy(scaffold: NonNullable<SiteDetailOptions["scaffold"]>): str
           <div class="flex flex-col gap-1">
             <span class="text-stone-500 uppercase text-[0.65rem] tracking-[0.09em] font-mono">github actions workflow</span>
             <div class="relative">
-              <pre id="github-workflow-yaml" class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 pr-11 text-[0.72rem] text-stone-50 max-h-64 overflow-auto whitespace-pre m-0">${escapeHtml(scaffold.deployWorkflow)}</pre>
+              <pre id="github-workflow-yaml" class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 pr-11 text-[0.72rem] text-stone-50 overflow-x-auto whitespace-pre m-0">${escapeHtml(scaffold.deployWorkflow)}</pre>
               ${copyButton("github-workflow-yaml", "Copy workflow", COPY_IN_BLOCK)}
             </div>
             <p class="text-stone-400 text-[0.72rem] leading-snug m-0">Paste this into <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">.github/workflows/deploy.yml</code> in your app's repo.</p>

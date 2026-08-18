@@ -285,18 +285,19 @@ describe("renderSiteDetail deploy", () => {
     assert.match(html, />Deploy<\/h3>/);
   });
 
-  test("the workflow is height-capped rather than folded away", () => {
+  test("the workflow block is its natural height, with no nested vertical scroll", () => {
     const html = renderSiteDetail(NEXT_SITE, {
       ...OPTS,
       status: { kind: "container", state: "running", health: "healthy" },
       scaffold: SCAFFOLD,
     });
-    // 27 generated lines would render ~485px tall and dominate the page, so the
-    // block scrolls inside itself. Anchored to the workflow <pre> specifically —
-    // the single-line command boxes must NOT pick up a max height.
-    assert.match(html, /id="github-workflow-yaml"[^>]*\bmax-h-64\b/);
-    assert.match(html, /id="github-workflow-yaml"[^>]*\boverflow-auto\b/);
-    assert.doesNotMatch(html, /id="cmd-build"[^>]*max-h-/);
+    // No max-height and no vertical overflow anywhere on the page: a scrollbar
+    // inside a page you are already scrolling is worse than a tall block, and
+    // this is a file you may want to read rather than only copy.
+    assert.doesNotMatch(html, /max-h-/);
+    assert.doesNotMatch(html, /overflow-y-auto|overflow-auto/);
+    // Long lines still scroll sideways, which preformatted content needs.
+    assert.match(html, /id="github-workflow-yaml"[^>]*\boverflow-x-auto\b/);
   });
 
   test("keeps every deploy command copyable", () => {
