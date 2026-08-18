@@ -348,6 +348,23 @@ describe("renderSiteDetail danger zone", () => {
     assert.match(html, /the ones after it don't run/);
   });
 
+  test("the modal's steps carry their own numbers, so no marker can overflow the grid", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    // Numbered explicitly rather than with list-decimal. A marker with
+    // list-style-position:outside renders in the LIST's padding, so in a
+    // two-column grid the right column's marker paints over the left column's
+    // text. Asserting the number and its label are adjacent pins the reading
+    // order too, which is what a screen reader and a text-only render get.
+    assert.match(html, /<ol[^>]*list-none/);
+    assert.doesNotMatch(html, /<ol[^>]*list-decimal/);
+    for (const [n, label] of [
+      [1, "Caddyfile block removed"],
+      [4, "cloudflared-sites restarted"],
+    ] as const) {
+      assert.match(html, new RegExp(`>${n}\\.<\\/span><span>${label}<\\/span>`));
+    }
+  });
+
   test("a site with files offers the delete checkbox naming the exact path", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     assert.match(html, /id="confirm-remove-delete-files"[\s\S]{0,200}?\/var\/www\/blog\.lyly\.dev/);

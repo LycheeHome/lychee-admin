@@ -316,6 +316,14 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
 const STEP_NUMBER =
   "font-mono text-[0.625rem] text-rose-400 border border-rose-400/40 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5";
 const STEP_TEXT = "text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5";
+/**
+ * Position for a copy button sitting in a single-line command box. Centred
+ * rather than pinned to the top: copyButton() sets no font-size, so its 1em
+ * icon would otherwise size against the card's 16px and make the button as
+ * tall as the box it sits in. The text-[0.7rem] here is what shrinks the icon.
+ */
+const COPY_IN_LINE = "absolute top-1/2 -translate-y-1/2 right-1.5 text-[0.7rem]";
+
 const CODE_LINE =
   "font-mono text-[0.72rem] bg-stone-900 border border-stone-700 rounded-md pl-2.5 pr-10 py-1.5 text-stone-50 overflow-x-auto whitespace-nowrap m-0";
 
@@ -339,7 +347,7 @@ function renderStep(step: ManualStep, index: number): string {
               step.command
                 ? `<div class="relative">
               <pre id="${step.command.id}" class="${CODE_LINE}">${escapeHtml(step.command.value)}</pre>
-              ${copyButton(step.command.id, "Copy command", "absolute top-1 right-1")}
+              ${copyButton(step.command.id, "Copy command", COPY_IN_LINE)}
             </div>
             ${step.command.cwd ? `<p class="font-mono text-[0.65rem] text-stone-500 m-0 mt-1">in ${escapeHtml(step.command.cwd)}/</p>` : ""}`
                 : ""
@@ -444,7 +452,7 @@ function renderDeployCommand(label: string, id: string, value: string): string {
             <span class="text-stone-500 uppercase text-[0.65rem] tracking-[0.09em] font-mono">${escapeHtml(label)}</span>
             <div class="relative">
               <pre id="${id}" class="${CODE_LINE}">${escapeHtml(value)}</pre>
-              ${copyButton(id, `Copy ${label}`, "absolute top-1 right-1")}
+              ${copyButton(id, `Copy ${label}`, COPY_IN_LINE)}
             </div>
           </div>`;
 }
@@ -541,11 +549,11 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
     <dialog id="confirm-remove-dialog" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
       <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Remove site</h2>
       <p class="m-0 mb-3 leading-relaxed">Remove <strong>${escapeHtml(site.hostname)}</strong>? In this order:</p>
-      <ol class="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 pl-5 grid gap-1 sm:grid-cols-2 list-decimal">
-        <li>Caddyfile block removed</li>
-        <li>Tunnel route removed</li>
-        <li>Caddy validated and reloaded</li>
-        <li>cloudflared-sites restarted</li>
+      <ol class="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 p-0 list-none grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+        <li class="flex gap-2"><span class="text-stone-500 shrink-0">1.</span><span>Caddyfile block removed</span></li>
+        <li class="flex gap-2"><span class="text-stone-500 shrink-0">2.</span><span>Tunnel route removed</span></li>
+        <li class="flex gap-2"><span class="text-stone-500 shrink-0">3.</span><span>Caddy validated and reloaded</span></li>
+        <li class="flex gap-2"><span class="text-stone-500 shrink-0">4.</span><span>cloudflared-sites restarted</span></li>
       </ol>
       <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mb-4">If a step fails, the ones after it don't run.</p>
       ${deleteFilesSection}
