@@ -297,6 +297,25 @@ describe("renderSiteDetail deploy fold", () => {
     assert.match(html, /data-copy-target="github-workflow-yaml"/);
   });
 
+  test("every copy button inside a code block shares one right-hand inset", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...OPTS,
+      status: { kind: "container", state: "running", health: "healthy" },
+      scaffold: SCAFFOLD,
+    });
+    // The single-line boxes and the multi-line workflow block position their
+    // buttons differently vertically — centred vs top-pinned — but the
+    // horizontal inset has to agree or the buttons visibly step in and out.
+    // They drifted once (right-1.5 vs right-2) and 2px was noticeable.
+    const insets = [...html.matchAll(/class="[^"]*\babsolute\b[^"]*?(right-[^\s"]+)/g)].map((m) => m[1]);
+    assert.ok(insets.length >= 3, `expected 3+ positioned copy buttons, saw ${insets.length}`);
+    assert.equal(
+      new Set(insets).size,
+      1,
+      `copy button insets drifted apart: ${[...new Set(insets)].join(", ")}`,
+    );
+  });
+
   test("a site with no scaffold has no fold at all", () => {
     const html = renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: true } });
     assert.doesNotMatch(html, /<details/);

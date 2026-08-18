@@ -329,6 +329,14 @@ const STEP_TEXT = "text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5";
  */
 const COPY_IN_LINE = "absolute top-1/2 -translate-y-1/2 right-1.5";
 
+/**
+ * Same 6px inset as COPY_IN_LINE, but pinned to the top: a multi-line block has
+ * no single vertical centre worth aligning a button to. Kept as a named
+ * constant beside it so the inset cannot drift between the two — it did, and
+ * the 2px difference was visible.
+ */
+const COPY_IN_BLOCK = "absolute top-1.5 right-1.5";
+
 const CODE_LINE =
   "font-mono text-[0.72rem] bg-stone-900 border border-stone-700 rounded-md pl-2.5 pr-11 py-2.5 text-stone-50 overflow-x-auto whitespace-nowrap m-0";
 
@@ -480,8 +488,8 @@ function renderDeployFold(scaffold: NonNullable<SiteDetailOptions["scaffold"]>):
           <div class="flex flex-col gap-1">
             <span class="text-stone-500 uppercase text-[0.65rem] tracking-[0.09em] font-mono">github actions workflow</span>
             <div class="relative">
-              <pre id="github-workflow-yaml" class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 pr-10 text-[0.72rem] text-stone-50 overflow-x-auto whitespace-pre">${escapeHtml(scaffold.deployWorkflow)}</pre>
-              ${copyButton("github-workflow-yaml", "Copy workflow", "absolute top-2 right-2")}
+              <pre id="github-workflow-yaml" class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 pr-11 text-[0.72rem] text-stone-50 overflow-x-auto whitespace-pre">${escapeHtml(scaffold.deployWorkflow)}</pre>
+              ${copyButton("github-workflow-yaml", "Copy workflow", COPY_IN_BLOCK)}
             </div>
             <p class="text-stone-400 text-[0.72rem] leading-snug m-0">Paste this into <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">.github/workflows/deploy.yml</code> in your app's repo.</p>
           </div>
