@@ -317,15 +317,20 @@ const STEP_NUMBER =
   "font-mono text-[0.625rem] text-rose-400 border border-rose-400/40 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5";
 const STEP_TEXT = "text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5";
 /**
- * Position for a copy button sitting in a single-line command box. Centred
- * rather than pinned to the top: copyButton() sets no font-size, so its 1em
- * icon would otherwise size against the card's 16px and make the button as
- * tall as the box it sits in. The text-[0.7rem] here is what shrinks the icon.
+ * Position for a copy button sitting in a single-line command box: vertically
+ * centred, so it does not depend on the box's exact height.
+ *
+ * No font-size override here deliberately — the icon inherits 16px, matching
+ * the multi-line workflow block's button, so all six copy buttons are one size.
+ * That makes the button 26px, which CODE_LINE's py-2.5 is chosen to clear with
+ * an even gap (6.6px above and below against 6px to the right), and pr-11 keeps
+ * it off the command text. Those three values are coupled: changing the padding
+ * on either the button or the box unbalances the gap.
  */
-const COPY_IN_LINE = "absolute top-1/2 -translate-y-1/2 right-1.5 text-[0.65rem]";
+const COPY_IN_LINE = "absolute top-1/2 -translate-y-1/2 right-1.5";
 
 const CODE_LINE =
-  "font-mono text-[0.72rem] bg-stone-900 border border-stone-700 rounded-md pl-2.5 pr-10 py-1.5 text-stone-50 overflow-x-auto whitespace-nowrap m-0";
+  "font-mono text-[0.72rem] bg-stone-900 border border-stone-700 rounded-md pl-2.5 pr-11 py-2.5 text-stone-50 overflow-x-auto whitespace-nowrap m-0";
 
 interface ManualStep {
   /** Plain sentence. Escaped at render time — never carries markup. */
