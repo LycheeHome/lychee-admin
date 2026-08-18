@@ -272,16 +272,31 @@ const SCAFFOLD = {
   deployWorkflow: "name: Deploy app.lyly.dev\non:\n  push:\n    branches: [main]\n",
 };
 
-describe("renderSiteDetail deploy fold", () => {
-  test("reference material is collapsed by default", () => {
+describe("renderSiteDetail deploy", () => {
+  test("nothing is hidden behind a disclosure widget", () => {
     const html = renderSiteDetail(NEXT_SITE, {
       ...OPTS,
       status: { kind: "container", state: "running", health: "healthy" },
       scaffold: SCAFFOLD,
     });
-    assert.match(html, /<details/);
-    assert.doesNotMatch(html, /<details[^>]*\sopen[\s>]/);
-    assert.match(html, /<summary/);
+    assert.doesNotMatch(html, /<details/);
+    assert.doesNotMatch(html, /<summary/);
+    // Deploy is a plain card like Request path and Manual steps.
+    assert.match(html, />Deploy<\/h3>/);
+  });
+
+  test("the workflow is height-capped rather than folded away", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...OPTS,
+      status: { kind: "container", state: "running", health: "healthy" },
+      scaffold: SCAFFOLD,
+    });
+    // 27 generated lines would render ~485px tall and dominate the page, so the
+    // block scrolls inside itself. Anchored to the workflow <pre> specifically —
+    // the single-line command boxes must NOT pick up a max height.
+    assert.match(html, /id="github-workflow-yaml"[^>]*\bmax-h-64\b/);
+    assert.match(html, /id="github-workflow-yaml"[^>]*\boverflow-auto\b/);
+    assert.doesNotMatch(html, /id="cmd-build"[^>]*max-h-/);
   });
 
   test("keeps every deploy command copyable", () => {
@@ -316,18 +331,10 @@ describe("renderSiteDetail deploy fold", () => {
     );
   });
 
-  test("a site with no scaffold has no fold at all", () => {
+  test("a site with no scaffold gets no Deploy section at all", () => {
     const html = renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: true } });
-    assert.doesNotMatch(html, /<details/);
-  });
-
-  test("the summary is keyboard reachable and shows a focus ring", () => {
-    const html = renderSiteDetail(NEXT_SITE, {
-      ...OPTS,
-      status: { kind: "container", state: "running", health: "healthy" },
-      scaffold: SCAFFOLD,
-    });
-    assert.match(html, /<summary[^>]*focus-visible:outline/);
+    assert.doesNotMatch(html, />Deploy<\/h3>/);
+    assert.doesNotMatch(html, /cmd-build|cmd-run|github-workflow-yaml/);
   });
 });
 

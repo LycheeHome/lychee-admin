@@ -453,13 +453,6 @@ export interface SiteDetailOptions {
   scaffold?: { buildCommand: string; runCommand: string; deployWorkflow: string };
 }
 
-// Same look as CARD_LABEL but without its bottom margin — the summary row
-// centres its children, so a stray mb-3 would push the label off-axis.
-// Do not write `${CARD_LABEL} mb-0`: Tailwind resolves conflicting utilities
-// by stylesheet order, not by the order they appear in a class attribute.
-const FOLD_LABEL =
-  "font-mono text-[0.625rem] font-medium uppercase tracking-[0.1em] text-stone-400 m-0";
-
 function renderDeployCommand(label: string, id: string, value: string): string {
   return `<div class="flex flex-col gap-1">
             <span class="text-stone-500 uppercase text-[0.65rem] tracking-[0.09em] font-mono">${escapeHtml(label)}</span>
@@ -471,30 +464,31 @@ function renderDeployCommand(label: string, id: string, value: string): string {
 }
 
 /**
- * Commands and CI config you consult when setting a site up and rarely after,
- * so this starts closed rather than competing with status you read every
- * visit. A native <details> keeps it keyboard-accessible with no JS.
+ * Commands and CI config for a scaffolded site. Not collapsed: the two commands
+ * are ~120px between them and hiding those bought nothing, while the generated
+ * workflow is 27 lines / ~485px and would dominate the page. So the workflow
+ * alone is capped at max-h-64 and scrolls inside itself — visible, so you know
+ * it exists, without a disclosure widget to discover. Its copy button stays
+ * overlaid like the others; on a platform with persistent scrollbars it will
+ * sit over the track's top edge, which macOS overlay scrollbars avoid.
  */
-function renderDeployFold(scaffold: NonNullable<SiteDetailOptions["scaffold"]>): string {
+function renderDeploy(scaffold: NonNullable<SiteDetailOptions["scaffold"]>): string {
   return `
-      <details class="group bg-stone-800 border border-stone-700 rounded-[10px]">
-        <summary class="flex items-center gap-2 px-5 py-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden ${FOCUS_RING} rounded-[10px]">
-          <span class="text-stone-500 text-[0.6rem] motion-safe:transition-transform group-open:rotate-90" aria-hidden="true">&#9656;</span>
-          <span class="${FOLD_LABEL}">Deploy</span>
-        </summary>
-        <div class="flex flex-col gap-3 px-5 pb-5">
+      <section class="${CARD}">
+        <h3 class="${CARD_LABEL}">Deploy</h3>
+        <div class="flex flex-col gap-3">
           ${renderDeployCommand("build command", "cmd-build", scaffold.buildCommand)}
           ${renderDeployCommand("run command", "cmd-run", scaffold.runCommand)}
           <div class="flex flex-col gap-1">
             <span class="text-stone-500 uppercase text-[0.65rem] tracking-[0.09em] font-mono">github actions workflow</span>
             <div class="relative">
-              <pre id="github-workflow-yaml" class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 pr-11 text-[0.72rem] text-stone-50 overflow-x-auto whitespace-pre">${escapeHtml(scaffold.deployWorkflow)}</pre>
+              <pre id="github-workflow-yaml" class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 pr-11 text-[0.72rem] text-stone-50 max-h-64 overflow-auto whitespace-pre m-0">${escapeHtml(scaffold.deployWorkflow)}</pre>
               ${copyButton("github-workflow-yaml", "Copy workflow", COPY_IN_BLOCK)}
             </div>
             <p class="text-stone-400 text-[0.72rem] leading-snug m-0">Paste this into <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">.github/workflows/deploy.yml</code> in your app's repo.</p>
           </div>
         </div>
-      </details>`;
+      </section>`;
 }
 
 function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
@@ -554,7 +548,7 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
 
       ${renderRequestPath(site, opts)}
       ${renderManualSteps(site, opts)}
-      ${scaffold ? renderDeployFold(scaffold) : ""}
+      ${scaffold ? renderDeploy(scaffold) : ""}
 
       ${renderDangerZone()}
     </div>
