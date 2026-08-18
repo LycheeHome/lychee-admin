@@ -216,7 +216,24 @@ describe("renderSiteDetail manual steps", () => {
     assert.match(html, /Cloudflare dashboard/);
   });
 
-  test("a static site's only manual step is DNS", () => {
+  test("a static site is told to replace the placeholder it is serving", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    // add-site writes a placeholder index.html, so the site works immediately
+    // and nothing otherwise prompts the user to notice what is actually live.
+    assert.match(html, /Put your site's files in \/var\/www\/blog\.lyly\.dev\//);
+    assert.match(html, /placeholder index\.html/);
+  });
+
+  test("a reverse-proxy site is not told about a placeholder it never got", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...OPTS,
+      status: { kind: "container", state: "running", health: "healthy" },
+    });
+    // add-site only writes the placeholder for static sites.
+    assert.doesNotMatch(html, /placeholder/);
+  });
+
+  test("a static site gets no container steps", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     assert.doesNotMatch(html, /docker compose up/);
     assert.doesNotMatch(html, /docker compose logs/);

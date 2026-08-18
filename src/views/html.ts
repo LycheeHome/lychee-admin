@@ -404,6 +404,16 @@ function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
     },
   ];
 
+  // A static site is already serving — add-site created the directory and wrote
+  // a placeholder index.html into it — so nothing prompts the user to notice
+  // that what is live is a placeholder. This is the same category as the other
+  // steps: something lyly-admin deliberately does not do for you.
+  if (site.type === "static" && filesPath) {
+    steps.push({
+      text: `Put your site's files in ${filesPath}/. lyly-admin created a placeholder index.html there, which Caddy serves until you replace it.`,
+    });
+  }
+
   if (site.framework && filesPath) {
     steps.push({
       // The prerequisite matters: add-site writes only the Dockerfile, compose
