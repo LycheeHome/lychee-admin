@@ -100,7 +100,7 @@ function icon(name: keyof typeof ICONS): string {
  * served over plain HTTP on the LAN.
  */
 function copyButton(targetId: string, label: string, extraClass = ""): string {
-  return `<button type="button" class="p-1.5 rounded-md bg-stone-800 border border-stone-700 text-stone-400 hover:text-stone-50 hover:bg-stone-700 cursor-pointer ${FOCUS_RING} ${extraClass}" data-copy-target="${targetId}" aria-label="${escapeHtml(label)}">
+  return `<button type="button" class="p-1 rounded-md bg-stone-800 border border-stone-700 text-stone-400 hover:text-stone-50 hover:bg-stone-700 cursor-pointer ${FOCUS_RING} ${extraClass}" data-copy-target="${targetId}" aria-label="${escapeHtml(label)}">
       <span data-copy-icon="idle">${icon("clipboard")}</span>
       <span data-copy-icon="copied" class="hidden">${icon("check")}</span>
     </button>`;
@@ -322,7 +322,7 @@ const STEP_TEXT = "text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5";
  * icon would otherwise size against the card's 16px and make the button as
  * tall as the box it sits in. The text-[0.7rem] here is what shrinks the icon.
  */
-const COPY_IN_LINE = "absolute top-1/2 -translate-y-1/2 right-1.5 text-[0.7rem]";
+const COPY_IN_LINE = "absolute top-1/2 -translate-y-1/2 right-1.5 text-[0.65rem]";
 
 const CODE_LINE =
   "font-mono text-[0.72rem] bg-stone-900 border border-stone-700 rounded-md pl-2.5 pr-10 py-1.5 text-stone-50 overflow-x-auto whitespace-nowrap m-0";
