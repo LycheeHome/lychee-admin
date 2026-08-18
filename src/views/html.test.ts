@@ -236,6 +236,12 @@ describe("renderSiteDetail manual steps", () => {
     assert.match(html, /id="cmd-compose"/);
     assert.match(html, /in \/var\/www\/app\.lyly\.dev\//);
     assert.match(html, /never starts, stops, or rebuilds/);
+    // The build cannot succeed until app source is in the directory: add-site
+    // writes only the scaffold, so the Dockerfile's first COPY would fail.
+    // The step has to state that prerequisite and point at the workflow that
+    // satisfies it, or it reads as a command you can run immediately.
+    assert.match(html, /Get your app source into this directory, then build/);
+    assert.match(html, /workflow in Deploy below/);
   });
 
   test("a healthy site is not offered the logs step", () => {

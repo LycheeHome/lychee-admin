@@ -406,7 +406,13 @@ function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
 
   if (site.framework && filesPath) {
     steps.push({
-      text: "Build and start the container yourself. lyly-admin never starts, stops, or rebuilds it.",
+      // The prerequisite matters: add-site writes only the Dockerfile, compose
+      // file and .dockerignore, so at this point the directory has no app
+      // source and the Dockerfile's first COPY would fail. The generated
+      // workflow rsyncs source in and then builds, which is why it is named
+      // here rather than left for the reader to connect.
+      text:
+        "Get your app source into this directory, then build and start it. The workflow in Deploy below does both on every push to main — lyly-admin itself never starts, stops, or rebuilds the container.",
       command: { id: "cmd-compose", value: "docker compose up -d --build", cwd: filesPath },
     });
   }
