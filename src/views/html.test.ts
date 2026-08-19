@@ -325,17 +325,34 @@ describe("renderSiteDetail deploy", () => {
     assert.match(html, /id="github-workflow-yaml"[^>]*\boverflow-x-auto\b/);
   });
 
-  test("keeps every deploy command copyable", () => {
+  test("only the workflow is copyable; build and run are data, not instructions", () => {
     const html = renderSiteDetail(NEXT_SITE, {
       ...OPTS,
       status: { kind: "container", state: "running", health: "healthy" },
       scaffold: SCAFFOLD,
     });
+    assert.match(html, /data-copy-target="github-workflow-yaml"/);
+    // buildCommand and runCommand describe what the Dockerfile bakes in and
+    // the workflow triggers. A copy button on them reads as "run these", which
+    // is both wrong and the reverse of the actual order.
     assert.match(html, /npm run build/);
     assert.match(html, /npm start/);
-    assert.match(html, /data-copy-target="cmd-build"/);
-    assert.match(html, /data-copy-target="cmd-run"/);
-    assert.match(html, /data-copy-target="github-workflow-yaml"/);
+    assert.doesNotMatch(html, /cmd-build|cmd-run/);
+    assert.match(html, /not commands to run yourself/);
+  });
+
+  test("the workflow comes before what the image does, not after", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...OPTS,
+      status: { kind: "container", state: "running", health: "healthy" },
+      scaffold: SCAFFOLD,
+    });
+    // Ordering carried the wrong implication: commands first read as "do these,
+    // then paste the workflow", when the workflow is what causes them to run.
+    assert.ok(
+      html.indexOf("github-workflow-yaml") < html.indexOf("npm run build"),
+      "the workflow must precede the baked-in commands",
+    );
   });
 
   test("every copy button inside a code block shares one right-hand inset", () => {

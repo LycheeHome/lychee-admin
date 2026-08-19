@@ -465,48 +465,36 @@ export interface SiteDetailOptions {
   scaffold?: { buildCommand: string; runCommand: string; deployWorkflow: string };
 }
 
-function renderDeployCommand(label: string, id: string, value: string): string {
-  return `<div class="flex flex-col gap-1">
-            <span class="text-stone-500 uppercase text-[0.65rem] tracking-[0.09em] font-mono">${escapeHtml(label)}</span>
-            <div class="relative">
-              <pre id="${id}" class="${CODE_LINE}">${escapeHtml(value)}</pre>
-              ${copyButton(id, `Copy ${label}`, COPY_IN_LINE)}
-            </div>
-          </div>`;
-}
-
 /**
- * Commands and CI config for a scaffolded site. Deliberately a plain card: it
- * was a collapsed <details>, then a height-capped scroll box, and both hid
- * content to solve a problem that was not real. The generated workflow renders
- * ~485px, but this section sits above only Danger, so its length costs little,
- * and it is a file you may want to read — the branch filter, the rsync
- * excludes — not only copy. Nesting a vertical scrollbar inside a page you are
- * already scrolling is worse than a tall block.
+ * The workflow first, because it is the only thing here you act on, then what
+ * the generated image does, as data.
  *
- * Horizontal scroll stays: the longest generated line is 85 characters, wider
- * than the column, and that is conventional for preformatted content.
+ * buildCommand and runCommand are NOT instructions: they are what the Dockerfile
+ * bakes in (`RUN npm run build`, `CMD ["npm","start"]`), triggered inside the
+ * image by the workflow's `docker compose up --build`. They were previously
+ * rendered as copyable command boxes identical to the actionable ones in Manual
+ * steps, which read as "run these first, then paste the workflow" — the reverse
+ * of the truth, and running them on the host would be wrong. They are detail
+ * rows now, the same shape the request-path card uses for data.
  *
- * A cap would only earn its place if this content could be arbitrarily long.
- * It cannot — getFrameworkScaffold generates it, so its length changes only
- * when the template does.
+ * They are surfaced at all because they tell you what the image assumes: an app
+ * without an `npm run build` script, or one started another way, will not work
+ * with this scaffold. Making them overridable is a later feature; the page
+ * deliberately does not promise that yet.
  */
 function renderDeploy(scaffold: NonNullable<SiteDetailOptions["scaffold"]>): string {
   return `
       <section class="${CARD}">
         <h3 class="${CARD_LABEL}">Deploy</h3>
-        <div class="flex flex-col gap-3">
-          ${renderDeployCommand("build command", "cmd-build", scaffold.buildCommand)}
-          ${renderDeployCommand("run command", "cmd-run", scaffold.runCommand)}
-          <div class="flex flex-col gap-1">
-            <span class="text-stone-500 uppercase text-[0.65rem] tracking-[0.09em] font-mono">github actions workflow</span>
-            <div class="relative">
-              <pre id="github-workflow-yaml" class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 pr-11 text-[0.72rem] text-stone-50 overflow-x-auto whitespace-pre m-0">${escapeHtml(scaffold.deployWorkflow)}</pre>
-              ${copyButton("github-workflow-yaml", "Copy workflow", COPY_IN_BLOCK)}
-            </div>
-            <p class="text-stone-400 text-[0.72rem] leading-snug m-0">Paste this into <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">.github/workflows/deploy.yml</code> in your app's repo.</p>
-          </div>
+        <p class="text-stone-400 text-[0.8rem] leading-snug m-0 mb-3">Paste this into <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">.github/workflows/deploy.yml</code> in your app's repo. It syncs your source across and rebuilds the container on every push to <code class="font-mono bg-stone-700 rounded px-1.5 py-0.5 text-[0.85em] text-stone-50">main</code>.</p>
+        <div class="relative">
+          <pre id="github-workflow-yaml" class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 pr-11 text-[0.72rem] text-stone-50 overflow-x-auto whitespace-pre m-0">${escapeHtml(scaffold.deployWorkflow)}</pre>
+          ${copyButton("github-workflow-yaml", "Copy workflow", COPY_IN_BLOCK)}
         </div>
+        <div class="h-px bg-stone-700 my-4"></div>
+        <p class="text-stone-400 text-[0.8rem] leading-snug m-0 mb-2">Baked into the generated Dockerfile. These run inside the image when it builds — not commands to run yourself.</p>
+        <p class="${DETAIL_ROW}"><span class="${DETAIL_KEY}">build</span><span class="text-stone-50 break-all">${escapeHtml(scaffold.buildCommand)}</span></p>
+        <p class="${DETAIL_ROW}"><span class="${DETAIL_KEY}">run</span><span class="text-stone-50 break-all">${escapeHtml(scaffold.runCommand)}</span></p>
       </section>`;
 }
 
