@@ -31,6 +31,11 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    # Consumed by deploy's `if:`. Computed here rather than in a job of its own
+    # so that a docs-only merge never starts the self-hosted runner at all.
+    outputs:
+      deploy_needed: ${{ steps.changes.outputs.deploy_needed }}
+
     # Cancel superseded runs on a pull request, so pushing three commits
     # leaves only the newest run. Deliberately does NOT cancel on main:
     # the deploy job needs this one, so a cancelled test run would take
@@ -45,6 +50,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Needed to diff against github.event.before; the default shallow
+          # clone does not contain it.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v7
         with:
@@ -56,6 +65,31 @@ jobs:
       - run: npm test
       - run: npm run build
 
+      - name: Test the deploy-needed predicate
+        run: bash .github/scripts/deploy-needed.test.sh
+
+      # Fails open: anything unclassifiable deploys. See the script's header.
+      - name: Decide whether this changeset needs deploying
+        id: changes
+        run: |
+          before='${{ github.event.before }}'
+          if [ '${{ github.event_name }}' != 'push' ] \
+            || [ -z "$before" ] \
+            || [ "$before" = '0000000000000000000000000000000000000000' ]; then
+            echo 'deploy_needed=true' >> "$GITHUB_OUTPUT"
+            echo "no usable before-SHA for a $GITHUB_EVENT_NAME event — deploying"
+            exit 0
+          fi
+          if ! changed=$(git diff --name-only "$before" '${{ github.sha }}'); then
+            echo 'deploy_needed=true' >> "$GITHUB_OUTPUT"
+            echo 'could not diff — deploying'
+            exit 0
+          fi
+          printf '%s\n' "$changed" | sed 's/^/  changed: /'
+          needed=$(printf '%s\n' "$changed" | bash .github/scripts/deploy-needed.sh)
+          echo "deploy_needed=$needed" >> "$GITHUB_OUTPUT"
+          echo "deploy_needed=$needed"
+
   deploy:
     # needs: test is the real gate — Actions will not start this job unless
     # the checks passed, so a failing suite cannot reach lychee even on a
@@ -65,7 +99,10 @@ jobs:
     # dispatch to the main ref — workflow_dispatch can otherwise be run
     # against any branch, which would rsync that branch onto the host.
     needs: test
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: |
+      github.event_name != 'pull_request'
+      && github.ref == 'refs/heads/main'
+      && needs.test.outputs.deploy_needed == 'true'
     runs-on: self-hosted
     timeout-minutes: 15
 
