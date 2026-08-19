@@ -6,7 +6,8 @@ import * as tunnelConfig from "../lib/tunnelConfig";
 import { CommandError } from "../lib/systemCommands";
 import { getFrameworkScaffold } from "../lib/frameworkScaffold";
 import { checkPortOpen } from "../lib/portStatus";
-import { renderSiteDetail, renderSiteList, renderSiteNotFound, type SiteStatus } from "../views/html";
+import { renderSiteDetail, renderSiteList, renderSiteNotFound } from "../views/html";
+import type { SiteStatus } from "../lib/siteDisplay";
 import type { Deps } from "../deps";
 
 // Caddy's built-in admin API — always on localhost:2019 regardless of
@@ -65,13 +66,30 @@ export function createSitesRouter(deps: Deps): Router {
       const content = deps.fs.readFile(config.caddyfilePath);
       const site = caddyfile.parseSites(content).find((s) => s.hostname === hostname && isManagedHostname(s.hostname));
 
+      // Read for display only, so an unreadable tunnel config must not take the
+      // page down — the DNS step falls back to dashboard instructions.
+      let tunnelId = "";
+      try {
+        tunnelId = tunnelConfig.readTunnelId(deps.fs.readFile(config.tunnelConfigPath));
+      } catch {
+        tunnelId = "";
+      }
+
       if (!site) {
         res.status(404).send(renderSiteNotFound(hostname));
         return;
       }
 
       if (site.type === "static") {
-        res.send(renderSiteDetail(site, config.sitesRoot));
+        res.send(
+          renderSiteDetail(site, {
+            sitesRoot: config.sitesRoot,
+            domain: config.domain,
+            tunnelId,
+            tunnelConfigPath: config.tunnelConfigPath,
+            caddyfilePath: config.caddyfilePath,
+          }),
+        );
         return;
       }
 
@@ -92,7 +110,17 @@ export function createSitesRouter(deps: Deps): Router {
         ? { buildCommand: scaffold.buildCommand, runCommand: scaffold.runCommand, deployWorkflow: scaffold.deployWorkflow }
         : undefined;
 
-      res.send(renderSiteDetail(site, config.sitesRoot, status, scaffoldCommands));
+      res.send(
+        renderSiteDetail(site, {
+          sitesRoot: config.sitesRoot,
+          domain: config.domain,
+          tunnelId,
+          tunnelConfigPath: config.tunnelConfigPath,
+          caddyfilePath: config.caddyfilePath,
+          status,
+          scaffold: scaffoldCommands,
+        }),
+      );
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
       res.status(500).send(renderSiteList([], config.domain, config.sitesRoot, message));
@@ -201,7 +229,14 @@ export function createSitesRouter(deps: Deps): Router {
         hostname,
         detail: `type=${type} target=${target}${framework ? ` framework=${framework}` : ""}`,
       });
-      res.json({ added: true, hostname, type, target, framework: framework ?? "none", tunnelId: config.tunnelId });
+      res.json({
+        added: true,
+        hostname,
+        type,
+        target,
+        framework: framework ?? "none",
+        tunnelId: tunnelConfig.readTunnelId(tunnelContent),
+      });
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
       logAction({ action: "add-site-failed", hostname, detail: message });

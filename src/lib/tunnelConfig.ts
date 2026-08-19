@@ -28,6 +28,23 @@ function stringify(config: TunnelConfig): string {
  * Inserts a new ingress rule immediately before the catch-all entry (the
  * final rule, which has no `hostname` — e.g. `service: http_status:404`).
  */
+/**
+ * The tunnel this config file belongs to. Read from the same file the app
+ * writes ingress rules into, so the id shown on a site's page and used in its
+ * DNS command cannot disagree with the tunnel actually carrying the hostname.
+ *
+ * Returns "" for a file with no `tunnel:` key rather than throwing: the id is
+ * display and command text, not something a mutation depends on, and the
+ * detail page degrades to Cloudflare-dashboard instructions without it.
+ */
+export function readTunnelId(content: string): string {
+  try {
+    return parse(content).tunnel ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export function addIngressRule(content: string, hostname: string, service: string): string {
   const config = parse(content);
 

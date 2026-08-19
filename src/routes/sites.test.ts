@@ -22,7 +22,6 @@ process.env.ADMIN_PASSWORD_HASH = bcrypt.hashSync(PASSWORD, 4);
 process.env.DOMAIN = "lyly.dev";
 process.env.PORT = "8787";
 process.env.LOG_FILE = LOG_FILE;
-process.env.TUNNEL_ID = "c7081f91-61c2-476b-8505-42d219bb6d7e";
 process.env.CADDYFILE_PATH = CADDYFILE;
 process.env.TUNNEL_CONFIG_PATH = TUNNEL_CONFIG;
 process.env.SITES_ROOT = SITES_ROOT;
@@ -47,7 +46,7 @@ http://lychee.local {
 }
 `;
 
-const SEED_TUNNEL = `tunnel: c7081f91-61c2-476b-8505-42d219bb6d7e
+const SEED_TUNNEL = `tunnel: 11111111-2222-3333-4444-555555555555
 ingress:
   - hostname: blog.lyly.dev
     service: http://localhost:80
@@ -168,7 +167,9 @@ describe("POST /sites — static", () => {
       type: "static",
       target: `${SITES_ROOT}/new.lyly.dev`,
       framework: "none",
-      tunnelId: "c7081f91-61c2-476b-8505-42d219bb6d7e",
+      // Derived from the seeded tunnel config's `tunnel:` key, not from an
+      // environment variable that could drift from it.
+      tunnelId: "11111111-2222-3333-4444-555555555555",
     });
 
     assert.match(fakeFs.readFile(CADDYFILE), /http:\/\/new\.lyly\.dev \{/);
@@ -299,7 +300,7 @@ describe("rollback", () => {
   test("restores the Caddyfile when the tunnel edit fails during add", async () => {
     // A tunnel config with no `ingress` key makes addIngressRule throw at
     // step 4 — after the Caddyfile has been written, before caddy validate.
-    writeFixtures(SEED_CADDYFILE, "tunnel: c7081f91-61c2-476b-8505-42d219bb6d7e\n");
+    writeFixtures(SEED_CADDYFILE, "tunnel: 11111111-2222-3333-4444-555555555555\n");
     const before = fakeFs.readFile(CADDYFILE);
 
     const response = await request("/sites", form({ hostname: "new.lyly.dev", type: "static" }));

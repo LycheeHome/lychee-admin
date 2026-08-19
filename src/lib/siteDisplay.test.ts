@@ -1,0 +1,129 @@
+import { describe, test } from "node:test";
+import assert from "node:assert/strict";
+import { describeStatus, splitHostnameForDisplay } from "./siteDisplay";
+
+describe("describeStatus", () => {
+  test("a healthy running container is ok, and says so on both lines", () => {
+    assert.deepEqual(describeStatus({ kind: "container", state: "running", health: "healthy" }), {
+      pill: "running",
+      hop: "running · healthy",
+      tone: "ok",
+    });
+  });
+
+  test("a running container with no health data omits health rather than inventing it", () => {
+    assert.deepEqual(describeStatus({ kind: "container", state: "running" }), {
+      pill: "running",
+      hop: "running",
+      tone: "ok",
+    });
+  });
+
+  test("an unhealthy container leads with unhealthy in the pill", () => {
+    assert.deepEqual(describeStatus({ kind: "container", state: "running", health: "unhealthy" }), {
+      pill: "unhealthy",
+      hop: "running · unhealthy",
+      tone: "bad",
+    });
+  });
+
+  test("a starting health check is neutral, not a failure", () => {
+    assert.deepEqual(describeStatus({ kind: "container", state: "running", health: "starting" }), {
+      pill: "starting",
+      hop: "running · health check starting",
+      tone: "neutral",
+    });
+  });
+
+  test("exited, restarting and paused are all bad", () => {
+    assert.deepEqual(describeStatus({ kind: "container", state: "exited" }), {
+      pill: "exited",
+      hop: "exited",
+      tone: "bad",
+    });
+    assert.deepEqual(describeStatus({ kind: "container", state: "restarting" }), {
+      pill: "restarting",
+      hop: "restarting · crash-looping",
+      tone: "bad",
+    });
+    assert.deepEqual(describeStatus({ kind: "container", state: "paused" }), {
+      pill: "paused",
+      hop: "paused",
+      tone: "bad",
+    });
+  });
+
+  test("a container that was never created reads as not deployed", () => {
+    assert.deepEqual(describeStatus({ kind: "container", state: "not-created" }), {
+      pill: "not deployed",
+      hop: "not deployed",
+      tone: "bad",
+    });
+  });
+
+  test("an unreadable container status is neutral — not knowing is not a failure", () => {
+    assert.deepEqual(describeStatus({ kind: "container", state: "unknown" }), {
+      pill: "unknown",
+      hop: "can't check",
+      tone: "neutral",
+    });
+  });
+
+  test("tcp checks use responding, never live or down", () => {
+    assert.deepEqual(describeStatus({ kind: "tcp", responding: true }), {
+      pill: "responding",
+      hop: "responding",
+      tone: "ok",
+    });
+    assert.deepEqual(describeStatus({ kind: "tcp", responding: false }), {
+      pill: "not responding",
+      hop: "not responding",
+      tone: "bad",
+    });
+  });
+
+  test("no state anywhere is described as live or down", () => {
+    const states = ["running", "exited", "restarting", "paused", "not-created", "unknown"] as const;
+    for (const state of states) {
+      const { pill, hop } = describeStatus({ kind: "container", state });
+      assert.doesNotMatch(`${pill} ${hop}`, /\b(live|down)\b/);
+    }
+  });
+});
+
+describe("splitHostnameForDisplay", () => {
+  test("dims the managed domain suffix on a subdomain", () => {
+    assert.deepEqual(splitHostnameForDisplay("blog.lyly.dev", "lyly.dev"), {
+      lead: "blog",
+      dimmed: ".lyly.dev",
+    });
+  });
+
+  test("keeps a multi-level subdomain whole in the bright part", () => {
+    assert.deepEqual(splitHostnameForDisplay("a.b.lyly.dev", "lyly.dev"), {
+      lead: "a.b",
+      dimmed: ".lyly.dev",
+    });
+  });
+
+  test("the apex domain has nothing to dim", () => {
+    assert.deepEqual(splitHostnameForDisplay("lyly.dev", "lyly.dev"), {
+      lead: "lyly.dev",
+      dimmed: "",
+    });
+  });
+
+  test("a hostname outside the managed domain is left alone", () => {
+    assert.deepEqual(splitHostnameForDisplay("lychee.local", "lyly.dev"), {
+      lead: "lychee.local",
+      dimmed: "",
+    });
+  });
+
+  test("a hostname that merely ends in the domain's letters is not split", () => {
+    assert.deepEqual(splitHostnameForDisplay("notlyly.dev", "lyly.dev"), {
+      lead: "notlyly.dev",
+      dimmed: "",
+    });
+  });
+});

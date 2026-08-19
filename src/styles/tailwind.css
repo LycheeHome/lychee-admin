@@ -3,7 +3,7 @@
 @theme {
   --font-display: "Poetsen One", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
   --font-sans: "Nunito", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "Nunito", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --font-mono: "DM Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
   --animate-modal-in: modal-in 0.15s ease;
 }
 
