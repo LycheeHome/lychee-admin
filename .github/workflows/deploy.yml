@@ -1,10 +1,19 @@
 name: CI and deploy
 
 # The test job runs on every pull request targeting main and on every push
-# to main. Make `test` a required status check in branch protection
-# (Settings > Branches) — that is what actually blocks merging a PR whose
-# checks failed. Branch protection also needs to require a PR and disallow
-# direct/force pushes to main; this workflow cannot configure that part.
+# to main.
+#
+# There is deliberately no "make this a required status check" instruction
+# here: the Lychee-Home org is on GitHub Free and this repo is private, a
+# combination for which both branch protection and rulesets are unavailable
+# (their APIs return 403, "Upgrade to GitHub Pro or make this repository
+# public"). So nothing mechanically prevents merging a PR whose test run is
+# red — that part is down to reading the check before clicking merge.
+#
+# What is enforced without any repo settings: deploy has `needs: test`, and
+# that applies to pushes on main just as much as to pull requests. Merging a
+# red PR therefore leaves main red and the deploy skipped — broken code
+# never reaches lychee, and the host keeps serving the last good deploy.
 on:
   pull_request:
     branches: [main]
