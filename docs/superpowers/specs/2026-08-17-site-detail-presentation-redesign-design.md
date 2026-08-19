@@ -361,6 +361,44 @@ Deferred to **Spec B**:
 
 - Live state on routing hops 1–3 (`systemctl is-active` for Caddy and
   `cloudflared-sites`, DNS resolution for hop 1).
+
+  Hop 1 was investigated on 2026-08-19 and is feasible with no credentials and
+  no new sudo scope. Measured against the live zone:
+
+  | hostname | `dns.resolveCname` | `dns.resolve4` |
+  |---|---|---|
+  | `ssh.lyly.dev` (exists) | `ENODATA` | `["172.67.153.170", "104.21.56.163"]` |
+  | `lyly.dev` (exists) | `ENODATA` | `["104.21.56.163", "172.67.153.170"]` |
+  | absent hostname | `ENOTFOUND` | `ENOTFOUND` |
+
+  So `dns.resolve4()` alone separates "a record exists" from "no record",
+  which is the forgotten-DNS-step signal the page currently gets wrong.
+  `ENODATA` on the CNAME is expected and not a failure: tunnel records must be
+  proxied, so Cloudflare flattens them to anycast A records at the edge and the
+  `<tunnel-id>.cfargotunnel.com` target is not publicly visible.
+
+  Consequences for the implementation:
+
+  - It proves a proxied Cloudflare record exists for the hostname, **not** that
+    it points at this tunnel. Only the Cloudflare API could prove that, and
+    that needs a token on the host — rejected for now: `Zone:DNS:Read` honours
+    Tier 1 literally, but it is one config change from write access, which is
+    the boundary this project drew deliberately.
+  - Three states are required, not two. `ENOTFOUND` means no record; A records
+    mean it exists; anything else (timeout, SERVFAIL, no internet, `EAI_AGAIN`)
+    means *could not check* and must never render as "missing" — the same
+    convention `checkContainerStatus` set with `unknown`.
+  - Needs a bounded timeout, following `checkPortOpen`'s shape in
+    `src/lib/portStatus.ts`. It is the first thing on this page that can be
+    slow or offline, which is why it belongs beside Spec B's Recheck control
+    and `checked at` timestamp rather than in a page that renders synchronously.
+  - Negative caching means a record created seconds earlier can still read as
+    absent, so the copy must not assert "you have not created it".
+  - A stronger check exists — `GET https://<hostname>` from the host proves the
+    whole chain, and combined with the existing localhost probe localises the
+    fault (localhost up + public down implies DNS or tunnel). It costs a TLS
+    round trip, generates real traffic to the site, and Cloudflare's own error
+    pages are hard to distinguish from the app's.
 - A `checked at` timestamp and a Recheck control, with the JSON status endpoint
   they need.
 - Per-hostname activity read from the audit log at `config.logFile`.
