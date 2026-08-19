@@ -66,6 +66,15 @@ export function createSitesRouter(deps: Deps): Router {
       const content = deps.fs.readFile(config.caddyfilePath);
       const site = caddyfile.parseSites(content).find((s) => s.hostname === hostname && isManagedHostname(s.hostname));
 
+      // Read for display only, so an unreadable tunnel config must not take the
+      // page down — the DNS step falls back to dashboard instructions.
+      let tunnelId = "";
+      try {
+        tunnelId = tunnelConfig.readTunnelId(deps.fs.readFile(config.tunnelConfigPath));
+      } catch {
+        tunnelId = "";
+      }
+
       if (!site) {
         res.status(404).send(renderSiteNotFound(hostname));
         return;
@@ -76,7 +85,8 @@ export function createSitesRouter(deps: Deps): Router {
           renderSiteDetail(site, {
             sitesRoot: config.sitesRoot,
             domain: config.domain,
-            tunnelId: config.tunnelId,
+            tunnelId,
+            tunnelConfigPath: config.tunnelConfigPath,
             caddyfilePath: config.caddyfilePath,
           }),
         );
@@ -104,7 +114,8 @@ export function createSitesRouter(deps: Deps): Router {
         renderSiteDetail(site, {
           sitesRoot: config.sitesRoot,
           domain: config.domain,
-          tunnelId: config.tunnelId,
+          tunnelId,
+          tunnelConfigPath: config.tunnelConfigPath,
           caddyfilePath: config.caddyfilePath,
           status,
           scaffold: scaffoldCommands,
@@ -218,7 +229,14 @@ export function createSitesRouter(deps: Deps): Router {
         hostname,
         detail: `type=${type} target=${target}${framework ? ` framework=${framework}` : ""}`,
       });
-      res.json({ added: true, hostname, type, target, framework: framework ?? "none", tunnelId: config.tunnelId });
+      res.json({
+        added: true,
+        hostname,
+        type,
+        target,
+        framework: framework ?? "none",
+        tunnelId: tunnelConfig.readTunnelId(tunnelContent),
+      });
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
       logAction({ action: "add-site-failed", hostname, detail: message });

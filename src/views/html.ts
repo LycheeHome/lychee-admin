@@ -221,12 +221,6 @@ interface Hop {
   sub?: string;
   /** Tailwind text-colour class for the sub-line; defaults to muted stone. */
   subClass?: string;
-  /**
-   * Full value behind an abbreviated sub-line, surfaced as a tooltip. A title
-   * is mouse-only — it never appears on keyboard focus or touch — so it is an
-   * inspection convenience, never the only route to a value the user needs.
-   */
-  subTitle?: string;
 }
 
 const HOP_LABEL =
@@ -239,7 +233,7 @@ function renderHop(hop: Hop): string {
   return `<div class="min-w-0">
             <p class="${HOP_LABEL}">${escapeHtml(hop.label)}</p>
             <p class="${HOP_VALUE}">${escapeHtml(hop.value)}</p>
-            ${hop.sub ? `<p class="font-mono text-[0.65rem] ${hop.subClass ?? "text-stone-500"} m-0 break-all"${hop.subTitle ? ` title="${escapeHtml(hop.subTitle)}"` : ""}>${escapeHtml(hop.sub)}</p>` : ""}
+            ${hop.sub ? `<p class="font-mono text-[0.65rem] ${hop.subClass ?? "text-stone-500"} m-0 break-all">${escapeHtml(hop.sub)}</p>` : ""}
           </div>`;
 }
 
@@ -273,12 +267,13 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
     { label: "Cloudflare DNS", value: site.hostname, sub: "manual step" },
     {
       label: "Tunnel",
-      // The service name leads because it is what an operator recognises and
-      // what restartCloudflared() acts on. The tunnel's own ID qualifies it,
-      // abbreviated to keep this hop from swamping the row — the full value
-      // lives in the DNS command below, where it is copyable.
+      // Service name on top, its config directory beneath — the same shape as
+      // the Caddy hop below. The tunnel's id used to sit here, but it is
+      // identical on every site's page and, abbreviated, is the one value in
+      // this chain you cannot act on: too short to look up, not a path to open.
+      // It survives in full in the DNS command, which is where it is needed.
       value: "cloudflared-sites",
-      ...(opts.tunnelId ? { sub: `${opts.tunnelId.slice(0, 8)}…`, subTitle: opts.tunnelId } : {}),
+      sub: path.posix.dirname(opts.tunnelConfigPath),
     },
     { label: "Caddy", value: ":80", sub: path.posix.dirname(opts.caddyfilePath) },
     lastHop,
@@ -464,6 +459,7 @@ export interface SiteDetailOptions {
   sitesRoot: string;
   domain: string;
   tunnelId: string;
+  tunnelConfigPath: string;
   caddyfilePath: string;
   status?: SiteStatus;
   scaffold?: { buildCommand: string; runCommand: string; deployWorkflow: string };

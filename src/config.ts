@@ -25,7 +25,6 @@ export const config = {
   // this path (and the web:webdeploy owner/group) rather than taking it as
   // an argument, since sudoers can't safely wildcard-match arbitrary paths.
   sitesRoot: process.env.SITES_ROOT ?? "/var/www",
-  tunnelId: process.env.TUNNEL_ID ?? "",
 
   backupDir: process.env.BACKUP_DIR ?? "/etc/lyly-admin/backups",
   logFile: process.env.LOG_FILE ?? "/var/log/lyly-admin/actions.log",

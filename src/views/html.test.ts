@@ -7,6 +7,7 @@ const OPTS = {
   sitesRoot: "/var/www",
   domain: "lyly.dev",
   tunnelId: "11111111-2222-3333-4444-555555555555",
+  tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
   caddyfilePath: "/etc/caddy/Caddyfile",
 };
 
@@ -98,20 +99,21 @@ describe("renderSiteDetail request path", () => {
 
   test("derives the tunnel hop from config instead of hardcoding a tunnel name", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
-    // The service name leads; the abbreviated id qualifies it. Both anchored to
-    // their own <p>, and the title assertion pins the tooltip and the visible
-    // abbreviation to the same element so neither can drift from the other.
+    // Service name and its config directory, mirroring the Caddy hop. The id
+    // is deliberately absent here — identical on every page and unusable
+    // abbreviated — but must still reach the DNS command in full.
     assert.match(html, />cloudflared-sites<\/p>/);
-    assert.match(html, /title="11111111-2222-3333-4444-555555555555">11111111…<\/p>/);
+    assert.match(html, />\/etc\/cloudflared<\/p>/);
+    assert.doesNotMatch(html, /11111111…/);
     assert.doesNotMatch(html, /lychee-sites/);
   });
 
   test("falls back to the service name when no tunnel id is configured", () => {
     const html = renderSiteDetail(STATIC_SITE, { ...OPTS, tunnelId: "" });
     assert.match(html, />cloudflared-sites<\/p>/);
-    // No truncation ellipsis and no tooltip, because there was no id at all.
-    assert.doesNotMatch(html, /…/);
-    assert.doesNotMatch(html, /title="/);
+    // The hop never showed the id, so an empty one changes only the DNS step.
+    assert.doesNotMatch(html, /tunnel route dns/);
+    assert.match(html, /Cloudflare dashboard/);
   });
 
   test("derives the Caddy hop's path from the configured Caddyfile", () => {

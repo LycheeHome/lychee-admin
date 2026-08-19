@@ -22,7 +22,6 @@ process.env.ADMIN_PASSWORD_HASH = bcrypt.hashSync(PASSWORD, 4);
 process.env.DOMAIN = "lyly.dev";
 process.env.PORT = "8787";
 process.env.LOG_FILE = LOG_FILE;
-process.env.TUNNEL_ID = "11111111-2222-3333-4444-555555555555";
 process.env.CADDYFILE_PATH = CADDYFILE;
 process.env.TUNNEL_CONFIG_PATH = TUNNEL_CONFIG;
 process.env.SITES_ROOT = SITES_ROOT;
@@ -168,6 +167,8 @@ describe("POST /sites — static", () => {
       type: "static",
       target: `${SITES_ROOT}/new.lyly.dev`,
       framework: "none",
+      // Derived from the seeded tunnel config's `tunnel:` key, not from an
+      // environment variable that could drift from it.
       tunnelId: "11111111-2222-3333-4444-555555555555",
     });
 
