@@ -251,9 +251,17 @@ function renderHop(hop: Hop): string {
  */
 function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
   const filesPath = computeFilesPath(site, opts.sitesRoot);
-  const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
+  // Remediation belongs with the hop that reports the failure, not as a
+  // numbered setup step that appears and disappears with container state.
+  // "not-created" is excluded: a container that never existed has no logs, and
+  // Deploy is where you learn how to start one.
+  const containerStatus = opts.status?.kind === "container" ? opts.status : null;
+  const containerIsBroken =
+    containerStatus !== null &&
+    describeStatus(containerStatus).tone === "bad" &&
+    containerStatus.state !== "not-created";
   const labels = opts.status ? describeStatus(opts.status) : null;
-
+  const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
   const lastHop: Hop =
     site.type === "static"
       ? { label: "Your files", value: "file_server", ...(filesPath ? { sub: filesPath } : {}) }
@@ -295,6 +303,14 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
           ${hops.map((hop) => renderHop(hop)).join(arrow)}
         </div>
         ${
+          containerIsBroken && filesPath
+            ? `<div class="mt-4">
+          <p class="text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5">Check the container's logs to see why:</p>
+          ${commandBlock("cmd-logs", "docker compose logs", filesPath)}
+        </div>`
+            : ""
+        }
+        ${
           rows.length
             ? `<div class="h-px bg-stone-700 my-4"></div>
         ${rows
@@ -335,15 +351,23 @@ const COPY_IN_BLOCK = "absolute top-1.5 right-1.5";
 const CODE_LINE =
   "font-mono text-[0.72rem] bg-stone-900 border border-stone-700 rounded-md pl-2.5 pr-11 py-2.5 text-stone-50 overflow-x-auto whitespace-nowrap m-0";
 
+/**
+ * A copyable command, optionally captioned with the directory it must run in.
+ * Shared by the manual steps, the request path's failure hint, and Deploy's
+ * by-hand alternative, so all three look and behave identically.
+ */
+function commandBlock(id: string, value: string, cwd?: string): string {
+  return `<div class="relative">
+              <pre id="${id}" class="${CODE_LINE}">${escapeHtml(value)}</pre>
+              ${copyButton(id, "Copy command", COPY_IN_LINE)}
+            </div>
+            ${cwd ? `<p class="font-mono text-[0.65rem] text-stone-500 m-0 mt-1">in ${escapeHtml(cwd)}/</p>` : ""}`;
+}
+
 interface ManualStep {
   /** Plain sentence. Escaped at render time — never carries markup. */
   text: string;
-  command?: {
-    id: string;
-    value: string;
-    /** Directory the command must run in, shown as a caption beneath it. */
-    cwd?: string;
-  };
+  command?: { id: string; value: string };
 }
 
 function renderStep(step: ManualStep, index: number): string {
@@ -351,15 +375,7 @@ function renderStep(step: ManualStep, index: number): string {
           <span class="${STEP_NUMBER}">${index + 1}</span>
           <div class="flex-1 min-w-0">
             <p class="${STEP_TEXT}">${escapeHtml(step.text)}</p>
-            ${
-              step.command
-                ? `<div class="relative">
-              <pre id="${step.command.id}" class="${CODE_LINE}">${escapeHtml(step.command.value)}</pre>
-              ${copyButton(step.command.id, "Copy command", COPY_IN_LINE)}
-            </div>
-            ${step.command.cwd ? `<p class="font-mono text-[0.65rem] text-stone-500 m-0 mt-1">in ${escapeHtml(step.command.cwd)}/</p>` : ""}`
-                : ""
-            }
+            ${step.command ? commandBlock(step.command.id, step.command.value) : ""}
           </div>
         </div>`;
 }
@@ -373,15 +389,6 @@ function renderStep(step: ManualStep, index: number): string {
  */
 function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
   const filesPath = computeFilesPath(site, opts.sitesRoot);
-  const labels = opts.status ? describeStatus(opts.status) : null;
-  const containerStatus = opts.status?.kind === "container" ? opts.status : null;
-  const containerIsBroken =
-    containerStatus !== null &&
-    labels?.tone === "bad" &&
-    // A container that was never created has no logs to read, and step 2
-    // already says how to start it — "find out why it stopped" is nonsense
-    // for a site that has never been deployed.
-    containerStatus.state !== "not-created";
 
   const steps: ManualStep[] = [
     {
@@ -409,30 +416,10 @@ function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
     });
   }
 
-  if (site.framework && filesPath) {
-    steps.push({
-      // The prerequisite matters: add-site writes only the Dockerfile, compose
-      // file and .dockerignore, so at this point the directory has no app
-      // source and the Dockerfile's first COPY would fail. The generated
-      // workflow rsyncs source in and then builds, which is why it is named
-      // here rather than left for the reader to connect.
-      text:
-        "Get your app source into this directory, then build and start it. The workflow in Deploy below does both on every push to main — lyly-admin itself never starts, stops, or rebuilds the container.",
-      command: { id: "cmd-compose", value: "docker compose up -d --build", cwd: filesPath },
-    });
-  }
-
-  if (site.framework && filesPath && containerIsBroken) {
-    steps.push({
-      text: "Find out why it stopped.",
-      command: { id: "cmd-logs", value: "docker compose logs", cwd: filesPath },
-    });
-  }
-
   return `
       <section class="${CARD}">
         <h3 class="${CARD_LABEL}">Manual steps</h3>
-        <p class="text-stone-400 text-[0.8rem] leading-snug m-0 mb-4">lyly-admin wires up routing only. These are yours.</p>
+        <p class="text-stone-400 text-[0.8rem] leading-snug m-0 mb-4">Nothing on this page does these for you.</p>
         <div class="flex flex-col gap-4">
           ${steps.map((step, index) => renderStep(step, index)).join("\n          ")}
         </div>
@@ -482,7 +469,7 @@ export interface SiteDetailOptions {
  * with this scaffold. Making them overridable is a later feature; the page
  * deliberately does not promise that yet.
  */
-function renderDeploy(scaffold: NonNullable<SiteDetailOptions["scaffold"]>): string {
+function renderDeploy(scaffold: NonNullable<SiteDetailOptions["scaffold"]>, filesPath: string | null): string {
   return `
       <section class="${CARD}">
         <h3 class="${CARD_LABEL}">Deploy</h3>
@@ -491,6 +478,12 @@ function renderDeploy(scaffold: NonNullable<SiteDetailOptions["scaffold"]>): str
           <pre id="github-workflow-yaml" class="font-mono bg-stone-900 border border-stone-700 rounded-md px-3 py-2 pr-11 text-[0.72rem] text-stone-50 overflow-x-auto whitespace-pre m-0">${escapeHtml(scaffold.deployWorkflow)}</pre>
           ${copyButton("github-workflow-yaml", "Copy workflow", COPY_IN_BLOCK)}
         </div>
+        ${
+          filesPath
+            ? `<p class="text-stone-400 text-[0.8rem] leading-snug m-0 mt-3 mb-1.5">Not using GitHub Actions? Copy your source into the directory yourself, then run:</p>
+        ${commandBlock("cmd-compose", "docker compose up -d --build", filesPath)}`
+            : ""
+        }
         <div class="h-px bg-stone-700 my-4"></div>
         <p class="text-stone-400 text-[0.8rem] leading-snug m-0 mb-2">Baked into the generated Dockerfile. These run inside the image when it builds — not commands to run yourself.</p>
         <p class="${DETAIL_ROW}"><span class="${DETAIL_KEY}">build</span><span class="text-stone-50 break-all">${escapeHtml(scaffold.buildCommand)}</span></p>
@@ -501,7 +494,6 @@ function renderDeploy(scaffold: NonNullable<SiteDetailOptions["scaffold"]>): str
 function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
   const { lead, dimmed } = splitHostnameForDisplay(site.hostname, opts.domain);
   const labels = opts.status ? describeStatus(opts.status) : null;
-
   return `
       <nav class="font-mono text-[0.72rem] text-stone-500 m-0" aria-label="Breadcrumb">
         <a href="/" class="text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}">sites</a>
@@ -555,7 +547,7 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
 
       ${renderRequestPath(site, opts)}
       ${renderManualSteps(site, opts)}
-      ${scaffold ? renderDeploy(scaffold) : ""}
+      ${scaffold ? renderDeploy(scaffold, computeFilesPath(site, opts.sitesRoot)) : ""}
 
       ${renderDangerZone()}
     </div>

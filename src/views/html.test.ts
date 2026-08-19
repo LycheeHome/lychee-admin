@@ -179,6 +179,17 @@ describe("renderSiteDetail request path", () => {
     assert.doesNotMatch(html, /files<\/span>/);
   });
 
+  test("a failing container gets its logs hint beside the hop that reports it", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...OPTS, status: { kind: "container", state: "exited" } });
+    const card = html.split("Request path</h3>")[1].split("</section>")[0];
+    // Remediation sits with the failure, not as a numbered setup step that
+    // appears and disappears with container state.
+    assert.match(card, /id="cmd-logs"/);
+    assert.match(card, /docker compose logs/);
+    const steps = html.split("Manual steps</h3>")[1].split("</section>")[0];
+    assert.doesNotMatch(steps, /cmd-logs/);
+  });
+
   test("stacks the chain vertically on narrow screens", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     assert.match(html, /flex-col sm:flex-row/);
@@ -246,21 +257,18 @@ describe("renderSiteDetail manual steps", () => {
     assert.doesNotMatch(html, /docker compose/);
   });
 
-  test("a scaffolded site is told to build and start the container itself", () => {
+  test("manual steps carries nothing the page automates", () => {
     const html = renderSiteDetail(NEXT_SITE, {
       ...OPTS,
       status: { kind: "container", state: "running", health: "healthy" },
+      scaffold: SCAFFOLD,
     });
-    assert.match(html, /docker compose up -d --build/);
-    assert.match(html, /id="cmd-compose"/);
-    assert.match(html, /in \/var\/www\/app\.lyly\.dev\//);
-    assert.match(html, /never starts, stops, or rebuilds/);
-    // The build cannot succeed until app source is in the directory: add-site
-    // writes only the scaffold, so the Dockerfile's first COPY would fail.
-    // The step has to state that prerequisite and point at the workflow that
-    // satisfies it, or it reads as a command you can run immediately.
-    assert.match(html, /Get your app source into this directory, then build/);
-    assert.match(html, /workflow in Deploy below/);
+    const card = html.split("Manual steps</h3>")[1].split("</section>")[0];
+    // Deploying is the workflow's job and lives in Deploy; only DNS is manual
+    // in the strong sense for a scaffolded proxy site.
+    assert.match(card, /cmd-dns/);
+    assert.doesNotMatch(card, /docker compose/);
+    assert.doesNotMatch(card, /cmd-compose|cmd-logs/);
   });
 
   test("a healthy site is not offered the logs step", () => {
@@ -282,12 +290,9 @@ describe("renderSiteDetail manual steps", () => {
     assert.doesNotMatch(html, /docker compose logs/);
   });
 
-  test("a never-deployed container gets steps 1 and 2 but not the logs step", () => {
+  test("a never-deployed container is not asked to read logs it has none of", () => {
     const html = renderSiteDetail(NEXT_SITE, { ...OPTS, status: { kind: "container", state: "not-created" } });
-    assert.match(html, /id="cmd-dns"/);
-    assert.match(html, /id="cmd-compose"/);
-    assert.doesNotMatch(html, /docker compose logs/);
-    assert.doesNotMatch(html, /id="cmd-logs"/);
+    assert.doesNotMatch(html, /cmd-logs/);
   });
 });
 
@@ -339,6 +344,18 @@ describe("renderSiteDetail deploy", () => {
     assert.match(html, /npm start/);
     assert.doesNotMatch(html, /cmd-build|cmd-run/);
     assert.match(html, /not commands to run yourself/);
+  });
+
+  test("deploy offers the by-hand alternative for anyone not using Actions", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...OPTS,
+      status: { kind: "container", state: "running", health: "healthy" },
+      scaffold: SCAFFOLD,
+    });
+    const card = html.split(">Deploy</h3>")[1];
+    assert.match(card, /Not using GitHub Actions\?/);
+    assert.match(card, /id="cmd-compose"/);
+    assert.match(card, /docker compose up -d --build/);
   });
 
   test("the workflow comes before what the image does, not after", () => {
