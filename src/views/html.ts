@@ -4,94 +4,25 @@ import {
   describeStatus,
   splitHostnameForDisplay,
   type SiteStatus,
-  type StatusTone,
 } from "../lib/siteDisplay";
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-const BUTTON_PRIMARY =
-  "font-sans font-semibold text-sm bg-rose-400 text-stone-900 border-none rounded-md px-4 py-2.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-rose-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
-const BUTTON_SECONDARY =
-  "font-sans font-semibold text-sm bg-transparent text-stone-400 border border-stone-600 rounded-md px-4 py-2.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-stone-700 hover:text-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
-const BUTTON_DANGER =
-  "font-sans font-semibold text-[0.8rem] bg-transparent text-red-300 border border-red-800 rounded-md px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-red-900 hover:text-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
-const INPUT =
-  "font-mono bg-stone-900 border border-stone-700 rounded-md text-stone-50 px-2.5 py-2 text-sm placeholder:text-stone-400/60 focus:outline focus:outline-2 focus:outline-rose-400 focus:outline-offset-2";
-const FORM_LABEL = "flex flex-col gap-1.5 text-[0.85rem] text-stone-400";
-const STATUS_PILL_BASE =
-  "inline-flex items-center gap-1 shrink-0 font-mono text-[0.65rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-transparent";
-const FOCUS_RING =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
-const DETAIL_WIDTH = "max-w-[760px] mx-auto w-full";
-const TYPE_PILL_STATIC = "border-stone-600 text-stone-50 bg-stone-700";
-const TYPE_PILL_PROXY = "border-transparent text-rose-300 bg-rose-950";
-
-const TONE_PILL: Record<StatusTone, string> = {
-  ok: `${STATUS_PILL_BASE} text-green-300 bg-green-950/60`,
-  bad: `${STATUS_PILL_BASE} text-red-300 bg-red-950/60`,
-  neutral: `${STATUS_PILL_BASE} text-stone-300 bg-stone-700`,
-};
-
-const CARD = "bg-stone-800 border border-stone-700 rounded-[10px] p-5";
-const CARD_LABEL =
-  "font-mono text-[0.625rem] font-medium uppercase tracking-[0.1em] text-stone-400 m-0 mb-3";
-
-const TONE_TEXT: Record<StatusTone, string> = {
-  ok: "text-green-300",
-  bad: "text-red-300",
-  neutral: "text-stone-300",
-};
-
-function layout(title: string, body: string): string {
-  const mainClass = "max-w-[1080px] mx-auto py-6 pb-8 flex flex-col gap-6";
-
-  return `<!doctype html>
-<html lang="en" class="[color-scheme:dark]">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeHtml(title)}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Poetsen+One&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;1,500&family=DM+Mono:wght@300;400;500&display=swap"
-    rel="stylesheet"
-  />
-  <link rel="stylesheet" href="/style.css" />
-</head>
-<body class="min-h-screen bg-stone-900 font-sans text-stone-50 m-0 px-6 pb-16">
-  <header class="max-w-[1080px] mx-auto py-10 pb-12">
-    <h1 class="font-display text-2xl font-semibold tracking-wide text-stone-50 m-0">lyly<span class="text-rose-400">.</span>admin</h1>
-  </header>
-  <main class="${mainClass}">
-    <div id="flash-banner" class="hidden fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[min(480px,calc(100vw-2rem))] font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 border shadow-lg shadow-black/40 flex items-center justify-between gap-3" role="status" aria-live="polite">
-      <span id="flash-banner-message"></span>
-      <button type="button" id="flash-banner-close" class="hidden shrink-0 text-stone-400 hover:text-stone-50 bg-transparent border-none cursor-pointer text-base leading-none" aria-label="Dismiss">&times;</button>
-    </div>
-    ${body}
-  </main>
-  <script src="/app.js"></script>
-</body>
-</html>`;
-}
-
-const ICONS = {
-  plus: `<path d="M5 12h14" /><path d="M12 5v14" />`,
-  trash: `<path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" />`,
-  clipboard: `<rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />`,
-  check: `<path d="M20 6 9 17l-5-5" />`,
-  externalLink: `<path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />`,
-};
-
-function icon(name: keyof typeof ICONS): string {
-  return `<svg class="w-[1em] h-[1em] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
-}
+import { layout } from "./shell";
+import {
+  escapeHtml,
+  icon,
+  BUTTON_PRIMARY,
+  BUTTON_SECONDARY,
+  BUTTON_DANGER,
+  INPUT,
+  FORM_LABEL,
+  FOCUS_RING,
+  DETAIL_WIDTH,
+  TYPE_PILL_STATIC,
+  TYPE_PILL_PROXY,
+  CARD,
+  CARD_LABEL,
+  TONE_PILL,
+  TONE_TEXT,
+} from "./shared";
 
 /**
  * The copy affordance app.js already understands: it reads the target
