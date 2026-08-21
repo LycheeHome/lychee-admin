@@ -91,7 +91,17 @@ describe("the add-site page", () => {
     assert.match(html, /id="port-field"/);
     assert.match(html, /id="framework-field"/);
     assert.match(html, /id="healthcheck-field"/);
+    assert.match(html, /id="healthcheck-field-wrapper"/);
     assert.match(html, /id="port-owners-data"/);
+    // These four are not named in the brief's list, but their loss would
+    // silently kill progressive disclosure and port-conflict feedback with
+    // no other test failing: the port/framework sync in app.js selects
+    // .port-input and #healthcheck-field-wrapper, validatePortField selects
+    // .port-error, and the submit handler's catch branch selects
+    // #add-site-error.
+    assert.match(html, /\bport-input\b/);
+    assert.match(html, /\bport-error\b/);
+    assert.match(html, /id="add-site-error"/);
   });
 
   test("posts to the unchanged endpoint", () => {

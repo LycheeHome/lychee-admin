@@ -158,16 +158,22 @@ addSiteForm?.addEventListener("submit", async (event) => {
 
     // Land on the new site's own page: its Manual steps already states the
     // DNS command permanently, and a full navigation leaves the rail's
-    // switcher listing the site we just created.
+    // switcher listing the site we just created. addSiteInFlight is
+    // deliberately left true here rather than reset in a `finally` — the
+    // fetch already resolved, but window.location.href doesn't navigate
+    // synchronously, so the form stays interactive and submittable until the
+    // new document loads. Resetting the flag on this path reopened that
+    // window: a second click before navigation lands would re-POST the same
+    // hostname, which the server then rejects as a duplicate, on a page that
+    // just succeeded. There is no "after" on this path for the flag to guard
+    // — the document is about to be replaced.
     window.location.href = `/sites/${encodeURIComponent(result.hostname)}?created=1`;
-    return;
   } catch (error) {
+    addSiteInFlight = false;
     if (addSiteError) {
       addSiteError.textContent = error.message;
       addSiteError.classList.remove("hidden");
     }
-  } finally {
-    addSiteInFlight = false;
   }
 });
 
