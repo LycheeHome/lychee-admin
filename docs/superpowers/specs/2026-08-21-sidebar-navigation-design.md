@@ -135,8 +135,8 @@ change.
 
 **After a successful add, the client navigates to the new site's own detail
 page:** `/sites/<hostname>?created=1`. This replaces the current
-stay-in-place-and-show-a-banner behavior, and is a simplification rather than
-an addition:
+stay-in-place-and-show-a-banner behavior. It removes more than it adds — three
+pieces of client-side machinery go, against one optional `layout()` parameter:
 
 - The DNS reminder no longer needs to ride in a transient banner. The detail
   page's Manual steps already states the `cloudflared tunnel route dns` command
@@ -151,10 +151,49 @@ an addition:
 - The `portOwners[result.target] = result.hostname` live-update line goes too,
   for the same reason.
 
-`?created=1` is handled in `public/app.js` beside the existing `?removed=`
-branch: show a short success banner naming the hostname (read from
-`location.pathname`), then `history.replaceState` to clean the URL. No data is
-smuggled through the query string.
+#### The `?created=1` banner
+
+Landing on the detail page means landing on an honest status pill, and for two
+of the three site types that pill reports something that is not yet working:
+
+| Type | Pill on arrival | Why |
+| --- | --- | --- |
+| Static | responding | Caddy serves the placeholder `index.html` immediately. |
+| Reverse proxy | not responding | Nothing is listening on the port yet. |
+| Reverse proxy + Next.js | not deployed | The container has not been built. |
+
+A bare "Added `<hostname>`" banner next to a red pill reads as a
+contradiction. So the banner's job is to **explain the pill**: state that the
+routing `lyly-admin` owns succeeded, and name what is still the user's to do.
+
+| Type | Banner |
+| --- | --- |
+| Static | Added `blog.lyly.dev` — Caddy is serving the placeholder page it created. Manual steps has the DNS record and how to replace it. |
+| Reverse proxy | Added `api.lyly.dev` — routing is live, but nothing is listening on port 3000 yet, so it shows as not responding until you start your process. |
+| Reverse proxy + Next.js | Added `app.lyly.dev` — routing is live and the scaffold is at `/var/www/app.lyly.dev`. It shows as not deployed until you add your source and deploy. |
+
+Leading with "routing is live" is what resolves the mixed message: what the app
+did succeeded, and what is missing belongs to the user.
+
+**The banner is rendered server-side,** which is a change from rendering it on
+the client. Picking the right wording needs `site.type` and `site.framework`,
+and the detail route already has both — along with `site.target` and the tunnel
+ID it already reads. Nothing is smuggled through the query string beyond the
+`created=1` flag itself.
+
+This means `layout()` takes an optional banner (see the table above), which
+renders `#flash-banner` un-hidden and pre-filled, with its close button
+visible — the same "persistent" treatment the current client-side add-success
+banner uses: `bg-rose-950/60 border-rose-400/70`, no auto-dismiss, dismissible.
+The existing `hideBanner` click handler already targets that element by id and
+needs no change.
+
+`public/app.js` therefore does **not** construct this banner. Its only
+`created` handling is `history.replaceState` to strip the parameter, so a
+reload does not re-announce the add — three lines beside the existing
+`?removed=` branch. Note the asymmetry with `?removed=`, which stays
+client-rendered: a removed site has no page and no state left to describe,
+while a created one has both.
 
 Removal is unaffected: it already navigates to `/?removed=…`, a full load, so
 the rail comes back fresh.
@@ -187,9 +226,9 @@ Signature changes, in full:
 | Function | Change |
 | --- | --- |
 | `renderSiteList` | **None.** It already receives `sites`; it derives the rail from that, with no active hostname. Its five positional parameters do not grow a sixth. |
-| `renderSiteDetail(site, opts)` | `sites: Site[]` added to the existing options object. No new positional parameter. Active hostname is `site.hostname`. |
+| `renderSiteDetail(site, opts)` | `sites: Site[]` and `created?: boolean` added to the existing options object. No new positional parameter. Active hostname is `site.hostname`. The view derives the banner wording from `site.type`, `site.framework` and `site.target` — the route passes only the flag, so the copy lives in the view layer with the rest of the copy and is unit-testable per type. |
 | `renderSiteNotFound(hostname)` | Becomes `renderSiteNotFound(hostname, sites)`. |
-| `layout(title, body)` | Becomes `layout(title, body, nav)`, where `nav` is `{ sites: Site[]; active?: string }`. Module-private, so this is internal. |
+| `layout(title, body)` | Becomes `layout(title, body, nav, banner?)`, where `nav` is `{ sites: Site[]; active?: string }` and `banner` is `{ message: string }` for the `?created=1` case. Module-private, so this is internal. |
 | `renderAddSite` | New, in `src/views/html.ts` alongside the other page renderers. Takes the site list (for the rail), `domain` (for the hostname placeholder), and `portOwners` (for the client-side conflict check). |
 
 `Site` from `src/lib/caddyfile.ts` is reused rather than introducing a
@@ -287,6 +326,12 @@ New view tests:
 - `renderSiteNotFound` lists sites.
 - `/sites/new` renders the fields that previously lived in the dialog, and
   `renderSiteList` no longer contains `add-site-dialog`.
+- With `created: true`, each of the three site types gets its own banner
+  wording, and each names the state its own status pill shows — anchored to
+  `#flash-banner` so a page-wide match on "not responding" cannot pass on the
+  strength of the pill or the request-path hop already saying it.
+- Without `created`, `#flash-banner` still renders hidden and empty, as it does
+  today on every page.
 
 Route tests:
 
