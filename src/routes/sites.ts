@@ -64,7 +64,8 @@ export function createSitesRouter(deps: Deps): Router {
 
     try {
       const content = deps.fs.readFile(config.caddyfilePath);
-      const site = caddyfile.parseSites(content).find((s) => s.hostname === hostname && isManagedHostname(s.hostname));
+      const sites = caddyfile.parseSites(content).filter((s) => isManagedHostname(s.hostname));
+      const site = sites.find((s) => s.hostname === hostname);
 
       // Read for display only, so an unreadable tunnel config must not take the
       // page down — the DNS step falls back to dashboard instructions.
@@ -76,7 +77,7 @@ export function createSitesRouter(deps: Deps): Router {
       }
 
       if (!site) {
-        res.status(404).send(renderSiteNotFound(hostname));
+        res.status(404).send(renderSiteNotFound(hostname, sites));
         return;
       }
 
@@ -88,6 +89,7 @@ export function createSitesRouter(deps: Deps): Router {
             tunnelId,
             tunnelConfigPath: config.tunnelConfigPath,
             caddyfilePath: config.caddyfilePath,
+            sites,
           }),
         );
         return;
@@ -119,6 +121,7 @@ export function createSitesRouter(deps: Deps): Router {
           caddyfilePath: config.caddyfilePath,
           status,
           scaffold: scaffoldCommands,
+          sites,
         }),
       );
     } catch (error) {

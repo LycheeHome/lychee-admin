@@ -3,14 +3,6 @@ import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { renderSiteDetail } from "./html";
 
-const OPTS = {
-  sitesRoot: "/var/www",
-  domain: "lyly.dev",
-  tunnelId: "11111111-2222-3333-4444-555555555555",
-  tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
-  caddyfilePath: "/etc/caddy/Caddyfile",
-};
-
 const STATIC_SITE: Site = { hostname: "blog.lyly.dev", type: "static", target: "/var/www/blog.lyly.dev" };
 const APEX_SITE: Site = { hostname: "lyly.dev", type: "static", target: "/var/www/lyly.dev" };
 const PROXY_SITE: Site = { hostname: "api.lyly.dev", type: "reverse-proxy", target: "4000" };
@@ -20,6 +12,15 @@ const NEXT_SITE: Site = {
   target: "3000",
   framework: "nextjs",
   healthcheckPath: "/api/health",
+};
+
+const OPTS = {
+  sitesRoot: "/var/www",
+  domain: "lyly.dev",
+  tunnelId: "11111111-2222-3333-4444-555555555555",
+  tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
+  caddyfilePath: "/etc/caddy/Caddyfile",
+  sites: [STATIC_SITE, APEX_SITE, PROXY_SITE, NEXT_SITE],
 };
 
 describe("renderSiteDetail header", () => {

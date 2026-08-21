@@ -143,6 +143,7 @@ export function renderSiteList(
       </form>
     </dialog>
     `,
+    { nav: { sites, page: "sites" } },
   );
 }
 
@@ -381,6 +382,8 @@ export interface SiteDetailOptions {
   caddyfilePath: string;
   status?: SiteStatus;
   scaffold?: { buildCommand: string; runCommand: string; deployWorkflow: string };
+  /** Every managed site, for the rail's switcher. */
+  sites: Site[];
 }
 
 /**
@@ -500,10 +503,11 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       </div>
     </dialog>
     `,
+    { nav: { sites: opts.sites, active: site.hostname } },
   );
 }
 
-export function renderSiteNotFound(hostname: string): string {
+export function renderSiteNotFound(hostname: string, sites: Site[]): string {
   return layout(
     "Site not found",
     `
@@ -512,5 +516,6 @@ export function renderSiteNotFound(hostname: string): string {
       <p class="m-0"><a href="/" class="text-rose-400 no-underline font-mono text-[0.85rem] hover:underline">&larr; Back to sites</a></p>
     </div>
     `,
+    { nav: { sites } },
   );
 }
