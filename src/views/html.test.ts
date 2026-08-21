@@ -1,6 +1,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
+import { withoutRail } from "../dev/testHelpers";
 import { renderSiteDetail } from "./html";
 
 const STATIC_SITE: Site = { hostname: "blog.lyly.dev", type: "static", target: "/var/www/blog.lyly.dev" };
@@ -307,13 +308,10 @@ const SCAFFOLD = {
  * The rail's site switcher (sidebar-navigation work) legitimately carries its
  * own <details>/<summary>, its own max-h/overflow-y-auto viewport guard, and
  * its own absolutely-positioned panel — all scoped to the switcher, not the
- * page body these tests care about. Strip it before asserting so its markup
- * can't collide with assertions that are really about the Deploy card.
+ * page body these tests care about. withoutRail() strips it before asserting
+ * so its markup can't collide with assertions that are really about the
+ * Deploy card.
  */
-function withoutRail(html: string): string {
-  return html.replace(/<aside id="site-nav"[\s\S]*?<\/aside>/, "");
-}
-
 describe("renderSiteDetail deploy", () => {
   test("nothing is hidden behind a disclosure widget", () => {
     const html = withoutRail(
@@ -516,47 +514,78 @@ describe("renderSiteDetail escaping", () => {
 });
 
 /**
- * Anchored to the banner element. A page-wide match on "not responding"
- * would pass on the strength of the header pill and the request-path hop,
- * both of which already say it.
+ * Anchored to the server-rendered notice, which is where the ?created=1
+ * message lives. A page-wide match on "not responding" would pass on the
+ * strength of the header pill and the request-path hop, both of which already
+ * say it — and this helper throws when the element is missing, so a message
+ * that stopped being rendered fails rather than vacuously passing.
  */
-function banner(html: string): string {
-  // Non-greedy, stopping at the first </div>: the banner contains a span and a
-  // button but no nested div, so this is exactly the banner element.
+function notice(html: string): string {
+  // Non-greedy, stopping at the first </div>: the notice contains a span and a
+  // button but no nested div, so this is exactly the notice element.
+  const match = /<div id="page-notice"[\s\S]*?<\/div>/.exec(html);
+  assert.ok(match, "expected a page-notice element");
+  return match[0];
+}
+
+/** The client toast, which is a different element and always starts empty. */
+function toast(html: string): string {
   const match = /<div id="flash-banner"[\s\S]*?<\/div>/.exec(html);
   assert.ok(match, "expected a flash-banner element");
   return match[0];
 }
 
-describe("the ?created=1 banner", () => {
+describe("the ?created=1 notice", () => {
   test("a static site is told its placeholder is already live", () => {
     const html = renderSiteDetail(STATIC_SITE, { ...OPTS, created: true });
-    assert.match(banner(html), /Added blog\.lyly\.dev/);
-    assert.match(banner(html), /serving the placeholder page it created/);
-    assert.match(banner(html), /Manual steps has the DNS record/);
+    assert.match(notice(html), /Added blog\.lyly\.dev/);
+    assert.match(notice(html), /serving the placeholder page it created/);
+    assert.match(notice(html), /Manual steps has the DNS record/);
   });
 
   test("a plain proxy is told why it reads as not responding", () => {
     const html = renderSiteDetail(PROXY_SITE, { ...OPTS, created: true });
-    assert.match(banner(html), /routing is live/);
-    assert.match(banner(html), /nothing is listening on port 4000 yet/);
-    assert.match(banner(html), /not responding until you start your process/);
+    assert.match(notice(html), /routing is live/);
+    assert.match(notice(html), /nothing is listening on port 4000 yet/);
+    assert.match(notice(html), /not responding until you start your process/);
   });
 
   test("a scaffolded site is told why it reads as not deployed", () => {
     const html = renderSiteDetail(NEXT_SITE, { ...OPTS, created: true });
-    assert.match(banner(html), /routing is live/);
-    assert.match(banner(html), /scaffold is at \/var\/www\/app\.lyly\.dev/);
-    assert.match(banner(html), /not deployed until you add your source/);
+    assert.match(notice(html), /routing is live/);
+    assert.match(notice(html), /scaffold is at \/var\/www\/app\.lyly\.dev/);
+    assert.match(notice(html), /not deployed until you add your source/);
   });
 
-  test("the banner is visible and dismissible when created, hidden otherwise", () => {
-    const created = banner(renderSiteDetail(PROXY_SITE, { ...OPTS, created: true }));
-    assert.doesNotMatch(created, /id="flash-banner" class="hidden/);
-    assert.match(created, /id="flash-banner-close" class="shrink-0/);
+  test("it is dismissible when created, and absent otherwise", () => {
+    const created = renderSiteDetail(PROXY_SITE, { ...OPTS, created: true });
+    assert.match(notice(created), /id="page-notice-close"/);
+    assert.doesNotMatch(renderSiteDetail(PROXY_SITE, OPTS), /id="page-notice"/);
+  });
 
-    const plain = banner(renderSiteDetail(PROXY_SITE, OPTS));
-    assert.match(plain, /id="flash-banner" class="hidden/);
-    assert.match(plain, /id="flash-banner-message"><\/span>/);
+  test("it takes layout space above the heading instead of covering it", () => {
+    const created = renderSiteDetail(PROXY_SITE, { ...OPTS, created: true });
+    // The regression this split exists to prevent: as a fixed element centred
+    // on the viewport, this three-line message landed on top of the breadcrumb
+    // and the hostname. In flow and ahead of them, it can't.
+    assert.doesNotMatch(notice(created), /\bfixed\b/);
+    assert.doesNotMatch(notice(created), /\babsolute\b/);
+    assert.match(created, /id="page-notice"[\s\S]*id="site-hostname"/);
+  });
+
+  test("the client toast stays a separate, empty, hidden element either way", () => {
+    for (const html of [
+      renderSiteDetail(PROXY_SITE, { ...OPTS, created: true }),
+      renderSiteDetail(PROXY_SITE, OPTS),
+    ]) {
+      assert.match(toast(html), /id="flash-banner" class="hidden/);
+      assert.match(toast(html), /id="flash-banner-message"><\/span>/);
+    }
+  });
+
+  test("the toast is centred on the content column, not the viewport", () => {
+    // left-1/2 would centre it on the window, which since the rail arrived is
+    // half the rail's width to the left of the column the message is about.
+    assert.match(toast(renderSiteDetail(PROXY_SITE, OPTS)), /left-\[calc\(50%_\+_110px\)\]/);
   });
 });

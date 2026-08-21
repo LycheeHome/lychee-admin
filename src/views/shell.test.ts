@@ -1,6 +1,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
+import { withoutRail } from "../dev/testHelpers";
 import { renderSiteList, renderSiteDetail, renderSiteNotFound, renderAddSite } from "./html";
 
 const SITES: Site[] = [
@@ -31,20 +32,29 @@ function rail(html: string): string {
   return match[0];
 }
 
+/**
+ * The All sites item as a link to "/", not merely the words "All sites"
+ * somewhere in the rail: plain text, or an anchor pointing anywhere else,
+ * would satisfy a bare /All sites/ and leave the rail's one route back to the
+ * list broken. (The Add site item is pinned the same way further down, by the
+ * add-site page's aria-current test.)
+ */
+const ALL_SITES_LINK = /<a href="\/"(?:(?!<\/a>)[\s\S])*All sites<\/a>/;
+
 describe("the rail", () => {
   test("renders on the site list", () => {
-    const html = rail(renderSiteList(SITES, "lyly.dev", "/var/www"));
-    assert.match(html, /All sites/);
+    const html = rail(renderSiteList(SITES));
+    assert.match(html, ALL_SITES_LINK);
   });
 
   test("renders on a site detail page", () => {
     const html = rail(renderSiteDetail(SITES[0], DETAIL_OPTS));
-    assert.match(html, /All sites/);
+    assert.match(html, ALL_SITES_LINK);
   });
 
   test("renders on the not-found page", () => {
     const html = rail(renderSiteNotFound("nope.lyly.dev", SITES));
-    assert.match(html, /All sites/);
+    assert.match(html, ALL_SITES_LINK);
   });
 
   /**
@@ -59,18 +69,18 @@ describe("the rail", () => {
   }
 
   test("marks All sites current on the list page only", () => {
-    assert.match(navBlock(renderSiteList(SITES, "lyly.dev", "/var/www")), /aria-current="page"/);
+    assert.match(navBlock(renderSiteList(SITES)), /aria-current="page"/);
     assert.doesNotMatch(navBlock(renderSiteDetail(SITES[0], DETAIL_OPTS)), /aria-current="page"/);
   });
 
   test("carries the brand, which the page header no longer does", () => {
-    const html = renderSiteList(SITES, "lyly.dev", "/var/www");
+    const html = renderSiteList(SITES);
     assert.match(rail(html), /lyly<span class="text-rose-400">\.<\/span>admin/);
     assert.doesNotMatch(html, /<header/);
   });
 
   test("stays put on a long page rather than scrolling away with the content", () => {
-    const html = rail(renderSiteList(SITES, "lyly.dev", "/var/www"));
+    const html = rail(renderSiteList(SITES));
     // self-start matters as much as sticky: flex align-items:stretch would
     // otherwise size the aside to the document and sticky would do nothing.
     assert.match(html, /self-start/);
@@ -82,7 +92,7 @@ describe("the rail", () => {
 
 describe("the site switcher", () => {
   test("lists every managed site", () => {
-    const html = rail(renderSiteList(SITES, "lyly.dev", "/var/www"));
+    const html = rail(renderSiteList(SITES));
     for (const site of SITES) {
       assert.match(html, new RegExp(`href="/sites/${site.hostname.replace(/\./g, "\\.")}"`));
     }
@@ -105,25 +115,25 @@ describe("the site switcher", () => {
   });
 
   test("prompts rather than naming a site when none is active", () => {
-    const html = rail(renderSiteList(SITES, "lyly.dev", "/var/www"));
+    const html = rail(renderSiteList(SITES));
     assert.match(html, /<summary(?:(?!<\/summary>)[\s\S])*Switch to site…/);
   });
 
   test("carries a type hint per row: STATIC, or the proxy port", () => {
-    const html = rail(renderSiteList(SITES, "lyly.dev", "/var/www"));
+    const html = rail(renderSiteList(SITES));
     assert.match(html, /blog\.lyly\.dev(?:(?!<\/a>)[\s\S])*STATIC/);
     assert.match(html, /api\.lyly\.dev(?:(?!<\/a>)[\s\S])*:4000/);
   });
 
   test("with no sites, offers a disabled trigger and no panel", () => {
-    const html = rail(renderSiteList([], "lyly.dev", "/var/www"));
+    const html = rail(renderSiteList([]));
     assert.match(html, /No sites/);
     assert.doesNotMatch(html, /<details/);
     assert.doesNotMatch(html, /<ul/);
   });
 
   test("carries no liveness markers — the rail never status-checks", () => {
-    const html = rail(renderSiteList(SITES, "lyly.dev", "/var/www"));
+    const html = rail(renderSiteList(SITES));
     for (const word of ["responding", "not deployed", "running", "unhealthy", "exited"]) {
       assert.doesNotMatch(html, new RegExp(word));
     }
@@ -165,7 +175,7 @@ describe("the add-site page", () => {
   });
 
   test("the list page no longer carries the dialog", () => {
-    const html = renderSiteList(SITES, "lyly.dev", "/var/www");
+    const html = renderSiteList(SITES);
     assert.doesNotMatch(html, /add-site-dialog/);
     assert.doesNotMatch(html, /id="add-site-form"/);
   });
@@ -174,10 +184,7 @@ describe("the add-site page", () => {
     // The rail carries its own "Add site" link, so this must assert against
     // the page body with the rail removed — otherwise it passes on the rail's
     // item whether or not the header button was ever converted.
-    const body = renderSiteList(SITES, "lyly.dev", "/var/www").replace(
-      /<aside id="site-nav"[\s\S]*?<\/aside>/,
-      "",
-    );
+    const body = withoutRail(renderSiteList(SITES));
     assert.match(body, /<a href="\/sites\/new"[^>]*>(?:(?!<\/a>)[\s\S])*Add site<\/a>/);
     assert.doesNotMatch(body, /data-open-dialog="add-site-dialog"/);
   });

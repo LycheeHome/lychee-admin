@@ -60,7 +60,7 @@ export function createSitesRouter(deps: Deps): Router {
     const content = deps.fs.readFile(config.caddyfilePath);
     const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname));
 
-    res.send(renderSiteList(sites, config.domain, config.sitesRoot));
+    res.send(renderSiteList(sites));
   });
 
   // Registered above /sites/:hostname deliberately: Express matches in
@@ -142,7 +142,7 @@ export function createSitesRouter(deps: Deps): Router {
       );
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
-      res.status(500).send(renderSiteList([], config.domain, config.sitesRoot, message));
+      res.status(500).send(renderSiteList([], message));
     }
   });
 

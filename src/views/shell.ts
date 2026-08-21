@@ -1,5 +1,5 @@
 import type { Site } from "../lib/caddyfile";
-import { escapeHtml, icon, FOCUS_RING } from "./shared";
+import { escapeHtml, icon, DETAIL_WIDTH, FOCUS_RING } from "./shared";
 
 export interface Nav {
   /** Every managed site, for the switcher. Read by renderSwitcher. */
@@ -67,9 +67,15 @@ function renderSwitcher(nav: Nav): string {
   // max-h/overflow here is a viewport guard, not a tidiness cap: a panel
   // taller than the window cannot be reached at all. It does not engage at
   // the site counts this box is built for.
+  //
+  // min-w overrides the rail's width for the panel only: at 220px minus
+  // padding, a hostname beside its type hint gets ~16 mono characters, so
+  // dashboard.lyly.dev truncated in the one control whose whole job is
+  // picking a hostname. The panel is absolutely positioned, so widening it
+  // past the rail costs no layout.
   return `<details id="site-switcher" class="relative" aria-label="Switch site">
     <summary class="${SWITCHER_TRIGGER}">${label}${icon("chevronDown")}</summary>
-    <ul class="absolute z-30 left-0 right-0 mt-1 list-none m-0 p-0 bg-stone-900 border border-stone-600 rounded-md shadow-lg shadow-black/50 overflow-hidden max-h-[70vh] overflow-y-auto">${rows}</ul>
+    <ul class="absolute z-30 left-0 right-0 min-w-[16rem] mt-1 list-none m-0 p-0 bg-stone-900 border border-stone-600 rounded-md shadow-lg shadow-black/50 overflow-hidden max-h-[70vh] overflow-y-auto">${rows}</ul>
   </details>`;
 }
 
@@ -81,25 +87,56 @@ function renderRail(nav: Nav): string {
       ${navItem("/", "All sites", "layoutGrid", nav.page === "sites")}
       ${navItem("/sites/new", "Add site", "plus", nav.page === "new")}
     </nav>
-    <div class="border-t border-dashed border-stone-700 mx-1" aria-hidden="true"></div>
     <div class="flex-1"></div>
     <p class="font-display text-[0.8rem] text-stone-500 m-0 px-2.5">lyly<span class="text-rose-400">.</span>admin</p>
   </aside>`;
 }
 
-// Pre-filled server-side for the ?created=1 case. The class list matches what
-// showBanner() in public/app.js applies for its "persistent" tone, and that
-// function strips these same classes before applying its own, so a later
-// client-side banner on the same page still renders correctly.
-function renderFlashBanner(banner?: Banner): string {
-  const base =
-    "fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[min(480px,calc(100vw-2rem))] font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 border shadow-lg shadow-black/40 flex items-center justify-between gap-3";
-  const wrapperClass = banner ? `${base} bg-rose-950/60 border-rose-400/70` : `hidden ${base}`;
-  const closeClass = "shrink-0 text-stone-400 hover:text-stone-50 bg-transparent border-none cursor-pointer text-base leading-none";
+const DISMISS_BUTTON =
+  "shrink-0 text-stone-400 hover:text-stone-50 bg-transparent border-none cursor-pointer text-base leading-none";
 
-  return `<div id="flash-banner" class="${wrapperClass}" role="status" aria-live="polite">
-        <span id="flash-banner-message">${banner ? escapeHtml(banner.message) : ""}</span>
-        <button type="button" id="flash-banner-close" class="${banner ? closeClass : `hidden ${closeClass}`}" aria-label="Dismiss">&times;</button>
+/**
+ * The transient client toast: empty and hidden until showBanner() in
+ * public/app.js fills it. It is viewport-anchored on purpose — "Removing
+ * blog.lyly.dev…" fires from the Remove button at the bottom of a long detail
+ * page, and an in-flow notice at the top of the column would be scrolled out
+ * of sight at the moment it matters. Page-load notices are the other case, and
+ * they get renderPageNotice() below instead.
+ *
+ * No tone classes are set here: showBanner() supplies them, and strips
+ * bg-rose-950/60 and border-rose-400/70 before applying its own, so a second
+ * banner on the same page cannot inherit the first one's colour.
+ */
+function renderFlashBanner(): string {
+  // Centred on the content area, not the viewport: the rail is w-[220px], so
+  // half of it (110px) is the offset that puts this over the column it
+  // describes rather than 110px to its left.
+  const base =
+    "fixed top-6 left-[calc(50%_+_110px)] -translate-x-1/2 z-50 w-[min(480px,calc(100vw-2rem))] font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 border shadow-lg shadow-black/40 flex items-center justify-between gap-3";
+
+  return `<div id="flash-banner" class="hidden ${base}" role="status" aria-live="polite">
+        <span id="flash-banner-message"></span>
+        <button type="button" id="flash-banner-close" class="hidden ${DISMISS_BUTTON}" aria-label="Dismiss">&times;</button>
+      </div>`;
+}
+
+/**
+ * The server-rendered notice a page arrives carrying — today only the
+ * ?created=1 message. In flow, above the page body, so it pushes the content
+ * down instead of covering the heading the way the fixed toast did. Same rose
+ * treatment as the toast, minus its shadow: this one is not floating over
+ * anything, and a shadow would say it is.
+ *
+ * Width is DETAIL_WIDTH so it lines up with the cards beneath it on the page
+ * that actually sends a banner, and so a three-line message keeps a readable
+ * measure rather than running the full 1080px column.
+ */
+function renderPageNotice(banner?: Banner): string {
+  if (!banner) return "";
+
+  return `<div id="page-notice" class="${DETAIL_WIDTH} bg-rose-950/60 border border-rose-400/70 font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 flex items-start justify-between gap-3" role="status">
+        <span id="page-notice-message">${escapeHtml(banner.message)}</span>
+        <button type="button" id="page-notice-close" class="${DISMISS_BUTTON}" aria-label="Dismiss">&times;</button>
       </div>`;
 }
 
@@ -122,7 +159,8 @@ export function layout(title: string, body: string, opts: LayoutOptions): string
   ${renderRail(opts.nav)}
   <div class="flex-1 min-w-0 px-6 pb-16">
     <main class="max-w-[1080px] mx-auto py-6 pb-8 flex flex-col gap-6">
-      ${renderFlashBanner(opts.banner)}
+      ${renderFlashBanner()}
+      ${renderPageNotice(opts.banner)}
       ${body}
     </main>
   </div>

@@ -5,6 +5,7 @@ import { once } from "node:events";
 import type { Server } from "node:http";
 import bcrypt from "bcrypt";
 import type { createInMemoryFileSystem } from "../dev/fakes";
+import { withoutRail } from "../dev/testHelpers";
 
 // --- Fixture layout -------------------------------------------------------
 // These must match what config resolves to, since nothing redirects them
@@ -150,7 +151,7 @@ describe("GET /", () => {
     // Stripped of the rail: the switcher now prints every hostname on every
     // page too, so matching the whole body would no longer prove a card
     // rendered — it would pass off the rail alone.
-    const page = body.replace(/<aside id="site-nav"[\s\S]*?<\/aside>/, "");
+    const page = withoutRail(body);
     assert.match(page, /blog\.lyly\.dev/);
     assert.match(page, /api\.lyly\.dev/);
   });
@@ -192,7 +193,7 @@ describe("GET /sites/new", () => {
     // page, so this assertion's actual job — proving the port-owners payload
     // names the site that owns port 4000 — must not be satisfiable by the
     // rail alone.
-    const page = body.replace(/<aside id="site-nav"[\s\S]*?<\/aside>/, "");
+    const page = withoutRail(body);
     // 4000 is api.lyly.dev in the fixture; 8787 is lyly-admin's own PORT.
     assert.match(page, /api\.lyly\.dev/);
     assert.match(page, /8787/);

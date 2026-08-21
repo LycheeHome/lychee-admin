@@ -41,12 +41,7 @@ const FRAMEWORK_LABELS: Record<string, string> = {
   nextjs: "Next.js",
 };
 
-export function renderSiteList(
-  sites: Site[],
-  domain: string,
-  sitesRoot: string,
-  error?: string,
-): string {
+export function renderSiteList(sites: Site[], error?: string): string {
   const cards = sites
     .map((site) => {
       const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
@@ -79,7 +74,7 @@ export function renderSiteList(
         <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Existing sites</h2>
         <a href="/sites/new" class="${BUTTON_PRIMARY} no-underline">${icon("plus")}Add site</a>
       </div>
-      <div class="sites-grid grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5">
+      <div class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5">
         ${cards || `<p class="col-span-full text-stone-400 italic m-0">No sites configured yet.</p>`}
       </div>
     </section>
@@ -96,7 +91,7 @@ export function renderAddSite(
   return layout(
     "Add a site",
     `
-    <div class="max-w-[640px] w-full flex flex-col gap-5">
+    <div class="${DETAIL_WIDTH} flex flex-col gap-5">
       <nav class="font-mono text-[0.72rem] text-stone-500 m-0" aria-label="Breadcrumb">
         <a href="/" class="text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}">sites</a>
         <span class="text-stone-600 mx-1.5">/</span>

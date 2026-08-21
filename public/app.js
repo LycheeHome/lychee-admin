@@ -37,6 +37,12 @@ function hideBanner() {
 
 flashBannerClose?.addEventListener("click", hideBanner);
 
+// The server-rendered page notice (?created=1) is a different element: it sits
+// in the content column and takes layout space, so dismissing it removes it
+// rather than hiding it — there is nothing to bring back.
+const pageNotice = document.getElementById("page-notice");
+document.getElementById("page-notice-close")?.addEventListener("click", () => pageNotice?.remove());
+
 const removedHostname = new URLSearchParams(window.location.search).get("removed");
 if (removedHostname) {
   showBanner(`Removed ${removedHostname}. Remember to remove the DNS record in Cloudflare manually.`, "success");
@@ -161,8 +167,8 @@ addSiteForm?.addEventListener("submit", async (event) => {
     // new document loads. Resetting the flag on this path reopened that
     // window: a second click before navigation lands would re-POST the same
     // hostname, which the server then rejects as a duplicate, on a page that
-    // just succeeded. There is no "after" on this path for the flag to guard
-    // — the document is about to be replaced.
+    // just succeeded. The pageshow listener below reopens the form for the one
+    // case where this document does come back.
     window.location.href = `/sites/${encodeURIComponent(result.hostname)}?created=1`;
   } catch (error) {
     addSiteInFlight = false;
@@ -171,6 +177,17 @@ addSiteForm?.addEventListener("submit", async (event) => {
       addSiteError.classList.remove("hidden");
     }
   }
+});
+
+// Back-navigation from the created site restores this page from the bfcache,
+// which restores the JS heap along with the DOM — nothing here opts out of it
+// (no Cache-Control: no-store). Without this the form would come back with
+// addSiteInFlight still true from the submit that navigated away, and every
+// later click would be swallowed by the guard above with no error shown.
+// event.persisted is only true on a bfcache restore, so this cannot reopen the
+// double-submit window on a live page.
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) addSiteInFlight = false;
 });
 
 document.querySelectorAll("[data-open-dialog]").forEach((trigger) => {
