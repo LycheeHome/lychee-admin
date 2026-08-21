@@ -28,9 +28,55 @@ function navItem(href: string, label: string, iconName: "layoutGrid" | "plus", c
   return `<a href="${href}" class="${NAV_ITEM}"${current ? ` aria-current="page"` : ""}>${icon(iconName)}${escapeHtml(label)}</a>`;
 }
 
+const SWITCHER_TRIGGER =
+  `list-none cursor-pointer flex items-center justify-between gap-2 rounded-md ` +
+  `bg-stone-900 border border-stone-600 px-2.5 py-2 text-stone-50 hover:border-stone-500 ` +
+  `[&::-webkit-details-marker]:hidden ${FOCUS_RING}`;
+
+const SWITCHER_ROW =
+  `flex items-center justify-between gap-2 px-2.5 py-1.5 no-underline font-mono text-[0.75rem] ` +
+  `text-stone-50 border-b border-stone-800 last:border-b-0 hover:bg-stone-800 ` +
+  `aria-[current=page]:bg-rose-950/60 aria-[current=page]:text-rose-300 ${FOCUS_RING}`;
+
+function typeHint(site: Site): string {
+  return site.type === "static" ? "STATIC" : `:${site.target}`;
+}
+
+function renderSwitcher(nav: Nav): string {
+  if (nav.sites.length === 0) {
+    return `<div class="flex items-center justify-between gap-2 rounded-md bg-stone-900 border border-stone-700 px-2.5 py-2 text-[0.8rem] text-stone-500" aria-disabled="true">
+      <span>No sites</span>${icon("chevronDown")}
+    </div>`;
+  }
+
+  const label = nav.active
+    ? `<span class="font-mono text-[0.8rem] truncate">${escapeHtml(nav.active)}</span>`
+    : `<span class="text-[0.8rem] text-stone-500 truncate">Switch to site…</span>`;
+
+  const rows = nav.sites
+    .map(
+      (site) => `<li><a href="/sites/${encodeURIComponent(site.hostname)}" class="${SWITCHER_ROW}"${
+        site.hostname === nav.active ? ` aria-current="page"` : ""
+      }>
+        <span class="truncate">${escapeHtml(site.hostname)}</span>
+        <span class="text-[0.65rem] text-stone-500 shrink-0">${escapeHtml(typeHint(site))}</span>
+      </a></li>`,
+    )
+    .join("");
+
+  // max-h/overflow here is a viewport guard, not a tidiness cap: a panel
+  // taller than the window cannot be reached at all. It does not engage at
+  // the site counts this box is built for.
+  return `<details id="site-switcher" class="relative">
+    <summary class="${SWITCHER_TRIGGER}">${label}${icon("chevronDown")}</summary>
+    <ul class="absolute z-30 left-0 right-0 mt-1 list-none m-0 p-0 bg-stone-900 border border-stone-600 rounded-md shadow-lg shadow-black/50 overflow-hidden max-h-[70vh] overflow-y-auto">${rows}</ul>
+  </details>`;
+}
+
 function renderRail(nav: Nav): string {
   return `
   <aside id="site-nav" class="w-[220px] shrink-0 self-start sticky top-0 h-screen bg-stone-800 border-r border-stone-700 flex flex-col gap-4 px-3 py-4" aria-label="Site navigation">
+    ${renderSwitcher(nav)}
     <nav id="nav-pages" class="flex flex-col gap-0.5" aria-label="Pages">
       ${navItem("/", "All sites", "layoutGrid", nav.page === "sites")}
       ${navItem("/sites/new", "Add site", "plus", nav.page === "new")}

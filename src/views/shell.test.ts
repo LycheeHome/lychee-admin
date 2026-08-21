@@ -80,6 +80,53 @@ describe("the rail", () => {
   });
 });
 
+describe("the site switcher", () => {
+  test("lists every managed site", () => {
+    const html = rail(renderSiteList(SITES, "lyly.dev", "/var/www"));
+    for (const site of SITES) {
+      assert.match(html, new RegExp(`href="/sites/${site.hostname.replace(/\./g, "\\.")}"`));
+    }
+  });
+
+  test("shows the active hostname closed, and marks only that row current", () => {
+    const html = rail(renderSiteDetail(SITES[2], DETAIL_OPTS));
+    assert.match(html, /<summary(?:(?!<\/summary>)[\s\S])*app\.lyly\.dev/);
+    assert.match(html, /href="\/sites\/app\.lyly\.dev"[^>]*aria-current="page"/);
+    assert.doesNotMatch(html, /href="\/sites\/api\.lyly\.dev"[^>]*aria-current="page"/);
+  });
+
+  test("keeps the active site listed rather than filtering it out", () => {
+    const html = rail(renderSiteDetail(SITES[2], DETAIL_OPTS));
+    const rows = html.match(/href="\/sites\/[a-z.]+\.lyly\.dev"/g) ?? [];
+    assert.equal(rows.length, SITES.length);
+  });
+
+  test("prompts rather than naming a site when none is active", () => {
+    const html = rail(renderSiteList(SITES, "lyly.dev", "/var/www"));
+    assert.match(html, /<summary(?:(?!<\/summary>)[\s\S])*Switch to site…/);
+  });
+
+  test("carries a type hint per row: STATIC, or the proxy port", () => {
+    const html = rail(renderSiteList(SITES, "lyly.dev", "/var/www"));
+    assert.match(html, /blog\.lyly\.dev(?:(?!<\/a>)[\s\S])*STATIC/);
+    assert.match(html, /api\.lyly\.dev(?:(?!<\/a>)[\s\S])*:4000/);
+  });
+
+  test("with no sites, offers a disabled trigger and no panel", () => {
+    const html = rail(renderSiteList([], "lyly.dev", "/var/www"));
+    assert.match(html, /No sites/);
+    assert.doesNotMatch(html, /<details/);
+    assert.doesNotMatch(html, /<ul/);
+  });
+
+  test("carries no liveness markers — the rail never status-checks", () => {
+    const html = rail(renderSiteList(SITES, "lyly.dev", "/var/www"));
+    for (const word of ["responding", "not deployed", "running", "unhealthy", "exited"]) {
+      assert.doesNotMatch(html, new RegExp(word));
+    }
+  });
+});
+
 const PORT_OWNERS = { "8787": "reserved (lyly-admin itself)", "4000": "api.lyly.dev" };
 
 describe("the add-site page", () => {

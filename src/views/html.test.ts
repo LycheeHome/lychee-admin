@@ -303,13 +303,26 @@ const SCAFFOLD = {
   deployWorkflow: "name: Deploy app.lyly.dev\non:\n  push:\n    branches: [main]\n",
 };
 
+/**
+ * The rail's site switcher (sidebar-navigation work) legitimately carries its
+ * own <details>/<summary>, its own max-h/overflow-y-auto viewport guard, and
+ * its own absolutely-positioned panel — all scoped to the switcher, not the
+ * page body these tests care about. Strip it before asserting so its markup
+ * can't collide with assertions that are really about the Deploy card.
+ */
+function withoutRail(html: string): string {
+  return html.replace(/<aside id="site-nav"[\s\S]*?<\/aside>/, "");
+}
+
 describe("renderSiteDetail deploy", () => {
   test("nothing is hidden behind a disclosure widget", () => {
-    const html = renderSiteDetail(NEXT_SITE, {
-      ...OPTS,
-      status: { kind: "container", state: "running", health: "healthy" },
-      scaffold: SCAFFOLD,
-    });
+    const html = withoutRail(
+      renderSiteDetail(NEXT_SITE, {
+        ...OPTS,
+        status: { kind: "container", state: "running", health: "healthy" },
+        scaffold: SCAFFOLD,
+      }),
+    );
     assert.doesNotMatch(html, /<details/);
     assert.doesNotMatch(html, /<summary/);
     // Deploy is a plain card like Request path and Manual steps.
@@ -317,11 +330,13 @@ describe("renderSiteDetail deploy", () => {
   });
 
   test("the workflow block is its natural height, with no nested vertical scroll", () => {
-    const html = renderSiteDetail(NEXT_SITE, {
-      ...OPTS,
-      status: { kind: "container", state: "running", health: "healthy" },
-      scaffold: SCAFFOLD,
-    });
+    const html = withoutRail(
+      renderSiteDetail(NEXT_SITE, {
+        ...OPTS,
+        status: { kind: "container", state: "running", health: "healthy" },
+        scaffold: SCAFFOLD,
+      }),
+    );
     // No max-height and no vertical overflow anywhere on the page: a scrollbar
     // inside a page you are already scrolling is worse than a tall block, and
     // this is a file you may want to read rather than only copy.
@@ -374,15 +389,20 @@ describe("renderSiteDetail deploy", () => {
   });
 
   test("every copy button inside a code block shares one right-hand inset", () => {
-    const html = renderSiteDetail(NEXT_SITE, {
-      ...OPTS,
-      status: { kind: "container", state: "running", health: "healthy" },
-      scaffold: SCAFFOLD,
-    });
+    const html = withoutRail(
+      renderSiteDetail(NEXT_SITE, {
+        ...OPTS,
+        status: { kind: "container", state: "running", health: "healthy" },
+        scaffold: SCAFFOLD,
+      }),
+    );
     // The single-line boxes and the multi-line workflow block position their
     // buttons differently vertically — centred vs top-pinned — but the
     // horizontal inset has to agree or the buttons visibly step in and out.
     // They drifted once (right-1.5 vs right-2) and 2px was noticeable.
+    // Scoped past the rail: its switcher panel is also absolutely positioned
+    // (to overlay rather than push down the nav) and would otherwise be
+    // miscounted as a fourth copy button here.
     const insets = [...html.matchAll(/class="[^"]*\babsolute\b[^"]*?(right-[^\s"]+)/g)].map((m) => m[1]);
     assert.ok(insets.length >= 3, `expected 3+ positioned copy buttons, saw ${insets.length}`);
     assert.equal(

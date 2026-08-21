@@ -157,6 +157,26 @@ describe("GET /", () => {
   });
 });
 
+describe("the rail on a detail page", () => {
+  /** Non-greedy and non-nesting, so this captures exactly the rail. */
+  function rail(body: string): string {
+    const match = /<aside id="site-nav"[\s\S]*?<\/aside>/.exec(body);
+    assert.ok(match, "expected a rail with id=site-nav");
+    return match[0];
+  }
+
+  test("lists sites other than the one being viewed", async () => {
+    const body = await (await request("/sites/blog.lyly.dev")).text();
+    // The point of the test: api.lyly.dev is reachable from blog's page.
+    assert.match(rail(body), /href="\/sites\/api\.lyly\.dev"/);
+  });
+
+  test("omits the unmanaged block, as the site list does", async () => {
+    const body = await (await request("/sites/blog.lyly.dev")).text();
+    assert.doesNotMatch(rail(body), /lychee\.local/);
+  });
+});
+
 describe("GET /sites/new", () => {
   test("serves the add-site form with port-conflict data", async () => {
     const response = await request("/sites/new");
