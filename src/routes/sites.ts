@@ -74,6 +74,7 @@ export function createSitesRouter(deps: Deps): Router {
 
   sitesRouter.get("/sites/:hostname", async (req, res) => {
     const hostname = req.params.hostname.toLowerCase();
+    const created = req.query.created === "1";
 
     try {
       const content = deps.fs.readFile(config.caddyfilePath);
@@ -103,6 +104,7 @@ export function createSitesRouter(deps: Deps): Router {
             tunnelConfigPath: config.tunnelConfigPath,
             caddyfilePath: config.caddyfilePath,
             sites,
+            created,
           }),
         );
         return;
@@ -135,6 +137,7 @@ export function createSitesRouter(deps: Deps): Router {
           status,
           scaffold: scaffoldCommands,
           sites,
+          created,
         }),
       );
     } catch (error) {

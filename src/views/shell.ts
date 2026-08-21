@@ -10,8 +10,13 @@ export interface Nav {
   page?: "sites" | "new";
 }
 
+export interface Banner {
+  message: string;
+}
+
 export interface LayoutOptions {
   nav: Nav;
+  banner?: Banner;
 }
 
 const NAV_ITEM =
@@ -36,6 +41,22 @@ function renderRail(nav: Nav): string {
   </aside>`;
 }
 
+// Pre-filled server-side for the ?created=1 case. The class list matches what
+// showBanner() in public/app.js applies for its "persistent" tone, and that
+// function strips these same classes before applying its own, so a later
+// client-side banner on the same page still renders correctly.
+function renderFlashBanner(banner?: Banner): string {
+  const base =
+    "fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[min(480px,calc(100vw-2rem))] font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 border shadow-lg shadow-black/40 flex items-center justify-between gap-3";
+  const wrapperClass = banner ? `${base} bg-rose-950/60 border-rose-400/70` : `hidden ${base}`;
+  const closeClass = "shrink-0 text-stone-400 hover:text-stone-50 bg-transparent border-none cursor-pointer text-base leading-none";
+
+  return `<div id="flash-banner" class="${wrapperClass}" role="status" aria-live="polite">
+        <span id="flash-banner-message">${banner ? escapeHtml(banner.message) : ""}</span>
+        <button type="button" id="flash-banner-close" class="${banner ? closeClass : `hidden ${closeClass}`}" aria-label="Dismiss">&times;</button>
+      </div>`;
+}
+
 export function layout(title: string, body: string, opts: LayoutOptions): string {
   return `<!doctype html>
 <html lang="en" class="[color-scheme:dark]">
@@ -55,10 +76,7 @@ export function layout(title: string, body: string, opts: LayoutOptions): string
   ${renderRail(opts.nav)}
   <div class="flex-1 min-w-0 px-6 pb-16">
     <main class="max-w-[1080px] mx-auto py-6 pb-8 flex flex-col gap-6">
-      <div id="flash-banner" class="hidden fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[min(480px,calc(100vw-2rem))] font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 border shadow-lg shadow-black/40 flex items-center justify-between gap-3" role="status" aria-live="polite">
-        <span id="flash-banner-message"></span>
-        <button type="button" id="flash-banner-close" class="hidden shrink-0 text-stone-400 hover:text-stone-50 bg-transparent border-none cursor-pointer text-base leading-none" aria-label="Dismiss">&times;</button>
-      </div>
+      ${renderFlashBanner(opts.banner)}
       ${body}
     </main>
   </div>

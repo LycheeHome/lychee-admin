@@ -494,3 +494,49 @@ describe("renderSiteDetail escaping", () => {
     assert.match(html, /&quot;&gt;&lt;script&gt;alert\(2\)/);
   });
 });
+
+/**
+ * Anchored to the banner element. A page-wide match on "not responding"
+ * would pass on the strength of the header pill and the request-path hop,
+ * both of which already say it.
+ */
+function banner(html: string): string {
+  // Non-greedy, stopping at the first </div>: the banner contains a span and a
+  // button but no nested div, so this is exactly the banner element.
+  const match = /<div id="flash-banner"[\s\S]*?<\/div>/.exec(html);
+  assert.ok(match, "expected a flash-banner element");
+  return match[0];
+}
+
+describe("the ?created=1 banner", () => {
+  test("a static site is told its placeholder is already live", () => {
+    const html = renderSiteDetail(STATIC_SITE, { ...OPTS, created: true });
+    assert.match(banner(html), /Added blog\.lyly\.dev/);
+    assert.match(banner(html), /serving the placeholder page it created/);
+    assert.match(banner(html), /Manual steps has the DNS record/);
+  });
+
+  test("a plain proxy is told why it reads as not responding", () => {
+    const html = renderSiteDetail(PROXY_SITE, { ...OPTS, created: true });
+    assert.match(banner(html), /routing is live/);
+    assert.match(banner(html), /nothing is listening on port 4000 yet/);
+    assert.match(banner(html), /not responding until you start your process/);
+  });
+
+  test("a scaffolded site is told why it reads as not deployed", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...OPTS, created: true });
+    assert.match(banner(html), /routing is live/);
+    assert.match(banner(html), /scaffold is at \/var\/www\/app\.lyly\.dev/);
+    assert.match(banner(html), /not deployed until you add your source/);
+  });
+
+  test("the banner is visible and dismissible when created, hidden otherwise", () => {
+    const created = banner(renderSiteDetail(PROXY_SITE, { ...OPTS, created: true }));
+    assert.doesNotMatch(created, /id="flash-banner" class="hidden/);
+    assert.match(created, /id="flash-banner-close" class="shrink-0/);
+
+    const plain = banner(renderSiteDetail(PROXY_SITE, OPTS));
+    assert.match(plain, /id="flash-banner" class="hidden/);
+    assert.match(plain, /id="flash-banner-message"><\/span>/);
+  });
+});

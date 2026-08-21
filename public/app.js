@@ -23,10 +23,6 @@ function showBanner(message, kind) {
     flashBannerClose.classList.add("hidden");
     // No auto-dismiss: the caller replaces this banner with a terminal
     // success/error banner once the in-flight operation resolves.
-  } else if (kind === "persistent") {
-    flashBanner.classList.add("bg-rose-950/60", "border-rose-400/70");
-    flashBannerClose.classList.remove("hidden");
-    // No auto-dismiss: stays until the user dismisses it themselves.
   } else {
     flashBanner.classList.add("bg-rose-950/60", "border-rose-400/70");
     flashBannerClose.classList.add("hidden");

@@ -402,6 +402,8 @@ export interface SiteDetailOptions {
   scaffold?: { buildCommand: string; runCommand: string; deployWorkflow: string };
   /** Every managed site, for the rail's switcher. */
   sites: Site[];
+  /** Set when this page is the redirect target of a successful add (`?created=1`). */
+  created?: boolean;
 }
 
 /**
@@ -470,6 +472,21 @@ function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
       </div>`;
 }
 
+/**
+ * The banner a site lands on after being created. Its job is to explain the
+ * status pill beside it: two of the three types arrive not-yet-working, so
+ * leading with what did succeed keeps the two from contradicting each other.
+ */
+function addedBanner(site: Site, sitesRoot: string): string {
+  if (site.type === "static") {
+    return `Added ${site.hostname} — Caddy is serving the placeholder page it created. Manual steps has the DNS record and how to replace it.`;
+  }
+  if (site.framework) {
+    return `Added ${site.hostname} — routing is live and the scaffold is at ${computeFilesPath(site, sitesRoot)}. It shows as not deployed until you add your source and deploy.`;
+  }
+  return `Added ${site.hostname} — routing is live, but nothing is listening on port ${site.target} yet, so it shows as not responding until you start your process.`;
+}
+
 export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
   const { scaffold } = opts;
   const filesPath = computeFilesPath(site, opts.sitesRoot);
@@ -521,7 +538,10 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       </div>
     </dialog>
     `,
-    { nav: { sites: opts.sites, active: site.hostname } },
+    {
+      nav: { sites: opts.sites, active: site.hostname },
+      banner: opts.created ? { message: addedBanner(site, opts.sitesRoot) } : undefined,
+    },
   );
 }
 
