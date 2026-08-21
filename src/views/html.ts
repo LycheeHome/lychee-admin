@@ -46,7 +46,6 @@ export function renderSiteList(
   domain: string,
   sitesRoot: string,
   error?: string,
-  portOwners: Record<string, string> = {},
 ): string {
   const cards = sites
     .map((site) => {
@@ -78,16 +77,35 @@ export function renderSiteList(
     <section>
       <div class="flex items-center justify-between gap-4 mb-5">
         <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Existing sites</h2>
-        <button type="button" class="${BUTTON_PRIMARY}" data-open-dialog="add-site-dialog">${icon("plus")}Add site</button>
+        <a href="/sites/new" class="${BUTTON_PRIMARY} no-underline">${icon("plus")}Add site</a>
       </div>
       <div class="sites-grid grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5">
         ${cards || `<p class="col-span-full text-stone-400 italic m-0">No sites configured yet.</p>`}
       </div>
     </section>
+    `,
+    { nav: { sites, page: "sites" } },
+  );
+}
 
-    <dialog id="add-site-dialog" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(460px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
-      <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Add a site</h2>
-      <form id="add-site-form" method="post" action="/sites" class="flex flex-col gap-4">
+export function renderAddSite(
+  sites: Site[],
+  domain: string,
+  portOwners: Record<string, string>,
+): string {
+  return layout(
+    "Add a site",
+    `
+    <div class="max-w-[640px] w-full flex flex-col gap-5">
+      <nav class="font-mono text-[0.72rem] text-stone-500 m-0" aria-label="Breadcrumb">
+        <a href="/" class="text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}">sites</a>
+        <span class="text-stone-600 mx-1.5">/</span>
+        <span class="text-stone-50">new</span>
+      </nav>
+
+      <h2 class="font-mono text-[1.35rem] text-stone-50 m-0">Add a site</h2>
+
+      <form id="add-site-form" method="post" action="/sites" class="flex flex-col gap-5">
         <label class="${FORM_LABEL}">
           Hostname
           <input type="text" name="hostname" placeholder="blog.${escapeHtml(domain)}" required class="${INPUT}" />
@@ -137,13 +155,13 @@ export function renderSiteList(
         <p id="add-site-error" class="hidden font-mono text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0"></p>
 
         <div class="flex justify-end gap-2.5">
-          <button type="button" class="${BUTTON_SECONDARY}" data-close-dialog="add-site-dialog">Cancel</button>
+          <a href="/" class="${BUTTON_SECONDARY} no-underline">Cancel</a>
           <button type="submit" id="add-site-submit" class="${BUTTON_PRIMARY}">Add site</button>
         </div>
       </form>
-    </dialog>
+    </div>
     `,
-    { nav: { sites, page: "sites" } },
+    { nav: { sites, page: "new" } },
   );
 }
 

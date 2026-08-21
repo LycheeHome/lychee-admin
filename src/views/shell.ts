@@ -28,6 +28,7 @@ function renderRail(nav: Nav): string {
   <aside id="site-nav" class="w-[220px] shrink-0 self-start sticky top-0 h-screen bg-stone-800 border-r border-stone-700 flex flex-col gap-4 px-3 py-4" aria-label="Site navigation">
     <nav id="nav-pages" class="flex flex-col gap-0.5" aria-label="Pages">
       ${navItem("/", "All sites", "layoutGrid", nav.page === "sites")}
+      ${navItem("/sites/new", "Add site", "plus", nav.page === "new")}
     </nav>
     <div class="border-t border-dashed border-stone-700 mx-1" aria-hidden="true"></div>
     <div class="flex-1"></div>

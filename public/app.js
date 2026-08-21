@@ -47,16 +47,8 @@ if (removedHostname) {
   history.replaceState(null, "", "/");
 }
 
-// After adding a site, the freshly rendered card comes from the server
-// (not hand-built here) so it can never drift from the real template —
-// re-fetch the list and swap in just the grid, then re-wire the new cards.
-async function refreshSitesGrid() {
-  const response = await fetch("/");
-  const html = await response.text();
-  const newGrid = new DOMParser().parseFromString(html, "text/html").querySelector(".sites-grid");
-  const currentGrid = document.querySelector(".sites-grid");
-  if (!newGrid || !currentGrid) return;
-  currentGrid.innerHTML = newGrid.innerHTML;
+if (new URLSearchParams(window.location.search).has("created")) {
+  history.replaceState(null, "", window.location.pathname);
 }
 
 document.getElementById("confirm-remove-submit")?.addEventListener("click", async (event) => {
@@ -139,20 +131,9 @@ function validatePortField() {
 
 portField?.addEventListener("input", validatePortField);
 
-const addSiteDialog = document.getElementById("add-site-dialog");
 const addSiteForm = document.getElementById("add-site-form");
 const addSiteError = document.getElementById("add-site-error");
 let addSiteInFlight = false;
-
-// Fires on every close (Cancel, backdrop click, Esc, or our own .close()
-// after a successful add) so the dialog always starts fresh next time.
-addSiteDialog?.addEventListener("close", () => {
-  addSiteError?.classList.add("hidden");
-  addSiteForm?.reset();
-  syncPortField();
-  syncFrameworkFields();
-  validatePortField();
-});
 
 addSiteForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -175,17 +156,11 @@ addSiteForm?.addEventListener("submit", async (event) => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? "Failed to add site");
 
-    addSiteDialog?.close();
-    await refreshSitesGrid();
-    if (result.type === "reverse-proxy") portOwners[result.target] = result.hostname;
-    const scaffoldNote =
-      result.framework === "nextjs"
-        ? ` A Next.js scaffold was created at /var/www/${result.hostname}/ — add your app source and run "docker compose up -d --build" there.`
-        : "";
-    showBanner(
-      `Added ${result.hostname}.${scaffoldNote} Don't forget to add the DNS record: cloudflared tunnel route dns ${result.tunnelId} ${result.hostname}`,
-      "persistent",
-    );
+    // Land on the new site's own page: its Manual steps already states the
+    // DNS command permanently, and a full navigation leaves the rail's
+    // switcher listing the site we just created.
+    window.location.href = `/sites/${encodeURIComponent(result.hostname)}?created=1`;
+    return;
   } catch (error) {
     if (addSiteError) {
       addSiteError.textContent = error.message;

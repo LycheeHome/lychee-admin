@@ -157,6 +157,24 @@ describe("GET /", () => {
   });
 });
 
+describe("GET /sites/new", () => {
+  test("serves the add-site form with port-conflict data", async () => {
+    const response = await request("/sites/new");
+    assert.equal(response.status, 200);
+    const body = await response.text();
+    assert.match(body, /id="add-site-form"/);
+    assert.match(body, /id="port-owners-data"/);
+    // 4000 is api.lyly.dev in the fixture; 8787 is lyly-admin's own PORT.
+    assert.match(body, /api\.lyly\.dev/);
+    assert.match(body, /8787/);
+  });
+
+  test("is not mistaken for a hostname by the detail route", async () => {
+    const body = await (await request("/sites/new")).text();
+    assert.doesNotMatch(body, /No managed site found/);
+  });
+});
+
 describe("POST /sites — static", () => {
   test("adds a Caddyfile block, an ingress rule, a directory, and a placeholder page", async () => {
     const response = await request("/sites", form({ hostname: "new.lyly.dev", type: "static" }));
