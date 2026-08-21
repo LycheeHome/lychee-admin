@@ -225,3 +225,48 @@ document.querySelectorAll("dialog.modal").forEach((dialog) => {
     if (!inside) dialog.close();
   });
 });
+
+const siteSwitcher = document.getElementById("site-switcher");
+
+if (siteSwitcher) {
+  const summary = siteSwitcher.querySelector("summary");
+  const rows = () => Array.from(siteSwitcher.querySelectorAll("a"));
+
+  const close = ({ refocus } = {}) => {
+    siteSwitcher.open = false;
+    if (refocus) summary?.focus();
+  };
+
+  // Not the bounding-rect check used for dialog.modal: that exists because a
+  // <dialog>'s backdrop is part of the element. A dropdown has no backdrop,
+  // so containment is both correct and simpler.
+  document.addEventListener("click", (event) => {
+    if (siteSwitcher.open && !siteSwitcher.contains(event.target)) close();
+  });
+
+  siteSwitcher.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      close({ refocus: true });
+      return;
+    }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+
+    event.preventDefault();
+    if (!siteSwitcher.open) {
+      siteSwitcher.open = true;
+      rows()[0]?.focus();
+      return;
+    }
+    const items = rows();
+    const index = items.indexOf(document.activeElement);
+    const step = event.key === "ArrowDown" ? 1 : -1;
+    // From the summary (index -1), ArrowDown lands on the first row and
+    // ArrowUp on the last.
+    const next = index === -1 ? (step === 1 ? 0 : items.length - 1) : index + step;
+    items[Math.max(0, Math.min(items.length - 1, next))]?.focus();
+  });
+
+  siteSwitcher.addEventListener("focusout", (event) => {
+    if (!siteSwitcher.contains(event.relatedTarget)) close();
+  });
+}
