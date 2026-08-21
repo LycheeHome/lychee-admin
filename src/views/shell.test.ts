@@ -97,7 +97,10 @@ describe("the site switcher", () => {
 
   test("keeps the active site listed rather than filtering it out", () => {
     const html = rail(renderSiteDetail(SITES[2], DETAIL_OPTS));
-    const rows = html.match(/href="\/sites\/[a-z.]+\.lyly\.dev"/g) ?? [];
+    // [a-z0-9.-]+, not just [a-z.]+: the app's own hostname rule allows
+    // digits and hyphens (e.g. app-2.lyly.dev), and a narrower class here
+    // would silently under-count and fail confusingly on such a fixture.
+    const rows = html.match(/href="\/sites\/[a-z0-9.-]+\.lyly\.dev"/g) ?? [];
     assert.equal(rows.length, SITES.length);
   });
 

@@ -337,7 +337,7 @@ describe("renderSiteDetail deploy", () => {
         scaffold: SCAFFOLD,
       }),
     );
-    // No max-height and no vertical overflow anywhere on the page: a scrollbar
+    // No max-height and no vertical overflow anywhere in the page body: a scrollbar
     // inside a page you are already scrolling is worse than a tall block, and
     // this is a file you may want to read rather than only copy.
     assert.doesNotMatch(html, /max-h-/);

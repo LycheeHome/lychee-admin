@@ -67,7 +67,7 @@ function renderSwitcher(nav: Nav): string {
   // max-h/overflow here is a viewport guard, not a tidiness cap: a panel
   // taller than the window cannot be reached at all. It does not engage at
   // the site counts this box is built for.
-  return `<details id="site-switcher" class="relative">
+  return `<details id="site-switcher" class="relative" aria-label="Switch site">
     <summary class="${SWITCHER_TRIGGER}">${label}${icon("chevronDown")}</summary>
     <ul class="absolute z-30 left-0 right-0 mt-1 list-none m-0 p-0 bg-stone-900 border border-stone-600 rounded-md shadow-lg shadow-black/50 overflow-hidden max-h-[70vh] overflow-y-auto">${rows}</ul>
   </details>`;

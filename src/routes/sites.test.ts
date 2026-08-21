@@ -147,8 +147,12 @@ describe("authentication", () => {
 describe("GET /", () => {
   test("lists managed sites", async () => {
     const body = await (await request("/")).text();
-    assert.match(body, /blog\.lyly\.dev/);
-    assert.match(body, /api\.lyly\.dev/);
+    // Stripped of the rail: the switcher now prints every hostname on every
+    // page too, so matching the whole body would no longer prove a card
+    // rendered — it would pass off the rail alone.
+    const page = body.replace(/<aside id="site-nav"[\s\S]*?<\/aside>/, "");
+    assert.match(page, /blog\.lyly\.dev/);
+    assert.match(page, /api\.lyly\.dev/);
   });
 
   test("omits hostnames outside the managed domain", async () => {
@@ -184,9 +188,14 @@ describe("GET /sites/new", () => {
     const body = await response.text();
     assert.match(body, /id="add-site-form"/);
     assert.match(body, /id="port-owners-data"/);
+    // Stripped of the rail: the switcher also prints api.lyly.dev on every
+    // page, so this assertion's actual job — proving the port-owners payload
+    // names the site that owns port 4000 — must not be satisfiable by the
+    // rail alone.
+    const page = body.replace(/<aside id="site-nav"[\s\S]*?<\/aside>/, "");
     // 4000 is api.lyly.dev in the fixture; 8787 is lyly-admin's own PORT.
-    assert.match(body, /api\.lyly\.dev/);
-    assert.match(body, /8787/);
+    assert.match(page, /api\.lyly\.dev/);
+    assert.match(page, /8787/);
   });
 
   test("is not mistaken for a hostname by the detail route", async () => {
