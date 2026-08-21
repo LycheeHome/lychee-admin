@@ -68,4 +68,14 @@ describe("the rail", () => {
     assert.match(rail(html), /lyly<span class="text-rose-400">\.<\/span>admin/);
     assert.doesNotMatch(html, /<header/);
   });
+
+  test("stays put on a long page rather than scrolling away with the content", () => {
+    const html = rail(renderSiteList(SITES, "lyly.dev", "/var/www"));
+    // self-start matters as much as sticky: flex align-items:stretch would
+    // otherwise size the aside to the document and sticky would do nothing.
+    assert.match(html, /self-start/);
+    assert.match(html, /sticky/);
+    assert.match(html, /top-0/);
+    assert.match(html, /h-screen/);
+  });
 });
