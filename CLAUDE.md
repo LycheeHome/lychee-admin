@@ -103,6 +103,14 @@ One-time host setup this assumes, not done by CI:
 - **No branch protection, and none is possible on the current plan.** The `Lychee-Home` org is on GitHub Free and this repo is private; branch protection and rulesets are both gated behind GitHub Pro or making the repo public, and their APIs return 403 until then. So `main` accepts direct pushes, and a pull request can be merged with a red `test` run. Getting the merge gate would mean upgrading the org to Pro or making the repo public — the latter would publish the LAN address, hostnames, tunnel IDs, and sudo layout described throughout this file, so it is not a free choice.
 - **What holds anyway:** `deploy` has `needs: test`, which applies to pushes on `main` too. A red merge leaves `main` red and the deploy skipped, so nothing broken reaches `lychee` — the host keeps serving the last good deploy. The exposure from the missing gate is a red `main`, not a broken server.
 
+**Running `gh` against this repo.** Two GitHub accounts are logged into `gh` on the development machine, and the globally active one (`byron-custodio`) has no access to `Lychee-Home` — it fails with a 404 that reads like the repo does not exist rather than like an auth problem. Prefix the command rather than switching accounts, since `gh auth switch` mutates global state the machine's other repositories depend on:
+
+```
+GH_TOKEN="$(gh auth token -u byroncustodio)" gh pr list
+```
+
+Git itself needs no help here, and the two things are independent: `origin` is SSH and that key already authenticates as `byroncustodio`, while commit authorship comes from a conditional include in `~/.gitconfig` keyed on the remote URL (`includeIf "hasconfig:remote.*.url:git@github.com:Lychee-Home/**"`), so commits carry the matching identity with no per-repo `user.email` to forget on the next clone.
+
 ## Reverse-proxy sites
 
 Choosing "reverse proxy" instead of "static" means `lyly-admin` only wires up Caddy/tunnel routing to `localhost:<port>` — it does not run, deploy, or supervise whatever's listening there, and never invokes Docker or any other process manager itself. You're responsible for keeping that process alive yourself (its own systemd unit, PM2, Docker, etc.), the same way the Palworld server and `swee` bot are managed independently of this app.
