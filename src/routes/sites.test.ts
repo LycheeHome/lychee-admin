@@ -223,6 +223,15 @@ describe("GET /sites/new", () => {
 });
 
 describe("POST /sites — static", () => {
+  const OK_ADD_STEPS = [
+    { id: "backup", label: "Configs backed up", status: "ok" },
+    { id: "caddyfile", label: "Caddyfile block appended", status: "ok" },
+    { id: "files", label: "Site directory created", status: "ok" },
+    { id: "tunnel", label: "Tunnel route added", status: "ok" },
+    { id: "caddy", label: "Caddy validated and reloaded", status: "ok" },
+    { id: "cloudflared", label: "cloudflared-sites restarted", status: "ok" },
+  ];
+
   test("adds a Caddyfile block, an ingress rule, a directory, and a placeholder page", async () => {
     const response = await request("/sites", form({ hostname: "new.lyly.dev", type: "static" }));
     assert.equal(response.status, 200);
@@ -235,6 +244,7 @@ describe("POST /sites — static", () => {
       // Derived from the seeded tunnel config's `tunnel:` key, not from an
       // environment variable that could drift from it.
       tunnelId: "11111111-2222-3333-4444-555555555555",
+      steps: OK_ADD_STEPS,
     });
 
     assert.match(fakeFs.readFile(CADDYFILE), /http:\/\/new\.lyly\.dev \{/);
@@ -244,6 +254,12 @@ describe("POST /sites — static", () => {
       fakeFs.readFile(path.join(SITES_ROOT, "new.lyly.dev", "index.html")),
       /Site created by lyly-admin/,
     );
+  });
+
+  test("a static site reports every step as ok", async () => {
+    const response = await request("/sites", form({ hostname: "new.lyly.dev", type: "static" }));
+    const body = await json<{ steps: { status: string }[] }>(response);
+    assert.ok(body.steps.every((step) => step.status === "ok"));
   });
 
   test("rejects a hostname outside the managed domain", async () => {
@@ -283,6 +299,13 @@ describe("POST /sites — reverse proxy", () => {
     const response = await request("/sites", form({ hostname: "plain.lyly.dev", type: "reverse-proxy", port: "5000" }));
     assert.equal(response.status, 200);
     assert.equal(fakeFs.hasDir(path.join(SITES_ROOT, "plain.lyly.dev")), false);
+  });
+
+  test("a plain reverse-proxy site skips the directory step rather than failing it", async () => {
+    const response = await request("/sites", form({ hostname: "new.lyly.dev", type: "reverse-proxy", port: "4100" }));
+    const body = await json<{ steps: { id: string; status: string }[] }>(response);
+    const files = body.steps.find((step) => step.id === "files");
+    assert.equal(files?.status, "skipped");
   });
 
   test("rejects a port already used by another reverse-proxy site", async () => {

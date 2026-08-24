@@ -6,7 +6,7 @@ import * as tunnelConfig from "../lib/tunnelConfig";
 import { CommandError } from "../lib/systemCommands";
 import { getFrameworkScaffold } from "../lib/frameworkScaffold";
 import { checkPortOpen } from "../lib/portStatus";
-import { REMOVE_STEPS, createStepReport } from "../lib/stepReport";
+import { ADD_STEPS, REMOVE_STEPS, createStepReport } from "../lib/stepReport";
 import { renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "../views/html";
 import type { SiteStatus } from "../lib/siteDisplay";
 import type { Site } from "../lib/caddyfile";
@@ -209,6 +209,8 @@ export function createSitesRouter(deps: Deps): Router {
     let tunnelContent: string | undefined;
     let caddyReloaded = false;
 
+    const report = createStepReport(ADD_STEPS);
+
     try {
       caddyfileContent = deps.fs.readFile(config.caddyfilePath);
       if (caddyfile.hostnameExists(caddyfileContent, hostname)) {
@@ -231,47 +233,59 @@ export function createSitesRouter(deps: Deps): Router {
 
       tunnelContent = deps.fs.readFile(config.tunnelConfigPath);
 
-      // 1. Back up both config files before touching either.
-      backupFile(config.caddyfilePath);
-      backupFile(config.tunnelConfigPath);
+      await report.run("backup", async () => {
+        backupFile(config.caddyfilePath);
+        backupFile(config.tunnelConfigPath);
+      });
 
-      // 2. Append the Caddyfile block.
-      await deps.commands.writeManagedConfig(
-        config.caddyfilePath,
-        caddyfile.appendSite(caddyfileContent, { hostname, type, target, framework, healthcheckPath }),
+      await report.run("caddyfile", () =>
+        deps.commands.writeManagedConfig(
+          config.caddyfilePath,
+          caddyfile.appendSite(caddyfileContent!, { hostname, type, target, framework, healthcheckPath }),
+        ),
       );
 
-      // 3. Static sites get a directory + placeholder page; Next.js
+      // Static sites get a directory + placeholder page; Next.js
       // reverse-proxy sites get a directory + Dockerfile/docker-compose
-      // scaffold. Not covered by the rollback below if a later step fails —
-      // same deliberate asymmetry that already applies to the static
-      // placeholder file.
+      // scaffold. A plain reverse-proxy site has no directory to create, so
+      // that case is a skip, not a step that never ran. Not covered by the
+      // rollback below if a later step fails — same deliberate asymmetry
+      // that already applies to the static placeholder file.
       if (type === "static") {
-        await deps.commands.createSiteDirectory(hostname);
-        deps.fs.writeFile(path.join(sitePath, "index.html"), PLACEHOLDER_INDEX_HTML(hostname));
+        await report.run("files", async () => {
+          await deps.commands.createSiteDirectory(hostname);
+          deps.fs.writeFile(path.join(sitePath, "index.html"), PLACEHOLDER_INDEX_HTML(hostname));
+        });
       } else if (framework) {
-        const scaffold = getFrameworkScaffold(framework, port, hostname, config.sitesRoot, healthcheckPath ?? "/");
-        if (scaffold) {
+        await report.run("files", async () => {
+          const scaffold = getFrameworkScaffold(framework, port, hostname, config.sitesRoot, healthcheckPath ?? "/");
+          if (!scaffold) return;
           await deps.commands.createSiteDirectory(hostname);
           deps.fs.writeFile(path.join(sitePath, "Dockerfile"), scaffold.dockerfile);
           deps.fs.writeFile(path.join(sitePath, "docker-compose.yml"), scaffold.compose);
           deps.fs.writeFile(path.join(sitePath, ".dockerignore"), scaffold.dockerignore);
-        }
+        });
+      } else {
+        // A plain reverse-proxy site has no directory to create. This is not
+        // a blocked step, so it must not report as not-run.
+        report.skip("files");
       }
 
-      // 4. Append the tunnel ingress rule.
-      await deps.commands.writeManagedConfig(
-        config.tunnelConfigPath,
-        tunnelConfig.addIngressRule(tunnelContent, hostname, "http://localhost:80"),
+      await report.run("tunnel", () =>
+        deps.commands.writeManagedConfig(
+          config.tunnelConfigPath,
+          tunnelConfig.addIngressRule(tunnelContent!, hostname, "http://localhost:80"),
+        ),
       );
 
-      // 5. Validate before ever reloading — never reload a config we haven't checked.
-      await deps.commands.validateCaddyfile(config.caddyfilePath);
+      // Validate before ever reloading — never reload a config we haven't checked.
+      await report.run("caddy", async () => {
+        await deps.commands.validateCaddyfile(config.caddyfilePath);
+        await deps.commands.reloadCaddy();
+        caddyReloaded = true;
+      });
 
-      // 6. Reload Caddy, then restart cloudflared (ingress changes need a restart).
-      await deps.commands.reloadCaddy();
-      caddyReloaded = true;
-      await deps.commands.restartCloudflared();
+      await report.run("cloudflared", () => deps.commands.restartCloudflared());
 
       logAction({
         action: "add-site",
@@ -285,6 +299,7 @@ export function createSitesRouter(deps: Deps): Router {
         target,
         framework: framework ?? "none",
         tunnelId: tunnelConfig.readTunnelId(tunnelContent),
+        steps: report.steps(),
       });
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
@@ -306,6 +321,7 @@ export function createSitesRouter(deps: Deps): Router {
           logAction({ action: "add-site-rollback-failed", hostname, detail: rollbackMessage });
           res.status(500).json({
             error: `${message}\n\nAdditionally, restoring the original config failed: ${rollbackMessage}\n\nManual recovery needed — backups are in ${config.backupDir}.`,
+            steps: report.steps(),
           });
           return;
         }
@@ -313,6 +329,7 @@ export function createSitesRouter(deps: Deps): Router {
 
       res.status(500).json({
         error: `${message}\n\nBacked-up copies of the Caddyfile and tunnel config were saved to ${config.backupDir} before this attempt — review and restore manually if the configs were left in a bad state.`,
+        steps: report.steps(),
       });
     }
   });
