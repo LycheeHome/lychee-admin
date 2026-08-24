@@ -160,6 +160,15 @@ export function layout(title: string, body: string, opts: LayoutOptions): string
   <div class="flex-1 min-w-0 px-6 pb-16">
     <main class="max-w-[1080px] mx-auto py-6 pb-8 flex flex-col gap-6">
       ${renderFlashBanner()}
+      <!--
+        Copying is confirmed visually by the icon swapping to a check, which
+        says nothing to a screen reader. The button's own aria-label changes
+        too, but a label change on the focused element is not reliably
+        announced — so the outcome goes here instead. It matters most in the
+        fallback case, where the user has to be told to press Ctrl+C: on plain
+        HTTP, that is every case.
+      -->
+      <span id="copy-status" class="sr-only" role="status" aria-live="polite"></span>
       ${renderPageNotice(opts.banner)}
       ${body}
     </main>

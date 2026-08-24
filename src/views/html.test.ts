@@ -2,7 +2,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { withoutRail } from "../dev/testHelpers";
-import { renderSiteDetail } from "./html";
+import { renderAddSite, renderSiteDetail, renderSiteList } from "./html";
 
 const STATIC_SITE: Site = { hostname: "blog.lyly.dev", type: "static", target: "/var/www/blog.lyly.dev" };
 const APEX_SITE: Site = { hostname: "lyly.dev", type: "static", target: "/var/www/lyly.dev" };
@@ -23,6 +23,48 @@ const OPTS = {
   caddyfilePath: "/etc/caddy/Caddyfile",
   sites: [STATIC_SITE, APEX_SITE, PROXY_SITE, NEXT_SITE],
 };
+
+const SITES = [STATIC_SITE, APEX_SITE, PROXY_SITE, NEXT_SITE];
+
+/**
+ * Returns the opening tag of the element with `id`, so an assertion is made
+ * against that element rather than the whole document. A document-wide regex
+ * would pass on any page that happens to mention the attribute somewhere else.
+ */
+function tagById(html: string, id: string): string {
+  const match = html.match(new RegExp(`<[a-z]+[^>]* id="${id}"[^>]*>`));
+  assert.ok(match, `no element with id="${id}" was rendered`);
+  return match[0];
+}
+
+describe("accessible status and error wiring", () => {
+  test("the port field points at the message that explains a conflict", () => {
+    const input = tagById(renderAddSite(SITES, "lyly.dev", {}), "port-field");
+    assert.match(input, /aria-describedby="port-error"/);
+  });
+
+  test("the port conflict message is the element the field names", () => {
+    const span = tagById(renderAddSite(SITES, "lyly.dev", {}), "port-error");
+    assert.match(span, /class="[^"]*port-error/);
+  });
+
+  test("a failed submit is announced, not only shown", () => {
+    const p = tagById(renderAddSite(SITES, "lyly.dev", {}), "add-site-error");
+    assert.match(p, /role="alert"/);
+  });
+
+  test("copy outcomes get a polite live region, since the icon swap is silent", () => {
+    const span = tagById(renderSiteDetail(STATIC_SITE, OPTS), "copy-status");
+    assert.match(span, /role="status"/);
+    assert.match(span, /aria-live="polite"/);
+    assert.match(span, /class="[^"]*sr-only/);
+  });
+
+  test("the live region is on every page the shell renders, not only the detail page", () => {
+    const span = tagById(renderSiteList(SITES), "copy-status");
+    assert.match(span, /aria-live="polite"/);
+  });
+});
 
 describe("renderSiteDetail header", () => {
   test("replaces the back link with a breadcrumb to the site list", () => {

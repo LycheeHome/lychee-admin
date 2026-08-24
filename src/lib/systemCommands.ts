@@ -16,13 +16,36 @@ export class CommandError extends Error {
 }
 
 /**
+ * How long the container-status read may take before it is abandoned. Only the
+ * status read gets a ceiling, and deliberately so: it is the one call here that
+ * is read-only, unattended, and rendered on page load, so a wedged Docker
+ * daemon would otherwise hold a page request open with no limit.
+ *
+ * The mutating commands stay unbounded on purpose. `systemctl restart
+ * cloudflared-sites` legitimately takes over ten seconds — its unit sets
+ * TimeoutStopSec=10 — and killing it partway would report a failure for a
+ * restart that then completes anyway, which is a worse outcome than waiting:
+ * the operator would not know which of the two happened.
+ */
+const STATUS_READ_TIMEOUT_MS = 2000;
+
+/**
  * Runs a single privileged command via execFile (never a shell), so arguments
  * can't be reinterpreted by a shell. Every command here must have a matching
  * narrowly-scoped entry in the sudoers file — see deploy/sudoers.example.
+ *
+ * `timeoutMs` is opt-in per call rather than a default, for the reason above.
+ * When it fires, execFile sends SIGTERM and rejects, which the caller sees as
+ * an ordinary CommandError — so a timed-out read degrades exactly the way a
+ * failed one already did.
  */
-async function run(command: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+async function run(
+  command: string,
+  args: string[],
+  { timeoutMs }: { timeoutMs?: number } = {},
+): Promise<{ stdout: string; stderr: string }> {
   try {
-    return await execFile(command, args);
+    return await execFile(command, args, timeoutMs === undefined ? {} : { timeout: timeoutMs });
   } catch (error) {
     const err = error as { stdout?: string; stderr?: string; message: string };
     throw new CommandError(err.message, err.stdout ?? "", err.stderr ?? "");
@@ -109,11 +132,16 @@ export const realSystemCommands: SystemCommands = {
    * Unlike every other function in this file, failures are swallowed into
    * { state: "unknown" } rather than thrown — this is best-effort display
    * data for the detail page, not a mutating action a caller needs to detect
-   * and roll back. No raw stderr reaches the page.
+   * and roll back. No raw stderr reaches the page. A timeout lands here too,
+   * so a wedged daemon renders "can't check" instead of hanging the page.
    */
   async checkContainerStatus(hostname) {
     try {
-      const { stdout } = await run("sudo", ["/usr/local/sbin/lyly-admin-docker-status", hostname]);
+      const { stdout } = await run(
+        "sudo",
+        ["/usr/local/sbin/lyly-admin-docker-status", hostname],
+        { timeoutMs: STATUS_READ_TIMEOUT_MS },
+      );
       return parseComposePsOutput(stdout);
     } catch {
       return { state: "unknown" };

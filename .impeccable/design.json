@@ -86,7 +86,7 @@
       "title": { "displayName": "Title", "purpose": "A site card's hostname in the list. The only other use of the display face." },
       "eyebrow": { "displayName": "Eyebrow", "purpose": "Section and dialog headings, uppercase and letterspaced." },
       "label": { "displayName": "Label", "purpose": "Card headings inside the detail page: Request path, Manual steps, Deploy, Danger." },
-      "micro-label": { "displayName": "Micro-label", "purpose": "The label above a single routing hop." },
+      "micro-label": { "displayName": "Micro-label", "purpose": "The label above a single routing hop. Smallest type in the system, so it takes Smoke, not Smoke Deep." },
       "body": { "displayName": "Body", "purpose": "Explanatory sentences a person wrote. Nunito, never for paths or commands." },
       "body-strong": { "displayName": "Body Strong", "purpose": "The title line of a selectable option row, above the sentence explaining what the choice commits you to." },
       "data": { "displayName": "Data", "purpose": "Machine values: hop values, detail rows, a card's path or port line." },
@@ -223,6 +223,11 @@
         "section": "colors"
       },
       {
+        "name": "The Dim-Text Rule",
+        "body": "Dim text is Smoke, not Smoke Deep. Smoke Deep carries text in exactly one place — the .lyly.dev suffix on a detail page's Headline, which at 27px is WCAG large text and clears the 3:1 that applies there. At any smaller size it fails the 4.5:1 that applies instead (3.16:1 on a card), so every label, key, caption, and hop sub-line takes Smoke. The one exception is the breadcrumb's /, which is decorative punctuation between two links rather than content anyone reads. When a new dim role appears, the question is not \"how dim can this be\" but \"does it clear 4.5:1 on both Hearth and Hearth Lift.\"",
+        "section": "colors"
+      },
+      {
         "name": "The Mono-Carries-Facts Rule",
         "body": "If a machine produced it or will consume it — hostname, port, path, command, service name, status word, framework name — it is DM Mono. If a person wrote it as a sentence, it is Nunito. There is no third case, and no sentence sets a path in Nunito.",
         "section": "typography"
@@ -275,6 +280,7 @@
       "Do show a status word with every status color — the dot and the tone are never the whole message.",
       "Do let long hostnames, paths, and commands break or scroll (break-all, or overflow-x auto plus nowrap for one-liners).",
       "Do put remediation beside the hop that reported the problem, not in a numbered step list.",
+      "Do check a dim tone against both grounds before using it on text: 4.5:1 on Hearth and Hearth Lift below 24px, 3:1 at or above it.",
       "Do keep the shared focus ring: 2px Ember, 2px offset, :focus-visible.",
       "Do gate every transition and the dialog entrance behind motion-safe.",
       "Do state a destructive flow's steps in execution order, and say outright that a failed step stops the rest.",

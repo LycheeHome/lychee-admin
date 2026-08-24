@@ -252,9 +252,11 @@ carry a verdict.
 - **Hairline Strong** (`stone-600`): The one step where a border must be seen
   against Hairline — the secondary button's outline, the `static` pill's edge,
   and the arrows between routing hops.
-- **Smoke Deep** (`stone-500`): The dimmest legible text — hop labels, the key
-  column of a detail row, the trailing `.lyly.dev` of a hostname, a command's
-  working-directory caption, the breadcrumb separator.
+- **Smoke Deep** (`stone-500`): Structure, not prose. Arrows between routing
+  hops, the breadcrumb's `/`, and the trailing `.lyly.dev` of a hostname at
+  Headline size. It measures 3.64:1 on Hearth and 3.16:1 on Hearth Lift, so it
+  clears WCAG AA for large text and fails it for everything smaller — see The
+  Dim-Text Rule.
 - **Smoke** (`stone-400`): Secondary text. Every explanatory sentence, form
   label, and card eyebrow.
 - **Smoke Light** (`stone-300`): Neutral status pill text, and the accent color
@@ -293,6 +295,15 @@ a container still running its first health check is not broken, and a status we
 failed to read is not evidence that anything is down. Never invent a fourth
 tone, and never let a tone appear without the canonical status word beside it.
 
+**The Dim-Text Rule.** Dim text is Smoke, not Smoke Deep. Smoke Deep carries
+text in exactly one place — the `.lyly.dev` suffix on a detail page's Headline,
+which at 27px is WCAG large text and clears the 3:1 that applies there. At any
+smaller size it fails the 4.5:1 that applies instead (3.16:1 on a card), so
+every label, key, caption, and hop sub-line takes Smoke. The one exception is
+the breadcrumb's `/`, which is decorative punctuation between two links rather
+than content anyone reads. When a new dim role appears, the question is not
+"how dim can this be" but "does it clear 4.5:1 on both Hearth and Hearth Lift."
+
 **The Scorch-Is-Not-Ember Rule.** Danger uses the red family even though it
 neighbors rose in hue, and the two never substitute for each other. Ember means
 "act here." Scorch means "this destroys something." A destructive control is
@@ -316,8 +327,9 @@ says its own name and names a site.
   `lyly` + an Ember period + `admin`.
 - **Headline** (DM Mono, 1.7rem, line-height 1.2, tracking -0.01em): A site's
   hostname on its detail page, with the shared `.lyly.dev` suffix dropped to
-  Smoke Deep so the subdomain reads first. Slight negative tracking because mono
-  at display size otherwise sprawls.
+  Smoke Deep so the subdomain reads first — legible there because 27px is large
+  text, and nowhere else. Slight negative tracking because mono at display size
+  otherwise sprawls.
 - **Title** (Poetsen One, 1rem, line-height 1.625): A site card's hostname in
   the list. The only other place the display face appears.
 - **Eyebrow** (DM Mono, 0.85rem, weight 500, uppercase, tracking 0.08em, Smoke):
@@ -326,7 +338,8 @@ says its own name and names a site.
   Card headings inside the detail page — "Request path", "Manual steps",
   "Deploy", "Danger".
 - **Micro-label** (DM Mono, 0.6rem, weight 500, uppercase, tracking 0.09em,
-  Smoke Deep): The label above a routing hop.
+  Smoke): The label above a routing hop. The smallest type in the system, so it
+  gets the brightest of the dim tones, not the dimmest.
 - **Body** (Nunito, 0.8rem, line-height 1.375, Smoke): Every explanatory
   sentence. Longer prose sits inside cards no wider than 760px, which keeps it
   near 70ch. Dialog paragraphs step up to 1rem with relaxed leading.
@@ -522,7 +535,8 @@ value between steps, and never a large radius to look friendlier.
 ### Navigation
 
 A single breadcrumb line above a detail page's headline: 0.72rem mono, `sites`
-in Smoke (hover to Chalk plus underline), a Smoke Deep `/` with 6px margins, and
+in Smoke (hover to Chalk plus underline), a Hairline Strong `/` with 6px margins
+(decorative punctuation, the one small-text exception in The Dim-Text Rule), and
 the current hostname in Chalk. No global nav, no tabs, no sidebar in the
 incumbent implementation — the list is the only other place to be.
 
@@ -532,8 +546,9 @@ The most-used component in the app and the reason several other values are what
 they are. A `<pre>` at Code size on Hearth with a Hairline border and 6px radius,
 `overflow-x: auto` and `white-space: nowrap` so a long command scrolls rather
 than wraps, with a copy button absolutely positioned inside it. An optional
-caption beneath in 0.65rem Smoke Deep names the directory the command must run
-in (`in /var/www/app.lyly.dev/`).
+caption beneath in 0.65rem Smoke names the directory the command must run in
+(`in /var/www/app.lyly.dev/`) — a value you have to read, so it is not dimmed
+below Smoke.
 
 The copy button is a 26px square: Hearth Lift fill, Hairline border, 6px radius,
 a 16px clipboard icon that swaps to a check on success. **It must keep its
@@ -553,7 +568,7 @@ button off the text. Change any one of the four and recompute the others.
 The component that states this app's whole thesis: a request's path as four
 labelled stages — Cloudflare DNS → the sites tunnel → Caddy → your files or your
 app. Each hop is a Micro-label above a Data value above an optional 0.65rem
-sub-line (Smoke Deep by default, tone-colored when it carries live state).
+sub-line (Smoke by default, tone-colored when it carries live state).
 Separators are Hairline Strong arrows that flip from `→` to `↓` below `sm`, and
 are `aria-hidden`.
 
@@ -610,6 +625,8 @@ deleting files will not stop a running container.
   or `overflow-x: auto` + `nowrap` for one-liners).
 - **Do** put remediation beside the hop that reported the problem, not in a
   numbered step list.
+- **Do** check a dim tone against both grounds before using it on text: 4.5:1
+  on Hearth *and* Hearth Lift below 24px, 3:1 at or above it.
 - **Do** keep the shared focus ring: 2px Ember, 2px offset, `:focus-visible`.
 - **Do** gate every transition and the dialog entrance behind `motion-safe:`.
 - **Do** state a destructive flow's steps in execution order, and say outright
