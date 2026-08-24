@@ -37,6 +37,14 @@ function tagById(html: string, id: string): string {
   return match[0];
 }
 
+describe("renderAddSite heading", () => {
+  test("the add-site page's heading is a documented ramp step", () => {
+    const html = renderAddSite([], "lyly.dev", {});
+    assert.match(html, /<h2 class="font-mono text-\[1\.7rem\]/);
+    assert.doesNotMatch(html, /text-\[1\.35rem\]/);
+  });
+});
+
 describe("accessible status and error wiring", () => {
   test("the port field points at the message that explains a conflict", () => {
     const input = tagById(renderAddSite(SITES, "lyly.dev", {}), "port-field");

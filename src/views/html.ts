@@ -104,7 +104,7 @@ export function renderAddSite(
         <span class="text-stone-50">new</span>
       </nav>
 
-      <h2 class="font-mono text-[1.35rem] text-stone-50 m-0">Add a site</h2>
+      <h2 class="font-mono text-[1.7rem] leading-[1.2] tracking-[-0.01em] text-stone-50 m-0">Add a site</h2>
 
       <form id="add-site-form" method="post" action="/sites" class="flex flex-col gap-5">
         <label class="${FORM_LABEL}">
