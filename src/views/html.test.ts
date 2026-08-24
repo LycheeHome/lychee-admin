@@ -788,3 +788,25 @@ describe("status on the site list", () => {
     assert.doesNotMatch(html, /&#9679;/);
   });
 });
+
+describe("small-text ramp", () => {
+  test("card labels sit at the 12px step in Chalk-adjacent stone", () => {
+    const html = renderSiteDetail(NEXT_SITE, OPTS);
+    assert.match(html, /class="font-mono text-\[0\.75rem\] font-medium uppercase tracking-\[0\.1em\] text-stone-300/);
+    // Anchored to <h3> (the card-label element) rather than the whole
+    // document: the step-number badge legitimately still sits at 0.625rem
+    // until Task 5, and a document-wide regex here would be vacuous.
+    const headings = html.match(/<h3[^>]*>/g) ?? [];
+    assert.ok(headings.length > 0, "no card-label headings were rendered");
+    for (const heading of headings) assert.doesNotMatch(heading, /text-\[0\.625rem\]/);
+  });
+
+  test("the Danger heading reuses the card-label constant instead of restating it", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    const danger = html.match(/<h3[^>]*>Danger<\/h3>/);
+    assert.ok(danger, "no Danger heading was rendered");
+    // Same size and tracking as every other card label; only the colour differs.
+    assert.match(danger[0], /text-\[0\.75rem\]/);
+    assert.match(danger[0], /text-red-300/);
+  });
+});

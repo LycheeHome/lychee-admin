@@ -20,6 +20,7 @@ import {
   TYPE_PILL_PROXY,
   CARD,
   CARD_LABEL,
+  CARD_LABEL_BASE,
   TONE_PILL,
   TONE_TEXT,
 } from "./shared";
@@ -395,7 +396,7 @@ function renderDangerZone(): string {
   return `
       <section class="border border-red-900/60 bg-red-950/20 rounded-[10px] p-5 mt-4 flex items-center justify-between gap-4 flex-wrap">
         <div class="min-w-0">
-          <h3 class="font-mono text-[0.625rem] font-medium uppercase tracking-[0.1em] text-red-300 m-0 mb-1.5">Danger</h3>
+          <h3 class="${CARD_LABEL_BASE} text-red-300 m-0 mb-1.5">Danger</h3>
           <p class="text-stone-400 text-[0.8rem] leading-snug m-0">Removing takes the site out of the Caddyfile and the tunnel route, reloads Caddy, then restarts the tunnel. Your DNS record and files stay unless you ask otherwise.</p>
         </div>
         <button type="button" class="${BUTTON_DANGER} shrink-0" data-open-dialog="confirm-remove-dialog">${icon("trash")}Remove site</button>

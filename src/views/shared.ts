@@ -32,8 +32,14 @@ export const TONE_PILL: Record<StatusTone, string> = {
 };
 
 export const CARD = "bg-stone-800 border border-stone-700 rounded-[10px] p-5";
-export const CARD_LABEL =
-  "font-mono text-[0.625rem] font-medium uppercase tracking-[0.1em] text-stone-400 m-0 mb-3";
+/**
+ * The size, weight, and tracking every card label shares. Split out because
+ * the Danger card needs the same type at a different colour and margin, and
+ * Tailwind resolves competing utilities by stylesheet order, not by the order
+ * they appear in a class attribute — so appending an override is unreliable.
+ */
+export const CARD_LABEL_BASE = "font-mono text-[0.75rem] font-medium uppercase tracking-[0.1em]";
+export const CARD_LABEL = `${CARD_LABEL_BASE} text-stone-300 m-0 mb-3`;
 
 export const TONE_TEXT: Record<StatusTone, string> = {
   ok: "text-green-300",
