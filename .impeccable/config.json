@@ -1,4 +1,11 @@
 {
+  "hook": {
+    "enabled": true,
+    "limits": {
+      "maxFindings": 5,
+      "maxChars": 8000
+    }
+  },
   "detector": {
     "ignoreRules": [],
     "ignoreFiles": [],
@@ -9,7 +16,7 @@
         "files": [
           "src/views/html.ts"
         ],
-        "createdAt": "2026-08-24T03:27:32.184Z",
+        "createdAt": "2026-08-24T16:56:23.481Z",
         "reason": "User confirmed: the four hits are documented DESIGN.md pairs (Hearth on Ember for button-primary; Chalk on Scorch Deep/Rule for danger surfaces), all high-contrast. Rule targets washed-out mid-grays, which this palette does not use on fills."
       },
       {
@@ -18,7 +25,7 @@
         "files": [
           "src/views/shared.ts"
         ],
-        "createdAt": "2026-08-24T16:42:59.409Z",
+        "createdAt": "2026-08-24T16:56:29.039Z",
         "reason": "User confirmed: documented DESIGN.md pairs (Hearth on Ember for button-primary; Chalk on Scorch Rule for danger hover), both high-contrast; rule targets washed-out mid-greys this palette never puts on a fill"
       },
       {
@@ -27,16 +34,9 @@
         "files": [
           "src/views/shell.ts"
         ],
-        "createdAt": "2026-08-24T16:48:19.333Z",
-        "reason": "Controller ruling: renderPageNotice is Chalk on Ember Deep at 60%, a documented DESIGN.md pair measured at 8.15:1; the rule's flat heuristic cannot see alpha compositing, same false-positive class as the html.ts and shared.ts waivers"
+        "createdAt": "2026-08-24T16:56:36.179Z",
+        "reason": "Controller ruling: renderPageNotice is Chalk on Ember Deep at 60% over the page ground, a documented DESIGN.md pair measured at 15.65:1; the rule's flat heuristic cannot see alpha compositing, same false-positive class as the html.ts and shared.ts waivers"
       }
     ]
-  },
-  "hook": {
-    "enabled": true,
-    "limits": {
-      "maxFindings": 5,
-      "maxChars": 8000
-    }
   }
 }
