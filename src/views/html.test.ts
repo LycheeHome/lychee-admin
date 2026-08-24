@@ -28,7 +28,7 @@ const NEXT_SITE: Site = {
  * would pass on any page that happens to mention the attribute somewhere else.
  */
 function tagById(html: string, id: string): string {
-  const match = html.match(new RegExp(`<[a-z]+[^>]*\\bid="${id}"[^>]*>`));
+  const match = html.match(new RegExp(`<[a-z]+[^>]* id="${id}"[^>]*>`));
   assert.ok(match, `no element with id="${id}" was rendered`);
   return match[0];
 }
