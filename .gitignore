@@ -6,3 +6,16 @@ dist/
 public/style.css
 .claude/worktrees/
 .superpowers/
+
+# Impeccable design-tool state. The directory is deliberately NOT ignored:
+# .impeccable/config.json carries the detector waivers and the reasoning behind
+# them, .impeccable/design.json is the DESIGN.md sidecar, and both are meant to
+# travel with the repo. Only the machine-local files below are excluded — the
+# cache and roots manifest hold absolute paths, and the session journals are
+# scratch. (The plugin also writes these to .git/info/exclude, which does not
+# survive a clone; this does.)
+.impeccable/config.local.json
+.impeccable/hook.cache.json
+.impeccable/hook.pending.json
+.impeccable/live/roots.json
+.impeccable/live/sessions/
