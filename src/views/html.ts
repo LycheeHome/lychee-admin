@@ -130,7 +130,7 @@ export function renderAddSite(
               <input type="radio" name="type" value="static" checked class="accent-stone-300" />
               Static site
             </span>
-            <span class="text-stone-400 text-[0.75rem] leading-snug pl-[1.55rem]">Serves plain files from <code class="font-mono">/var/www/&lt;hostname&gt;</code>, which lyly-admin creates for you with a placeholder page — no process to run yourself.</span>
+            <span class="text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]">Serves plain files from <code class="font-mono">/var/www/&lt;hostname&gt;</code>, which lyly-admin creates for you with a placeholder page — no process to run yourself.</span>
           </label>
 
           <label class="flex flex-col gap-1 rounded-md border border-stone-700 bg-transparent px-3 py-2.5 cursor-pointer transition-colors hover:bg-stone-800/40 has-[:checked]:bg-rose-950/50 has-[:checked]:border-rose-800/70">
@@ -138,7 +138,7 @@ export function renderAddSite(
               <input type="radio" name="type" value="reverse-proxy" class="accent-rose-400" />
               Reverse proxy
             </span>
-            <span class="text-stone-400 text-[0.75rem] leading-snug pl-[1.55rem]">Routes to a process you already run and manage yourself on a local port (e.g. <code class="font-mono">next start</code>). lyly-admin only wires up the routing — it won't start, stop, or restart that process for you.</span>
+            <span class="text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]">Routes to a process you already run and manage yourself on a local port (e.g. <code class="font-mono">next start</code>). lyly-admin only wires up the routing — it won't start, stop, or restart that process for you.</span>
           </label>
         </fieldset>
 
@@ -194,7 +194,7 @@ function renderHop(hop: Hop): string {
   return `<div class="min-w-0">
             <p class="${HOP_LABEL}">${escapeHtml(hop.label)}</p>
             <p class="${HOP_VALUE}">${escapeHtml(hop.value)}</p>
-            ${hop.sub ? `<p class="font-mono text-[0.65rem] ${hop.subClass ?? "text-stone-400"} m-0 break-all">${escapeHtml(hop.sub)}</p>` : ""}
+            ${hop.sub ? `<p class="font-mono text-[0.72rem] ${hop.subClass ?? "text-stone-400"} m-0 break-all">${escapeHtml(hop.sub)}</p>` : ""}
           </div>`;
 }
 
@@ -322,7 +322,7 @@ function commandBlock(id: string, value: string, cwd?: string): string {
               <pre id="${id}" class="${CODE_LINE}">${escapeHtml(value)}</pre>
               ${copyButton(id, "Copy command", COPY_IN_LINE)}
             </div>
-            ${cwd ? `<p class="font-mono text-[0.65rem] text-stone-400 m-0 mt-1">in ${escapeHtml(cwd)}/</p>` : ""}`;
+            ${cwd ? `<p class="font-mono text-[0.72rem] text-stone-400 m-0 mt-1">in ${escapeHtml(cwd)}/</p>` : ""}`;
 }
 
 interface ManualStep {
@@ -488,7 +488,7 @@ function renderHostnameSwitcher(site: Site, opts: SiteDetailOptions): string {
       const current = entry.hostname === site.hostname;
       return `<li><a href="/sites/${encodeURIComponent(entry.hostname)}" class="${SWITCHER_ROW}"${
         current ? ` aria-current="page"` : ""
-      }><span>${escapeHtml(lead)}${dimmed ? `<span class="text-stone-400">${escapeHtml(dimmed)}</span>` : ""}</span><span class="text-[0.65rem] text-stone-400 shrink-0">${escapeHtml(typeHint(entry))}</span></a></li>`;
+      }><span>${escapeHtml(lead)}${dimmed ? `<span class="text-stone-400">${escapeHtml(dimmed)}</span>` : ""}</span><span class="text-[0.72rem] text-stone-300 shrink-0">${escapeHtml(typeHint(entry))}</span></a></li>`;
     })
     .join("");
 

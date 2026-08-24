@@ -821,4 +821,27 @@ describe("small-text ramp", () => {
     const html = renderSiteList(SITES, { "api.lyly.dev": { kind: "tcp", responding: false } });
     assert.match(html, /inline-flex items-center gap-1 shrink-0 font-mono text-\[0\.6875rem\] uppercase/);
   });
+
+  test("small mono values sit on the code step, not the pill step", () => {
+    const html = renderSiteDetail(NEXT_SITE, OPTS);
+    assert.doesNotMatch(html, /text-\[0\.65rem\]/);
+  });
+
+  test("the switcher's current row states its port at readable contrast", () => {
+    const html = renderSiteDetail(NEXT_SITE, OPTS);
+    // stone-400 on the highlighted row measured 3.98:1; stone-300 clears 4.5:1.
+    assert.doesNotMatch(html, /text-\[0\.65rem\] text-stone-400 shrink-0/);
+  });
+
+  test("the type-option description clears AA on its raised card", () => {
+    const html = renderAddSite(SITES, "lyly.dev", {});
+    // Anchored to the two type-option <label> cards themselves, not the whole
+    // document — a document-wide regex here would also catch the header
+    // nav's unrelated bg-stone-700/text-stone-400 pairing and pass vacuously.
+    // On the checked state's raised background, the description measured
+    // 3.98:1 at 12px in stone-400; stone-300 clears 4.5:1.
+    const cards = html.match(/<label[^>]*has-\[:checked\][\s\S]*?<\/label>/g) ?? [];
+    assert.equal(cards.length, 2, "expected two type-option cards");
+    for (const card of cards) assert.doesNotMatch(card, /text-stone-400/);
+  });
 });
