@@ -577,8 +577,8 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       ${renderDangerZone()}
     </div>
 
-    <dialog id="confirm-remove-dialog" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
-      <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Remove site</h2>
+    <dialog id="confirm-remove-dialog" aria-labelledby="confirm-remove-title" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
+      <h2 id="confirm-remove-title" class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Remove site</h2>
       <p class="m-0 mb-3 leading-relaxed">Remove <strong>${escapeHtml(site.hostname)}</strong>? In this order:</p>
       <ol class="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 p-0 list-none grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
         <li class="flex gap-2"><span class="text-stone-400 shrink-0">1.</span><span>Caddyfile block removed</span></li>
@@ -589,7 +589,7 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mb-4">If a step fails, the ones after it don't run.</p>
       ${deleteFilesSection}
       <div class="flex justify-end gap-2.5">
-        <button type="button" class="${BUTTON_SECONDARY}" data-close-dialog="confirm-remove-dialog">Cancel</button>
+        <button type="button" autofocus class="${BUTTON_SECONDARY}" data-close-dialog="confirm-remove-dialog">Cancel</button>
         <button type="button" id="confirm-remove-submit" class="${BUTTON_DANGER}" data-hostname="${escapeHtml(site.hostname)}">${icon("trash")}Remove site</button>
       </div>
     </dialog>

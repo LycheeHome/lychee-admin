@@ -619,6 +619,26 @@ describe("renderSiteDetail danger zone", () => {
   });
 });
 
+describe("remove dialog accessibility", () => {
+  test("the dialog names itself with its own heading", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    const dialog = tagById(html, "confirm-remove-dialog");
+    assert.match(dialog, /aria-labelledby="confirm-remove-title"/);
+    // The id must actually exist, or the reference dangles and the dialog
+    // still announces as bare "dialog".
+    assert.ok(tagById(html, "confirm-remove-title"));
+  });
+
+  test("focus opens on Cancel, never on the delete-files checkbox", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    const cancel = html.match(/<button[^>]*data-close-dialog="confirm-remove-dialog"[^>]*>/);
+    assert.ok(cancel, "no Cancel button was rendered");
+    assert.match(cancel[0], /\bautofocus\b/);
+    const checkbox = tagById(html, "confirm-remove-delete-files");
+    assert.doesNotMatch(checkbox, /\bautofocus\b/);
+  });
+});
+
 describe("renderSiteDetail escaping", () => {
   test("escapes a hostile hostname and healthcheckPath everywhere they render", () => {
     // Hostnames are validated on write (POST /sites), but GET /sites/:hostname
