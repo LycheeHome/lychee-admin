@@ -419,7 +419,16 @@ describe("renderSiteDetail deploy", () => {
     );
     // Anchored to the Deploy card: the breadcrumb's hostname switcher is its
     // own, unrelated <details> elsewhere on the page.
-    const card = html.split("Deploy</h3>")[1].split("</section>")[0];
+    //
+    // Split in two steps, with an assert.ok in between, rather than chaining
+    // straight through to a slice: the doesNotMatch calls below pass
+    // trivially on an empty string, so if "Deploy</h3>" ever stopped
+    // appearing this needs to fail with a clear message here, not let the
+    // second .split silently produce "" (or throw an opaque TypeError on
+    // undefined) and have the negative assertions pass having proven nothing.
+    const [, afterDeployHeading] = html.split("Deploy</h3>");
+    assert.ok(afterDeployHeading, "expected a Deploy card to anchor to");
+    const card = afterDeployHeading.split("</section>")[0];
     assert.doesNotMatch(card, /<details/);
     assert.doesNotMatch(card, /<summary/);
     // Deploy is a plain card like Request path and Manual steps.
@@ -438,7 +447,13 @@ describe("renderSiteDetail deploy", () => {
     // hostname switcher is a legitimate <details> with its own scrollable
     // dropdown elsewhere on this page, and a page-wide assertion would trip on
     // that unrelated control instead of testing what this card does.
-    const card = html.split("Deploy</h3>")[1].split("</section>")[0];
+    //
+    // Same two-step split as the test above: the doesNotMatch calls below
+    // pass trivially on an empty string, so the anchor is checked explicitly
+    // before trusting a negative result against the slice.
+    const [, afterDeployHeading] = html.split("Deploy</h3>");
+    assert.ok(afterDeployHeading, "expected a Deploy card to anchor to");
+    const card = afterDeployHeading.split("</section>")[0];
     // No max-height and no vertical overflow inside the card: a scrollbar
     // inside a page you are already scrolling is worse than a tall block, and
     // this is a file you may want to read rather than only copy.
