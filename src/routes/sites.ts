@@ -6,6 +6,7 @@ import * as tunnelConfig from "../lib/tunnelConfig";
 import { CommandError } from "../lib/systemCommands";
 import { getFrameworkScaffold } from "../lib/frameworkScaffold";
 import { checkPortOpen } from "../lib/portStatus";
+import { REMOVE_STEPS, createStepReport } from "../lib/stepReport";
 import { renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "../views/html";
 import type { SiteStatus } from "../lib/siteDisplay";
 import type { Site } from "../lib/caddyfile";
@@ -328,6 +329,9 @@ export function createSitesRouter(deps: Deps): Router {
     let tunnelContent: string | undefined;
     let caddyReloaded = false;
 
+    const report = createStepReport(REMOVE_STEPS);
+    let rolledBack = false;
+
     try {
       caddyfileContent = deps.fs.readFile(config.caddyfilePath);
       const existingSite = caddyfile.parseSites(caddyfileContent).find((site) => site.hostname === hostname);
@@ -335,15 +339,25 @@ export function createSitesRouter(deps: Deps): Router {
       backupFile(config.caddyfilePath);
       backupFile(config.tunnelConfigPath);
 
-      await deps.commands.writeManagedConfig(config.caddyfilePath, caddyfile.removeSite(caddyfileContent, hostname));
+      await report.run("caddyfile", () =>
+        deps.commands.writeManagedConfig(config.caddyfilePath, caddyfile.removeSite(caddyfileContent!, hostname)),
+      );
 
       tunnelContent = deps.fs.readFile(config.tunnelConfigPath);
-      await deps.commands.writeManagedConfig(config.tunnelConfigPath, tunnelConfig.removeIngressRule(tunnelContent, hostname));
+      await report.run("tunnel", () =>
+        deps.commands.writeManagedConfig(
+          config.tunnelConfigPath,
+          tunnelConfig.removeIngressRule(tunnelContent!, hostname),
+        ),
+      );
 
-      await deps.commands.validateCaddyfile(config.caddyfilePath);
-      await deps.commands.reloadCaddy();
-      caddyReloaded = true;
-      await deps.commands.restartCloudflared();
+      await report.run("caddy", async () => {
+        await deps.commands.validateCaddyfile(config.caddyfilePath);
+        await deps.commands.reloadCaddy();
+        caddyReloaded = true;
+      });
+
+      await report.run("cloudflared", () => deps.commands.restartCloudflared());
 
       logAction({ action: "remove-site", hostname });
 
@@ -352,11 +366,11 @@ export function createSitesRouter(deps: Deps): Router {
       const filesPath = existingSite ? caddyfile.computeFilesPath(existingSite, config.sitesRoot) : null;
 
       if (wantsFileDelete && filesPath) {
-        res.json({ removed: true, needsFileConfirm: true, sitePath: filesPath });
+        res.json({ removed: true, needsFileConfirm: true, sitePath: filesPath, steps: report.steps() });
         return;
       }
 
-      res.json({ removed: true, needsFileConfirm: false });
+      res.json({ removed: true, needsFileConfirm: false, steps: report.steps() });
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
       logAction({ action: "remove-site-failed", hostname, detail: message });
@@ -369,6 +383,7 @@ export function createSitesRouter(deps: Deps): Router {
           await deps.commands.writeManagedConfig(config.caddyfilePath, caddyfileContent);
           await deps.commands.writeManagedConfig(config.tunnelConfigPath, tunnelContent);
           logAction({ action: "remove-site-rolled-back", hostname });
+          rolledBack = true;
         } catch (rollbackError) {
           const rollbackMessage =
             rollbackError instanceof CommandError
@@ -377,12 +392,14 @@ export function createSitesRouter(deps: Deps): Router {
           logAction({ action: "remove-site-rollback-failed", hostname, detail: rollbackMessage });
           res.status(500).json({
             error: `${message}\n\nAdditionally, restoring the original config failed: ${rollbackMessage}\n\nManual recovery needed — backups are in ${config.backupDir}.`,
+            steps: report.steps(),
+            rolledBack: false,
           });
           return;
         }
       }
 
-      res.status(500).json({ error: message });
+      res.status(500).json({ error: message, steps: report.steps(), rolledBack });
     }
   });
 

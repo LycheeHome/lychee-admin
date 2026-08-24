@@ -315,10 +315,21 @@ describe("POST /sites — reverse proxy", () => {
 });
 
 describe("POST /sites/:hostname/delete", () => {
+  const OK_REMOVE_STEPS = [
+    { id: "caddyfile", label: "Caddyfile block removed", status: "ok" },
+    { id: "tunnel", label: "Tunnel route removed", status: "ok" },
+    { id: "caddy", label: "Caddy validated and reloaded", status: "ok" },
+    { id: "cloudflared", label: "cloudflared-sites restarted", status: "ok" },
+  ];
+
   test("removes the Caddyfile block and the ingress rule", async () => {
     const response = await request("/sites/blog.lyly.dev/delete", form({}));
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { removed: true, needsFileConfirm: false });
+    assert.deepEqual(await response.json(), {
+      removed: true,
+      needsFileConfirm: false,
+      steps: OK_REMOVE_STEPS,
+    });
 
     assert.doesNotMatch(fakeFs.readFile(CADDYFILE), /http:\/\/blog\.lyly\.dev \{/);
     assert.doesNotMatch(fakeFs.readFile(TUNNEL_CONFIG), /hostname: blog\.lyly\.dev/);
@@ -330,6 +341,7 @@ describe("POST /sites/:hostname/delete", () => {
       removed: true,
       needsFileConfirm: true,
       sitePath: `${SITES_ROOT}/blog.lyly.dev`,
+      steps: OK_REMOVE_STEPS,
     });
   });
 
@@ -340,6 +352,86 @@ describe("POST /sites/:hostname/delete", () => {
     await request("/sites/blog.lyly.dev/delete", form({ deleteFiles: "on" }));
 
     assert.equal(fakeFs.hasFile(path.join(SITES_ROOT, "blog.lyly.dev", "index.html")), true);
+  });
+
+  test("a successful removal reports all four steps as ok", async () => {
+    const response = await request("/sites/blog.lyly.dev/delete", form({}));
+    const body = await json<{ steps: { id: string; status: string }[] }>(response);
+    assert.deepEqual(
+      body.steps.map((step) => [step.id, step.status]),
+      [
+        ["caddyfile", "ok"],
+        ["tunnel", "ok"],
+        ["caddy", "ok"],
+        ["cloudflared", "ok"],
+      ],
+    );
+  });
+
+  test("a failed tunnel edit reports the failing step and leaves later steps not-run", async () => {
+    // lychee.local has a Caddyfile block but deliberately no ingress rule
+    // in SEED_TUNNEL, so removeIngressRule throws after the Caddyfile has
+    // already been rewritten — same arrangement as the rollback test
+    // "restores the Caddyfile when the tunnel edit fails during remove".
+    const response = await request("/sites/lychee.local/delete", form({}));
+    assert.equal(response.status, 500);
+    const body = await json<{ steps: { id: string; status: string }[]; rolledBack: boolean }>(response);
+    const byId = Object.fromEntries(body.steps.map((s) => [s.id, s.status]));
+    assert.equal(byId.caddyfile, "ok");
+    assert.equal(byId.tunnel, "failed");
+    assert.equal(byId.caddy, "not-run");
+    assert.equal(byId.cloudflared, "not-run");
+    // caddyReloaded was still false, so the handler restored both files.
+    assert.equal(body.rolledBack, true);
+  });
+
+  test("a failure after Caddy reloaded reports that the config was left in place", async () => {
+    // Same arrangement as the rollback test "does not roll back once Caddy
+    // has already reloaded, even if cloudflared then fails": a fake whose
+    // restartCloudflared rejects, on its own app/server since every other
+    // test in this file needs restartCloudflared to succeed.
+    const { createApp } = await import("../app");
+    const { createBackup } = await import("../lib/backup");
+    const { createLogger } = await import("../lib/logger");
+    const { createFakes } = await import("../dev/fakes");
+
+    const fakes = createFakes({
+      restartCloudflared: () => Promise.reject(new Error("cloudflared-sites restart failed")),
+    });
+    fakes.fs.mkdir(SITES_ROOT);
+    fakes.fs.writeFile(CADDYFILE, SEED_CADDYFILE);
+    fakes.fs.writeFile(TUNNEL_CONFIG, SEED_TUNNEL);
+
+    const app = createApp({
+      commands: fakes.commands,
+      fs: fakes.fs,
+      backup: createBackup(fakes.fs),
+      logger: createLogger(fakes.fs),
+    });
+
+    const localServer = app.listen(0);
+    await once(localServer, "listening");
+    const address = localServer.address();
+    assert.ok(address && typeof address === "object");
+    const localBaseUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const formInit = form({});
+      const response = await fetch(`${localBaseUrl}/sites/blog.lyly.dev/delete`, {
+        ...formInit,
+        headers: { Authorization: AUTH, ...formInit.headers },
+      });
+
+      assert.equal(response.status, 500);
+      const body = await json<{ steps: { id: string; status: string }[]; rolledBack: boolean }>(response);
+      const byId = Object.fromEntries(body.steps.map((s) => [s.id, s.status]));
+      assert.equal(byId.caddy, "ok");
+      assert.equal(byId.cloudflared, "failed");
+      assert.equal(body.rolledBack, false);
+    } finally {
+      localServer.close();
+      await once(localServer, "close");
+    }
   });
 });
 
