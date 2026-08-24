@@ -23,10 +23,6 @@ function showBanner(message, kind) {
     flashBannerClose.classList.add("hidden");
     // No auto-dismiss: the caller replaces this banner with a terminal
     // success/error banner once the in-flight operation resolves.
-  } else if (kind === "persistent") {
-    flashBanner.classList.add("bg-rose-950/60", "border-rose-400/70");
-    flashBannerClose.classList.remove("hidden");
-    // No auto-dismiss: stays until the user dismisses it themselves.
   } else {
     flashBanner.classList.add("bg-rose-950/60", "border-rose-400/70");
     flashBannerClose.classList.add("hidden");
@@ -41,22 +37,20 @@ function hideBanner() {
 
 flashBannerClose?.addEventListener("click", hideBanner);
 
+// The server-rendered page notice (?created=1) is a different element: it sits
+// in the content column and takes layout space, so dismissing it removes it
+// rather than hiding it — there is nothing to bring back.
+const pageNotice = document.getElementById("page-notice");
+document.getElementById("page-notice-close")?.addEventListener("click", () => pageNotice?.remove());
+
 const removedHostname = new URLSearchParams(window.location.search).get("removed");
 if (removedHostname) {
   showBanner(`Removed ${removedHostname}. Remember to remove the DNS record in Cloudflare manually.`, "success");
   history.replaceState(null, "", "/");
 }
 
-// After adding a site, the freshly rendered card comes from the server
-// (not hand-built here) so it can never drift from the real template —
-// re-fetch the list and swap in just the grid, then re-wire the new cards.
-async function refreshSitesGrid() {
-  const response = await fetch("/");
-  const html = await response.text();
-  const newGrid = new DOMParser().parseFromString(html, "text/html").querySelector(".sites-grid");
-  const currentGrid = document.querySelector(".sites-grid");
-  if (!newGrid || !currentGrid) return;
-  currentGrid.innerHTML = newGrid.innerHTML;
+if (new URLSearchParams(window.location.search).has("created")) {
+  history.replaceState(null, "", window.location.pathname);
 }
 
 document.getElementById("confirm-remove-submit")?.addEventListener("click", async (event) => {
@@ -139,20 +133,9 @@ function validatePortField() {
 
 portField?.addEventListener("input", validatePortField);
 
-const addSiteDialog = document.getElementById("add-site-dialog");
 const addSiteForm = document.getElementById("add-site-form");
 const addSiteError = document.getElementById("add-site-error");
 let addSiteInFlight = false;
-
-// Fires on every close (Cancel, backdrop click, Esc, or our own .close()
-// after a successful add) so the dialog always starts fresh next time.
-addSiteDialog?.addEventListener("close", () => {
-  addSiteError?.classList.add("hidden");
-  addSiteForm?.reset();
-  syncPortField();
-  syncFrameworkFields();
-  validatePortField();
-});
 
 addSiteForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -175,18 +158,20 @@ addSiteForm?.addEventListener("submit", async (event) => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? "Failed to add site");
 
-    addSiteDialog?.close();
-    await refreshSitesGrid();
-    if (result.type === "reverse-proxy") portOwners[result.target] = result.hostname;
-    const scaffoldNote =
-      result.framework === "nextjs"
-        ? ` A Next.js scaffold was created at /var/www/${result.hostname}/ — add your app source and run "docker compose up -d --build" there.`
-        : "";
-    showBanner(
-      `Added ${result.hostname}.${scaffoldNote} Don't forget to add the DNS record: cloudflared tunnel route dns ${result.tunnelId} ${result.hostname}`,
-      "persistent",
-    );
+    // Land on the new site's own page: its Manual steps already states the
+    // DNS command permanently, and a full navigation leaves the breadcrumb
+    // switcher listing the site we just created. addSiteInFlight is
+    // deliberately left true here rather than reset in a `finally` — the
+    // fetch already resolved, but window.location.href doesn't navigate
+    // synchronously, so the form stays interactive and submittable until the
+    // new document loads. Resetting the flag on this path reopened that
+    // window: a second click before navigation lands would re-POST the same
+    // hostname, which the server then rejects as a duplicate, on a page that
+    // just succeeded. The pageshow listener below reopens the form for the one
+    // case where this document does come back.
+    window.location.href = `/sites/${encodeURIComponent(result.hostname)}?created=1`;
   } catch (error) {
+    addSiteInFlight = false;
     if (addSiteError) {
       // Unhide before writing: role="alert" announces content changes inside a
       // visible region, and a display:none element is not exposed at all, so
@@ -194,9 +179,18 @@ addSiteForm?.addEventListener("submit", async (event) => {
       addSiteError.classList.remove("hidden");
       addSiteError.textContent = error.message;
     }
-  } finally {
-    addSiteInFlight = false;
   }
+});
+
+// Back-navigation from the created site restores this page from the bfcache,
+// which restores the JS heap along with the DOM — nothing here opts out of it
+// (no Cache-Control: no-store). Without this the form would come back with
+// addSiteInFlight still true from the submit that navigated away, and every
+// later click would be swallowed by the guard above with no error shown.
+// event.persisted is only true on a bfcache restore, so this cannot reopen the
+// double-submit window on a live page.
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) addSiteInFlight = false;
 });
 
 document.querySelectorAll("[data-open-dialog]").forEach((trigger) => {
@@ -258,3 +252,48 @@ document.querySelectorAll("dialog.modal").forEach((dialog) => {
     if (!inside) dialog.close();
   });
 });
+
+const siteSwitcher = document.getElementById("hostname-switcher");
+
+if (siteSwitcher) {
+  const summary = siteSwitcher.querySelector("summary");
+  const rows = () => Array.from(siteSwitcher.querySelectorAll("a"));
+
+  const close = ({ refocus } = {}) => {
+    siteSwitcher.open = false;
+    if (refocus) summary?.focus();
+  };
+
+  // Not the bounding-rect check used for dialog.modal: that exists because a
+  // <dialog>'s backdrop is part of the element. A dropdown has no backdrop,
+  // so containment is both correct and simpler.
+  document.addEventListener("click", (event) => {
+    if (siteSwitcher.open && !siteSwitcher.contains(event.target)) close();
+  });
+
+  siteSwitcher.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      close({ refocus: true });
+      return;
+    }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+
+    event.preventDefault();
+    if (!siteSwitcher.open) {
+      siteSwitcher.open = true;
+      rows()[0]?.focus();
+      return;
+    }
+    const items = rows();
+    const index = items.indexOf(document.activeElement);
+    const step = event.key === "ArrowDown" ? 1 : -1;
+    // From the summary (index -1), ArrowDown lands on the first row and
+    // ArrowUp on the last.
+    const next = index === -1 ? (step === 1 ? 0 : items.length - 1) : index + step;
+    items[Math.max(0, Math.min(items.length - 1, next))]?.focus();
+  });
+
+  siteSwitcher.addEventListener("focusout", (event) => {
+    if (!siteSwitcher.contains(event.relatedTarget)) close();
+  });
+}

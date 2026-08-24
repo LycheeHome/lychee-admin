@@ -5,6 +5,7 @@ import { once } from "node:events";
 import type { Server } from "node:http";
 import bcrypt from "bcrypt";
 import type { createInMemoryFileSystem } from "../dev/fakes";
+import { withoutHeader } from "../dev/testHelpers";
 
 // --- Fixture layout -------------------------------------------------------
 // These must match what config resolves to, since nothing redirects them
@@ -147,13 +148,77 @@ describe("authentication", () => {
 describe("GET /", () => {
   test("lists managed sites", async () => {
     const body = await (await request("/")).text();
-    assert.match(body, /blog\.lyly\.dev/);
-    assert.match(body, /api\.lyly\.dev/);
+    // Stripped of the header: it carries its own "sites" and "add site"
+    // links on every page, so matching the whole body would no longer prove
+    // a card rendered — it would pass off the header alone.
+    const page = withoutHeader(body);
+    assert.match(page, /blog\.lyly\.dev/);
+    assert.match(page, /api\.lyly\.dev/);
   });
 
   test("omits hostnames outside the managed domain", async () => {
     const body = await (await request("/")).text();
     assert.doesNotMatch(body, /lychee\.local/);
+  });
+});
+
+describe("status on the site list", () => {
+  // "&#9679;" is the literal entity the pill span renders (see the pill
+  // convention noted in src/views/html.test.ts) — a raw "●" character never
+  // appears in this markup, so the regex matches the entity, not the glyph.
+  test("reports each proxy site's status", async () => {
+    const page = withoutHeader(await (await request("/")).text());
+    // api.lyly.dev is the seeded plain proxy on port 4000. Nothing listens
+    // there during the test, so the tcp check resolves either way — the
+    // assertion is that a canonical status word reached the card at all.
+    assert.match(page, /&#9679; (responding|not responding)/);
+  });
+
+  test("says nothing about a static site's liveness", async () => {
+    const page = withoutHeader(await (await request("/")).text());
+    const card = page.match(/<a href="\/sites\/blog\.lyly\.dev"[\s\S]*?<\/a>/)?.[0] ?? "";
+    assert.ok(card, "expected a card for the static site");
+    assert.doesNotMatch(card, /&#9679;/);
+  });
+});
+
+describe("GET / when the Caddyfile can't be read", () => {
+  // GET / became async when the status read was added. An async Express 4
+  // handler that throws (rather than returning a rejected promise Express
+  // can see) leaves the request hanging and crashes the process on the
+  // unhandled rejection — the exact failure this app exists to surface, not
+  // hide. This proves the try/catch around it turns that into an ordinary
+  // 500 instead.
+  test("returns 500 with the error text, rather than hanging or crashing the process", async () => {
+    fakeFs.rmRecursive(CADDYFILE);
+
+    const response = await request("/");
+
+    assert.equal(response.status, 500);
+    const body = await response.text();
+    assert.match(body, /ENOENT/);
+  });
+});
+
+describe("GET /sites/new", () => {
+  test("serves the add-site form with port-conflict data", async () => {
+    const response = await request("/sites/new");
+    assert.equal(response.status, 200);
+    const body = await response.text();
+    assert.match(body, /id="add-site-form"/);
+    assert.match(body, /id="port-owners-data"/);
+    // Stripped of the header: its "sites"/"add site" links carry no
+    // hostnames, so this doesn't change what the assertion below proves, but
+    // it keeps this test consistent with the others that strip it.
+    const page = withoutHeader(body);
+    // 4000 is api.lyly.dev in the fixture; 8787 is lyly-admin's own PORT.
+    assert.match(page, /api\.lyly\.dev/);
+    assert.match(page, /8787/);
+  });
+
+  test("is not mistaken for a hostname by the detail route", async () => {
+    const body = await (await request("/sites/new")).text();
+    assert.doesNotMatch(body, /No managed site found/);
   });
 });
 

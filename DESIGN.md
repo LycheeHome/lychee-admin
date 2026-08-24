@@ -381,10 +381,13 @@ a wider window means more sites per row. A site's detail page caps at 760px and
 stays one column, because everything on it is either a sentence to read or a
 command to copy, and neither improves at 1200px.
 
-The page ground has 24px of horizontal padding and a 40px-tall header band
-holding only the wordmark; content starts below it with 24px gaps between
-sections. Inside a card, the rhythm is 20px padding (24px on site cards and
-dialogs), a 12px gap between a label and its content, and a `1px` Hairline rule
+The page ground has 24px of horizontal padding and a 64px-tall header band
+(32px of content height under 16px top and bottom padding) holding the wordmark
+and the two host-level nav items, aligned to the same 1080px container as the
+content below it; content starts below it with 24px gaps between sections.
+Content width equals viewport width, so `sm` (640px) means what it says.
+Inside a card, the rhythm is 20px padding (24px on site cards and dialogs), a
+12px gap between a label and its content, and a `1px` Hairline rule
 with 16px of air on both sides wherever one card holds two kinds of content —
 the request path's hops and its detail rows, or the Deploy workflow and what the
 image bakes in.
@@ -534,11 +537,31 @@ value between steps, and never a large radius to look friendlier.
 
 ### Navigation
 
-A single breadcrumb line above a detail page's headline: 0.72rem mono, `sites`
-in Smoke (hover to Chalk plus underline), a Hairline Strong `/` with 6px margins
-(decorative punctuation, the one small-text exception in The Dim-Text Rule), and
-the current hostname in Chalk. No global nav, no tabs, no sidebar in the
-incumbent implementation — the list is the only other place to be.
+Two tiers, each scoped to what it navigates.
+
+**The header band** is a 1080px centred band with no background and no bottom
+rule, aligned to the same container as the content below it: the
+`lyly.admin` wordmark as a home link at Display 1.5rem, then flat items —
+`sites` and `add site` — at 0.85rem mono, Smoke going Chalk on hover.
+`aria-current="page"` is both the accessibility signal and the
+styling hook (the arbitrary `aria-[current=page]:` variant, since Tailwind ships
+no built-in one): Chalk text on a Hairline fill with a 2px Ember Edge left rule
+— deliberately not the `proxy` pill's Ember fill, so a nav item and a type pill
+never look alike. A header item's destination never changes with location, so
+`/sites/:hostname` marks neither item current; the breadcrumb carries the
+location instead.
+
+**The breadcrumb's hostname dropdown**, on the detail page only: a `<details>`
+disclosure over the breadcrumb's hostname, opening a 10px-radius panel listing
+every managed site with a `static`/`:<port>` hint and no status (a status check
+per row would mean N checks on every detail-page load instead of the list
+page's one page, N checks). No truncation anywhere, including the long-hostname
+case. `max-h-[70vh]` is the floating-panel exception to The Show-It Rule — a
+panel taller than the viewport cannot be reached regardless.
+
+Per-site tabs are deferred until a second tall, task-specific section exists
+alongside Deploy (most likely container logs); one such section does not make
+a tab strip.
 
 ### Command Block (signature component)
 

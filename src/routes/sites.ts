@@ -6,8 +6,9 @@ import * as tunnelConfig from "../lib/tunnelConfig";
 import { CommandError } from "../lib/systemCommands";
 import { getFrameworkScaffold } from "../lib/frameworkScaffold";
 import { checkPortOpen } from "../lib/portStatus";
-import { renderSiteDetail, renderSiteList, renderSiteNotFound } from "../views/html";
+import { renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "../views/html";
 import type { SiteStatus } from "../lib/siteDisplay";
+import type { Site } from "../lib/caddyfile";
 import type { Deps } from "../deps";
 
 // Caddy's built-in admin API — always on localhost:2019 regardless of
@@ -37,34 +38,74 @@ function isManagedHostname(hostname: string): boolean {
 const PLACEHOLDER_INDEX_HTML = (hostname: string) =>
   `<!doctype html>\n<html><head><title>${hostname}</title></head><body><h1>${hostname}</h1><p>Site created by lyly-admin. Replace this file with your content.</p></body></html>\n`;
 
+// Ports already spoken for, so the add-site form can flag a conflict
+// client-side as the user types instead of only on submit.
+function computePortOwners(sites: Site[]): Record<string, string> {
+  const portOwners: Record<string, string> = {
+    [String(config.port)]: "reserved (lyly-admin itself)",
+    [String(CADDY_ADMIN_PORT)]: "reserved (Caddy admin API)",
+  };
+  for (const site of sites) {
+    if (site.type === "reverse-proxy") portOwners[site.target] = site.hostname;
+  }
+  return portOwners;
+}
+
+/**
+ * Status for the list page. Reverse-proxy sites only: static sites have no
+ * check today and gain none here. Concurrent, so the page costs the slowest
+ * check rather than their sum — and every call is bounded, because
+ * checkContainerStatus carries its own timeout and checkPortOpen a 500ms one.
+ */
+async function computeStatuses(sites: Site[], deps: Deps): Promise<Record<string, SiteStatus>> {
+  const entries = await Promise.all(
+    sites
+      .filter((site) => site.type === "reverse-proxy")
+      .map(async (site): Promise<[string, SiteStatus]> => {
+        if (site.framework) {
+          return [site.hostname, { kind: "container", ...(await deps.commands.checkContainerStatus(site.hostname)) }];
+        }
+        const port = Number(site.target);
+        return [site.hostname, { kind: "tcp", responding: port >= 1 && port <= 65535 ? await checkPortOpen(port) : false }];
+      }),
+  );
+  return Object.fromEntries(entries);
+}
+
 export function createSitesRouter(deps: Deps): Router {
   const sitesRouter = Router();
   const { backupFile } = deps.backup;
   const { logAction } = deps.logger;
 
-  sitesRouter.get("/", (req, res) => {
+  sitesRouter.get("/", async (req, res) => {
+    try {
+      const content = deps.fs.readFile(config.caddyfilePath);
+      const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname));
+
+      res.send(renderSiteList(sites, await computeStatuses(sites, deps)));
+    } catch (error) {
+      const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
+      res.status(500).send(renderSiteList([], {}, message));
+    }
+  });
+
+  // Registered above /sites/:hostname deliberately: Express matches in
+  // registration order, so if this were below, "new" would be captured as
+  // :hostname, fail isManagedHostname, and 404 instead of rendering the form.
+  sitesRouter.get("/sites/new", (req, res) => {
     const content = deps.fs.readFile(config.caddyfilePath);
     const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname));
-
-    // Ports already spoken for, so the add-site form can flag a conflict
-    // client-side as the user types instead of only on submit.
-    const portOwners: Record<string, string> = {
-      [String(config.port)]: "reserved (lyly-admin itself)",
-      [String(CADDY_ADMIN_PORT)]: "reserved (Caddy admin API)",
-    };
-    for (const site of sites) {
-      if (site.type === "reverse-proxy") portOwners[site.target] = site.hostname;
-    }
-
-    res.send(renderSiteList(sites, config.domain, config.sitesRoot, undefined, portOwners));
+    res.send(renderAddSite(sites, config.domain, computePortOwners(sites)));
   });
 
   sitesRouter.get("/sites/:hostname", async (req, res) => {
     const hostname = req.params.hostname.toLowerCase();
+    const created = req.query.created === "1";
 
     try {
       const content = deps.fs.readFile(config.caddyfilePath);
-      const site = caddyfile.parseSites(content).find((s) => s.hostname === hostname && isManagedHostname(s.hostname));
+      const sites = caddyfile.parseSites(content).filter((s) => isManagedHostname(s.hostname));
+      const site = sites.find((s) => s.hostname === hostname);
 
       // Read for display only, so an unreadable tunnel config must not take the
       // page down — the DNS step falls back to dashboard instructions.
@@ -88,6 +129,8 @@ export function createSitesRouter(deps: Deps): Router {
             tunnelId,
             tunnelConfigPath: config.tunnelConfigPath,
             caddyfilePath: config.caddyfilePath,
+            sites,
+            created,
           }),
         );
         return;
@@ -119,11 +162,16 @@ export function createSitesRouter(deps: Deps): Router {
           caddyfilePath: config.caddyfilePath,
           status,
           scaffold: scaffoldCommands,
+          sites,
+          created,
         }),
       );
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
-      res.status(500).send(renderSiteList([], config.domain, config.sitesRoot, message));
+      // Unlike GET /'s own fallback, this page's URL is /sites/<hostname> —
+      // marking "sites" current here would violate the header's own rule
+      // that an item's destination never changes with location.
+      res.status(500).send(renderSiteList([], {}, message, {}));
     }
   });
 

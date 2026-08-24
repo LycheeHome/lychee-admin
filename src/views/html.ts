@@ -4,102 +4,25 @@ import {
   describeStatus,
   splitHostnameForDisplay,
   type SiteStatus,
-  type StatusTone,
 } from "../lib/siteDisplay";
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-const BUTTON_PRIMARY =
-  "font-sans font-semibold text-sm bg-rose-400 text-stone-900 border-none rounded-md px-4 py-2.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-rose-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
-const BUTTON_SECONDARY =
-  "font-sans font-semibold text-sm bg-transparent text-stone-400 border border-stone-600 rounded-md px-4 py-2.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-stone-700 hover:text-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
-const BUTTON_DANGER =
-  "font-sans font-semibold text-[0.8rem] bg-transparent text-red-300 border border-red-800 rounded-md px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-red-900 hover:text-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
-const INPUT =
-  "font-mono bg-stone-900 border border-stone-700 rounded-md text-stone-50 px-2.5 py-2 text-sm placeholder:text-stone-400 focus:outline focus:outline-2 focus:outline-rose-400 focus:outline-offset-2";
-const FORM_LABEL = "flex flex-col gap-1.5 text-[0.85rem] text-stone-400";
-const STATUS_PILL_BASE =
-  "inline-flex items-center gap-1 shrink-0 font-mono text-[0.65rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-transparent";
-const FOCUS_RING =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
-const DETAIL_WIDTH = "max-w-[760px] mx-auto w-full";
-const TYPE_PILL_STATIC = "border-stone-600 text-stone-50 bg-stone-700";
-const TYPE_PILL_PROXY = "border-transparent text-rose-300 bg-rose-950";
-
-const TONE_PILL: Record<StatusTone, string> = {
-  ok: `${STATUS_PILL_BASE} text-green-300 bg-green-950/60`,
-  bad: `${STATUS_PILL_BASE} text-red-300 bg-red-950/60`,
-  neutral: `${STATUS_PILL_BASE} text-stone-300 bg-stone-700`,
-};
-
-const CARD = "bg-stone-800 border border-stone-700 rounded-[10px] p-5";
-const CARD_LABEL =
-  "font-mono text-[0.625rem] font-medium uppercase tracking-[0.1em] text-stone-400 m-0 mb-3";
-
-const TONE_TEXT: Record<StatusTone, string> = {
-  ok: "text-green-300",
-  bad: "text-red-300",
-  neutral: "text-stone-300",
-};
-
-function layout(title: string, body: string): string {
-  const mainClass = "max-w-[1080px] mx-auto py-6 pb-8 flex flex-col gap-6";
-
-  return `<!doctype html>
-<html lang="en" class="[color-scheme:dark]">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeHtml(title)}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Poetsen+One&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;1,500&family=DM+Mono:wght@300;400;500&display=swap"
-    rel="stylesheet"
-  />
-  <link rel="stylesheet" href="/style.css" />
-</head>
-<body class="min-h-screen bg-stone-900 font-sans text-stone-50 m-0 px-6 pb-16">
-  <header class="max-w-[1080px] mx-auto py-10 pb-12">
-    <h1 class="font-display text-2xl font-semibold tracking-wide text-stone-50 m-0">lyly<span class="text-rose-400">.</span>admin</h1>
-  </header>
-  <main class="${mainClass}">
-    <div id="flash-banner" class="hidden fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[min(480px,calc(100vw-2rem))] font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 border shadow-lg shadow-black/40 flex items-center justify-between gap-3" role="status" aria-live="polite">
-      <span id="flash-banner-message"></span>
-      <button type="button" id="flash-banner-close" class="hidden shrink-0 text-stone-400 hover:text-stone-50 bg-transparent border-none cursor-pointer text-base leading-none" aria-label="Dismiss">&times;</button>
-    </div>
-    <!--
-      Copying is confirmed visually by the icon swapping to a check, which says
-      nothing to a screen reader. The button's own aria-label changes too, but a
-      label change on the focused element is not reliably announced — so the
-      outcome goes here instead. It matters most in the fallback case, where the
-      user has to be told to press Ctrl+C: on plain HTTP, that is every case.
-    -->
-    <span id="copy-status" class="sr-only" role="status" aria-live="polite"></span>
-    ${body}
-  </main>
-  <script src="/app.js"></script>
-</body>
-</html>`;
-}
-
-const ICONS = {
-  plus: `<path d="M5 12h14" /><path d="M12 5v14" />`,
-  trash: `<path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" />`,
-  clipboard: `<rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />`,
-  check: `<path d="M20 6 9 17l-5-5" />`,
-  externalLink: `<path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />`,
-};
-
-function icon(name: keyof typeof ICONS): string {
-  return `<svg class="w-[1em] h-[1em] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
-}
+import { layout, type Nav } from "./shell";
+import {
+  escapeHtml,
+  icon,
+  BUTTON_PRIMARY,
+  BUTTON_SECONDARY,
+  BUTTON_DANGER,
+  INPUT,
+  FORM_LABEL,
+  FOCUS_RING,
+  DETAIL_WIDTH,
+  TYPE_PILL_STATIC,
+  TYPE_PILL_PROXY,
+  CARD,
+  CARD_LABEL,
+  TONE_PILL,
+  TONE_TEXT,
+} from "./shared";
 
 /**
  * The copy affordance app.js already understands: it reads the target
@@ -120,24 +43,33 @@ const FRAMEWORK_LABELS: Record<string, string> = {
 
 export function renderSiteList(
   sites: Site[],
-  domain: string,
-  sitesRoot: string,
+  statuses: Record<string, SiteStatus>,
   error?: string,
-  portOwners: Record<string, string> = {},
+  // Every real caller of this page is GET /, where "sites" is genuinely
+  // current. The one exception is the detail route's 500 fallback, which
+  // renders this same body at /sites/<hostname> and must not claim "sites"
+  // is where the URL points — see its call site in src/routes/sites.ts.
+  nav: Nav = { page: "sites" },
 ): string {
   const cards = sites
     .map((site) => {
       const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
+      const status = statuses[site.hostname];
+      const labels = status ? describeStatus(status) : null;
+      const statusPill = labels
+        ? `<span class="${TONE_PILL[labels.tone]}">&#9679; ${escapeHtml(labels.pill)}</span>`
+        : "";
 
       return `
       <a href="/sites/${encodeURIComponent(site.hostname)}" class="bg-stone-800 border border-stone-700 rounded-[10px] p-6 flex flex-col gap-3.5 motion-safe:transition-colors motion-safe:duration-150 hover:border-rose-800/70 no-underline ${FOCUS_RING}">
         <div class="flex items-start justify-between gap-2">
           <p class="font-display text-base leading-relaxed text-stone-50 m-0 break-words">${escapeHtml(site.hostname)}</p>
-          <span class="inline-block shrink-0 font-mono text-[0.7rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border ${
-            site.type === "static"
-              ? "border-stone-600 text-stone-50 bg-stone-700"
-              : "border-transparent text-rose-300 bg-rose-950"
-          }">${site.type === "static" ? "static" : "proxy"}</span>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <span class="inline-block shrink-0 font-mono text-[0.7rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border ${
+              site.type === "static" ? TYPE_PILL_STATIC : TYPE_PILL_PROXY
+            }">${site.type === "static" ? "static" : "proxy"}</span>
+            ${statusPill}
+          </div>
         </div>
         <p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0 break-words">${
           site.type === "static"
@@ -155,16 +87,35 @@ export function renderSiteList(
     <section>
       <div class="flex items-center justify-between gap-4 mb-5">
         <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Existing sites</h2>
-        <button type="button" class="${BUTTON_PRIMARY}" data-open-dialog="add-site-dialog">${icon("plus")}Add site</button>
+        <a href="/sites/new" class="${BUTTON_PRIMARY} no-underline">${icon("plus")}Add site</a>
       </div>
-      <div class="sites-grid grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5">
+      <div class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5">
         ${cards || `<p class="col-span-full text-stone-400 italic m-0">No sites configured yet.</p>`}
       </div>
     </section>
+    `,
+    { nav },
+  );
+}
 
-    <dialog id="add-site-dialog" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(460px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
-      <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Add a site</h2>
-      <form id="add-site-form" method="post" action="/sites" class="flex flex-col gap-4">
+export function renderAddSite(
+  sites: Site[],
+  domain: string,
+  portOwners: Record<string, string>,
+): string {
+  return layout(
+    "Add a site",
+    `
+    <div class="${DETAIL_WIDTH} flex flex-col gap-5">
+      <nav class="font-mono text-[0.72rem] text-stone-400 m-0" aria-label="Breadcrumb">
+        <a href="/" class="text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}">sites</a>
+        <span class="text-stone-600 mx-1.5">/</span>
+        <span class="text-stone-50">new</span>
+      </nav>
+
+      <h2 class="font-mono text-[1.7rem] leading-[1.2] tracking-[-0.01em] text-stone-50 m-0">Add a site</h2>
+
+      <form id="add-site-form" method="post" action="/sites" class="flex flex-col gap-5">
         <label class="${FORM_LABEL}">
           Hostname
           <input type="text" name="hostname" placeholder="blog.${escapeHtml(domain)}" required class="${INPUT}" />
@@ -214,12 +165,13 @@ export function renderSiteList(
         <p id="add-site-error" role="alert" class="hidden font-mono text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0"></p>
 
         <div class="flex justify-end gap-2.5">
-          <button type="button" class="${BUTTON_SECONDARY}" data-close-dialog="add-site-dialog">Cancel</button>
+          <a href="/" class="${BUTTON_SECONDARY} no-underline">Cancel</a>
           <button type="submit" id="add-site-submit" class="${BUTTON_PRIMARY}">Add site</button>
         </div>
       </form>
-    </dialog>
+    </div>
     `,
+    { nav: { page: "new" } },
   );
 }
 
@@ -458,6 +410,10 @@ export interface SiteDetailOptions {
   caddyfilePath: string;
   status?: SiteStatus;
   scaffold?: { buildCommand: string; runCommand: string; deployWorkflow: string };
+  /** Every managed site, for the breadcrumb's hostname switcher. */
+  sites: Site[];
+  /** Set when this page is the redirect target of a successful add (`?created=1`). */
+  created?: boolean;
 }
 
 /**
@@ -499,6 +455,52 @@ function renderDeploy(scaffold: NonNullable<SiteDetailOptions["scaffold"]>, file
       </section>`;
 }
 
+const SWITCHER_TRIGGER =
+  `list-none cursor-pointer inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 ` +
+  `text-stone-50 hover:bg-stone-800 [&::-webkit-details-marker]:hidden ${FOCUS_RING}`;
+
+const SWITCHER_ROW =
+  `flex items-center justify-between gap-3 px-2.5 py-1.5 no-underline font-mono text-[0.75rem] ` +
+  `text-stone-50 border-b border-stone-700 last:border-b-0 hover:bg-stone-800 ` +
+  `aria-[current=page]:bg-stone-700 aria-[current=page]:border-l-2 aria-[current=page]:border-l-rose-800 ${FOCUS_RING}`;
+
+/** `static`, or the port a proxy site forwards to. Never status. */
+function typeHint(site: Site): string {
+  return site.type === "static" ? "static" : `:${site.target}`;
+}
+
+/**
+ * Site-to-site movement, on the one line that already says which site you are
+ * looking at. The rows are hostnames and a type hint — no status, because the
+ * dropdown renders on every detail page and status pills there would cost one
+ * check per site per page view. The list page answers that question instead.
+ *
+ * No `truncate` anywhere: this is the control whose whole job is picking a
+ * hostname, and two sites called staging-dashboard-preview and
+ * staging-dashboard-prod must not render identically. Splitting the shared
+ * domain suffix off buys about nine characters per row for free.
+ */
+function renderHostnameSwitcher(site: Site, opts: SiteDetailOptions): string {
+  const rows = opts.sites
+    .map((entry) => {
+      const { lead, dimmed } = splitHostnameForDisplay(entry.hostname, opts.domain);
+      const current = entry.hostname === site.hostname;
+      return `<li><a href="/sites/${encodeURIComponent(entry.hostname)}" class="${SWITCHER_ROW}"${
+        current ? ` aria-current="page"` : ""
+      }><span>${escapeHtml(lead)}${dimmed ? `<span class="text-stone-400">${escapeHtml(dimmed)}</span>` : ""}</span><span class="text-[0.65rem] text-stone-400 shrink-0">${escapeHtml(typeHint(entry))}</span></a></li>`;
+    })
+    .join("");
+
+  const { lead, dimmed } = splitHostnameForDisplay(site.hostname, opts.domain);
+
+  return `<details id="hostname-switcher" class="relative inline-block">
+        <summary class="${SWITCHER_TRIGGER}" aria-label="Switch site — currently ${escapeHtml(site.hostname)}">${escapeHtml(lead)}${
+          dimmed ? `<span class="text-stone-400">${escapeHtml(dimmed)}</span>` : ""
+        }${icon("chevronDown")}</summary>
+        <ul class="absolute z-30 left-0 mt-1 min-w-[16rem] list-none m-0 p-0 bg-stone-900 border border-stone-700 rounded-[10px] shadow-lg shadow-black/40 overflow-hidden max-h-[70vh] overflow-y-auto">${rows}</ul>
+      </details>`;
+}
+
 function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
   const { lead, dimmed } = splitHostnameForDisplay(site.hostname, opts.domain);
   const labels = opts.status ? describeStatus(opts.status) : null;
@@ -506,7 +508,7 @@ function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
       <nav class="font-mono text-[0.72rem] text-stone-400 m-0" aria-label="Breadcrumb">
         <a href="/" class="text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}">sites</a>
         <span class="text-stone-600 mx-1.5">/</span>
-        <span class="text-stone-50">${escapeHtml(site.hostname)}</span>
+        ${renderHostnameSwitcher(site, opts)}
       </nav>
 
       <div class="flex items-start justify-between gap-4">
@@ -524,6 +526,21 @@ function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
         </div>
         <a href="https://${escapeHtml(site.hostname)}" target="_blank" rel="noopener noreferrer" class="${BUTTON_PRIMARY} no-underline shrink-0">Visit ${icon("externalLink")}</a>
       </div>`;
+}
+
+/**
+ * The banner a site lands on after being created. Its job is to explain the
+ * status pill beside it: two of the three types arrive not-yet-working, so
+ * leading with what did succeed keeps the two from contradicting each other.
+ */
+function addedBanner(site: Site, sitesRoot: string): string {
+  if (site.type === "static") {
+    return `Added ${site.hostname} — Caddy is serving the placeholder page it created. Manual steps has the DNS record and how to replace it.`;
+  }
+  if (site.framework) {
+    return `Added ${site.hostname} — routing is live and the scaffold is at ${computeFilesPath(site, sitesRoot)}. It shows as not deployed until you add your source and deploy.`;
+  }
+  return `Added ${site.hostname} — routing is live, but nothing is listening on port ${site.target} yet, so it shows as not responding until you start your process.`;
 }
 
 export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
@@ -577,6 +594,10 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       </div>
     </dialog>
     `,
+    {
+      nav: {},
+      banner: opts.created ? { message: addedBanner(site, opts.sitesRoot) } : undefined,
+    },
   );
 }
 
@@ -585,9 +606,11 @@ export function renderSiteNotFound(hostname: string): string {
     "Site not found",
     `
     <div class="max-w-[640px] mx-auto flex flex-col gap-4">
+      <h2 class="font-mono text-[1.7rem] leading-[1.2] tracking-[-0.01em] text-stone-50 m-0">Site not found</h2>
       <p class="font-mono text-[0.85rem] text-stone-50 bg-red-950/60 border border-red-400/70 rounded-md px-4 py-3">No managed site found for "${escapeHtml(hostname)}".</p>
       <p class="m-0"><a href="/" class="text-rose-400 no-underline font-mono text-[0.85rem] hover:underline">&larr; Back to sites</a></p>
     </div>
     `,
+    { nav: {} },
   );
 }

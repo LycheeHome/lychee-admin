@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-23T03:34:45Z",
+  "generatedAt": "2026-08-24T18:43:54Z",
   "title": "Design System: lyly-admin",
   "extensions": {
     "colorMeta": {
@@ -19,9 +19,21 @@
           "oklch(92% 0.194 13.428)"
         ]
       },
-      "ember-light": { "role": "primary", "displayName": "Ember Light", "canonical": "oklch(81% 0.117 11.638)" },
-      "ember-edge": { "role": "primary", "displayName": "Ember Edge", "canonical": "oklch(45.5% 0.188 13.697)" },
-      "ember-deep": { "role": "primary", "displayName": "Ember Deep", "canonical": "oklch(27.1% 0.105 12.094)" },
+      "ember-light": {
+        "role": "primary",
+        "displayName": "Ember Light",
+        "canonical": "oklch(81% 0.117 11.638)"
+      },
+      "ember-edge": {
+        "role": "primary",
+        "displayName": "Ember Edge",
+        "canonical": "oklch(45.5% 0.188 13.697)"
+      },
+      "ember-deep": {
+        "role": "primary",
+        "displayName": "Ember Deep",
+        "canonical": "oklch(27.1% 0.105 12.094)"
+      },
       "hearth": {
         "role": "neutral",
         "displayName": "Hearth",
@@ -37,13 +49,41 @@
           "oklch(92% 0.006 56.043)"
         ]
       },
-      "hearth-lift": { "role": "neutral", "displayName": "Hearth Lift", "canonical": "oklch(26.8% 0.007 34.298)" },
-      "hairline": { "role": "neutral", "displayName": "Hairline", "canonical": "oklch(37.4% 0.01 67.558)" },
-      "hairline-strong": { "role": "neutral", "displayName": "Hairline Strong", "canonical": "oklch(44.4% 0.011 73.639)" },
-      "smoke-deep": { "role": "neutral", "displayName": "Smoke Deep", "canonical": "oklch(55.3% 0.013 58.071)" },
-      "smoke": { "role": "neutral", "displayName": "Smoke", "canonical": "oklch(70.9% 0.01 56.259)" },
-      "smoke-light": { "role": "neutral", "displayName": "Smoke Light", "canonical": "oklch(86.9% 0.005 56.366)" },
-      "chalk": { "role": "neutral", "displayName": "Chalk", "canonical": "oklch(98.5% 0.001 106.423)" },
+      "hearth-lift": {
+        "role": "neutral",
+        "displayName": "Hearth Lift",
+        "canonical": "oklch(26.8% 0.007 34.298)"
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "oklch(37.4% 0.01 67.558)"
+      },
+      "hairline-strong": {
+        "role": "neutral",
+        "displayName": "Hairline Strong",
+        "canonical": "oklch(44.4% 0.011 73.639)"
+      },
+      "smoke-deep": {
+        "role": "neutral",
+        "displayName": "Smoke Deep",
+        "canonical": "oklch(55.3% 0.013 58.071)"
+      },
+      "smoke": {
+        "role": "neutral",
+        "displayName": "Smoke",
+        "canonical": "oklch(70.9% 0.01 56.259)"
+      },
+      "smoke-light": {
+        "role": "neutral",
+        "displayName": "Smoke Light",
+        "canonical": "oklch(86.9% 0.005 56.366)"
+      },
+      "chalk": {
+        "role": "neutral",
+        "displayName": "Chalk",
+        "canonical": "oklch(98.5% 0.001 106.423)"
+      },
       "clear": {
         "role": "tertiary",
         "displayName": "Clear",
@@ -59,7 +99,11 @@
           "oklch(92% 0.15 154.449)"
         ]
       },
-      "clear-deep": { "role": "tertiary", "displayName": "Clear Deep", "canonical": "oklch(26.6% 0.065 152.934)" },
+      "clear-deep": {
+        "role": "tertiary",
+        "displayName": "Clear Deep",
+        "canonical": "oklch(26.6% 0.065 152.934)"
+      },
       "scorch": {
         "role": "tertiary",
         "displayName": "Scorch",
@@ -75,23 +119,72 @@
           "oklch(92% 0.114 19.571)"
         ]
       },
-      "scorch-edge": { "role": "tertiary", "displayName": "Scorch Edge", "canonical": "oklch(70.4% 0.191 22.216)" },
-      "scorch-border": { "role": "tertiary", "displayName": "Scorch Border", "canonical": "oklch(44.4% 0.177 26.899)" },
-      "scorch-rule": { "role": "tertiary", "displayName": "Scorch Rule", "canonical": "oklch(39.6% 0.141 25.723)" },
-      "scorch-deep": { "role": "tertiary", "displayName": "Scorch Deep", "canonical": "oklch(25.8% 0.092 26.042)" }
+      "scorch-edge": {
+        "role": "tertiary",
+        "displayName": "Scorch Edge",
+        "canonical": "oklch(70.4% 0.191 22.216)"
+      },
+      "scorch-border": {
+        "role": "tertiary",
+        "displayName": "Scorch Border",
+        "canonical": "oklch(44.4% 0.177 26.899)"
+      },
+      "scorch-rule": {
+        "role": "tertiary",
+        "displayName": "Scorch Rule",
+        "canonical": "oklch(39.6% 0.141 25.723)"
+      },
+      "scorch-deep": {
+        "role": "tertiary",
+        "displayName": "Scorch Deep",
+        "canonical": "oklch(25.8% 0.092 26.042)"
+      }
     },
     "typographyMeta": {
-      "display": { "displayName": "Display", "purpose": "The wordmark only. Poetsen One ships one weight; never request 600." },
-      "headline": { "displayName": "Headline", "purpose": "A site's hostname on its detail page, with the shared domain suffix dimmed." },
-      "title": { "displayName": "Title", "purpose": "A site card's hostname in the list. The only other use of the display face." },
-      "eyebrow": { "displayName": "Eyebrow", "purpose": "Section and dialog headings, uppercase and letterspaced." },
-      "label": { "displayName": "Label", "purpose": "Card headings inside the detail page: Request path, Manual steps, Deploy, Danger." },
-      "micro-label": { "displayName": "Micro-label", "purpose": "The label above a single routing hop. Smallest type in the system, so it takes Smoke, not Smoke Deep." },
-      "body": { "displayName": "Body", "purpose": "Explanatory sentences a person wrote. Nunito, never for paths or commands." },
-      "body-strong": { "displayName": "Body Strong", "purpose": "The title line of a selectable option row, above the sentence explaining what the choice commits you to." },
-      "data": { "displayName": "Data", "purpose": "Machine values: hop values, detail rows, a card's path or port line." },
-      "code": { "displayName": "Code", "purpose": "Copyable commands and the generated deploy workflow." },
-      "pill": { "displayName": "Pill", "purpose": "One-word state, uppercase, prefixed with a filled dot." }
+      "display": {
+        "displayName": "Display",
+        "purpose": "The wordmark only. Poetsen One ships one weight; never request 600."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "A site's hostname on its detail page, with the shared domain suffix dimmed."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "A site card's hostname in the list. The only other use of the display face."
+      },
+      "eyebrow": {
+        "displayName": "Eyebrow",
+        "purpose": "Section and dialog headings, uppercase and letterspaced."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Card headings inside the detail page: Request path, Manual steps, Deploy, Danger."
+      },
+      "micro-label": {
+        "displayName": "Micro-label",
+        "purpose": "The label above a single routing hop. Smallest type in the system, so it takes Smoke, not Smoke Deep."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Explanatory sentences a person wrote. Nunito, never for paths or commands."
+      },
+      "body-strong": {
+        "displayName": "Body Strong",
+        "purpose": "The title line of a selectable option row, above the sentence explaining what the choice commits you to."
+      },
+      "data": {
+        "displayName": "Data",
+        "purpose": "Machine values: hop values, detail rows, a card's path or port line."
+      },
+      "code": {
+        "displayName": "Code",
+        "purpose": "Copyable commands and the generated deploy workflow."
+      },
+      "pill": {
+        "displayName": "Pill",
+        "purpose": "One-word state, uppercase, prefixed with a filled dot."
+      }
     },
     "shadows": [
       {
@@ -106,18 +199,54 @@
       }
     ],
     "motion": [
-      { "name": "modal-in", "value": "modal-in 0.15s ease (opacity 0 to 1, translateY 6px to 0)", "purpose": "Dialog entrance. Gated behind motion-safe." },
-      { "name": "state-transition", "value": "color/background/border 150ms", "purpose": "Hover and checked-state changes on cards, buttons and option rows. Gated behind motion-safe." },
-      { "name": "copy-feedback", "value": "1500ms", "purpose": "How long a copy button shows its check icon and Copied label before reverting." },
-      { "name": "banner-dismiss", "value": "4000ms", "purpose": "Success banner auto-dismiss. Never applied to a banner carrying an unfinished manual action." }
+      {
+        "name": "modal-in",
+        "value": "modal-in 0.15s ease (opacity 0 to 1, translateY 6px to 0)",
+        "purpose": "Dialog entrance. Gated behind motion-safe."
+      },
+      {
+        "name": "state-transition",
+        "value": "color/background/border 150ms",
+        "purpose": "Hover and checked-state changes on cards, buttons and option rows. Gated behind motion-safe."
+      },
+      {
+        "name": "copy-feedback",
+        "value": "1500ms",
+        "purpose": "How long a copy button shows its check icon and Copied label before reverting."
+      },
+      {
+        "name": "banner-dismiss",
+        "value": "4000ms",
+        "purpose": "Success banner auto-dismiss. Never applied to a banner carrying an unfinished manual action."
+      }
     ],
     "breakpoints": [
-      { "name": "sm", "value": "640px" }
+      {
+        "name": "sm",
+        "value": "640px"
+      }
     ],
     "containers": [
-      { "name": "list", "value": "1080px", "purpose": "The site list and page header. A wider viewport adds grid columns." },
-      { "name": "detail", "value": "760px", "purpose": "A site's detail page, single column. A wider viewport never widens prose." },
-      { "name": "grid-track", "value": "minmax(280px, 1fr)", "purpose": "Auto-fill site card track, 20px gutters." }
+      {
+        "name": "list",
+        "value": "1080px",
+        "purpose": "The site list and page header. A wider viewport adds grid columns."
+      },
+      {
+        "name": "detail",
+        "value": "760px",
+        "purpose": "A site's detail page, single column. A wider viewport never widens prose."
+      },
+      {
+        "name": "grid-track",
+        "value": "minmax(280px, 1fr)",
+        "purpose": "Auto-fill site card track, 20px gutters."
+      },
+      {
+        "name": "header",
+        "value": "1080px wide, 64px tall (32px line box + 16px padding each side)",
+        "purpose": "The header band. Aligned to the list container, not full-bleed: no background, no bottom rule."
+      }
     ]
   },
   "components": [
@@ -154,12 +283,20 @@
       "css": ".ds-field { display: flex; flex-direction: column; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.85rem; color: oklch(70.9% 0.01 56.259); } .ds-input { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.875rem; background: oklch(21.6% 0.006 56.043); color: oklch(98.5% 0.001 106.423); border: 1px solid oklch(37.4% 0.01 67.558); border-radius: 6px; padding: 8px 10px; } .ds-input::placeholder { color: oklch(70.9% 0.01 56.259); opacity: 0.6; } .ds-input:focus { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; }"
     },
     {
+      "name": "Header Band",
+      "kind": "nav",
+      "refersTo": "card",
+      "description": "Host-level navigation, identical on every page. Aligned to the same 1080px container as the content, so a header item never sits over a different column than the page it belongs to.",
+      "html": "<header class=\"ds-header\"><h1 class=\"ds-header__h1\"><a class=\"ds-header__mark\" href=\"#\">lyly<span class=\"ds-header__dot\">.</span>admin</a></h1><nav class=\"ds-header__nav\" aria-label=\"Sections\"><a class=\"ds-header__item\" href=\"#\" aria-current=\"page\">sites</a><a class=\"ds-header__item\" href=\"#\">add site</a></nav></header>",
+      "css": ".ds-header { max-width: 1080px; margin: 0 auto; display: flex; align-items: center; gap: 24px; padding: 16px 0; } .ds-header__h1 { margin: 0; font-size: 1rem; font-weight: 400; line-height: 1; } .ds-header__mark { font-family: 'Poetsen One', ui-sans-serif, system-ui, sans-serif; font-size: 1.5rem; font-weight: 600; letter-spacing: 0.025em; color: oklch(0.985 0.001 106.423); text-decoration: none; } .ds-header__dot { color: oklch(0.712 0.194 13.428); } .ds-header__mark:focus-visible { outline: 2px solid oklch(0.712 0.194 13.428); outline-offset: 2px; } .ds-header__nav { display: flex; align-items: center; gap: 4px; } .ds-header__item { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85rem; text-decoration: none; color: oklch(0.709 0.01 56.259); border-radius: 6px; padding: 4px 8px; } .ds-header__item:hover { color: oklch(0.985 0.001 106.423); } .ds-header__item[aria-current=\"page\"] { color: oklch(0.985 0.001 106.423); background: oklch(0.374 0.01 67.558); border-left: 2px solid oklch(0.455 0.188 13.697); } .ds-header__item:focus-visible { outline: 2px solid oklch(0.712 0.194 13.428); outline-offset: 2px; }"
+    },
+    {
       "name": "Site Card",
       "kind": "card",
       "refersTo": "site-card",
-      "description": "The whole card is one link. Display-face hostname, type pill, and the target beneath in mono. Hover moves the border to Ember Edge.",
-      "html": "<a class=\"ds-site-card\" href=\"#\"><div class=\"ds-site-card__top\"><p class=\"ds-site-card__host\">app.lyly.dev</p><span class=\"ds-pill-proxy\">proxy</span></div><p class=\"ds-site-card__target\"><span class=\"ds-site-card__key\">localhost:</span>3000 &middot; Next.js</p></a>",
-      "css": ".ds-site-card { display: flex; flex-direction: column; gap: 14px; background: oklch(26.8% 0.007 34.298); border: 1px solid oklch(37.4% 0.01 67.558); border-radius: 10px; padding: 24px; text-decoration: none; transition: border-color 150ms; } .ds-site-card:hover { border-color: oklch(45.5% 0.188 13.697 / 0.7); } .ds-site-card:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-site-card__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; } .ds-site-card__host { font-family: 'Poetsen One', ui-sans-serif, system-ui, sans-serif; font-size: 1rem; line-height: 1.625; color: oklch(98.5% 0.001 106.423); margin: 0; word-break: break-word; } .ds-site-card__target { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85rem; line-height: 1.5; color: oklch(70.9% 0.01 56.259); margin: 0; } .ds-site-card__key { text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.03em; opacity: 0.7; } .ds-pill-proxy { flex-shrink: 0; font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: oklch(81% 0.117 11.638); background: oklch(27.1% 0.105 12.094); border: 1px solid transparent; border-radius: 9999px; padding: 4px 10px; }"
+      "description": "The whole card is one link. Display-face hostname, then the type pill and — for reverse-proxy sites — a status pill, so \"is anything down\" is answered here rather than one navigation per site. Hover moves the border to Ember Edge.",
+      "html": "<a class=\"ds-site-card\" href=\"#\"><div class=\"ds-site-card__top\"><p class=\"ds-site-card__host\">app.lyly.dev</p><div class=\"ds-site-card__pills\"><span class=\"ds-pill-proxy\">proxy</span><span class=\"ds-site-card__status\">&#9679; running</span></div></div><p class=\"ds-site-card__target\"><span class=\"ds-site-card__key\">localhost:</span>3000 &middot; Next.js</p></a>",
+      "css": ".ds-site-card { display: flex; flex-direction: column; gap: 14px; background: oklch(26.8% 0.007 34.298); border: 1px solid oklch(37.4% 0.01 67.558); border-radius: 10px; padding: 24px; text-decoration: none; transition: border-color 150ms; } .ds-site-card:hover { border-color: oklch(45.5% 0.188 13.697 / 0.7); } .ds-site-card:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-site-card__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; } .ds-site-card__host { font-family: 'Poetsen One', ui-sans-serif, system-ui, sans-serif; font-size: 1rem; line-height: 1.625; color: oklch(98.5% 0.001 106.423); margin: 0; word-break: break-word; } .ds-site-card__target { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85rem; line-height: 1.5; color: oklch(70.9% 0.01 56.259); margin: 0; } .ds-site-card__key { text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.03em; opacity: 0.7; } .ds-pill-proxy { flex-shrink: 0; font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: oklch(81% 0.117 11.638); background: oklch(27.1% 0.105 12.094); border: 1px solid transparent; border-radius: 9999px; padding: 4px 10px; } .ds-site-card__pills { display: flex; align-items: center; gap: 6px; flex-shrink: 0; } .ds-site-card__status { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; border-radius: 9999px; padding: 4px 10px; color: oklch(0.871 0.15 154.449); background: oklch(0.266 0.065 152.934 / 0.6); }"
     },
     {
       "name": "Status Pills",
@@ -168,6 +305,14 @@
       "description": "Three tones and no more. starting and unknown take the neutral tone, never the bad one.",
       "html": "<div class=\"ds-pill-row\"><span class=\"ds-pill ds-pill--ok\">&#9679; running</span><span class=\"ds-pill ds-pill--bad\">&#9679; unhealthy</span><span class=\"ds-pill ds-pill--neutral\">&#9679; starting</span></div>",
       "css": ".ds-pill-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .ds-pill { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid transparent; border-radius: 9999px; padding: 4px 10px; } .ds-pill--ok { color: oklch(87.1% 0.15 154.449); background: oklch(26.6% 0.065 152.934 / 0.6); } .ds-pill--bad { color: oklch(80.8% 0.114 19.571); background: oklch(25.8% 0.092 26.042 / 0.6); } .ds-pill--neutral { color: oklch(86.9% 0.005 56.366); background: oklch(37.4% 0.01 67.558); }"
+    },
+    {
+      "name": "Hostname Switcher",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "Site-to-site movement, on the breadcrumb line that already says which site you are looking at. Rows carry a hostname and a type hint and never status: the dropdown renders on every detail page, so a dot per row would cost one check per site per page view.",
+      "html": "<nav class=\"ds-crumb\" aria-label=\"Breadcrumb\"><a class=\"ds-crumb__link\" href=\"#\">sites</a><span class=\"ds-crumb__sep\">/</span><details class=\"ds-switcher\" open><summary class=\"ds-switcher__trigger\" aria-label=\"Switch site \\u2014 currently app.lyly.dev\">app<span class=\"ds-switcher__dim\">.lyly.dev</span><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"/></svg></summary><ul class=\"ds-switcher__panel\"><li><a class=\"ds-switcher__row\" href=\"#\"><span>blog<span class=\"ds-switcher__dim\">.lyly.dev</span></span><span class=\"ds-switcher__hint\">static</span></a></li><li><a class=\"ds-switcher__row\" href=\"#\" aria-current=\"page\"><span>app<span class=\"ds-switcher__dim\">.lyly.dev</span></span><span class=\"ds-switcher__hint\">:3000</span></a></li></ul></details></nav>",
+      "css": ".ds-crumb { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.72rem; color: oklch(0.709 0.01 56.259); } .ds-crumb__link { color: oklch(0.709 0.01 56.259); text-decoration: none; } .ds-crumb__link:hover { color: oklch(0.985 0.001 106.423); text-decoration: underline; } .ds-crumb__sep { color: oklch(0.444 0.011 73.639); margin: 0 6px; } .ds-switcher { position: relative; display: inline-block; } .ds-switcher__trigger { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; padding: 2px 6px; color: oklch(0.985 0.001 106.423); } .ds-switcher__trigger::-webkit-details-marker { display: none; } .ds-switcher__trigger svg { width: 1em; height: 1em; } .ds-switcher__trigger:hover { background: oklch(0.268 0.007 34.298); } .ds-switcher__trigger:focus-visible { outline: 2px solid oklch(0.712 0.194 13.428); outline-offset: 2px; } .ds-switcher__dim { color: oklch(0.709 0.01 56.259); } .ds-switcher__panel { position: absolute; z-index: 30; left: 0; margin: 4px 0 0; padding: 0; min-width: 16rem; list-style: none; background: oklch(0.216 0.006 56.043); border: 1px solid oklch(0.374 0.01 67.558); border-radius: 10px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.4), 0 4px 6px -4px rgba(0,0,0,0.4); overflow: hidden; max-height: 70vh; overflow-y: auto; } .ds-switcher__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 10px; text-decoration: none; font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.75rem; color: oklch(0.985 0.001 106.423); border-bottom: 1px solid oklch(0.374 0.01 67.558); } .ds-switcher__row:last-child { border-bottom: 0; } .ds-switcher__row:hover { background: oklch(0.268 0.007 34.298); } .ds-switcher__row[aria-current=\"page\"] { background: oklch(0.374 0.01 67.558); border-left: 2px solid oklch(0.455 0.188 13.697); } .ds-switcher__row:focus-visible { outline: 2px solid oklch(0.712 0.194 13.428); outline-offset: 2px; } .ds-switcher__hint { font-size: 0.65rem; color: oklch(0.709 0.01 56.259); flex-shrink: 0; }"
     },
     {
       "name": "Command Block",

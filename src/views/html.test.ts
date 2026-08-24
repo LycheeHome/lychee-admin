@@ -1,15 +1,8 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
-import { renderSiteDetail, renderSiteList } from "./html";
-
-const OPTS = {
-  sitesRoot: "/var/www",
-  domain: "lyly.dev",
-  tunnelId: "11111111-2222-3333-4444-555555555555",
-  tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
-  caddyfilePath: "/etc/caddy/Caddyfile",
-};
+import { withoutHeader } from "../dev/testHelpers";
+import { renderAddSite, renderSiteDetail, renderSiteList } from "./html";
 
 const STATIC_SITE: Site = { hostname: "blog.lyly.dev", type: "static", target: "/var/www/blog.lyly.dev" };
 const APEX_SITE: Site = { hostname: "lyly.dev", type: "static", target: "/var/www/lyly.dev" };
@@ -22,6 +15,17 @@ const NEXT_SITE: Site = {
   healthcheckPath: "/api/health",
 };
 
+const OPTS = {
+  sitesRoot: "/var/www",
+  domain: "lyly.dev",
+  tunnelId: "11111111-2222-3333-4444-555555555555",
+  tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
+  caddyfilePath: "/etc/caddy/Caddyfile",
+  sites: [STATIC_SITE, APEX_SITE, PROXY_SITE, NEXT_SITE],
+};
+
+const SITES = [STATIC_SITE, APEX_SITE, PROXY_SITE, NEXT_SITE];
+
 /**
  * Returns the opening tag of the element with `id`, so an assertion is made
  * against that element rather than the whole document. A document-wide regex
@@ -33,19 +37,27 @@ function tagById(html: string, id: string): string {
   return match[0];
 }
 
+describe("renderAddSite heading", () => {
+  test("the add-site page's heading is a documented ramp step", () => {
+    const html = renderAddSite([], "lyly.dev", {});
+    assert.match(html, /<h2 class="font-mono text-\[1\.7rem\]/);
+    assert.doesNotMatch(html, /text-\[1\.35rem\]/);
+  });
+});
+
 describe("accessible status and error wiring", () => {
   test("the port field points at the message that explains a conflict", () => {
-    const input = tagById(renderSiteList([], "lyly.dev", "/var/www"), "port-field");
+    const input = tagById(renderAddSite(SITES, "lyly.dev", {}), "port-field");
     assert.match(input, /aria-describedby="port-error"/);
   });
 
   test("the port conflict message is the element the field names", () => {
-    const span = tagById(renderSiteList([], "lyly.dev", "/var/www"), "port-error");
+    const span = tagById(renderAddSite(SITES, "lyly.dev", {}), "port-error");
     assert.match(span, /class="[^"]*port-error/);
   });
 
   test("a failed submit is announced, not only shown", () => {
-    const p = tagById(renderSiteList([], "lyly.dev", "/var/www"), "add-site-error");
+    const p = tagById(renderAddSite(SITES, "lyly.dev", {}), "add-site-error");
     assert.match(p, /role="alert"/);
   });
 
@@ -56,8 +68,8 @@ describe("accessible status and error wiring", () => {
     assert.match(span, /class="[^"]*sr-only/);
   });
 
-  test("the live region is on the list page too, which also has copy buttons", () => {
-    const span = tagById(renderSiteList([PROXY_SITE], "lyly.dev", "/var/www"), "copy-status");
+  test("the live region is on every page the shell renders, not only the detail page", () => {
+    const span = tagById(renderSiteList(SITES, {}), "copy-status");
     assert.match(span, /aria-live="polite"/);
   });
 });
@@ -118,6 +130,64 @@ describe("renderSiteDetail header", () => {
   test("widens the column past the old 640px", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     assert.match(html, /max-w-\[760px\]/);
+  });
+});
+
+describe("the hostname switcher", () => {
+  const switcher = (html: string) => {
+    const match = html.match(/<details id="hostname-switcher"[\s\S]*?<\/details>/);
+    assert.ok(match, "expected a hostname switcher");
+    return match[0];
+  };
+
+  test("sits in the breadcrumb and lists every managed site", () => {
+    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
+    for (const site of OPTS.sites) assert.match(block, new RegExp(site.hostname));
+  });
+
+  test("names the current site in the trigger, and marks only its row", () => {
+    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
+    const summary = block.match(/<summary[\s\S]*?<\/summary>/)?.[0] ?? "";
+    assert.match(summary, /blog/);
+    const currentRows = block.match(/aria-current="page"/g) ?? [];
+    assert.equal(currentRows.length, 1);
+  });
+
+  test("tells a screen reader what the trigger does, not just where it is", () => {
+    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
+    assert.match(block, /<summary[^>]*aria-label="Switch site[^"]*blog\.lyly\.dev"/);
+  });
+
+  test("never truncates a hostname — the control exists to pick one", () => {
+    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
+    assert.doesNotMatch(block, /truncate/);
+  });
+
+  test("dims the shared suffix in Smoke, not Smoke Deep, at row size", () => {
+    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
+    const rows = block.match(/<ul[\s\S]*<\/ul>/)?.[0] ?? "";
+    assert.match(rows, /text-stone-400/);
+    assert.doesNotMatch(rows, /text-stone-500/);
+  });
+
+  test("carries a type hint per row and no status", () => {
+    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
+    assert.match(block, /:4000/);
+    // The pill span emits the HTML entity "&#9679;", never the literal glyph
+    // — see the same convention noted where the status pill regex lives above.
+    assert.doesNotMatch(block, /&#9679;/);
+    assert.doesNotMatch(block, /running|responding|unhealthy/);
+  });
+
+  test("is a surface containing rows, so it takes the 10px radius", () => {
+    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
+    const panel = block.match(/<ul[^>]*>/)?.[0] ?? "";
+    assert.match(panel, /rounded-\[10px\]/);
+  });
+
+  test("marks the current row without the proxy pill's ember fill", () => {
+    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
+    assert.doesNotMatch(block, /bg-rose-950/);
   });
 });
 
@@ -342,32 +412,65 @@ const SCAFFOLD = {
   deployWorkflow: "name: Deploy app.lyly.dev\non:\n  push:\n    branches: [main]\n",
 };
 
+/**
+ * The header band carries its own wordmark link and "sites"/"add site" nav
+ * items, none of which have anything to do with the Deploy card these tests
+ * check. withoutHeader() strips it before asserting so its markup can't
+ * collide with assertions that are really about that card.
+ */
 describe("renderSiteDetail deploy", () => {
   test("nothing is hidden behind a disclosure widget", () => {
-    const html = renderSiteDetail(NEXT_SITE, {
-      ...OPTS,
-      status: { kind: "container", state: "running", health: "healthy" },
-      scaffold: SCAFFOLD,
-    });
-    assert.doesNotMatch(html, /<details/);
-    assert.doesNotMatch(html, /<summary/);
+    const html = withoutHeader(
+      renderSiteDetail(NEXT_SITE, {
+        ...OPTS,
+        status: { kind: "container", state: "running", health: "healthy" },
+        scaffold: SCAFFOLD,
+      }),
+    );
+    // Anchored to the Deploy card: the breadcrumb's hostname switcher is its
+    // own, unrelated <details> elsewhere on the page.
+    //
+    // Split in two steps, with an assert.ok in between, rather than chaining
+    // straight through to a slice: the doesNotMatch calls below pass
+    // trivially on an empty string, so if "Deploy</h3>" ever stopped
+    // appearing this needs to fail with a clear message here, not let the
+    // second .split silently produce "" (or throw an opaque TypeError on
+    // undefined) and have the negative assertions pass having proven nothing.
+    const [, afterDeployHeading] = html.split("Deploy</h3>");
+    assert.ok(afterDeployHeading, "expected a Deploy card to anchor to");
+    const card = afterDeployHeading.split("</section>")[0];
+    assert.doesNotMatch(card, /<details/);
+    assert.doesNotMatch(card, /<summary/);
     // Deploy is a plain card like Request path and Manual steps.
     assert.match(html, />Deploy<\/h3>/);
   });
 
   test("the workflow block is its natural height, with no nested vertical scroll", () => {
-    const html = renderSiteDetail(NEXT_SITE, {
-      ...OPTS,
-      status: { kind: "container", state: "running", health: "healthy" },
-      scaffold: SCAFFOLD,
-    });
-    // No max-height and no vertical overflow anywhere on the page: a scrollbar
+    const html = withoutHeader(
+      renderSiteDetail(NEXT_SITE, {
+        ...OPTS,
+        status: { kind: "container", state: "running", health: "healthy" },
+        scaffold: SCAFFOLD,
+      }),
+    );
+    // Anchored to the Deploy card itself, not the whole page: the breadcrumb's
+    // hostname switcher is a legitimate <details> with its own scrollable
+    // dropdown elsewhere on this page, and a page-wide assertion would trip on
+    // that unrelated control instead of testing what this card does.
+    //
+    // Same two-step split as the test above: the doesNotMatch calls below
+    // pass trivially on an empty string, so the anchor is checked explicitly
+    // before trusting a negative result against the slice.
+    const [, afterDeployHeading] = html.split("Deploy</h3>");
+    assert.ok(afterDeployHeading, "expected a Deploy card to anchor to");
+    const card = afterDeployHeading.split("</section>")[0];
+    // No max-height and no vertical overflow inside the card: a scrollbar
     // inside a page you are already scrolling is worse than a tall block, and
     // this is a file you may want to read rather than only copy.
-    assert.doesNotMatch(html, /max-h-/);
-    assert.doesNotMatch(html, /overflow-y-auto|overflow-auto/);
+    assert.doesNotMatch(card, /max-h-/);
+    assert.doesNotMatch(card, /overflow-y-auto|overflow-auto/);
     // Long lines still scroll sideways, which preformatted content needs.
-    assert.match(html, /id="github-workflow-yaml"[^>]*\boverflow-x-auto\b/);
+    assert.match(card, /id="github-workflow-yaml"[^>]*\boverflow-x-auto\b/);
   });
 
   test("only the workflow is copyable; build and run are data, not instructions", () => {
@@ -413,15 +516,20 @@ describe("renderSiteDetail deploy", () => {
   });
 
   test("every copy button inside a code block shares one right-hand inset", () => {
-    const html = renderSiteDetail(NEXT_SITE, {
-      ...OPTS,
-      status: { kind: "container", state: "running", health: "healthy" },
-      scaffold: SCAFFOLD,
-    });
+    const html = withoutHeader(
+      renderSiteDetail(NEXT_SITE, {
+        ...OPTS,
+        status: { kind: "container", state: "running", health: "healthy" },
+        scaffold: SCAFFOLD,
+      }),
+    );
     // The single-line boxes and the multi-line workflow block position their
     // buttons differently vertically — centred vs top-pinned — but the
     // horizontal inset has to agree or the buttons visibly step in and out.
     // They drifted once (right-1.5 vs right-2) and 2px was noticeable.
+    // Scoped past the header, whose own markup carries no absolutely
+    // positioned elements today but is stripped anyway for the same reason
+    // as the tests above.
     const insets = [...html.matchAll(/class="[^"]*\babsolute\b[^"]*?(right-[^\s"]+)/g)].map((m) => m[1]);
     assert.ok(insets.length >= 3, `expected 3+ positioned copy buttons, saw ${insets.length}`);
     assert.equal(
@@ -531,5 +639,113 @@ describe("renderSiteDetail escaping", () => {
     assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
     assert.match(html, /&lt;script&gt;alert\(2\)&lt;\/script&gt;/);
     assert.match(html, /&quot;&gt;&lt;script&gt;alert\(2\)/);
+  });
+});
+
+/**
+ * Anchored to the server-rendered notice, which is where the ?created=1
+ * message lives. A page-wide match on "not responding" would pass on the
+ * strength of the header pill and the request-path hop, both of which already
+ * say it — and this helper throws when the element is missing, so a message
+ * that stopped being rendered fails rather than vacuously passing.
+ */
+function notice(html: string): string {
+  // Non-greedy, stopping at the first </div>: the notice contains a span and a
+  // button but no nested div, so this is exactly the notice element.
+  const match = /<div id="page-notice"[\s\S]*?<\/div>/.exec(html);
+  assert.ok(match, "expected a page-notice element");
+  return match[0];
+}
+
+/** The client toast, which is a different element and always starts empty. */
+function toast(html: string): string {
+  const match = /<div id="flash-banner"[\s\S]*?<\/div>/.exec(html);
+  assert.ok(match, "expected a flash-banner element");
+  return match[0];
+}
+
+describe("the ?created=1 notice", () => {
+  test("a static site is told its placeholder is already live", () => {
+    const html = renderSiteDetail(STATIC_SITE, { ...OPTS, created: true });
+    assert.match(notice(html), /Added blog\.lyly\.dev/);
+    assert.match(notice(html), /serving the placeholder page it created/);
+    assert.match(notice(html), /Manual steps has the DNS record/);
+  });
+
+  test("a plain proxy is told why it reads as not responding", () => {
+    const html = renderSiteDetail(PROXY_SITE, { ...OPTS, created: true });
+    assert.match(notice(html), /routing is live/);
+    assert.match(notice(html), /nothing is listening on port 4000 yet/);
+    assert.match(notice(html), /not responding until you start your process/);
+  });
+
+  test("a scaffolded site is told why it reads as not deployed", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...OPTS, created: true });
+    assert.match(notice(html), /routing is live/);
+    assert.match(notice(html), /scaffold is at \/var\/www\/app\.lyly\.dev/);
+    assert.match(notice(html), /not deployed until you add your source/);
+  });
+
+  test("it is dismissible when created, and absent otherwise", () => {
+    const created = renderSiteDetail(PROXY_SITE, { ...OPTS, created: true });
+    assert.match(notice(created), /id="page-notice-close"/);
+    assert.doesNotMatch(renderSiteDetail(PROXY_SITE, OPTS), /id="page-notice"/);
+  });
+
+  test("it takes layout space above the heading instead of covering it", () => {
+    const created = renderSiteDetail(PROXY_SITE, { ...OPTS, created: true });
+    // The regression this split exists to prevent: as a fixed element centred
+    // on the viewport, this three-line message landed on top of the breadcrumb
+    // and the hostname. In flow and ahead of them, it can't.
+    assert.doesNotMatch(notice(created), /\bfixed\b/);
+    assert.doesNotMatch(notice(created), /\babsolute\b/);
+    assert.match(created, /id="page-notice"[\s\S]*id="site-hostname"/);
+  });
+
+  test("the client toast stays a separate, empty, hidden element either way", () => {
+    for (const html of [
+      renderSiteDetail(PROXY_SITE, { ...OPTS, created: true }),
+      renderSiteDetail(PROXY_SITE, OPTS),
+    ]) {
+      assert.match(toast(html), /id="flash-banner" class="hidden/);
+      assert.match(toast(html), /id="flash-banner-message"><\/span>/);
+    }
+  });
+});
+
+describe("status on the site list", () => {
+  // The pill entity, not the literal glyph: the rounded-full pill spans in
+  // this module (the header pill at data-state-pill, and this one) render
+  // "&#9679;" verbatim, the same convention as renderDetailHeader's pill —
+  // see the "data-state-pill>&#9679;" assertions above. Only the request-path
+  // hop's plain-text sub-line uses the literal "●" character.
+  test("a proxy site's card carries its canonical status word", () => {
+    const html = renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } });
+    assert.match(html, /&#9679; responding/);
+  });
+
+  test("a container site reports the worst-case word, not the lifecycle one", () => {
+    const html = renderSiteList([NEXT_SITE], {
+      [NEXT_SITE.hostname]: { kind: "container", state: "running", health: "unhealthy" },
+    });
+    assert.match(html, /&#9679; unhealthy/);
+  });
+
+  test("starting is neutral, not red", () => {
+    const html = renderSiteList([NEXT_SITE], {
+      [NEXT_SITE.hostname]: { kind: "container", state: "running", health: "starting" },
+    });
+    assert.match(html, /text-stone-300[^"]*"[^>]*>&#9679; starting/);
+    assert.doesNotMatch(html, /text-red-300[^"]*"[^>]*>&#9679; starting/);
+  });
+
+  test("a static site gets no status pill — nothing checks one", () => {
+    const html = renderSiteList([STATIC_SITE], {});
+    assert.doesNotMatch(html, /&#9679;/);
+  });
+
+  test("a site with no status entry renders no pill rather than a guess", () => {
+    const html = renderSiteList([PROXY_SITE], {});
+    assert.doesNotMatch(html, /&#9679;/);
   });
 });

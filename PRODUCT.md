@@ -73,10 +73,13 @@ claim.
   Actions workflow — this app never invokes Docker to start, stop, or rebuild
   anything.
 - **Surfaces today**: the site list (`GET /`), a site's detail page
-  (`GET /sites/:hostname`), add (`POST /sites`), remove
-  (`POST /sites/:hostname/delete`), and a second, always-separate file
-  deletion (`POST /sites/:hostname/delete-files`). A sidebar with a site
-  switcher, and add-site as its own page, are planned and not yet built.
+  (`GET /sites/:hostname`), add-site as its own page (`GET /sites/new`,
+  `POST /sites`), remove (`POST /sites/:hostname/delete`), and a second,
+  always-separate file deletion (`POST /sites/:hostname/delete-files`). A
+  global header band (wordmark plus `sites` and `add site`) fronts every page;
+  a site's detail page also carries a hostname dropdown on its breadcrumb for
+  moving to another site without a round trip through the list. The list's
+  cards carry a status pill for reverse-proxy sites.
 - **Development happens off-host**, on macOS, via `npm run dev:mock` against
   in-memory fakes (`src/dev/`) with seeded sites covering every parser
   branch. Sudoers scope, wrapper-script validation, real `caddy validate`,
