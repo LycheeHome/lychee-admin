@@ -185,7 +185,7 @@ interface Hop {
 }
 
 const HOP_LABEL =
-  "font-mono text-[0.6rem] font-medium uppercase tracking-[0.09em] text-stone-400 m-0 mb-1.5";
+  "font-mono text-[0.6875rem] font-medium uppercase tracking-[0.09em] text-stone-400 m-0 mb-1.5";
 const HOP_VALUE = "font-mono text-[0.8rem] text-stone-50 m-0 mb-0.5 break-all";
 const DETAIL_ROW = "font-mono text-[0.8rem] m-0 mb-1 flex gap-3 last:mb-0";
 const DETAIL_KEY = "text-stone-400 min-w-[7.5rem] shrink-0";
@@ -286,7 +286,7 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
 }
 
 const STEP_NUMBER =
-  "font-mono text-[0.625rem] text-rose-400 border border-rose-400/40 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5";
+  "font-mono text-[0.6875rem] text-rose-400 border border-rose-400/40 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5";
 const STEP_TEXT = "text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5";
 /**
  * Position for a copy button sitting in a single-line command box: vertically

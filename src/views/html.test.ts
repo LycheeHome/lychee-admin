@@ -809,4 +809,11 @@ describe("small-text ramp", () => {
     assert.match(danger[0], /text-\[0\.75rem\]/);
     assert.match(danger[0], /text-red-300/);
   });
+
+  test("hop labels and step badges clear the 11px floor", () => {
+    const html = renderSiteDetail(NEXT_SITE, OPTS);
+    assert.match(html, /text-\[0\.6875rem\][^"]*uppercase tracking-\[0\.09em\]/);
+    assert.doesNotMatch(html, /text-\[0\.6rem\]/);
+    assert.doesNotMatch(html, /text-\[0\.625rem\]/);
+  });
 });
