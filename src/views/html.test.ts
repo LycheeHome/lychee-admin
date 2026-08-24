@@ -125,6 +125,62 @@ describe("renderSiteDetail header", () => {
   });
 });
 
+describe("the hostname switcher", () => {
+  const switcher = (html: string) => {
+    const match = html.match(/<details id="hostname-switcher"[\s\S]*?<\/details>/);
+    assert.ok(match, "expected a hostname switcher");
+    return match[0];
+  };
+
+  test("sits in the breadcrumb and lists every managed site", () => {
+    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
+    for (const site of OPTS.sites) assert.match(block, new RegExp(site.hostname));
+  });
+
+  test("names the current site in the trigger, and marks only its row", () => {
+    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
+    const summary = block.match(/<summary[\s\S]*?<\/summary>/)?.[0] ?? "";
+    assert.match(summary, /blog/);
+    const currentRows = block.match(/aria-current="page"/g) ?? [];
+    assert.equal(currentRows.length, 1);
+  });
+
+  test("tells a screen reader what the trigger does, not just where it is", () => {
+    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
+    assert.match(block, /<summary[^>]*aria-label="Switch site[^"]*blog\.lyly\.dev"/);
+  });
+
+  test("never truncates a hostname — the control exists to pick one", () => {
+    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
+    assert.doesNotMatch(block, /truncate/);
+  });
+
+  test("dims the shared suffix in Smoke, not Smoke Deep, at row size", () => {
+    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
+    const rows = block.match(/<ul[\s\S]*<\/ul>/)?.[0] ?? "";
+    assert.match(rows, /text-stone-400/);
+    assert.doesNotMatch(rows, /text-stone-500/);
+  });
+
+  test("carries a type hint per row and no status", () => {
+    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
+    assert.match(block, /:4000/);
+    assert.doesNotMatch(block, /●/);
+    assert.doesNotMatch(block, /running|responding|unhealthy/);
+  });
+
+  test("is a surface containing rows, so it takes the 10px radius", () => {
+    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
+    const panel = block.match(/<ul[^>]*>/)?.[0] ?? "";
+    assert.match(panel, /rounded-\[10px\]/);
+  });
+
+  test("marks the current row without the proxy pill's ember fill", () => {
+    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
+    assert.doesNotMatch(block, /bg-rose-950/);
+  });
+});
+
 describe("renderSiteDetail request path", () => {
   test("names all four hops", () => {
     const html = renderSiteDetail(NEXT_SITE, {
@@ -361,8 +417,11 @@ describe("renderSiteDetail deploy", () => {
         scaffold: SCAFFOLD,
       }),
     );
-    assert.doesNotMatch(html, /<details/);
-    assert.doesNotMatch(html, /<summary/);
+    // Anchored to the Deploy card: the breadcrumb's hostname switcher is its
+    // own, unrelated <details> elsewhere on the page.
+    const card = html.split("Deploy</h3>")[1].split("</section>")[0];
+    assert.doesNotMatch(card, /<details/);
+    assert.doesNotMatch(card, /<summary/);
     // Deploy is a plain card like Request path and Manual steps.
     assert.match(html, />Deploy<\/h3>/);
   });
@@ -375,13 +434,18 @@ describe("renderSiteDetail deploy", () => {
         scaffold: SCAFFOLD,
       }),
     );
-    // No max-height and no vertical overflow anywhere in the page body: a scrollbar
+    // Anchored to the Deploy card itself, not the whole page: the breadcrumb's
+    // hostname switcher is a legitimate <details> with its own scrollable
+    // dropdown elsewhere on this page, and a page-wide assertion would trip on
+    // that unrelated control instead of testing what this card does.
+    const card = html.split("Deploy</h3>")[1].split("</section>")[0];
+    // No max-height and no vertical overflow inside the card: a scrollbar
     // inside a page you are already scrolling is worse than a tall block, and
     // this is a file you may want to read rather than only copy.
-    assert.doesNotMatch(html, /max-h-/);
-    assert.doesNotMatch(html, /overflow-y-auto|overflow-auto/);
+    assert.doesNotMatch(card, /max-h-/);
+    assert.doesNotMatch(card, /overflow-y-auto|overflow-auto/);
     // Long lines still scroll sideways, which preformatted content needs.
-    assert.match(html, /id="github-workflow-yaml"[^>]*\boverflow-x-auto\b/);
+    assert.match(card, /id="github-workflow-yaml"[^>]*\boverflow-x-auto\b/);
   });
 
   test("only the workflow is copyable; build and run are data, not instructions", () => {

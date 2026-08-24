@@ -395,7 +395,7 @@ export interface SiteDetailOptions {
   caddyfilePath: string;
   status?: SiteStatus;
   scaffold?: { buildCommand: string; runCommand: string; deployWorkflow: string };
-  /** Every managed site, for the rail's switcher. */
+  /** Every managed site, for the breadcrumb's hostname switcher. */
   sites: Site[];
   /** Set when this page is the redirect target of a successful add (`?created=1`). */
   created?: boolean;
@@ -440,6 +440,52 @@ function renderDeploy(scaffold: NonNullable<SiteDetailOptions["scaffold"]>, file
       </section>`;
 }
 
+const SWITCHER_TRIGGER =
+  `list-none cursor-pointer inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 ` +
+  `text-stone-50 hover:bg-stone-800 [&::-webkit-details-marker]:hidden ${FOCUS_RING}`;
+
+const SWITCHER_ROW =
+  `flex items-center justify-between gap-3 px-2.5 py-1.5 no-underline font-mono text-[0.75rem] ` +
+  `text-stone-50 border-b border-stone-700 last:border-b-0 hover:bg-stone-800 ` +
+  `aria-[current=page]:bg-stone-700 aria-[current=page]:border-l-2 aria-[current=page]:border-l-rose-800 ${FOCUS_RING}`;
+
+/** `static`, or the port a proxy site forwards to. Never status. */
+function typeHint(site: Site): string {
+  return site.type === "static" ? "static" : `:${site.target}`;
+}
+
+/**
+ * Site-to-site movement, on the one line that already says which site you are
+ * looking at. The rows are hostnames and a type hint — no status, because the
+ * dropdown renders on every detail page and status pills there would cost one
+ * check per site per page view. The list page answers that question instead.
+ *
+ * No `truncate` anywhere: this is the control whose whole job is picking a
+ * hostname, and two sites called staging-dashboard-preview and
+ * staging-dashboard-prod must not render identically. Splitting the shared
+ * domain suffix off buys about nine characters per row for free.
+ */
+function renderHostnameSwitcher(site: Site, opts: SiteDetailOptions): string {
+  const rows = opts.sites
+    .map((entry) => {
+      const { lead, dimmed } = splitHostnameForDisplay(entry.hostname, opts.domain);
+      const current = entry.hostname === site.hostname;
+      return `<li><a href="/sites/${encodeURIComponent(entry.hostname)}" class="${SWITCHER_ROW}"${
+        current ? ` aria-current="page"` : ""
+      }><span>${escapeHtml(lead)}${dimmed ? `<span class="text-stone-400">${escapeHtml(dimmed)}</span>` : ""}</span><span class="text-[0.65rem] text-stone-400 shrink-0">${escapeHtml(typeHint(entry))}</span></a></li>`;
+    })
+    .join("");
+
+  const { lead, dimmed } = splitHostnameForDisplay(site.hostname, opts.domain);
+
+  return `<details id="hostname-switcher" class="relative inline-block">
+        <summary class="${SWITCHER_TRIGGER}" aria-label="Switch site — currently ${escapeHtml(site.hostname)}">${escapeHtml(lead)}${
+          dimmed ? `<span class="text-stone-400">${escapeHtml(dimmed)}</span>` : ""
+        }${icon("chevronDown")}</summary>
+        <ul class="absolute z-30 left-0 mt-1 min-w-[16rem] list-none m-0 p-0 bg-stone-900 border border-stone-700 rounded-[10px] shadow-lg shadow-black/40 overflow-hidden max-h-[70vh] overflow-y-auto">${rows}</ul>
+      </details>`;
+}
+
 function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
   const { lead, dimmed } = splitHostnameForDisplay(site.hostname, opts.domain);
   const labels = opts.status ? describeStatus(opts.status) : null;
@@ -447,7 +493,7 @@ function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
       <nav class="font-mono text-[0.72rem] text-stone-400 m-0" aria-label="Breadcrumb">
         <a href="/" class="text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}">sites</a>
         <span class="text-stone-600 mx-1.5">/</span>
-        <span class="text-stone-50">${escapeHtml(site.hostname)}</span>
+        ${renderHostnameSwitcher(site, opts)}
       </nav>
 
       <div class="flex items-start justify-between gap-4">
