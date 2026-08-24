@@ -18,7 +18,7 @@
 # Tested by deploy-needed.test.sh, which the CI test job runs.
 set -uo pipefail
 
-SKIP='^([^/]*\.md|.*/[^/]*\.md|\.claude/.+|\.idea/.+|\.mcp\.json|\.gitignore)$'
+SKIP='^([^/]*\.md|.*/[^/]*\.md|\.claude/.+|\.impeccable/.+|\.idea/.+|\.mcp\.json|\.gitignore)$'
 
 saw_any=0
 while IFS= read -r path; do
