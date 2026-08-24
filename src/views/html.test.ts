@@ -553,18 +553,16 @@ describe("renderSiteDetail danger zone", () => {
     assert.match(html, /reloads Caddy, then restarts the tunnel/);
   });
 
-  test("the remove action keeps one name from button to modal confirm", () => {
+  test("the trigger keeps the generic label; the confirm names the hostname", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     // Scoped to each button's own markup rather than counting the string
-    // page-wide: the danger-zone button already read "Remove site" before this
-    // task and the modal heading reads it too, so a whole-document count of 2+
-    // was satisfied before anything changed. Each regex walks forward from a
-    // button's identifying attribute without crossing a </button>, so it can
-    // only match that button's own label.
-    const labelled = (attr: string) =>
-      new RegExp(`${attr}(?:(?!<\\/button>)[\\s\\S])*Remove site<\\/button>`);
-    assert.match(html, labelled('data-open-dialog="confirm-remove-dialog"'));
-    assert.match(html, labelled('id="confirm-remove-submit"'));
+    // page-wide. Each regex walks forward from a button's identifying
+    // attribute without crossing a </button>, so it can only match that
+    // button's own label.
+    const labelled = (attr: string, label: string) =>
+      new RegExp(`${attr}(?:(?!<\\/button>)[\\s\\S])*${label}<\\/button>`);
+    assert.match(html, labelled('data-open-dialog="confirm-remove-dialog"', "Remove site"));
+    assert.match(html, labelled('id="confirm-remove-submit"', "Remove blog\\.lyly\\.dev"));
     // The old confirm button said just "Remove".
     assert.doesNotMatch(html, />Remove<\/button>/);
   });
@@ -642,6 +640,21 @@ describe("remove dialog accessibility", () => {
     const checkbox = tagById(renderSiteDetail(STATIC_SITE, OPTS), "confirm-remove-delete-files");
     assert.match(checkbox, /accent-rose-400/);
     assert.match(checkbox, /focus-visible:outline-rose-400/);
+  });
+
+  test("the confirm button names the site, not the category", () => {
+    const html = renderSiteDetail(PROXY_SITE, OPTS);
+    const button = html.match(/<button[^>]*id="confirm-remove-submit"[\s\S]*?<\/button>/);
+    assert.ok(button, "no confirm button was rendered");
+    assert.match(button[0], /Remove api\.lyly\.dev/);
+    // The trigger keeps the generic label; only the confirm is specific. A
+    // fixed-length window here would be brittle: the trash icon's inline SVG
+    // sits between the attribute and the text and alone runs past 200 chars,
+    // so bound the scan at the button's own closing tag instead.
+    assert.match(
+      html,
+      /data-open-dialog="confirm-remove-dialog"(?:(?!<\/button>)[\s\S])*Remove site/,
+    );
   });
 });
 

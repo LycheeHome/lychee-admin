@@ -590,7 +590,7 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       ${deleteFilesSection}
       <div class="flex justify-end gap-2.5">
         <button type="button" autofocus class="${BUTTON_SECONDARY}" data-close-dialog="confirm-remove-dialog">Cancel</button>
-        <button type="button" id="confirm-remove-submit" class="${BUTTON_DANGER}" data-hostname="${escapeHtml(site.hostname)}">${icon("trash")}Remove site</button>
+        <button type="button" id="confirm-remove-submit" class="${BUTTON_DANGER}" data-hostname="${escapeHtml(site.hostname)}">${icon("trash")}Remove ${escapeHtml(site.hostname)}</button>
       </div>
     </dialog>
     `,
