@@ -20,6 +20,15 @@
         ],
         "createdAt": "2026-08-24T16:42:59.409Z",
         "reason": "User confirmed: documented DESIGN.md pairs (Hearth on Ember for button-primary; Chalk on Scorch Rule for danger hover), both high-contrast; rule targets washed-out mid-greys this palette never puts on a fill"
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "src/views/shell.ts"
+        ],
+        "createdAt": "2026-08-24T16:48:19.333Z",
+        "reason": "Controller ruling: renderPageNotice is Chalk on Ember Deep at 60%, a documented DESIGN.md pair measured at 8.15:1; the rule's flat heuristic cannot see alpha compositing, same false-positive class as the html.ts and shared.ts waivers"
       }
     ]
   },
