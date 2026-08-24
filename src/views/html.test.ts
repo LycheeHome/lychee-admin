@@ -61,7 +61,7 @@ describe("accessible status and error wiring", () => {
   });
 
   test("the live region is on every page the shell renders, not only the detail page", () => {
-    const span = tagById(renderSiteList(SITES), "copy-status");
+    const span = tagById(renderSiteList(SITES, {}), "copy-status");
     assert.match(span, /aria-live="polite"/);
   });
 });
@@ -700,5 +700,42 @@ describe("the ?created=1 notice", () => {
       assert.match(toast(html), /id="flash-banner" class="hidden/);
       assert.match(toast(html), /id="flash-banner-message"><\/span>/);
     }
+  });
+});
+
+describe("status on the site list", () => {
+  // The pill entity, not the literal glyph: the rounded-full pill spans in
+  // this module (the header pill at data-state-pill, and this one) render
+  // "&#9679;" verbatim, the same convention as renderDetailHeader's pill —
+  // see the "data-state-pill>&#9679;" assertions above. Only the request-path
+  // hop's plain-text sub-line uses the literal "●" character.
+  test("a proxy site's card carries its canonical status word", () => {
+    const html = renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } });
+    assert.match(html, /&#9679; responding/);
+  });
+
+  test("a container site reports the worst-case word, not the lifecycle one", () => {
+    const html = renderSiteList([NEXT_SITE], {
+      [NEXT_SITE.hostname]: { kind: "container", state: "running", health: "unhealthy" },
+    });
+    assert.match(html, /&#9679; unhealthy/);
+  });
+
+  test("starting is neutral, not red", () => {
+    const html = renderSiteList([NEXT_SITE], {
+      [NEXT_SITE.hostname]: { kind: "container", state: "running", health: "starting" },
+    });
+    assert.match(html, /text-stone-300[^"]*"[^>]*>&#9679; starting/);
+    assert.doesNotMatch(html, /text-red-300[^"]*"[^>]*>&#9679; starting/);
+  });
+
+  test("a static site gets no status pill — nothing checks one", () => {
+    const html = renderSiteList([STATIC_SITE], {});
+    assert.doesNotMatch(html, /&#9679;/);
+  });
+
+  test("a site with no status entry renders no pill rather than a guess", () => {
+    const html = renderSiteList([PROXY_SITE], {});
+    assert.doesNotMatch(html, /&#9679;/);
   });
 });

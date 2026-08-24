@@ -51,16 +51,37 @@ function computePortOwners(sites: Site[]): Record<string, string> {
   return portOwners;
 }
 
+/**
+ * Status for the list page. Reverse-proxy sites only: static sites have no
+ * check today and gain none here. Concurrent, so the page costs the slowest
+ * check rather than their sum — and every call is bounded, because
+ * checkContainerStatus carries its own timeout and checkPortOpen a 500ms one.
+ */
+async function computeStatuses(sites: Site[], deps: Deps): Promise<Record<string, SiteStatus>> {
+  const entries = await Promise.all(
+    sites
+      .filter((site) => site.type === "reverse-proxy")
+      .map(async (site): Promise<[string, SiteStatus]> => {
+        if (site.framework) {
+          return [site.hostname, { kind: "container", ...(await deps.commands.checkContainerStatus(site.hostname)) }];
+        }
+        const port = Number(site.target);
+        return [site.hostname, { kind: "tcp", responding: port >= 1 && port <= 65535 ? await checkPortOpen(port) : false }];
+      }),
+  );
+  return Object.fromEntries(entries);
+}
+
 export function createSitesRouter(deps: Deps): Router {
   const sitesRouter = Router();
   const { backupFile } = deps.backup;
   const { logAction } = deps.logger;
 
-  sitesRouter.get("/", (req, res) => {
+  sitesRouter.get("/", async (req, res) => {
     const content = deps.fs.readFile(config.caddyfilePath);
     const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname));
 
-    res.send(renderSiteList(sites));
+    res.send(renderSiteList(sites, await computeStatuses(sites, deps)));
   });
 
   // Registered above /sites/:hostname deliberately: Express matches in
@@ -142,7 +163,7 @@ export function createSitesRouter(deps: Deps): Router {
       );
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
-      res.status(500).send(renderSiteList([], message));
+      res.status(500).send(renderSiteList([], {}, message));
     }
   });
 

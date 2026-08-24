@@ -41,20 +41,26 @@ const FRAMEWORK_LABELS: Record<string, string> = {
   nextjs: "Next.js",
 };
 
-export function renderSiteList(sites: Site[], error?: string): string {
+export function renderSiteList(sites: Site[], statuses: Record<string, SiteStatus>, error?: string): string {
   const cards = sites
     .map((site) => {
       const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
+      const status = statuses[site.hostname];
+      const labels = status ? describeStatus(status) : null;
+      const statusPill = labels
+        ? `<span class="${TONE_PILL[labels.tone]}">&#9679; ${escapeHtml(labels.pill)}</span>`
+        : "";
 
       return `
       <a href="/sites/${encodeURIComponent(site.hostname)}" class="bg-stone-800 border border-stone-700 rounded-[10px] p-6 flex flex-col gap-3.5 motion-safe:transition-colors motion-safe:duration-150 hover:border-rose-800/70 no-underline ${FOCUS_RING}">
         <div class="flex items-start justify-between gap-2">
           <p class="font-display text-base leading-relaxed text-stone-50 m-0 break-words">${escapeHtml(site.hostname)}</p>
-          <span class="inline-block shrink-0 font-mono text-[0.7rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border ${
-            site.type === "static"
-              ? "border-stone-600 text-stone-50 bg-stone-700"
-              : "border-transparent text-rose-300 bg-rose-950"
-          }">${site.type === "static" ? "static" : "proxy"}</span>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <span class="inline-block shrink-0 font-mono text-[0.7rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border ${
+              site.type === "static" ? TYPE_PILL_STATIC : TYPE_PILL_PROXY
+            }">${site.type === "static" ? "static" : "proxy"}</span>
+            ${statusPill}
+          </div>
         </div>
         <p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0 break-words">${
           site.type === "static"
