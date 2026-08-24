@@ -22,7 +22,7 @@ const BUTTON_SECONDARY =
 const BUTTON_DANGER =
   "font-sans font-semibold text-[0.8rem] bg-transparent text-red-300 border border-red-800 rounded-md px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-red-900 hover:text-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
 const INPUT =
-  "font-mono bg-stone-900 border border-stone-700 rounded-md text-stone-50 px-2.5 py-2 text-sm placeholder:text-stone-400/60 focus:outline focus:outline-2 focus:outline-rose-400 focus:outline-offset-2";
+  "font-mono bg-stone-900 border border-stone-700 rounded-md text-stone-50 px-2.5 py-2 text-sm placeholder:text-stone-400 focus:outline focus:outline-2 focus:outline-rose-400 focus:outline-offset-2";
 const FORM_LABEL = "flex flex-col gap-1.5 text-[0.85rem] text-stone-400";
 const STATUS_PILL_BASE =
   "inline-flex items-center gap-1 shrink-0 font-mono text-[0.65rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-transparent";
@@ -74,6 +74,14 @@ function layout(title: string, body: string): string {
       <span id="flash-banner-message"></span>
       <button type="button" id="flash-banner-close" class="hidden shrink-0 text-stone-400 hover:text-stone-50 bg-transparent border-none cursor-pointer text-base leading-none" aria-label="Dismiss">&times;</button>
     </div>
+    <!--
+      Copying is confirmed visually by the icon swapping to a check, which says
+      nothing to a screen reader. The button's own aria-label changes too, but a
+      label change on the focused element is not reliably announced — so the
+      outcome goes here instead. It matters most in the fallback case, where the
+      user has to be told to press Ctrl+C: on plain HTTP, that is every case.
+    -->
+    <span id="copy-status" class="sr-only" role="status" aria-live="polite"></span>
     ${body}
   </main>
   <script src="/app.js"></script>
@@ -122,7 +130,7 @@ export function renderSiteList(
       const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
 
       return `
-      <a href="/sites/${encodeURIComponent(site.hostname)}" class="bg-stone-800 border border-stone-700 rounded-[10px] p-6 flex flex-col gap-3.5 motion-safe:transition-colors motion-safe:duration-150 hover:border-rose-800/70 no-underline">
+      <a href="/sites/${encodeURIComponent(site.hostname)}" class="bg-stone-800 border border-stone-700 rounded-[10px] p-6 flex flex-col gap-3.5 motion-safe:transition-colors motion-safe:duration-150 hover:border-rose-800/70 no-underline ${FOCUS_RING}">
         <div class="flex items-start justify-between gap-2">
           <p class="font-display text-base leading-relaxed text-stone-50 m-0 break-words">${escapeHtml(site.hostname)}</p>
           <span class="inline-block shrink-0 font-mono text-[0.7rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border ${
@@ -133,8 +141,8 @@ export function renderSiteList(
         </div>
         <p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0 break-words">${
           site.type === "static"
-            ? `<span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">path:</span> ${escapeHtml(site.target)}`
-            : `<span class="text-stone-400/70 uppercase text-[0.75rem] tracking-[0.03em]">localhost:</span>${escapeHtml(site.target)}${frameworkLabel ? ` · ${escapeHtml(frameworkLabel)}` : ""}`
+            ? `<span class="text-stone-400 uppercase text-[0.75rem] tracking-[0.03em]">path:</span> ${escapeHtml(site.target)}`
+            : `<span class="text-stone-400 uppercase text-[0.75rem] tracking-[0.03em]">localhost:</span>${escapeHtml(site.target)}${frameworkLabel ? ` · ${escapeHtml(frameworkLabel)}` : ""}`
         }</p>
       </a>`;
     })
@@ -185,8 +193,8 @@ export function renderSiteList(
         <div class="port-input hidden flex-col gap-3 border-l-2 border-l-rose-800/70 pl-3 ml-1">
           <label class="flex flex-col gap-1.5 text-[0.85rem] text-stone-400">
             Local port (reverse proxy only)
-            <input type="number" name="port" min="1" max="65535" class="${INPUT}" id="port-field" />
-            <span class="port-error hidden text-red-300 text-[0.8rem]"></span>
+            <input type="number" name="port" min="1" max="65535" class="${INPUT}" id="port-field" aria-describedby="port-error" />
+            <span id="port-error" class="port-error hidden text-red-300 text-[0.8rem]"></span>
           </label>
           <label class="flex flex-col gap-1.5 text-[0.85rem] text-stone-400">
             Framework (optional)
@@ -203,7 +211,7 @@ export function renderSiteList(
         </div>
         <script type="application/json" id="port-owners-data">${JSON.stringify(portOwners)}</script>
 
-        <p id="add-site-error" class="hidden font-mono text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0"></p>
+        <p id="add-site-error" role="alert" class="hidden font-mono text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0"></p>
 
         <div class="flex justify-end gap-2.5">
           <button type="button" class="${BUTTON_SECONDARY}" data-close-dialog="add-site-dialog">Cancel</button>
@@ -224,16 +232,16 @@ interface Hop {
 }
 
 const HOP_LABEL =
-  "font-mono text-[0.6rem] font-medium uppercase tracking-[0.09em] text-stone-500 m-0 mb-1.5";
+  "font-mono text-[0.6rem] font-medium uppercase tracking-[0.09em] text-stone-400 m-0 mb-1.5";
 const HOP_VALUE = "font-mono text-[0.8rem] text-stone-50 m-0 mb-0.5 break-all";
 const DETAIL_ROW = "font-mono text-[0.8rem] m-0 mb-1 flex gap-3 last:mb-0";
-const DETAIL_KEY = "text-stone-500 min-w-[7.5rem] shrink-0";
+const DETAIL_KEY = "text-stone-400 min-w-[7.5rem] shrink-0";
 
 function renderHop(hop: Hop): string {
   return `<div class="min-w-0">
             <p class="${HOP_LABEL}">${escapeHtml(hop.label)}</p>
             <p class="${HOP_VALUE}">${escapeHtml(hop.value)}</p>
-            ${hop.sub ? `<p class="font-mono text-[0.65rem] ${hop.subClass ?? "text-stone-500"} m-0 break-all">${escapeHtml(hop.sub)}</p>` : ""}
+            ${hop.sub ? `<p class="font-mono text-[0.65rem] ${hop.subClass ?? "text-stone-400"} m-0 break-all">${escapeHtml(hop.sub)}</p>` : ""}
           </div>`;
 }
 
@@ -361,7 +369,7 @@ function commandBlock(id: string, value: string, cwd?: string): string {
               <pre id="${id}" class="${CODE_LINE}">${escapeHtml(value)}</pre>
               ${copyButton(id, "Copy command", COPY_IN_LINE)}
             </div>
-            ${cwd ? `<p class="font-mono text-[0.65rem] text-stone-500 m-0 mt-1">in ${escapeHtml(cwd)}/</p>` : ""}`;
+            ${cwd ? `<p class="font-mono text-[0.65rem] text-stone-400 m-0 mt-1">in ${escapeHtml(cwd)}/</p>` : ""}`;
 }
 
 interface ManualStep {
@@ -495,7 +503,7 @@ function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
   const { lead, dimmed } = splitHostnameForDisplay(site.hostname, opts.domain);
   const labels = opts.status ? describeStatus(opts.status) : null;
   return `
-      <nav class="font-mono text-[0.72rem] text-stone-500 m-0" aria-label="Breadcrumb">
+      <nav class="font-mono text-[0.72rem] text-stone-400 m-0" aria-label="Breadcrumb">
         <a href="/" class="text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}">sites</a>
         <span class="text-stone-600 mx-1.5">/</span>
         <span class="text-stone-50">${escapeHtml(site.hostname)}</span>
@@ -556,10 +564,10 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Remove site</h2>
       <p class="m-0 mb-3 leading-relaxed">Remove <strong>${escapeHtml(site.hostname)}</strong>? In this order:</p>
       <ol class="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 p-0 list-none grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
-        <li class="flex gap-2"><span class="text-stone-500 shrink-0">1.</span><span>Caddyfile block removed</span></li>
-        <li class="flex gap-2"><span class="text-stone-500 shrink-0">2.</span><span>Tunnel route removed</span></li>
-        <li class="flex gap-2"><span class="text-stone-500 shrink-0">3.</span><span>Caddy validated and reloaded</span></li>
-        <li class="flex gap-2"><span class="text-stone-500 shrink-0">4.</span><span>cloudflared-sites restarted</span></li>
+        <li class="flex gap-2"><span class="text-stone-400 shrink-0">1.</span><span>Caddyfile block removed</span></li>
+        <li class="flex gap-2"><span class="text-stone-400 shrink-0">2.</span><span>Tunnel route removed</span></li>
+        <li class="flex gap-2"><span class="text-stone-400 shrink-0">3.</span><span>Caddy validated and reloaded</span></li>
+        <li class="flex gap-2"><span class="text-stone-400 shrink-0">4.</span><span>cloudflared-sites restarted</span></li>
       </ol>
       <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mb-4">If a step fails, the ones after it don't run.</p>
       ${deleteFilesSection}

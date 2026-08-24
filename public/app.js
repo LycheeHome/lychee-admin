@@ -188,8 +188,11 @@ addSiteForm?.addEventListener("submit", async (event) => {
     );
   } catch (error) {
     if (addSiteError) {
-      addSiteError.textContent = error.message;
+      // Unhide before writing: role="alert" announces content changes inside a
+      // visible region, and a display:none element is not exposed at all, so
+      // filling it first and revealing it second can announce nothing.
       addSiteError.classList.remove("hidden");
+      addSiteError.textContent = error.message;
     }
   } finally {
     addSiteInFlight = false;
@@ -208,6 +211,8 @@ document.querySelectorAll("[data-close-dialog]").forEach((trigger) => {
   });
 });
 
+const copyStatus = document.getElementById("copy-status");
+
 document.querySelectorAll("[data-copy-target]").forEach((button) => {
   const idleIcon = button.querySelector('[data-copy-icon="idle"]');
   const copiedIcon = button.querySelector('[data-copy-icon="copied"]');
@@ -217,6 +222,7 @@ document.querySelectorAll("[data-copy-target]").forEach((button) => {
     try {
       await navigator.clipboard.writeText(target.textContent ?? "");
       button.setAttribute("aria-label", "Copied!");
+      if (copyStatus) copyStatus.textContent = "Copied to clipboard";
       idleIcon?.classList.add("hidden");
       copiedIcon?.classList.remove("hidden");
     } catch {
@@ -228,9 +234,13 @@ document.querySelectorAll("[data-copy-target]").forEach((button) => {
       // the selected/highlighted text is the real signal for this case.
       window.getSelection()?.selectAllChildren(target);
       button.setAttribute("aria-label", "Press Ctrl+C to copy");
+      // The selection is the whole affordance in this branch, and a selection
+      // is not something a screen reader announces on its own.
+      if (copyStatus) copyStatus.textContent = "Text selected — press Ctrl+C to copy";
     }
     setTimeout(() => {
       button.setAttribute("aria-label", "Copy to clipboard");
+      if (copyStatus) copyStatus.textContent = "";
       idleIcon?.classList.remove("hidden");
       copiedIcon?.classList.add("hidden");
     }, 1500);

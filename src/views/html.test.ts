@@ -1,7 +1,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
-import { renderSiteDetail } from "./html";
+import { renderSiteDetail, renderSiteList } from "./html";
 
 const OPTS = {
   sitesRoot: "/var/www",
@@ -21,6 +21,46 @@ const NEXT_SITE: Site = {
   framework: "nextjs",
   healthcheckPath: "/api/health",
 };
+
+/**
+ * Returns the opening tag of the element with `id`, so an assertion is made
+ * against that element rather than the whole document. A document-wide regex
+ * would pass on any page that happens to mention the attribute somewhere else.
+ */
+function tagById(html: string, id: string): string {
+  const match = html.match(new RegExp(`<[a-z]+[^>]*\\bid="${id}"[^>]*>`));
+  assert.ok(match, `no element with id="${id}" was rendered`);
+  return match[0];
+}
+
+describe("accessible status and error wiring", () => {
+  test("the port field points at the message that explains a conflict", () => {
+    const input = tagById(renderSiteList([], "lyly.dev", "/var/www"), "port-field");
+    assert.match(input, /aria-describedby="port-error"/);
+  });
+
+  test("the port conflict message is the element the field names", () => {
+    const span = tagById(renderSiteList([], "lyly.dev", "/var/www"), "port-error");
+    assert.match(span, /class="[^"]*port-error/);
+  });
+
+  test("a failed submit is announced, not only shown", () => {
+    const p = tagById(renderSiteList([], "lyly.dev", "/var/www"), "add-site-error");
+    assert.match(p, /role="alert"/);
+  });
+
+  test("copy outcomes get a polite live region, since the icon swap is silent", () => {
+    const span = tagById(renderSiteDetail(STATIC_SITE, OPTS), "copy-status");
+    assert.match(span, /role="status"/);
+    assert.match(span, /aria-live="polite"/);
+    assert.match(span, /class="[^"]*sr-only/);
+  });
+
+  test("the live region is on the list page too, which also has copy buttons", () => {
+    const span = tagById(renderSiteList([PROXY_SITE], "lyly.dev", "/var/www"), "copy-status");
+    assert.match(span, /aria-live="polite"/);
+  });
+});
 
 describe("renderSiteDetail header", () => {
   test("replaces the back link with a breadcrumb to the site list", () => {
