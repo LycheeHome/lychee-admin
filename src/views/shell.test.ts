@@ -2,7 +2,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { withoutHeader } from "../dev/testHelpers";
-import { renderSiteList, renderSiteDetail, renderAddSite } from "./html";
+import { renderSiteList, renderSiteDetail, renderAddSite, renderSiteNotFound } from "./html";
 
 const SITES: Site[] = [
   { hostname: "blog.lyly.dev", type: "static", target: "/var/www/blog.lyly.dev" },
@@ -115,5 +115,39 @@ describe("the add-site page", () => {
     const body = withoutHeader(renderSiteList(SITES, {}));
     assert.match(body, /<a href="\/sites\/new"[^>]*>(?:(?!<\/a>)[\s\S])*Add site<\/a>/);
     assert.doesNotMatch(body, /data-open-dialog="add-site-dialog"/);
+  });
+});
+
+describe("the shell's h1", () => {
+  // The rail-era shell rendered a plain <h1>lyly.admin</h1>; the header
+  // rewrite made the wordmark a link and nothing took the h1 role, so every
+  // document outline started at h2 — and the not-found page had no heading
+  // at all. Restoring it as the shell's h1 (rather than promoting each
+  // page's own topic heading) means every page gets exactly one, from one
+  // edit in shell.ts.
+  const countH1 = (html: string) => (html.match(/<h1[\s>]/g) ?? []).length;
+
+  test("renders exactly one on the site list", () => {
+    assert.equal(countH1(renderSiteList(SITES, {})), 1);
+  });
+
+  test("renders exactly one on the add-site page", () => {
+    assert.equal(countH1(renderAddSite(SITES, "lyly.dev", PORT_OWNERS)), 1);
+  });
+
+  test("renders exactly one on a site detail page", () => {
+    assert.equal(countH1(renderSiteDetail(SITES[0], DETAIL_OPTS)), 1);
+  });
+
+  test("renders exactly one on the not-found page", () => {
+    assert.equal(countH1(renderSiteNotFound("nope.lyly.dev")), 1);
+  });
+
+  test("wraps the wordmark home link, not a page topic heading", () => {
+    const html = header(renderSiteList(SITES, {}));
+    assert.match(
+      html,
+      /<h1[^>]*>\s*<a href="\/"[^>]*>lyly<span class="text-rose-400">\.<\/span>admin<\/a>\s*<\/h1>/,
+    );
   });
 });

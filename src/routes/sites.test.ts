@@ -182,6 +182,24 @@ describe("status on the site list", () => {
   });
 });
 
+describe("GET / when the Caddyfile can't be read", () => {
+  // GET / became async when the status read was added. An async Express 4
+  // handler that throws (rather than returning a rejected promise Express
+  // can see) leaves the request hanging and crashes the process on the
+  // unhandled rejection — the exact failure this app exists to surface, not
+  // hide. This proves the try/catch around it turns that into an ordinary
+  // 500 instead.
+  test("returns 500 with the error text, rather than hanging or crashing the process", async () => {
+    fakeFs.rmRecursive(CADDYFILE);
+
+    const response = await request("/");
+
+    assert.equal(response.status, 500);
+    const body = await response.text();
+    assert.match(body, /ENOENT/);
+  });
+});
+
 describe("GET /sites/new", () => {
   test("serves the add-site form with port-conflict data", async () => {
     const response = await request("/sites/new");

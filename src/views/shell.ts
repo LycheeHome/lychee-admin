@@ -37,7 +37,9 @@ function headerItem(href: string, label: string, current: boolean): string {
 function renderHeader(nav: Nav): string {
   return `
   <header id="site-header" class="max-w-[1080px] mx-auto flex items-center gap-6 py-4">
-    <a href="/" class="font-display text-2xl font-semibold tracking-wide text-stone-50 m-0 no-underline ${FOCUS_RING}">lyly<span class="text-rose-400">.</span>admin</a>
+    <h1 class="m-0 text-base font-normal leading-none">
+      <a href="/" class="font-display text-2xl font-semibold tracking-wide text-stone-50 m-0 no-underline ${FOCUS_RING}">lyly<span class="text-rose-400">.</span>admin</a>
+    </h1>
     <nav class="flex items-center gap-1" aria-label="Sections">
       ${headerItem("/", "sites", nav.page === "sites")}
       ${headerItem("/sites/new", "add site", nav.page === "new")}
@@ -46,7 +48,7 @@ function renderHeader(nav: Nav): string {
 }
 
 const DISMISS_BUTTON =
-  "shrink-0 text-stone-400 hover:text-stone-50 bg-transparent border-none cursor-pointer text-base leading-none";
+  `shrink-0 text-stone-400 hover:text-stone-50 bg-transparent border-none cursor-pointer text-base leading-none ${FOCUS_RING}`;
 
 /**
  * The transient client toast: empty and hidden until showBanner() in

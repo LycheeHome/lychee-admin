@@ -5,7 +5,7 @@ import {
   splitHostnameForDisplay,
   type SiteStatus,
 } from "../lib/siteDisplay";
-import { layout } from "./shell";
+import { layout, type Nav } from "./shell";
 import {
   escapeHtml,
   icon,
@@ -41,7 +41,16 @@ const FRAMEWORK_LABELS: Record<string, string> = {
   nextjs: "Next.js",
 };
 
-export function renderSiteList(sites: Site[], statuses: Record<string, SiteStatus>, error?: string): string {
+export function renderSiteList(
+  sites: Site[],
+  statuses: Record<string, SiteStatus>,
+  error?: string,
+  // Every real caller of this page is GET /, where "sites" is genuinely
+  // current. The one exception is the detail route's 500 fallback, which
+  // renders this same body at /sites/<hostname> and must not claim "sites"
+  // is where the URL points — see its call site in src/routes/sites.ts.
+  nav: Nav = { page: "sites" },
+): string {
   const cards = sites
     .map((site) => {
       const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
@@ -85,7 +94,7 @@ export function renderSiteList(sites: Site[], statuses: Record<string, SiteStatu
       </div>
     </section>
     `,
-    { nav: { page: "sites" } },
+    { nav },
   );
 }
 
@@ -597,6 +606,7 @@ export function renderSiteNotFound(hostname: string): string {
     "Site not found",
     `
     <div class="max-w-[640px] mx-auto flex flex-col gap-4">
+      <h2 class="font-mono text-[1.7rem] leading-[1.2] tracking-[-0.01em] text-stone-50 m-0">Site not found</h2>
       <p class="font-mono text-[0.85rem] text-stone-50 bg-red-950/60 border border-red-400/70 rounded-md px-4 py-3">No managed site found for "${escapeHtml(hostname)}".</p>
       <p class="m-0"><a href="/" class="text-rose-400 no-underline font-mono text-[0.85rem] hover:underline">&larr; Back to sites</a></p>
     </div>

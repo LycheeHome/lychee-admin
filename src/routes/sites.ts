@@ -78,10 +78,15 @@ export function createSitesRouter(deps: Deps): Router {
   const { logAction } = deps.logger;
 
   sitesRouter.get("/", async (req, res) => {
-    const content = deps.fs.readFile(config.caddyfilePath);
-    const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname));
+    try {
+      const content = deps.fs.readFile(config.caddyfilePath);
+      const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname));
 
-    res.send(renderSiteList(sites, await computeStatuses(sites, deps)));
+      res.send(renderSiteList(sites, await computeStatuses(sites, deps)));
+    } catch (error) {
+      const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
+      res.status(500).send(renderSiteList([], {}, message));
+    }
   });
 
   // Registered above /sites/:hostname deliberately: Express matches in
@@ -163,7 +168,10 @@ export function createSitesRouter(deps: Deps): Router {
       );
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
-      res.status(500).send(renderSiteList([], {}, message));
+      // Unlike GET /'s own fallback, this page's URL is /sites/<hostname> —
+      // marking "sites" current here would violate the header's own rule
+      // that an item's destination never changes with location.
+      res.status(500).send(renderSiteList([], {}, message, {}));
     }
   });
 

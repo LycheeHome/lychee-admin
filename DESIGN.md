@@ -539,10 +539,11 @@ value between steps, and never a large radius to look friendlier.
 
 Two tiers, each scoped to what it navigates.
 
-**The header band** runs full width, aligned to the same 1080px container as
-the content below it: the `lyly.admin` wordmark as a home link at Display
-1.5rem, then flat items — `sites` and `add site` — at 0.85rem mono, Smoke going
-Chalk on hover. `aria-current="page"` is both the accessibility signal and the
+**The header band** is a 1080px centred band with no background and no bottom
+rule, aligned to the same container as the content below it: the
+`lyly.admin` wordmark as a home link at Display 1.5rem, then flat items —
+`sites` and `add site` — at 0.85rem mono, Smoke going Chalk on hover.
+`aria-current="page"` is both the accessibility signal and the
 styling hook (the arbitrary `aria-[current=page]:` variant, since Tailwind ships
 no built-in one): Chalk text on a Hairline fill with a 2px Ember Edge left rule
 — deliberately not the `proxy` pill's Ember fill, so a nav item and a type pill

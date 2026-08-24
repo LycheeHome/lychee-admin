@@ -173,7 +173,9 @@ describe("the hostname switcher", () => {
   test("carries a type hint per row and no status", () => {
     const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
     assert.match(block, /:4000/);
-    assert.doesNotMatch(block, /●/);
+    // The pill span emits the HTML entity "&#9679;", never the literal glyph
+    // — see the same convention noted where the status pill regex lives above.
+    assert.doesNotMatch(block, /&#9679;/);
     assert.doesNotMatch(block, /running|responding|unhealthy/);
   });
 

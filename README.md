@@ -6,7 +6,7 @@ A small local admin app for managing `*.lyly.dev` subdomains on `lychee`, an exi
 
 ## Features
 
-- **List sites** — parses the Caddyfile and shows every managed hostname, its type, and target (path or port). A fixed left rail on every page carries a switcher listing all of them, so moving between two sites no longer routes back through the dashboard.
+- **List sites** — parses the Caddyfile and shows every managed hostname, its type, target (path or port), and a live status pill for each reverse-proxy site. A header band on every page links to the site list and the add-site page; moving from one site to another happens on the detail page's breadcrumb, which drops down a switcher listing every managed site, so it no longer routes back through the dashboard.
 - **Add a site** — a page of its own at `/sites/new`: static (serves `/var/www/<hostname>/`) or reverse proxy (forwards to a local port you run yourself, e.g. a Next.js app). Backs up configs, validates the Caddyfile before ever reloading, then lands you on the new site's page, which states the DNS record you still have to add yourself.
 - **Remove a site** — reverses the Caddyfile/tunnel config changes, with an optional confirm-then-delete step for a static site's files (never deleted in the same request that removes the site).
 - Every mutating action is logged to a local audit log.
