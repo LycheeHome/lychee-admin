@@ -816,4 +816,9 @@ describe("small-text ramp", () => {
     assert.doesNotMatch(html, /text-\[0\.6rem\]/);
     assert.doesNotMatch(html, /text-\[0\.625rem\]/);
   });
+
+  test("status pills clear the 11px floor", () => {
+    const html = renderSiteList(SITES, { "api.lyly.dev": { kind: "tcp", responding: false } });
+    assert.match(html, /inline-flex items-center gap-1 shrink-0 font-mono text-\[0\.6875rem\] uppercase/);
+  });
 });

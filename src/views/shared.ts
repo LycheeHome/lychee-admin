@@ -18,7 +18,7 @@ export const INPUT =
   "font-mono bg-stone-900 border border-stone-700 rounded-md text-stone-50 px-2.5 py-2 text-sm placeholder:text-stone-400 focus:outline focus:outline-2 focus:outline-rose-400 focus:outline-offset-2";
 export const FORM_LABEL = "flex flex-col gap-1.5 text-[0.85rem] text-stone-400";
 export const STATUS_PILL_BASE =
-  "inline-flex items-center gap-1 shrink-0 font-mono text-[0.65rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-transparent";
+  "inline-flex items-center gap-1 shrink-0 font-mono text-[0.6875rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-transparent";
 export const FOCUS_RING =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
 export const DETAIL_WIDTH = "max-w-[760px] mx-auto w-full";
