@@ -11,6 +11,15 @@
         ],
         "createdAt": "2026-08-24T03:27:32.184Z",
         "reason": "User confirmed: the four hits are documented DESIGN.md pairs (Hearth on Ember for button-primary; Chalk on Scorch Deep/Rule for danger surfaces), all high-contrast. Rule targets washed-out mid-grays, which this palette does not use on fills."
+      },
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "src/views/shared.ts"
+        ],
+        "createdAt": "2026-08-24T16:42:59.409Z",
+        "reason": "User confirmed: documented DESIGN.md pairs (Hearth on Ember for button-primary; Chalk on Scorch Rule for danger hover), both high-contrast; rule targets washed-out mid-greys this palette never puts on a fill"
       }
     ]
   },

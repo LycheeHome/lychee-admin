@@ -86,8 +86,10 @@ uses containment — which works without JS and is the best-engineered part of
 the rail work. Rows carry hostname plus type hint (`STATIC` / `:port`) and
 **no status**: pills there would mean N checks on every page instead of N on
 one. No truncation: `splitHostnameForDisplay` renders the subdomain in Chalk
-and the shared `.lyly.dev` in Smoke Deep, which buys roughly nine characters
-per row for free and matches the detail page's headline treatment.
+and the shared `.lyly.dev` in Smoke — not Smoke Deep, which the Global
+Constraints section below rules out at row size — which still buys real
+characters back per row and echoes, rather than exactly matches, the detail
+page's headline treatment.
 
 **Tier 3 — per-site tabs, deferred, with a stated trigger.** A section earns
 a tab when it is tall *and* task-specific: something you came to do, not
@@ -181,9 +183,10 @@ another name.
   header and dropdown (it currently states no sidebar exists, describing
   `main`), record the header band's geometry, restate the wordmark step, and
   keep the floating-panel `max-h` exception — the dropdown still needs it,
-  since a panel taller than the viewport cannot be reached.
+  since a panel taller than the viewport cannot be reached. **Resolved**:
+  done in Task 6.
 - **`PRODUCT.md`** still says the sidebar and `/sites/new` are planned and
-  not yet built; it updates when this lands.
+  not yet built; it updates when this lands. **Resolved**: done in Task 6.
 - **Accepted deliberately:** `add site` appears both in the header and as the
   list page's primary button. Resolved by weight, not deletion — same label
   in both places, quiet Smoke treatment in the header with `aria-current`
@@ -202,12 +205,18 @@ another name.
   `placeholder:text-stone-400/60` (4.45:1) and the missing live region in
   `shell.ts`'s `layout()` both survive the merge untouched. Re-apply both by
   hand, whatever happens to the rail. Expect a conflict in `html.ts` as well,
-  where both sides edited the hop-label and detail-key regions.
+  where both sides edited the hop-label and detail-key regions. **Resolved**:
+  both were hand-applied in the merge that landed before this rework —
+  `shared.ts`'s `INPUT` carries plain `placeholder:text-stone-400`, and
+  `shell.ts`'s `layout()` renders `#copy-status`.
 - **The rail's own dim text is deliberately left alone.** `shell.ts` has four
   `text-stone-500` uses that all fail the Dim-Text Rule, but three of them —
   the disabled trigger, its "Switch to site…" label, and the type hint —
   leave with the rail, and the wordmark's treatment is already listed above
   for restatement. Fixing them before the rework is work thrown away.
+  **Resolved**: the rail is gone, taking three of the four uses with it; the
+  fourth, the wordmark, is now Chalk at Display size in the header band, not
+  Smoke Deep.
 
 ## Open decisions
 
