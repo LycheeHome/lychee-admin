@@ -159,7 +159,7 @@ addSiteForm?.addEventListener("submit", async (event) => {
     if (!response.ok) throw new Error(result.error ?? "Failed to add site");
 
     // Land on the new site's own page: its Manual steps already states the
-    // DNS command permanently, and a full navigation leaves the rail's
+    // DNS command permanently, and a full navigation leaves the breadcrumb
     // switcher listing the site we just created. addSiteInFlight is
     // deliberately left true here rather than reset in a `finally` — the
     // fetch already resolved, but window.location.href doesn't navigate
@@ -253,7 +253,7 @@ document.querySelectorAll("dialog.modal").forEach((dialog) => {
   });
 });
 
-const siteSwitcher = document.getElementById("site-switcher");
+const siteSwitcher = document.getElementById("hostname-switcher");
 
 if (siteSwitcher) {
   const summary = siteSwitcher.querySelector("summary");
