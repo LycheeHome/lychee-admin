@@ -1,0 +1,6 @@
+{
+  "files": ["src/views/html.ts"],
+  "insertBefore": "</body>",
+  "commentSyntax": "html",
+  "cspChecked": true
+}
