@@ -1,8 +1,8 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
-import { withoutRail } from "../dev/testHelpers";
-import { renderSiteList, renderSiteDetail, renderSiteNotFound, renderAddSite } from "./html";
+import { withoutHeader } from "../dev/testHelpers";
+import { renderSiteList, renderSiteDetail, renderAddSite } from "./html";
 
 const SITES: Site[] = [
   { hostname: "blog.lyly.dev", type: "static", target: "/var/www/blog.lyly.dev" },
@@ -19,124 +19,51 @@ const DETAIL_OPTS = {
   sites: SITES,
 };
 
-/**
- * Every rail assertion is scoped to this slice rather than run against the
- * whole document. A page-wide match proves nothing here: "All sites" would
- * also be satisfied by the breadcrumb, and a hostname appears in the detail
- * page's heading, breadcrumb, Visit link and request-path hops. The regex is
- * non-greedy and the rail does not nest, so it captures exactly the rail.
- */
-function rail(html: string): string {
-  const match = /<aside id="site-nav"[\s\S]*?<\/aside>/.exec(html);
-  assert.ok(match, "expected a rail with id=site-nav");
+const HEADER = /<header id="site-header"[\s\S]*?<\/header>/;
+
+function header(html: string): string {
+  const match = html.match(HEADER);
+  assert.ok(match, "expected a header band");
   return match[0];
 }
 
-/**
- * The All sites item as a link to "/", not merely the words "All sites"
- * somewhere in the rail: plain text, or an anchor pointing anywhere else,
- * would satisfy a bare /All sites/ and leave the rail's one route back to the
- * list broken. (The Add site item is pinned the same way further down, by the
- * add-site page's aria-current test.)
- */
-const ALL_SITES_LINK = /<a href="\/"(?:(?!<\/a>)[\s\S])*All sites<\/a>/;
-
-describe("the rail", () => {
+describe("the header band", () => {
   test("renders on the site list", () => {
-    const html = rail(renderSiteList(SITES));
-    assert.match(html, ALL_SITES_LINK);
+    assert.match(header(renderSiteList(SITES)), /href="\/sites\/new"/);
   });
 
   test("renders on a site detail page", () => {
-    const html = rail(renderSiteDetail(SITES[0], DETAIL_OPTS));
-    assert.match(html, ALL_SITES_LINK);
+    assert.match(header(renderSiteDetail(SITES[0], DETAIL_OPTS)), /href="\/"/);
   });
 
-  test("renders on the not-found page", () => {
-    const html = rail(renderSiteNotFound("nope.lyly.dev", SITES));
-    assert.match(html, ALL_SITES_LINK);
+  test("carries the wordmark at its documented Display size", () => {
+    const block = header(renderSiteList(SITES));
+    assert.match(block, /font-display text-2xl/);
+    assert.match(block, /lyly<span class="text-rose-400">\.<\/span>admin/);
   });
 
-  /**
-   * Scoped to the nav block, not the whole rail: Task 5 adds a switcher whose
-   * active row also carries aria-current, so a rail-wide assertion here would
-   * start passing for the wrong reason on a detail page.
-   */
-  function navBlock(html: string): string {
-    const match = /<nav id="nav-pages"[\s\S]*?<\/nav>/.exec(rail(html));
-    assert.ok(match, "expected a nav with id=nav-pages");
-    return match[0];
-  }
-
-  test("marks All sites current on the list page only", () => {
-    assert.match(navBlock(renderSiteList(SITES)), /aria-current="page"/);
-    assert.doesNotMatch(navBlock(renderSiteDetail(SITES[0], DETAIL_OPTS)), /aria-current="page"/);
+  test("marks sites current on the list page only", () => {
+    const list = header(renderSiteList(SITES));
+    assert.match(list, /href="\/"[^>]*aria-current="page"/);
+    const detail = header(renderSiteDetail(SITES[0], DETAIL_OPTS));
+    assert.doesNotMatch(detail, /aria-current="page"/);
   });
 
-  test("carries the brand, which the page header no longer does", () => {
+  test("marks add site current on the add-site page", () => {
+    const block = header(renderAddSite(SITES, "lyly.dev", PORT_OWNERS));
+    assert.match(block, /href="\/sites\/new"[^>]*aria-current="page"/);
+  });
+
+  test("lists no hostnames — the switcher is not in the header", () => {
+    const block = header(renderSiteDetail(SITES[0], DETAIL_OPTS));
+    for (const site of SITES) assert.doesNotMatch(block, new RegExp(site.hostname));
+  });
+
+  test("does not offset the page for a rail that no longer exists", () => {
     const html = renderSiteList(SITES);
-    assert.match(rail(html), /lyly<span class="text-rose-400">\.<\/span>admin/);
-    assert.doesNotMatch(html, /<header/);
-  });
-
-  test("stays put on a long page rather than scrolling away with the content", () => {
-    const html = rail(renderSiteList(SITES));
-    // self-start matters as much as sticky: flex align-items:stretch would
-    // otherwise size the aside to the document and sticky would do nothing.
-    assert.match(html, /self-start/);
-    assert.match(html, /sticky/);
-    assert.match(html, /top-0/);
-    assert.match(html, /h-screen/);
-  });
-});
-
-describe("the site switcher", () => {
-  test("lists every managed site", () => {
-    const html = rail(renderSiteList(SITES));
-    for (const site of SITES) {
-      assert.match(html, new RegExp(`href="/sites/${site.hostname.replace(/\./g, "\\.")}"`));
-    }
-  });
-
-  test("shows the active hostname closed, and marks only that row current", () => {
-    const html = rail(renderSiteDetail(SITES[2], DETAIL_OPTS));
-    assert.match(html, /<summary(?:(?!<\/summary>)[\s\S])*app\.lyly\.dev/);
-    assert.match(html, /href="\/sites\/app\.lyly\.dev"[^>]*aria-current="page"/);
-    assert.doesNotMatch(html, /href="\/sites\/api\.lyly\.dev"[^>]*aria-current="page"/);
-  });
-
-  test("keeps the active site listed rather than filtering it out", () => {
-    const html = rail(renderSiteDetail(SITES[2], DETAIL_OPTS));
-    // [a-z0-9.-]+, not just [a-z.]+: the app's own hostname rule allows
-    // digits and hyphens (e.g. app-2.lyly.dev), and a narrower class here
-    // would silently under-count and fail confusingly on such a fixture.
-    const rows = html.match(/href="\/sites\/[a-z0-9.-]+\.lyly\.dev"/g) ?? [];
-    assert.equal(rows.length, SITES.length);
-  });
-
-  test("prompts rather than naming a site when none is active", () => {
-    const html = rail(renderSiteList(SITES));
-    assert.match(html, /<summary(?:(?!<\/summary>)[\s\S])*Switch to site…/);
-  });
-
-  test("carries a type hint per row: STATIC, or the proxy port", () => {
-    const html = rail(renderSiteList(SITES));
-    assert.match(html, /blog\.lyly\.dev(?:(?!<\/a>)[\s\S])*STATIC/);
-    assert.match(html, /api\.lyly\.dev(?:(?!<\/a>)[\s\S])*:4000/);
-  });
-
-  test("with no sites, offers a disabled trigger and no panel", () => {
-    const html = rail(renderSiteList([]));
-    assert.match(html, /No sites/);
-    assert.doesNotMatch(html, /<details/);
-    assert.doesNotMatch(html, /<ul/);
-  });
-
-  test("carries no liveness markers — the rail never status-checks", () => {
-    const html = rail(renderSiteList(SITES));
-    for (const word of ["responding", "not deployed", "running", "unhealthy", "exited"]) {
-      assert.doesNotMatch(html, new RegExp(word));
-    }
+    assert.doesNotMatch(html, /id="site-nav"/);
+    assert.doesNotMatch(html, /calc\(50% \+ 110px\)/);
+    assert.match(html, /id="flash-banner"[^>]*left-1\/2/);
   });
 });
 
@@ -169,7 +96,7 @@ describe("the add-site page", () => {
   });
 
   test("marks Add site current, and All sites not", () => {
-    const html = rail(renderAddSite(SITES, "lyly.dev", PORT_OWNERS));
+    const html = header(renderAddSite(SITES, "lyly.dev", PORT_OWNERS));
     assert.match(html, /href="\/sites\/new"[^>]*aria-current="page"/);
     assert.doesNotMatch(html, /href="\/"[^>]*aria-current="page"/);
   });
@@ -181,10 +108,11 @@ describe("the add-site page", () => {
   });
 
   test("the list page's own Add site button became a link", () => {
-    // The rail carries its own "Add site" link, so this must assert against
-    // the page body with the rail removed — otherwise it passes on the rail's
-    // item whether or not the header button was ever converted.
-    const body = withoutRail(renderSiteList(SITES));
+    // The header carries its own "sites" and "add site" links on every page,
+    // so this must assert against the page body with the header removed —
+    // otherwise it passes on the header's item whether or not the primary
+    // button was ever converted.
+    const body = withoutHeader(renderSiteList(SITES));
     assert.match(body, /<a href="\/sites\/new"[^>]*>(?:(?!<\/a>)[\s\S])*Add site<\/a>/);
     assert.doesNotMatch(body, /data-open-dialog="add-site-dialog"/);
   });

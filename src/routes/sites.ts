@@ -91,7 +91,7 @@ export function createSitesRouter(deps: Deps): Router {
       }
 
       if (!site) {
-        res.status(404).send(renderSiteNotFound(hostname, sites));
+        res.status(404).send(renderSiteNotFound(hostname));
         return;
       }
 

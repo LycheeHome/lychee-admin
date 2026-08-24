@@ -5,7 +5,7 @@ import { once } from "node:events";
 import type { Server } from "node:http";
 import bcrypt from "bcrypt";
 import type { createInMemoryFileSystem } from "../dev/fakes";
-import { withoutRail } from "../dev/testHelpers";
+import { withoutHeader } from "../dev/testHelpers";
 
 // --- Fixture layout -------------------------------------------------------
 // These must match what config resolves to, since nothing redirects them
@@ -148,10 +148,10 @@ describe("authentication", () => {
 describe("GET /", () => {
   test("lists managed sites", async () => {
     const body = await (await request("/")).text();
-    // Stripped of the rail: the switcher now prints every hostname on every
-    // page too, so matching the whole body would no longer prove a card
-    // rendered — it would pass off the rail alone.
-    const page = withoutRail(body);
+    // Stripped of the header: it carries its own "sites" and "add site"
+    // links on every page, so matching the whole body would no longer prove
+    // a card rendered — it would pass off the header alone.
+    const page = withoutHeader(body);
     assert.match(page, /blog\.lyly\.dev/);
     assert.match(page, /api\.lyly\.dev/);
   });
@@ -162,26 +162,6 @@ describe("GET /", () => {
   });
 });
 
-describe("the rail on a detail page", () => {
-  /** Non-greedy and non-nesting, so this captures exactly the rail. */
-  function rail(body: string): string {
-    const match = /<aside id="site-nav"[\s\S]*?<\/aside>/.exec(body);
-    assert.ok(match, "expected a rail with id=site-nav");
-    return match[0];
-  }
-
-  test("lists sites other than the one being viewed", async () => {
-    const body = await (await request("/sites/blog.lyly.dev")).text();
-    // The point of the test: api.lyly.dev is reachable from blog's page.
-    assert.match(rail(body), /href="\/sites\/api\.lyly\.dev"/);
-  });
-
-  test("omits the unmanaged block, as the site list does", async () => {
-    const body = await (await request("/sites/blog.lyly.dev")).text();
-    assert.doesNotMatch(rail(body), /lychee\.local/);
-  });
-});
-
 describe("GET /sites/new", () => {
   test("serves the add-site form with port-conflict data", async () => {
     const response = await request("/sites/new");
@@ -189,11 +169,10 @@ describe("GET /sites/new", () => {
     const body = await response.text();
     assert.match(body, /id="add-site-form"/);
     assert.match(body, /id="port-owners-data"/);
-    // Stripped of the rail: the switcher also prints api.lyly.dev on every
-    // page, so this assertion's actual job — proving the port-owners payload
-    // names the site that owns port 4000 — must not be satisfiable by the
-    // rail alone.
-    const page = withoutRail(body);
+    // Stripped of the header: its "sites"/"add site" links carry no
+    // hostnames, so this doesn't change what the assertion below proves, but
+    // it keeps this test consistent with the others that strip it.
+    const page = withoutHeader(body);
     // 4000 is api.lyly.dev in the fixture; 8787 is lyly-admin's own PORT.
     assert.match(page, /api\.lyly\.dev/);
     assert.match(page, /8787/);

@@ -9,19 +9,19 @@ import assert from "node:assert/strict";
  * containing no tests.
  */
 
-const RAIL = /<aside id="site-nav"[\s\S]*?<\/aside>/;
+const HEADER = /<header id="site-header"[\s\S]*?<\/header>/;
 
 /**
- * The page with the rail cut out of it. Several assertions about a page's body
- * would otherwise be satisfied by the rail alone: the switcher prints every
- * managed hostname on every page, and the rail carries its own "Add site" link.
+ * The page with the header band cut out of it. Assertions about a page's body
+ * would otherwise be satisfied by the header alone: it carries its own "sites"
+ * and "add site" links on every page.
  *
  * The assert is the point. `String.replace` returns its input unchanged when
- * the pattern misses and throws nothing, so if the rail's id or element ever
- * changes, every caller would quietly revert to page-wide matching — the exact
- * vacuity they exist to prevent.
+ * the pattern misses and throws nothing, so if the header's id ever changes,
+ * every caller would quietly revert to page-wide matching — the exact vacuity
+ * they exist to prevent.
  */
-export function withoutRail(html: string): string {
-  assert.match(html, RAIL, "expected a rail to strip — anchor is stale");
-  return html.replace(RAIL, "");
+export function withoutHeader(html: string): string {
+  assert.match(html, HEADER, "expected a header to strip — anchor is stale");
+  return html.replace(HEADER, "");
 }

@@ -1,7 +1,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
-import { withoutRail } from "../dev/testHelpers";
+import { withoutHeader } from "../dev/testHelpers";
 import { renderAddSite, renderSiteDetail, renderSiteList } from "./html";
 
 const STATIC_SITE: Site = { hostname: "blog.lyly.dev", type: "static", target: "/var/www/blog.lyly.dev" };
@@ -347,16 +347,14 @@ const SCAFFOLD = {
 };
 
 /**
- * The rail's site switcher (sidebar-navigation work) legitimately carries its
- * own <details>/<summary>, its own max-h/overflow-y-auto viewport guard, and
- * its own absolutely-positioned panel — all scoped to the switcher, not the
- * page body these tests care about. withoutRail() strips it before asserting
- * so its markup can't collide with assertions that are really about the
- * Deploy card.
+ * The header band carries its own wordmark link and "sites"/"add site" nav
+ * items, none of which have anything to do with the Deploy card these tests
+ * check. withoutHeader() strips it before asserting so its markup can't
+ * collide with assertions that are really about that card.
  */
 describe("renderSiteDetail deploy", () => {
   test("nothing is hidden behind a disclosure widget", () => {
-    const html = withoutRail(
+    const html = withoutHeader(
       renderSiteDetail(NEXT_SITE, {
         ...OPTS,
         status: { kind: "container", state: "running", health: "healthy" },
@@ -370,7 +368,7 @@ describe("renderSiteDetail deploy", () => {
   });
 
   test("the workflow block is its natural height, with no nested vertical scroll", () => {
-    const html = withoutRail(
+    const html = withoutHeader(
       renderSiteDetail(NEXT_SITE, {
         ...OPTS,
         status: { kind: "container", state: "running", health: "healthy" },
@@ -429,7 +427,7 @@ describe("renderSiteDetail deploy", () => {
   });
 
   test("every copy button inside a code block shares one right-hand inset", () => {
-    const html = withoutRail(
+    const html = withoutHeader(
       renderSiteDetail(NEXT_SITE, {
         ...OPTS,
         status: { kind: "container", state: "running", health: "healthy" },
@@ -440,9 +438,9 @@ describe("renderSiteDetail deploy", () => {
     // buttons differently vertically — centred vs top-pinned — but the
     // horizontal inset has to agree or the buttons visibly step in and out.
     // They drifted once (right-1.5 vs right-2) and 2px was noticeable.
-    // Scoped past the rail: its switcher panel is also absolutely positioned
-    // (to overlay rather than push down the nav) and would otherwise be
-    // miscounted as a fourth copy button here.
+    // Scoped past the header, whose own markup carries no absolutely
+    // positioned elements today but is stripped anyway for the same reason
+    // as the tests above.
     const insets = [...html.matchAll(/class="[^"]*\babsolute\b[^"]*?(right-[^\s"]+)/g)].map((m) => m[1]);
     assert.ok(insets.length >= 3, `expected 3+ positioned copy buttons, saw ${insets.length}`);
     assert.equal(
@@ -623,11 +621,5 @@ describe("the ?created=1 notice", () => {
       assert.match(toast(html), /id="flash-banner" class="hidden/);
       assert.match(toast(html), /id="flash-banner-message"><\/span>/);
     }
-  });
-
-  test("the toast is centred on the content column, not the viewport", () => {
-    // left-1/2 would centre it on the window, which since the rail arrived is
-    // half the rail's width to the left of the column the message is about.
-    assert.match(toast(renderSiteDetail(PROXY_SITE, OPTS)), /left-\[calc\(50%_\+_110px\)\]/);
   });
 });

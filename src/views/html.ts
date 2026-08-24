@@ -79,7 +79,7 @@ export function renderSiteList(sites: Site[], error?: string): string {
       </div>
     </section>
     `,
-    { nav: { sites, page: "sites" } },
+    { nav: { page: "sites" } },
   );
 }
 
@@ -156,7 +156,7 @@ export function renderAddSite(
       </form>
     </div>
     `,
-    { nav: { sites, page: "new" } },
+    { nav: { page: "new" } },
   );
 }
 
@@ -534,13 +534,13 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
     </dialog>
     `,
     {
-      nav: { sites: opts.sites, active: site.hostname },
+      nav: {},
       banner: opts.created ? { message: addedBanner(site, opts.sitesRoot) } : undefined,
     },
   );
 }
 
-export function renderSiteNotFound(hostname: string, sites: Site[]): string {
+export function renderSiteNotFound(hostname: string): string {
   return layout(
     "Site not found",
     `
@@ -549,6 +549,6 @@ export function renderSiteNotFound(hostname: string, sites: Site[]): string {
       <p class="m-0"><a href="/" class="text-rose-400 no-underline font-mono text-[0.85rem] hover:underline">&larr; Back to sites</a></p>
     </div>
     `,
-    { nav: { sites } },
+    { nav: {} },
   );
 }
