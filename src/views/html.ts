@@ -551,7 +551,7 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
     ? `
       <div class="flex flex-col gap-2 mb-5">
         <label class="flex flex-row items-center text-[0.8rem] text-stone-400 gap-1.5">
-          <input type="checkbox" id="confirm-remove-delete-files" />
+          <input type="checkbox" id="confirm-remove-delete-files" class="accent-rose-400 ${FOCUS_RING}" />
           Also delete files at <span class="font-mono">${escapeHtml(filesPath)}</span>
         </label>
         ${

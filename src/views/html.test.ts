@@ -637,6 +637,12 @@ describe("remove dialog accessibility", () => {
     const checkbox = tagById(html, "confirm-remove-delete-files");
     assert.doesNotMatch(checkbox, /\bautofocus\b/);
   });
+
+  test("the delete-files checkbox uses the system accent and focus ring", () => {
+    const checkbox = tagById(renderSiteDetail(STATIC_SITE, OPTS), "confirm-remove-delete-files");
+    assert.match(checkbox, /accent-rose-400/);
+    assert.match(checkbox, /focus-visible:outline-rose-400/);
+  });
 });
 
 describe("renderSiteDetail escaping", () => {
