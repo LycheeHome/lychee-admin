@@ -88,6 +88,7 @@
       "label": { "displayName": "Label", "purpose": "Card headings inside the detail page: Request path, Manual steps, Deploy, Danger." },
       "micro-label": { "displayName": "Micro-label", "purpose": "The label above a single routing hop." },
       "body": { "displayName": "Body", "purpose": "Explanatory sentences a person wrote. Nunito, never for paths or commands." },
+      "body-strong": { "displayName": "Body Strong", "purpose": "The title line of a selectable option row, above the sentence explaining what the choice commits you to." },
       "data": { "displayName": "Data", "purpose": "Machine values: hop values, detail rows, a card's path or port line." },
       "code": { "displayName": "Code", "purpose": "Copyable commands and the generated deploy workflow." },
       "pill": { "displayName": "Pill", "purpose": "One-word state, uppercase, prefixed with a filled dot." }

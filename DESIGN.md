@@ -57,6 +57,11 @@ typography:
     fontSize: "0.8rem"
     fontWeight: 400
     lineHeight: 1.375
+  body-strong:
+    fontFamily: "Nunito, ui-sans-serif, system-ui, Segoe UI, Roboto, sans-serif"
+    fontSize: "0.9rem"
+    fontWeight: 600
+    lineHeight: 1.375
   data:
     fontFamily: "DM Mono, ui-monospace, SFMono-Regular, Consolas, monospace"
     fontSize: "0.8rem"
@@ -325,6 +330,10 @@ says its own name and names a site.
 - **Body** (Nunito, 0.8rem, line-height 1.375, Smoke): Every explanatory
   sentence. Longer prose sits inside cards no wider than 760px, which keeps it
   near 70ch. Dialog paragraphs step up to 1rem with relaxed leading.
+- **Body Strong** (Nunito, 0.9rem, weight 600, Chalk): The title line of a
+  selectable option row, sitting above the Body sentence that explains what the
+  choice commits you to. One step above Body on purpose — the title has to win
+  against the explanation beneath it without becoming a heading.
 - **Data** (DM Mono, 0.8rem, Chalk): Hop values, detail rows, a card's
   path/port line (0.85rem). Values break rather than truncate (`break-all` on
   paths and hostnames).
@@ -491,10 +500,10 @@ value between steps, and never a large radius to look friendlier.
 - **Focus:** The shared Ember ring at 2px with 2px offset.
 - **Selectable option rows:** The static/reverse-proxy choice is not a bare radio
   pair but two bordered rows (6px radius, 12px × 10px padding) each holding a
-  radio, a semibold Chalk title, and a Smoke explanation indented to the title's
-  text. Checked state uses `:has(:checked)` — the static row goes Hairline fill
-  with a Hairline Strong border; the proxy row goes Ember Deep at 50% with an
-  Ember Edge border, and its radio's `accent-color` is Ember.
+  radio, a Body Strong title in Chalk, and a Smoke explanation indented to the
+  title's text. Checked state uses `:has(:checked)` — the static row goes
+  Hairline fill with a Hairline Strong border; the proxy row goes Ember Deep at
+  50% with an Ember Edge border, and its radio's `accent-color` is Ember.
 - **Error:** Inline errors are 0.8rem Scorch. A form-level error is Scorch on
   Scorch Deep at 60% with a Scorch Edge border at 70%, 6px radius, hidden until
   it has text.
