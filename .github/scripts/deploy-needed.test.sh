@@ -33,6 +33,9 @@ check false "root markdown"                  CLAUDE.md
 check false "readme"                         README.md
 check false "nested docs markdown"           docs/superpowers/specs/a-design.md
 check false "claude settings"                .claude/settings.json
+check false "impeccable design sidecar"      .impeccable/design.json
+check false "impeccable live config"         .impeccable/live/config.json
+check false "impeccable session journal"     .impeccable/live/sessions/a.jsonl
 check false "editor project files"           .idea/workspace.xml
 check false "mcp config"                     .mcp.json
 check false "gitignore"                      .gitignore
@@ -41,12 +44,14 @@ check false "several skippable at once"      CLAUDE.md README.md .mcp.json
 # --- mixed changesets deploy ---
 check true  "docs plus code"                 CLAUDE.md src/server.ts
 check true  "code listed after docs"         docs/x.md package.json
+check true  "impeccable plus code"           .impeccable/design.json src/app.ts
 
 # --- fails open: never conclude "no deploy" from a doubtful input ---
 check true  "no changed files at all"         ""
 check true  "lookalike, not the mcp config"  .mcp.json.bak
 check true  "lookalike, not markdown"         notes.markdown
 check true  "path merely containing .md"     src/lib/a.md.ts
+check true  "lookalike, not .impeccable/"    .impeccable.bak/design.json
 
 printf '\n  %d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

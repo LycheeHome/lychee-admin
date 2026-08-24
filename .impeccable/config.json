@@ -1,0 +1,24 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "src/views/html.ts"
+        ],
+        "createdAt": "2026-08-24T03:27:32.184Z",
+        "reason": "User confirmed: the four hits are documented DESIGN.md pairs (Hearth on Ember for button-primary; Chalk on Scorch Deep/Rule for danger surfaces), all high-contrast. Rule targets washed-out mid-grays, which this palette does not use on fills."
+      }
+    ]
+  },
+  "hook": {
+    "enabled": true,
+    "limits": {
+      "maxFindings": 5,
+      "maxChars": 8000
+    }
+  }
+}
