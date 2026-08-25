@@ -965,6 +965,17 @@ describe("hardening: browser defaults never carry the design", () => {
     }
   });
 
+  test("a disabled control's hover fill cannot survive underneath it", () => {
+    // Clicking Remove leaves the pointer on the button while it disables, so a
+    // live hover background would sit under the dimmed disabled text. Measured
+    // at 2.09:1 before this guard — stone-500 on red-900.
+    for (const c of [BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_DANGER]) {
+      assert.match(c, /disabled:hover:/, `no disabled:hover override in: ${c}`);
+    }
+    assert.match(BUTTON_DANGER, /disabled:hover:bg-transparent/);
+    assert.match(BUTTON_SECONDARY, /disabled:hover:bg-transparent/);
+  });
+
   test("a disabled control says so tonally, not by going transparent", () => {
     // No opacity as a state signal — this system carries meaning in tone.
     for (const c of [BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_DANGER]) {
