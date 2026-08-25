@@ -63,7 +63,7 @@ export function renderSiteList(
       const status = statuses[site.hostname];
       const labels = status ? describeStatus(status) : null;
       const statusPill = labels
-        ? `<span class="${TONE_PILL[labels.tone]}">&#9679; ${escapeHtml(labels.pill)}</span>`
+        ? `<span class="${TONE_PILL[labels.tone]}"><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span>`
         : "";
 
       return `
@@ -156,7 +156,7 @@ export function renderAddSite(
           <label class="flex flex-col gap-1.5 text-[0.85rem] text-stone-400">
             Local port (reverse proxy only)
             <input type="number" name="port" min="1" max="65535" class="${INPUT}" id="port-field" aria-describedby="port-error" />
-            <span id="port-error" class="port-error hidden text-red-300 text-[0.8rem]"></span>
+            <span id="port-error" class="port-error hidden text-red-300 text-[0.8rem]" role="status" aria-live="polite"></span>
           </label>
           <label class="flex flex-col gap-1.5 text-[0.85rem] text-stone-400">
             Framework (optional)
@@ -203,6 +203,12 @@ interface Hop {
   sub?: string;
   /** Tailwind text-colour class for the sub-line; defaults to muted stone. */
   subClass?: string;
+  /**
+   * Prefixes the sub-line with a decorative status dot, hidden from assistive
+   * tech — the status word right after it is the real information and stays
+   * in the accessible name.
+   */
+  subDot?: boolean;
 }
 
 const HOP_LABEL =
@@ -215,7 +221,7 @@ function renderHop(hop: Hop): string {
   return `<div class="min-w-0">
             <p class="${HOP_LABEL}">${escapeHtml(hop.label)}</p>
             <p class="${HOP_VALUE}">${escapeHtml(hop.value)}</p>
-            ${hop.sub ? `<p class="font-mono text-[0.72rem] ${hop.subClass ?? "text-stone-400"} m-0 break-all">${escapeHtml(hop.sub)}</p>` : ""}
+            ${hop.sub ? `<p class="font-mono text-[0.72rem] ${hop.subClass ?? "text-stone-400"} m-0 break-all">${hop.subDot ? `<span aria-hidden="true">●</span> ` : ""}${escapeHtml(hop.sub)}</p>` : ""}
           </div>`;
 }
 
@@ -250,7 +256,7 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
       : {
           label: "Your app",
           value: `localhost:${site.target}`,
-          ...(labels ? { sub: `● ${labels.hop}`, subClass: TONE_TEXT[labels.tone] } : {}),
+          ...(labels ? { sub: labels.hop, subClass: TONE_TEXT[labels.tone], subDot: true } : {}),
         };
 
   const hops: Hop[] = [
@@ -543,7 +549,7 @@ function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
             <span class="inline-block font-mono text-[0.7rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border ${
               site.type === "static" ? TYPE_PILL_STATIC : TYPE_PILL_PROXY
             }">${site.type === "static" ? "static" : "proxy"}</span>
-            ${labels ? `<span class="${TONE_PILL[labels.tone]}" data-state-pill>&#9679; ${escapeHtml(labels.pill)}</span>` : ""}
+            ${labels ? `<span class="${TONE_PILL[labels.tone]}" data-state-pill><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span>` : ""}
           </div>
         </div>
         <a href="https://${escapeHtml(site.hostname)}" target="_blank" rel="noopener noreferrer" class="${BUTTON_PRIMARY} no-underline shrink-0">Visit ${icon("externalLink")}</a>

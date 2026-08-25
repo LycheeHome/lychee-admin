@@ -84,6 +84,11 @@ describe("accessible status and error wiring", () => {
     assert.match(span, /class="[^"]*port-error/);
   });
 
+  test("a port conflict is announced, not just shown", () => {
+    const error = tagById(renderAddSite(SITES, "lyly.dev", {}), "port-error");
+    assert.match(error, /aria-live="polite"/);
+  });
+
   test("a failed submit is announced, not only shown", () => {
     const p = tagById(renderAddSite(SITES, "lyly.dev", {}), "add-site-error");
     assert.match(p, /role="alert"/);
@@ -146,13 +151,13 @@ describe("renderSiteDetail header", () => {
       ...OPTS,
       status: { kind: "container", state: "running", health: "unhealthy" },
     });
-    assert.match(html, /data-state-pill>&#9679; unhealthy<\/span>/);
+    assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> unhealthy<\/span>/);
     assert.doesNotMatch(html, /&#9679; live|>\s*live\s*</);
   });
 
   test("a plain proxy's pill reports responding", () => {
     const html = renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: true } });
-    assert.match(html, /data-state-pill>&#9679; responding<\/span>/);
+    assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> responding<\/span>/);
   });
 
   test("widens the column past the old 640px", () => {
@@ -282,7 +287,7 @@ describe("renderSiteDetail request path", () => {
       ...OPTS,
       status: { kind: "container", state: "restarting" },
     });
-    assert.match(html, /text-red-300[^"]*">● restarting · crash-looping/);
+    assert.match(html, /text-red-300[^"]*"><span aria-hidden="true">●<\/span> restarting · crash-looping/);
   });
 
   test("a starting health check is not painted red", () => {
@@ -290,8 +295,8 @@ describe("renderSiteDetail request path", () => {
       ...OPTS,
       status: { kind: "container", state: "running", health: "starting" },
     });
-    assert.match(html, /text-stone-300[^"]*">● running · health check starting/);
-    assert.doesNotMatch(html, /text-red-300[^"]*">● running/);
+    assert.match(html, /text-stone-300[^"]*"><span aria-hidden="true">●<\/span> running · health check starting/);
+    assert.doesNotMatch(html, /text-red-300[^"]*"><span aria-hidden="true">●<\/span> running/);
   });
 
   test("shows the healthcheck path for a healthy site, not only when it fails", () => {
@@ -847,25 +852,26 @@ describe("status on the site list", () => {
   // this module (the header pill at data-state-pill, and this one) render
   // "&#9679;" verbatim, the same convention as renderDetailHeader's pill —
   // see the "data-state-pill>&#9679;" assertions above. Only the request-path
-  // hop's plain-text sub-line uses the literal "●" character.
+  // hop's plain-text sub-line uses the literal "●" character. Both are wrapped
+  // in their own aria-hidden span so the dot never joins the accessible name.
   test("a proxy site's card carries its canonical status word", () => {
     const html = renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } });
-    assert.match(html, /&#9679; responding/);
+    assert.match(html, /<span aria-hidden="true">&#9679;<\/span> responding/);
   });
 
   test("a container site reports the worst-case word, not the lifecycle one", () => {
     const html = renderSiteList([NEXT_SITE], {
       [NEXT_SITE.hostname]: { kind: "container", state: "running", health: "unhealthy" },
     });
-    assert.match(html, /&#9679; unhealthy/);
+    assert.match(html, /<span aria-hidden="true">&#9679;<\/span> unhealthy/);
   });
 
   test("starting is neutral, not red", () => {
     const html = renderSiteList([NEXT_SITE], {
       [NEXT_SITE.hostname]: { kind: "container", state: "running", health: "starting" },
     });
-    assert.match(html, /text-stone-300[^"]*"[^>]*>&#9679; starting/);
-    assert.doesNotMatch(html, /text-red-300[^"]*"[^>]*>&#9679; starting/);
+    assert.match(html, /text-stone-300[^"]*"[^>]*><span aria-hidden="true">&#9679;<\/span> starting/);
+    assert.doesNotMatch(html, /text-red-300[^"]*"[^>]*><span aria-hidden="true">&#9679;<\/span> starting/);
   });
 
   test("a static site gets no status pill — nothing checks one", () => {
@@ -876,6 +882,15 @@ describe("status on the site list", () => {
   test("a site with no status entry renders no pill rather than a guess", () => {
     const html = renderSiteList([PROXY_SITE], {});
     assert.doesNotMatch(html, /&#9679;/);
+  });
+
+  test("the status dot is not part of any accessible name", () => {
+    const html = renderSiteList(SITES, { "api.lyly.dev": { kind: "tcp", responding: false } });
+    const dots = [...html.matchAll(/<span[^>]*>&#9679;/g)];
+    assert.ok(dots.length > 0, "no status dot was rendered");
+    for (const dot of dots) {
+      assert.match(dot[0], /aria-hidden="true"/);
+    }
   });
 });
 

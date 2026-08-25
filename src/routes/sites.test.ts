@@ -178,12 +178,14 @@ describe("status on the site list", () => {
   // "&#9679;" is the literal entity the pill span renders (see the pill
   // convention noted in src/views/html.test.ts) — a raw "●" character never
   // appears in this markup, so the regex matches the entity, not the glyph.
+  // It's wrapped in its own aria-hidden span so the dot never joins the
+  // pill's accessible name.
   test("reports each proxy site's status", async () => {
     const page = withoutHeader(await (await request("/")).text());
     // api.lyly.dev is the seeded plain proxy on port 4000. Nothing listens
     // there during the test, so the tcp check resolves either way — the
     // assertion is that a canonical status word reached the card at all.
-    assert.match(page, /&#9679; (responding|not responding)/);
+    assert.match(page, /<span aria-hidden="true">&#9679;<\/span> (responding|not responding)/);
   });
 
   test("says nothing about a static site's liveness", async () => {
