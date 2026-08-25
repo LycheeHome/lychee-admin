@@ -79,14 +79,23 @@ export function createSitesRouter(deps: Deps): Router {
   const { logAction } = deps.logger;
 
   sitesRouter.get("/", async (req, res) => {
+    // A fact about a removal that already completed, independent of whether
+    // the Caddyfile happens to be readable on this particular request — so
+    // it's computed once and threaded into both the success and error
+    // renders below, rather than only the happy path.
+    const removed = typeof req.query.removed === "string" ? req.query.removed : undefined;
+    const notice = removed
+      ? `Removed ${removed}. Remember to remove the DNS record in Cloudflare manually.`
+      : undefined;
+
     try {
       const content = deps.fs.readFile(config.caddyfilePath);
       const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname));
 
-      res.send(renderSiteList(sites, await computeStatuses(sites, deps)));
+      res.send(renderSiteList(sites, await computeStatuses(sites, deps), undefined, { page: "sites" }, notice));
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
-      res.status(500).send(renderSiteList([], {}, message));
+      res.status(500).send(renderSiteList([], {}, message, { page: "sites" }, notice));
     }
   });
 

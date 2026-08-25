@@ -771,6 +771,28 @@ describe("the ?created=1 notice", () => {
   });
 });
 
+describe("the removal notice on the site list", () => {
+  test("the removal reminder renders in flow, not as a timed toast", () => {
+    const html = renderSiteList(
+      [],
+      {},
+      undefined,
+      { page: "sites" },
+      "Removed blog.lyly.dev. Remember to remove the DNS record in Cloudflare manually.",
+    );
+    const notice = tagById(html, "page-notice");
+    assert.ok(notice);
+    assert.match(html, /Remember to remove the DNS record/);
+    // It must be dismissible rather than vanishing on a timer.
+    assert.ok(tagById(html, "page-notice-close"));
+  });
+
+  test("no notice renders without one", () => {
+    const html = renderSiteList([], {}, undefined, { page: "sites" });
+    assert.doesNotMatch(html, /id="page-notice"/);
+  });
+});
+
 describe("status on the site list", () => {
   // The pill entity, not the literal glyph: the rounded-full pill spans in
   // this module (the header pill at data-state-pill, and this one) render

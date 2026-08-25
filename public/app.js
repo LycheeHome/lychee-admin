@@ -43,10 +43,11 @@ flashBannerClose?.addEventListener("click", hideBanner);
 const pageNotice = document.getElementById("page-notice");
 document.getElementById("page-notice-close")?.addEventListener("click", () => pageNotice?.remove());
 
-const removedHostname = new URLSearchParams(window.location.search).get("removed");
-if (removedHostname) {
-  showBanner(`Removed ${removedHostname}. Remember to remove the DNS record in Cloudflare manually.`, "success");
-  history.replaceState(null, "", "/");
+// The DNS reminder itself is server-rendered as #page-notice now (see
+// renderSiteList in src/views/html.ts) — this just strips the query param so
+// a refresh doesn't re-trigger anything and the URL doesn't linger dirty.
+if (new URLSearchParams(window.location.search).has("removed")) {
+  history.replaceState(null, "", window.location.pathname);
 }
 
 if (new URLSearchParams(window.location.search).has("created")) {

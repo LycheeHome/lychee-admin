@@ -160,6 +160,18 @@ describe("GET /", () => {
     const body = await (await request("/")).text();
     assert.doesNotMatch(body, /lychee\.local/);
   });
+
+  test("states the DNS reminder after a removal", async () => {
+    const response = await request("/?removed=blog.lyly.dev");
+    const html = await response.text();
+    assert.match(html, /id="page-notice"/);
+    assert.match(html, /Remember to remove the DNS record/);
+  });
+
+  test("says nothing about DNS without a ?removed query", async () => {
+    const html = await (await request("/")).text();
+    assert.doesNotMatch(html, /id="page-notice"/);
+  });
 });
 
 describe("status on the site list", () => {
@@ -197,6 +209,20 @@ describe("GET / when the Caddyfile can't be read", () => {
     assert.equal(response.status, 500);
     const body = await response.text();
     assert.match(body, /ENOENT/);
+  });
+
+  // The DNS reminder is a fact about a removal that already completed, not
+  // about whether the Caddyfile happens to be readable on this particular
+  // request — so a 500 here must not swallow it.
+  test("still states the DNS reminder even though the list itself can't render", async () => {
+    fakeFs.rmRecursive(CADDYFILE);
+
+    const response = await request("/?removed=blog.lyly.dev");
+
+    assert.equal(response.status, 500);
+    const body = await response.text();
+    assert.match(body, /id="page-notice"/);
+    assert.match(body, /Remember to remove the DNS record/);
   });
 });
 

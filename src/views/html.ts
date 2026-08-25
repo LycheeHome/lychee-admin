@@ -51,6 +51,10 @@ export function renderSiteList(
   // renders this same body at /sites/<hostname> and must not claim "sites"
   // is where the URL points — see its call site in src/routes/sites.ts.
   nav: Nav = { page: "sites" },
+  // A removal's DNS reminder is a page-load notice carrying an unfinished
+  // manual action, so it belongs in flow with a close button — not in the
+  // transient toast, which times out after four seconds.
+  notice?: string,
 ): string {
   const cards = sites
     .map((site) => {
@@ -95,7 +99,7 @@ export function renderSiteList(
       </div>
     </section>
     `,
-    { nav },
+    { nav, banner: notice ? { message: notice } : undefined },
   );
 }
 
