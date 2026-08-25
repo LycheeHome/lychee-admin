@@ -64,13 +64,24 @@ const DISMISS_BUTTON =
  * inherit the first one's colour. The info/default tone's background is
  * opaque (bg-rose-950, no /60) so it fully covers whatever it sits over —
  * this banner is fixed and can overlap page content.
+ *
+ * #flash-banner-progress is a quiet pulsing dot, shown only for the "info"
+ * (in-flight) tone — the alternative to a static, motionless ellipsis for
+ * the length of a `systemctl restart`. It is a sibling of the message span,
+ * not nested inside it, because showBanner() replaces the message text
+ * wholesale; nesting it would delete it the next time the banner fires.
+ * motion-safe: means a reduced-motion viewer sees a plain static dot rather
+ * than a moving one, the same gating every other motion in this app uses.
  */
 function renderFlashBanner(): string {
   const base =
     "fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[min(480px,calc(100vw-2rem))] font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 border shadow-lg shadow-black/40 flex items-center justify-between gap-3";
 
   return `<div id="flash-banner" class="hidden ${base}" role="status" aria-live="polite">
-        <span id="flash-banner-message"></span>
+        <span class="flex items-center gap-2 min-w-0">
+          <span id="flash-banner-progress" class="hidden shrink-0 h-1.5 w-1.5 rounded-full bg-stone-50 motion-safe:animate-pulse" aria-hidden="true"></span>
+          <span id="flash-banner-message"></span>
+        </span>
         <button type="button" id="flash-banner-close" class="hidden ${DISMISS_BUTTON}" aria-label="Dismiss">&times;</button>
       </div>`;
 }

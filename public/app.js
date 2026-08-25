@@ -1,4 +1,12 @@
 let deleteInFlight = false;
+// Once true, the confirm button stays disabled for the rest of this page
+// load — see setRemoveBusy's keepSubmitDisabled param and isRemovalSettled
+// below. A removal that's reached this point has an accurate report on
+// screen (steps ok through caddy or cloudflared, or removed:true); retrying
+// it would call caddyfile.removeSite on a hostname that's already gone,
+// which throws "No Caddyfile block found" and overwrites that report with a
+// misleading one.
+let removalSettled = false;
 
 const portOwners = JSON.parse(document.getElementById("port-owners-data")?.textContent ?? "{}");
 
@@ -7,6 +15,7 @@ const confirmRemoveDeleteFilesCheckbox = document.getElementById("confirm-remove
 
 const flashBanner = document.getElementById("flash-banner");
 const flashBannerMessage = document.getElementById("flash-banner-message");
+const flashBannerProgress = document.getElementById("flash-banner-progress");
 const flashBannerClose = document.getElementById("flash-banner-close");
 let flashBannerTimeout = null;
 
@@ -15,6 +24,10 @@ function showBanner(message, kind) {
   clearTimeout(flashBannerTimeout);
   flashBannerMessage.textContent = message;
   flashBanner.classList.remove("hidden", "bg-red-950/60", "border-red-400/70", "bg-rose-950", "border-rose-400/70");
+  // Only the "info" tone is ever in-flight (see the add form's submit
+  // handler, the one caller today) — the pulsing dot says "still working",
+  // which is never true of a terminal error or success state.
+  flashBannerProgress?.classList.toggle("hidden", kind !== "info");
   if (kind === "error") {
     flashBanner.classList.add("bg-red-950/60", "border-red-400/70");
     flashBannerClose.classList.remove("hidden");
@@ -33,6 +46,7 @@ function showBanner(message, kind) {
 function hideBanner() {
   clearTimeout(flashBannerTimeout);
   flashBanner?.classList.add("hidden");
+  flashBannerProgress?.classList.add("hidden");
 }
 
 flashBannerClose?.addEventListener("click", hideBanner);
@@ -88,12 +102,30 @@ function resetSteps(listId) {
 // from the button's own (already-overwritten) textContent afterward would
 // leave the label frozen at "Removing…" forever. Progress and outcome text
 // live in #confirm-remove-outcome instead.
-function setRemoveBusy(busy) {
+//
+// keepSubmitDisabled is separate from busy: once a removal has settled (see
+// isRemovalSettled), the confirm button must stay disabled even after the
+// in-flight request resolves and busy goes back to false, while Cancel stays
+// usable so the operator can still dismiss the dialog.
+function setRemoveBusy(busy, keepSubmitDisabled = false) {
   const submit = document.getElementById("confirm-remove-submit");
   const cancel = document.querySelector('[data-close-dialog="confirm-remove-dialog"]');
-  if (submit) submit.disabled = busy;
+  if (submit) submit.disabled = busy || keepSubmitDisabled;
   if (cancel) cancel.disabled = busy;
   confirmRemoveDialog?.setAttribute("aria-busy", busy ? "true" : "false");
+}
+
+// True once retrying would risk destroying the only record of a partially-
+// or fully-completed removal: the config removal itself succeeded
+// (`removed: true`), or the caddy/cloudflared steps — which only ever run
+// once Caddy has actually reloaded — reported "ok". A failure at or before
+// the caddy step, by contrast, is always rolled back server-side (see
+// hostStateMessage), so retrying from there is still safe.
+function isRemovalSettled(result) {
+  if (result?.removed) return true;
+  return (result?.steps ?? []).some(
+    (step) => (step.id === "caddy" || step.id === "cloudflared") && step.status === "ok",
+  );
 }
 
 const OUTCOME_NEUTRAL_CLASSES = ["text-stone-400"];
@@ -110,18 +142,29 @@ const OUTCOME_ERROR_CLASSES = [
 // The outcome region is a progress surface first (plain muted text while a
 // step is running) and becomes a failure surface only once a failure
 // actually lands — never styled red for an in-flight or successful removal.
+//
+// The message text lives in a nested span (#confirm-remove-outcome-text)
+// rather than directly in #confirm-remove-outcome, because the pulsing
+// progress dot is a sibling of that span: overwriting the parent's
+// textContent on every call would delete the dot the next time this runs.
+// The dot itself only ever shows for the in-flight (non-error) message —
+// "still working" is never true once a failure has actually landed.
 function setOutcome(message, isError) {
   const outcome = document.getElementById("confirm-remove-outcome");
-  if (!outcome) return;
+  const outcomeText = document.getElementById("confirm-remove-outcome-text");
+  const progress = document.getElementById("confirm-remove-progress");
+  if (!outcome || !outcomeText) return;
   outcome.classList.remove(...OUTCOME_NEUTRAL_CLASSES, ...OUTCOME_ERROR_CLASSES);
   if (!message) {
-    outcome.textContent = "";
+    outcomeText.textContent = "";
     outcome.classList.add("hidden");
+    progress?.classList.add("hidden");
     return;
   }
-  outcome.textContent = message;
+  outcomeText.textContent = message;
   outcome.classList.remove("hidden");
   outcome.classList.add(...(isError ? OUTCOME_ERROR_CLASSES : OUTCOME_NEUTRAL_CLASSES));
+  progress?.classList.toggle("hidden", isError);
 }
 
 // Describes what actually happened on the host for a failed /delete call.
@@ -150,7 +193,7 @@ confirmRemoveDialog?.addEventListener("cancel", (event) => {
 });
 
 document.getElementById("confirm-remove-submit")?.addEventListener("click", async (event) => {
-  if (deleteInFlight) return;
+  if (deleteInFlight || removalSettled) return;
   const hostname = event.currentTarget.dataset.hostname;
   if (!hostname) return;
 
@@ -167,6 +210,7 @@ document.getElementById("confirm-remove-submit")?.addEventListener("click", asyn
     });
     const result = await response.json();
     markSteps("confirm-remove-steps", result.steps);
+    if (isRemovalSettled(result)) removalSettled = true;
 
     if (!response.ok) {
       // The dialog stays open: it stated the four steps, so it is where the
@@ -201,7 +245,7 @@ document.getElementById("confirm-remove-submit")?.addEventListener("click", asyn
     setOutcome(error.message, true);
   } finally {
     deleteInFlight = false;
-    setRemoveBusy(false);
+    setRemoveBusy(false, removalSettled);
   }
 });
 
@@ -235,8 +279,11 @@ function validatePortField() {
   const owner = portOwners[portField.value];
   if (owner) {
     portField.setCustomValidity(`Port ${portField.value} is already in use by ${owner}`);
-    portError.textContent = `Already in use by ${owner}`;
+    // Unhide before writing: a mutation inside a display:none subtree is not
+    // announced, and revealing an element that already holds its text
+    // generally isn't either — see the same fix beside #add-site-error.
     portError.classList.remove("hidden");
+    portError.textContent = `Already in use by ${owner}`;
   } else {
     portField.setCustomValidity("");
     portError.classList.add("hidden");
@@ -271,6 +318,7 @@ addSiteForm?.addEventListener("submit", async (event) => {
     // entry (e.g. a single space) still passes it. Stop here rather than
     // composing a bare ".lyly.dev" and letting the server reject it with a
     // less legible error.
+    resetSteps("add-site-steps");
     if (addSiteError) {
       addSiteError.classList.remove("hidden");
       addSiteError.textContent = "Enter a hostname.";
@@ -287,6 +335,7 @@ addSiteForm?.addEventListener("submit", async (event) => {
   const healthcheckPath = String(formData.get("healthcheckPath") ?? "").trim();
 
   addSiteInFlight = true;
+  resetSteps("add-site-steps");
   addSiteError?.classList.add("hidden");
   const submitButton = addSiteForm.querySelector('button[type="submit"]');
   if (submitButton) submitButton.disabled = true;

@@ -299,7 +299,13 @@ describe("POST /sites — static", () => {
   test("rejects a hostname that already exists", async () => {
     const response = await request("/sites", form({ hostname: "blog.lyly.dev", type: "static" }));
     assert.equal(response.status, 500);
-    assert.match((await json<{ error: string }>(response)).error, /already exists in the Caddyfile/);
+    const body = await json<{ error: string; steps: { id: string; status: string }[] }>(response);
+    assert.match(body.error, /already exists in the Caddyfile/);
+    // This throws before report.run("backup", ...) ever executes, so the
+    // response must not claim backups were saved — see the "backup"
+    // step's own status, which stays "not-run".
+    assert.equal(body.steps.find((step) => step.id === "backup")?.status, "not-run");
+    assert.doesNotMatch(body.error, /Backed-up copies/);
   });
 });
 
@@ -515,6 +521,12 @@ describe("rollback", () => {
 
     assert.equal(response.status, 500);
     assert.equal(fakeFs.readFile(CADDYFILE), before);
+    // Unlike the pre-backup-step rejections, the backup step did actually run
+    // here (the failure is four steps later), so the response's mention of
+    // backups is accurate rather than asserted unconditionally.
+    const body = await json<{ error: string; steps: { id: string; status: string }[] }>(response);
+    assert.equal(body.steps.find((step) => step.id === "backup")?.status, "ok");
+    assert.match(body.error, /Backed-up copies/);
   });
 
   test("restores the Caddyfile when the tunnel edit fails during remove", async () => {
@@ -525,6 +537,26 @@ describe("rollback", () => {
     const response = await request("/sites/lychee.local/delete", form({}));
 
     assert.equal(response.status, 500);
+    assert.equal(fakeFs.readFile(CADDYFILE), before);
+  });
+
+  test("aborts before mutating anything when the tunnel config can't be read", async () => {
+    // Regression for an ordering bug: the delete handler used to read
+    // tunnelContent only after rewriting the Caddyfile, so a read failure
+    // here left the Caddyfile edited-but-unapplied — the caddyfile step
+    // reporting "ok" — with no rollback (the guard needs both contents) and
+    // no step reporting it, so the operator would see nothing at all.
+    // Reading tunnelContent up front, beside caddyfileContent, makes that
+    // combination impossible: this now fails before anything is mutated.
+    fakeFs.rmRecursive(TUNNEL_CONFIG);
+    const before = fakeFs.readFile(CADDYFILE);
+
+    const response = await request("/sites/blog.lyly.dev/delete", form({}));
+
+    assert.equal(response.status, 500);
+    const body = await json<{ steps: { id: string; status: string }[] }>(response);
+    const byId = Object.fromEntries(body.steps.map((s) => [s.id, s.status]));
+    assert.equal(byId.caddyfile, "not-run");
     assert.equal(fakeFs.readFile(CADDYFILE), before);
   });
 

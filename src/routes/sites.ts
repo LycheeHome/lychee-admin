@@ -336,8 +336,18 @@ export function createSitesRouter(deps: Deps): Router {
         }
       }
 
+      // The backup sentence must only appear when the backup step actually
+      // ran: every pre-step failure (duplicate hostname, reserved port, port
+      // conflict, either readFile) throws before report.run("backup", ...)
+      // ever executes, and asserting backups exist in that case would tell
+      // the operator root-owned configs might be in a bad state when nothing
+      // was ever touched.
+      const backupRan = report.steps().find((step) => step.id === "backup")?.status === "ok";
+      const backupNote = backupRan
+        ? `\n\nBacked-up copies of the Caddyfile and tunnel config were saved to ${config.backupDir} before this attempt — review and restore manually if the configs were left in a bad state.`
+        : "";
       res.status(500).json({
-        error: `${message}\n\nBacked-up copies of the Caddyfile and tunnel config were saved to ${config.backupDir} before this attempt — review and restore manually if the configs were left in a bad state.`,
+        error: `${message}${backupNote}`,
         steps: report.steps(),
       });
     }
@@ -361,6 +371,12 @@ export function createSitesRouter(deps: Deps): Router {
     try {
       caddyfileContent = deps.fs.readFile(config.caddyfilePath);
       const existingSite = caddyfile.parseSites(caddyfileContent).find((site) => site.hostname === hostname);
+      // Read up front, beside caddyfileContent — not after the Caddyfile
+      // write — so the rollback guard below (which requires both contents)
+      // can never be half-satisfied. A read failure here now aborts before
+      // anything is mutated, rather than leaving the Caddyfile
+      // edited-but-unapplied with no rollback and nothing to report it.
+      tunnelContent = deps.fs.readFile(config.tunnelConfigPath);
 
       backupFile(config.caddyfilePath);
       backupFile(config.tunnelConfigPath);
@@ -369,7 +385,6 @@ export function createSitesRouter(deps: Deps): Router {
         deps.commands.writeManagedConfig(config.caddyfilePath, caddyfile.removeSite(caddyfileContent!, hostname)),
       );
 
-      tunnelContent = deps.fs.readFile(config.tunnelConfigPath);
       await report.run("tunnel", () =>
         deps.commands.writeManagedConfig(
           config.tunnelConfigPath,
