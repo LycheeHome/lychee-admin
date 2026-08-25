@@ -27,9 +27,14 @@ export interface StatusLabels {
  * One canonical vocabulary for site state, used by both the header pill and
  * the last routing hop so the page can never describe one fact two ways.
  *
- * "starting" and "unknown" are deliberately neutral rather than bad: a
- * container still running its first health check is not broken, and a status
- * we failed to read is not evidence the site is down.
+ * "starting", "unknown" and "not deployed" are deliberately neutral rather
+ * than bad, because none of them is a failure: a container still running its
+ * first health check is not broken, a status we failed to read is not evidence
+ * the site is down, and a container that was never created — or that was
+ * deliberately taken down with `docker compose down` — has not crashed. The
+ * bad tone is reserved for something that tried and failed, so that red keeps
+ * meaning "this needs you now". The status word still says the site is not
+ * serving; only the alarm is withdrawn.
  */
 export function describeStatus(status: SiteStatus): StatusLabels {
   if (status.kind === "tcp") {
@@ -60,7 +65,7 @@ export function describeStatus(status: SiteStatus): StatusLabels {
     case "paused":
       return { pill: "paused", hop: "paused", tone: "bad" };
     case "not-created":
-      return { pill: "not deployed", hop: "not deployed", tone: "bad" };
+      return { pill: "not deployed", hop: "not deployed", tone: "neutral" };
     case "unknown":
       return { pill: "unknown", hop: "can't check", tone: "neutral" };
     // Exhaustiveness guard: if a new ContainerState member is added,

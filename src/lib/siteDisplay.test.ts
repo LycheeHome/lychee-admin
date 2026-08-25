@@ -53,11 +53,11 @@ describe("describeStatus", () => {
     });
   });
 
-  test("a container that was never created reads as not deployed", () => {
+  test("a never-created container is neutral — absence is not a failure", () => {
     assert.deepEqual(describeStatus({ kind: "container", state: "not-created" }), {
       pill: "not deployed",
       hop: "not deployed",
-      tone: "bad",
+      tone: "neutral",
     });
   });
 
