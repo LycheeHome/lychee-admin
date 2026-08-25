@@ -1,4 +1,24 @@
-@import "tailwindcss";
+/*
+ * `source(none)` disables Tailwind v4's automatic source detection, which
+ * otherwise sweeps the whole project (minus gitignored paths) and compiles
+ * class strings out of anything that looks like markup — including the
+ * markdown under docs/. That put utilities in the shipped bundle that no
+ * rendered page ever uses: a 3px left border and a 1.35rem font size both
+ * reached public/style.css purely from planning documents. (Spelled out in
+ * prose rather than as utilities, so this comment can never itself become a
+ * source of the classes it describes.)
+ *
+ * The two explicit sources below are exhaustive for this app: `src/` holds
+ * the server-rendered views and their Tailwind class constants, and
+ * `public/` holds app.js, which adds classes at runtime via classList.
+ * `public/` is NOT optional — several classes exist only there (the flash
+ * banner's tone classes, the step-mark colours), and dropping it would
+ * remove them from the bundle with nothing failing at build or test time.
+ */
+@import "tailwindcss" source(none);
+
+@source "../../src";
+@source "../../public";
 
 @theme {
   --font-display: "Poetsen One", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
