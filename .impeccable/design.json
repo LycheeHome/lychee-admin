@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-24T18:43:54Z",
+  "generatedAt": "2026-08-25T20:00:00Z",
   "title": "Design System: lyly-admin",
   "extensions": {
     "colorMeta": {
@@ -256,7 +256,7 @@
       "refersTo": "button-primary",
       "description": "One per view, for its single forward action \u2014 Add site, Visit.",
       "html": "<button class=\"ds-btn-primary\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg>Add site</button>",
-      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; background: oklch(71.2% 0.194 13.428); color: oklch(21.6% 0.006 56.043); border: none; border-radius: 6px; padding: 10px 16px; cursor: pointer; transition: background 150ms; } .ds-btn-primary svg { width: 1em; height: 1em; flex-shrink: 0; } .ds-btn-primary:hover { background: oklch(81% 0.117 11.638); } .ds-btn-primary:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; }"
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; background: oklch(71.2% 0.194 13.428); color: oklch(21.6% 0.006 56.043); border: none; border-radius: 6px; padding: 10px 16px; cursor: pointer; transition: background 150ms; } .ds-btn-primary svg { width: 1em; height: 1em; flex-shrink: 0; } .ds-btn-primary:hover { background: oklch(81% 0.117 11.638); } .ds-btn-primary:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-btn-primary:disabled { background: oklch(71.2% 0.194 13.428 / 0.4); color: oklch(55.3% 0.013 58.071); cursor: not-allowed; } .ds-btn-primary:disabled:hover { background: oklch(71.2% 0.194 13.428 / 0.4); }"
     },
     {
       "name": "Secondary Button",
@@ -264,7 +264,7 @@
       "refersTo": "button-secondary",
       "description": "The cancel side of a dialog. Same size as primary, outlined instead of filled.",
       "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
-      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; background: transparent; color: oklch(70.9% 0.01 56.259); border: 1px solid oklch(44.4% 0.011 73.639); border-radius: 6px; padding: 10px 16px; cursor: pointer; transition: background 150ms, color 150ms; } .ds-btn-secondary:hover { background: oklch(37.4% 0.01 67.558); color: oklch(98.5% 0.001 106.423); } .ds-btn-secondary:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; }"
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; background: transparent; color: oklch(70.9% 0.01 56.259); border: 1px solid oklch(44.4% 0.011 73.639); border-radius: 6px; padding: 10px 16px; cursor: pointer; transition: background 150ms, color 150ms; } .ds-btn-secondary:hover { background: oklch(37.4% 0.01 67.558); color: oklch(98.5% 0.001 106.423); } .ds-btn-secondary:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-btn-secondary:disabled { color: oklch(55.3% 0.013 58.071); border-color: oklch(37.4% 0.01 67.558); cursor: not-allowed; } .ds-btn-secondary:disabled:hover { background: transparent; color: oklch(55.3% 0.013 58.071); }"
     },
     {
       "name": "Danger Button",
@@ -272,7 +272,7 @@
       "refersTo": "button-danger",
       "description": "Destructive action. Outlined Scorch, one size down from primary \u2014 never the largest control on screen.",
       "html": "<button class=\"ds-btn-danger\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18\"/><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6\"/><path d=\"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/><line x1=\"10\" x2=\"10\" y1=\"11\" y2=\"17\"/><line x1=\"14\" x2=\"14\" y1=\"11\" y2=\"17\"/></svg>Remove site</button>",
-      "css": ".ds-btn-danger { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.8rem; font-weight: 600; background: transparent; color: oklch(80.8% 0.114 19.571); border: 1px solid oklch(44.4% 0.177 26.899); border-radius: 6px; padding: 6px 12px; cursor: pointer; transition: background 150ms, color 150ms; } .ds-btn-danger svg { width: 1em; height: 1em; flex-shrink: 0; } .ds-btn-danger:hover { background: oklch(39.6% 0.141 25.723); color: oklch(98.5% 0.001 106.423); } .ds-btn-danger:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; }"
+      "css": ".ds-btn-danger { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.8rem; font-weight: 600; background: transparent; color: oklch(80.8% 0.114 19.571); border: 1px solid oklch(44.4% 0.177 26.899); border-radius: 6px; padding: 6px 12px; cursor: pointer; transition: background 150ms, color 150ms; } .ds-btn-danger svg { width: 1em; height: 1em; flex-shrink: 0; } .ds-btn-danger:hover { background: oklch(39.6% 0.141 25.723); color: oklch(98.5% 0.001 106.423); } .ds-btn-danger:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-btn-danger:disabled { color: oklch(55.3% 0.013 58.071); border-color: oklch(37.4% 0.01 67.558); cursor: not-allowed; } .ds-btn-danger:disabled:hover { background: transparent; color: oklch(55.3% 0.013 58.071); }"
     },
     {
       "name": "Text Field",
@@ -359,7 +359,7 @@
       },
       {
         "name": "The Three-Tone Status Rule",
-        "body": "Site state resolves to exactly three tones: Clear, Scorch, or Smoke. starting and unknown are Smoke, never Scorch \u2014 a container still running its first health check is not broken, and a status we failed to read is not evidence that anything is down. Never invent a fourth tone, and never let a tone appear without the canonical status word beside it.",
+        "body": "Site state resolves to exactly three tones: Clear, Scorch, or Smoke. starting, unknown and not deployed are Smoke, never Scorch \u2014 a container still running its first health check is not broken, a status we failed to read is not evidence that anything is down, and a container that was never created (or was deliberately taken down) has not crashed. Scorch is reserved for something that tried and failed, so that red keeps meaning \"this needs you now\". Never invent a fourth tone, and never let a tone appear without the canonical status word beside it \u2014 that second clause is what makes the first safe, because the word carries which state it is while the tone carries only how bad it is.",
         "section": "colors"
       },
       {
@@ -369,7 +369,7 @@
       },
       {
         "name": "The Dim-Text Rule",
-        "body": "Dim text is Smoke, not Smoke Deep. Smoke Deep carries text in exactly one place \u2014 the .lyly.dev suffix on a detail page's Headline, which at 27px is WCAG large text and clears the 3:1 that applies there. At any smaller size it fails the 4.5:1 that applies instead (3.16:1 on a card), so every label, key, caption, and hop sub-line takes Smoke. The one exception is the breadcrumb's /, which is decorative punctuation between two links rather than content anyone reads. When a new dim role appears, the question is not \"how dim can this be\" but \"does it clear 4.5:1 on both Hearth and Hearth Lift.\"",
+        "body": "Dim text is Smoke, not Smoke Deep. Smoke Deep carries readable text in exactly one place \u2014 the .lyly.dev suffix on a detail page's Headline, which at 27px is WCAG large text and clears the 3:1 that applies there. At any smaller size it fails the 4.5:1 that applies instead (3.16:1 on a card), so every label, key, caption and hop sub-line takes Smoke. Two things sit outside that test because neither is text you read to learn something: the breadcrumb's decorative slash, marked aria-hidden, and a disabled control's label, which takes Smoke Deep on purpose because WCAG 1.4.3 exempts text in an inactive user interface component and dimness past the readable floor is the signal. A disabled control must never keep a hover fill underneath it.",
         "section": "colors"
       },
       {

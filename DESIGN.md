@@ -310,13 +310,23 @@ tone carries only how bad it is. `not deployed` and `unknown` share Smoke and
 stay unambiguous.
 
 **The Dim-Text Rule.** Dim text is Smoke, not Smoke Deep. Smoke Deep carries
-text in exactly one place — the `.lyly.dev` suffix on a detail page's Headline,
-which at 27px is WCAG large text and clears the 3:1 that applies there. At any
-smaller size it fails the 4.5:1 that applies instead (3.16:1 on a card), so
-every label, key, caption, and hop sub-line takes Smoke. The one exception is
-the breadcrumb's `/`, which is decorative punctuation between two links rather
-than content anyone reads. When a new dim role appears, the question is not
-"how dim can this be" but "does it clear 4.5:1 on both Hearth and Hearth Lift."
+readable text in exactly one place — the `.lyly.dev` suffix on a detail page's
+Headline, which at 27px is WCAG large text and clears the 3:1 that applies
+there. At any smaller size it fails the 4.5:1 that applies instead (3.16:1 on a
+card), so every label, key, caption, and hop sub-line takes Smoke. When a new
+dim role appears, the question is not "how dim can this be" but "does it clear
+4.5:1 on both Hearth and Hearth Lift."
+
+Two things are deliberately outside that test, because neither is text you
+read to learn something. The breadcrumb's `/` is decorative punctuation between
+two links, and is marked `aria-hidden` to say so. And a **disabled** control's
+label takes Smoke Deep on purpose: WCAG 1.4.3 exempts text that is part of an
+inactive user interface component, and dimness past the readable floor is
+precisely the signal that the control is not yours to press right now. That
+exemption is not a license to dim anything inconvenient — it applies only while
+the control is genuinely disabled, and it is why a disabled control must never
+keep a hover fill underneath it (measured at 2.09:1 the one time it did, which
+is unreadable rather than merely dim).
 
 **The Scorch-Is-Not-Ember Rule.** Danger uses the red family even though it
 neighbors rose in hue, and the two never substitute for each other. Ember means
