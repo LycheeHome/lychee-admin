@@ -160,18 +160,32 @@ describe("GET /", () => {
     const body = await (await request("/")).text();
     assert.doesNotMatch(body, /lychee\.local/);
   });
+
+  test("states the DNS reminder after a removal", async () => {
+    const response = await request("/?removed=blog.lyly.dev");
+    const html = await response.text();
+    assert.match(html, /id="page-notice"/);
+    assert.match(html, /Remember to remove the DNS record/);
+  });
+
+  test("says nothing about DNS without a ?removed query", async () => {
+    const html = await (await request("/")).text();
+    assert.doesNotMatch(html, /id="page-notice"/);
+  });
 });
 
 describe("status on the site list", () => {
   // "&#9679;" is the literal entity the pill span renders (see the pill
   // convention noted in src/views/html.test.ts) — a raw "●" character never
   // appears in this markup, so the regex matches the entity, not the glyph.
+  // It's wrapped in its own aria-hidden span so the dot never joins the
+  // pill's accessible name.
   test("reports each proxy site's status", async () => {
     const page = withoutHeader(await (await request("/")).text());
     // api.lyly.dev is the seeded plain proxy on port 4000. Nothing listens
     // there during the test, so the tcp check resolves either way — the
     // assertion is that a canonical status word reached the card at all.
-    assert.match(page, /&#9679; (responding|not responding)/);
+    assert.match(page, /<span aria-hidden="true">&#9679;<\/span> (responding|not responding)/);
   });
 
   test("says nothing about a static site's liveness", async () => {
@@ -198,6 +212,20 @@ describe("GET / when the Caddyfile can't be read", () => {
     const body = await response.text();
     assert.match(body, /ENOENT/);
   });
+
+  // The DNS reminder is a fact about a removal that already completed, not
+  // about whether the Caddyfile happens to be readable on this particular
+  // request — so a 500 here must not swallow it.
+  test("still states the DNS reminder even though the list itself can't render", async () => {
+    fakeFs.rmRecursive(CADDYFILE);
+
+    const response = await request("/?removed=blog.lyly.dev");
+
+    assert.equal(response.status, 500);
+    const body = await response.text();
+    assert.match(body, /id="page-notice"/);
+    assert.match(body, /Remember to remove the DNS record/);
+  });
 });
 
 describe("GET /sites/new", () => {
@@ -223,6 +251,15 @@ describe("GET /sites/new", () => {
 });
 
 describe("POST /sites — static", () => {
+  const OK_ADD_STEPS = [
+    { id: "backup", label: "Configs backed up", status: "ok" },
+    { id: "caddyfile", label: "Caddyfile block appended", status: "ok" },
+    { id: "files", label: "Site directory created", status: "ok" },
+    { id: "tunnel", label: "Tunnel route added", status: "ok" },
+    { id: "caddy", label: "Caddy validated and reloaded", status: "ok" },
+    { id: "cloudflared", label: "cloudflared-sites restarted", status: "ok" },
+  ];
+
   test("adds a Caddyfile block, an ingress rule, a directory, and a placeholder page", async () => {
     const response = await request("/sites", form({ hostname: "new.lyly.dev", type: "static" }));
     assert.equal(response.status, 200);
@@ -235,6 +272,7 @@ describe("POST /sites — static", () => {
       // Derived from the seeded tunnel config's `tunnel:` key, not from an
       // environment variable that could drift from it.
       tunnelId: "11111111-2222-3333-4444-555555555555",
+      steps: OK_ADD_STEPS,
     });
 
     assert.match(fakeFs.readFile(CADDYFILE), /http:\/\/new\.lyly\.dev \{/);
@@ -246,6 +284,12 @@ describe("POST /sites — static", () => {
     );
   });
 
+  test("a static site reports every step as ok", async () => {
+    const response = await request("/sites", form({ hostname: "new.lyly.dev", type: "static" }));
+    const body = await json<{ steps: { status: string }[] }>(response);
+    assert.ok(body.steps.every((step) => step.status === "ok"));
+  });
+
   test("rejects a hostname outside the managed domain", async () => {
     const response = await request("/sites", form({ hostname: "evil.example.com", type: "static" }));
     assert.equal(response.status, 400);
@@ -255,7 +299,13 @@ describe("POST /sites — static", () => {
   test("rejects a hostname that already exists", async () => {
     const response = await request("/sites", form({ hostname: "blog.lyly.dev", type: "static" }));
     assert.equal(response.status, 500);
-    assert.match((await json<{ error: string }>(response)).error, /already exists in the Caddyfile/);
+    const body = await json<{ error: string; steps: { id: string; status: string }[] }>(response);
+    assert.match(body.error, /already exists in the Caddyfile/);
+    // This throws before report.run("backup", ...) ever executes, so the
+    // response must not claim backups were saved — see the "backup"
+    // step's own status, which stays "not-run".
+    assert.equal(body.steps.find((step) => step.id === "backup")?.status, "not-run");
+    assert.doesNotMatch(body.error, /Backed-up copies/);
   });
 });
 
@@ -283,6 +333,13 @@ describe("POST /sites — reverse proxy", () => {
     const response = await request("/sites", form({ hostname: "plain.lyly.dev", type: "reverse-proxy", port: "5000" }));
     assert.equal(response.status, 200);
     assert.equal(fakeFs.hasDir(path.join(SITES_ROOT, "plain.lyly.dev")), false);
+  });
+
+  test("a plain reverse-proxy site skips the directory step rather than failing it", async () => {
+    const response = await request("/sites", form({ hostname: "new.lyly.dev", type: "reverse-proxy", port: "4100" }));
+    const body = await json<{ steps: { id: string; status: string }[] }>(response);
+    const files = body.steps.find((step) => step.id === "files");
+    assert.equal(files?.status, "skipped");
   });
 
   test("rejects a port already used by another reverse-proxy site", async () => {
@@ -315,10 +372,21 @@ describe("POST /sites — reverse proxy", () => {
 });
 
 describe("POST /sites/:hostname/delete", () => {
+  const OK_REMOVE_STEPS = [
+    { id: "caddyfile", label: "Caddyfile block removed", status: "ok" },
+    { id: "tunnel", label: "Tunnel route removed", status: "ok" },
+    { id: "caddy", label: "Caddy validated and reloaded", status: "ok" },
+    { id: "cloudflared", label: "cloudflared-sites restarted", status: "ok" },
+  ];
+
   test("removes the Caddyfile block and the ingress rule", async () => {
     const response = await request("/sites/blog.lyly.dev/delete", form({}));
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { removed: true, needsFileConfirm: false });
+    assert.deepEqual(await response.json(), {
+      removed: true,
+      needsFileConfirm: false,
+      steps: OK_REMOVE_STEPS,
+    });
 
     assert.doesNotMatch(fakeFs.readFile(CADDYFILE), /http:\/\/blog\.lyly\.dev \{/);
     assert.doesNotMatch(fakeFs.readFile(TUNNEL_CONFIG), /hostname: blog\.lyly\.dev/);
@@ -330,6 +398,7 @@ describe("POST /sites/:hostname/delete", () => {
       removed: true,
       needsFileConfirm: true,
       sitePath: `${SITES_ROOT}/blog.lyly.dev`,
+      steps: OK_REMOVE_STEPS,
     });
   });
 
@@ -340,6 +409,86 @@ describe("POST /sites/:hostname/delete", () => {
     await request("/sites/blog.lyly.dev/delete", form({ deleteFiles: "on" }));
 
     assert.equal(fakeFs.hasFile(path.join(SITES_ROOT, "blog.lyly.dev", "index.html")), true);
+  });
+
+  test("a successful removal reports all four steps as ok", async () => {
+    const response = await request("/sites/blog.lyly.dev/delete", form({}));
+    const body = await json<{ steps: { id: string; status: string }[] }>(response);
+    assert.deepEqual(
+      body.steps.map((step) => [step.id, step.status]),
+      [
+        ["caddyfile", "ok"],
+        ["tunnel", "ok"],
+        ["caddy", "ok"],
+        ["cloudflared", "ok"],
+      ],
+    );
+  });
+
+  test("a failed tunnel edit reports the failing step and leaves later steps not-run", async () => {
+    // lychee.local has a Caddyfile block but deliberately no ingress rule
+    // in SEED_TUNNEL, so removeIngressRule throws after the Caddyfile has
+    // already been rewritten — same arrangement as the rollback test
+    // "restores the Caddyfile when the tunnel edit fails during remove".
+    const response = await request("/sites/lychee.local/delete", form({}));
+    assert.equal(response.status, 500);
+    const body = await json<{ steps: { id: string; status: string }[]; rolledBack: boolean }>(response);
+    const byId = Object.fromEntries(body.steps.map((s) => [s.id, s.status]));
+    assert.equal(byId.caddyfile, "ok");
+    assert.equal(byId.tunnel, "failed");
+    assert.equal(byId.caddy, "not-run");
+    assert.equal(byId.cloudflared, "not-run");
+    // caddyReloaded was still false, so the handler restored both files.
+    assert.equal(body.rolledBack, true);
+  });
+
+  test("a failure after Caddy reloaded reports that the config was left in place", async () => {
+    // Same arrangement as the rollback test "does not roll back once Caddy
+    // has already reloaded, even if cloudflared then fails": a fake whose
+    // restartCloudflared rejects, on its own app/server since every other
+    // test in this file needs restartCloudflared to succeed.
+    const { createApp } = await import("../app");
+    const { createBackup } = await import("../lib/backup");
+    const { createLogger } = await import("../lib/logger");
+    const { createFakes } = await import("../dev/fakes");
+
+    const fakes = createFakes({
+      restartCloudflared: () => Promise.reject(new Error("cloudflared-sites restart failed")),
+    });
+    fakes.fs.mkdir(SITES_ROOT);
+    fakes.fs.writeFile(CADDYFILE, SEED_CADDYFILE);
+    fakes.fs.writeFile(TUNNEL_CONFIG, SEED_TUNNEL);
+
+    const app = createApp({
+      commands: fakes.commands,
+      fs: fakes.fs,
+      backup: createBackup(fakes.fs),
+      logger: createLogger(fakes.fs),
+    });
+
+    const localServer = app.listen(0);
+    await once(localServer, "listening");
+    const address = localServer.address();
+    assert.ok(address && typeof address === "object");
+    const localBaseUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const formInit = form({});
+      const response = await fetch(`${localBaseUrl}/sites/blog.lyly.dev/delete`, {
+        ...formInit,
+        headers: { Authorization: AUTH, ...formInit.headers },
+      });
+
+      assert.equal(response.status, 500);
+      const body = await json<{ steps: { id: string; status: string }[]; rolledBack: boolean }>(response);
+      const byId = Object.fromEntries(body.steps.map((s) => [s.id, s.status]));
+      assert.equal(byId.caddy, "ok");
+      assert.equal(byId.cloudflared, "failed");
+      assert.equal(body.rolledBack, false);
+    } finally {
+      localServer.close();
+      await once(localServer, "close");
+    }
   });
 });
 
@@ -372,6 +521,12 @@ describe("rollback", () => {
 
     assert.equal(response.status, 500);
     assert.equal(fakeFs.readFile(CADDYFILE), before);
+    // Unlike the pre-backup-step rejections, the backup step did actually run
+    // here (the failure is four steps later), so the response's mention of
+    // backups is accurate rather than asserted unconditionally.
+    const body = await json<{ error: string; steps: { id: string; status: string }[] }>(response);
+    assert.equal(body.steps.find((step) => step.id === "backup")?.status, "ok");
+    assert.match(body.error, /Backed-up copies/);
   });
 
   test("restores the Caddyfile when the tunnel edit fails during remove", async () => {
@@ -383,6 +538,85 @@ describe("rollback", () => {
 
     assert.equal(response.status, 500);
     assert.equal(fakeFs.readFile(CADDYFILE), before);
+  });
+
+  test("aborts before mutating anything when the tunnel config read fails, even though backup would have succeeded", async () => {
+    // Regression for an ordering bug: the delete handler used to read
+    // tunnelContent only after rewriting the Caddyfile, so a read failure
+    // here left the Caddyfile edited-but-unapplied — the caddyfile step
+    // reporting "ok" — with no rollback (the guard needs both contents) and
+    // no step reporting it, so the operator would see nothing at all.
+    // Reading tunnelContent up front, beside caddyfileContent, makes that
+    // combination impossible: this now fails before anything is mutated.
+    //
+    // An earlier version of this test simulated the unreadable tunnel config
+    // by deleting it — but backupFile() also reads that same path (via
+    // fs.copyFile's readFile, see src/lib/backup.ts / src/dev/fakes.ts), and
+    // it runs before either ordering's Caddyfile write. So it threw first in
+    // both the fixed and the pre-fix handler, the Caddyfile was left
+    // untouched either way, and the test passed even with the old,
+    // buggy ordering restored. This version instead gives the route a
+    // no-op backup (so backup itself can never be what fails) and an `fs`
+    // whose readFile throws only for the tunnel config path — isolating the
+    // one thing that actually distinguishes the two orderings: whether the
+    // Caddyfile write step runs before or after the tunnel read.
+    const { createApp } = await import("../app");
+    const { createLogger } = await import("../lib/logger");
+    const { createFakes } = await import("../dev/fakes");
+
+    const fakes = createFakes();
+    fakes.fs.mkdir(SITES_ROOT);
+    fakes.fs.writeFile(CADDYFILE, SEED_CADDYFILE);
+    fakes.fs.writeFile(TUNNEL_CONFIG, SEED_TUNNEL);
+
+    const readOnlyFailingForTunnel: typeof fakes.fs = {
+      ...fakes.fs,
+      readFile(target: string): string {
+        if (target === TUNNEL_CONFIG) {
+          throw new Error("simulated read failure for the tunnel config");
+        }
+        return fakes.fs.readFile(target);
+      },
+    };
+
+    const app = createApp({
+      commands: fakes.commands,
+      fs: readOnlyFailingForTunnel,
+      // A no-op: it never reads the tunnel config, so it always succeeds —
+      // unlike the real backupFile, which would throw on the same read this
+      // test is targeting and mask the ordering bug all over again.
+      backup: { backupFile: () => "" },
+      logger: createLogger(fakes.fs),
+    });
+
+    const localServer = app.listen(0);
+    await once(localServer, "listening");
+    const address = localServer.address();
+    assert.ok(address && typeof address === "object");
+    const localBaseUrl = `http://127.0.0.1:${address.port}`;
+
+    const before = fakes.fs.readFile(CADDYFILE);
+
+    try {
+      const formInit = form({});
+      const response = await fetch(`${localBaseUrl}/sites/blog.lyly.dev/delete`, {
+        ...formInit,
+        headers: { Authorization: AUTH, ...formInit.headers },
+      });
+
+      assert.equal(response.status, 500);
+      const body = await json<{ steps: { id: string; status: string }[] }>(response);
+      const byId = Object.fromEntries(body.steps.map((s) => [s.id, s.status]));
+      // Pre-fix, the Caddyfile write ran before the tunnel read, so this
+      // would report "ok" here instead of "not-run".
+      assert.equal(byId.caddyfile, "not-run");
+      // Pre-fix, the write above would have actually landed, so this would
+      // differ from `before` instead of matching it byte-for-byte.
+      assert.equal(fakes.fs.readFile(CADDYFILE), before);
+    } finally {
+      localServer.close();
+      await once(localServer, "close");
+    }
   });
 
   test("does not roll back once Caddy has already reloaded, even if cloudflared then fails", async () => {

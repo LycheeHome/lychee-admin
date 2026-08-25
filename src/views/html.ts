@@ -5,6 +5,7 @@ import {
   splitHostnameForDisplay,
   type SiteStatus,
 } from "../lib/siteDisplay";
+import { ADD_STEPS } from "../lib/stepReport";
 import { layout, type Nav } from "./shell";
 import {
   escapeHtml,
@@ -20,6 +21,7 @@ import {
   TYPE_PILL_PROXY,
   CARD,
   CARD_LABEL,
+  CARD_LABEL_BASE,
   TONE_PILL,
   TONE_TEXT,
 } from "./shared";
@@ -50,6 +52,10 @@ export function renderSiteList(
   // renders this same body at /sites/<hostname> and must not claim "sites"
   // is where the URL points — see its call site in src/routes/sites.ts.
   nav: Nav = { page: "sites" },
+  // A removal's DNS reminder is a page-load notice carrying an unfinished
+  // manual action, so it belongs in flow with a close button — not in the
+  // transient toast, which times out after four seconds.
+  notice?: string,
 ): string {
   const cards = sites
     .map((site) => {
@@ -57,7 +63,7 @@ export function renderSiteList(
       const status = statuses[site.hostname];
       const labels = status ? describeStatus(status) : null;
       const statusPill = labels
-        ? `<span class="${TONE_PILL[labels.tone]}">&#9679; ${escapeHtml(labels.pill)}</span>`
+        ? `<span class="${TONE_PILL[labels.tone]}"><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span>`
         : "";
 
       return `
@@ -86,7 +92,7 @@ export function renderSiteList(
     ${error ? `<p class="font-mono text-[0.85rem] text-stone-50 bg-red-950/60 border border-red-400/70 rounded-md px-4 py-3 max-w-[1080px] mx-auto mb-5">${escapeHtml(error)}</p>` : ""}
     <section>
       <div class="flex items-center justify-between gap-4 mb-5">
-        <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Existing sites</h2>
+        <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Sites</h2>
         <a href="/sites/new" class="${BUTTON_PRIMARY} no-underline">${icon("plus")}Add site</a>
       </div>
       <div class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5">
@@ -94,7 +100,7 @@ export function renderSiteList(
       </div>
     </section>
     `,
-    { nav },
+    { nav, banner: notice ? { message: notice } : undefined },
   );
 }
 
@@ -118,7 +124,12 @@ export function renderAddSite(
       <form id="add-site-form" method="post" action="/sites" class="flex flex-col gap-5">
         <label class="${FORM_LABEL}">
           Hostname
-          <input type="text" name="hostname" placeholder="blog.${escapeHtml(domain)}" required class="${INPUT}" />
+          <span id="hostname-row" class="flex items-stretch rounded-md focus-within:outline focus-within:outline-2 focus-within:outline-rose-400 focus-within:outline-offset-2">
+            <input type="text" id="hostname-field" name="hostname" required autocomplete="off"
+                   aria-describedby="hostname-suffix"
+                   class="${INPUT} rounded-r-none flex-1 min-w-0 focus:outline-none!" placeholder="blog" />
+            <span id="hostname-suffix" class="font-mono text-[0.72rem] text-stone-300 bg-stone-700 border border-l-0 border-stone-700 rounded-r-md px-2.5 flex items-center shrink-0">.${escapeHtml(domain)}</span>
+          </span>
         </label>
 
         <fieldset class="border-0 p-0 m-0 flex flex-col gap-2.5">
@@ -129,7 +140,7 @@ export function renderAddSite(
               <input type="radio" name="type" value="static" checked class="accent-stone-300" />
               Static site
             </span>
-            <span class="text-stone-400 text-[0.75rem] leading-snug pl-[1.55rem]">Serves plain files from <code class="font-mono">/var/www/&lt;hostname&gt;</code>, which lyly-admin creates for you with a placeholder page — no process to run yourself.</span>
+            <span class="text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]">Serves plain files from <code class="font-mono">/var/www/&lt;hostname&gt;</code>, which lyly-admin creates for you with a placeholder page — no process to run yourself.</span>
           </label>
 
           <label class="flex flex-col gap-1 rounded-md border border-stone-700 bg-transparent px-3 py-2.5 cursor-pointer transition-colors hover:bg-stone-800/40 has-[:checked]:bg-rose-950/50 has-[:checked]:border-rose-800/70">
@@ -137,7 +148,7 @@ export function renderAddSite(
               <input type="radio" name="type" value="reverse-proxy" class="accent-rose-400" />
               Reverse proxy
             </span>
-            <span class="text-stone-400 text-[0.75rem] leading-snug pl-[1.55rem]">Routes to a process you already run and manage yourself on a local port (e.g. <code class="font-mono">next start</code>). lyly-admin only wires up the routing — it won't start, stop, or restart that process for you.</span>
+            <span class="text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]">Routes to a process you already run and manage yourself on a local port (e.g. <code class="font-mono">next start</code>). lyly-admin only wires up the routing — it won't start, stop, or restart that process for you.</span>
           </label>
         </fieldset>
 
@@ -145,7 +156,7 @@ export function renderAddSite(
           <label class="flex flex-col gap-1.5 text-[0.85rem] text-stone-400">
             Local port (reverse proxy only)
             <input type="number" name="port" min="1" max="65535" class="${INPUT}" id="port-field" aria-describedby="port-error" />
-            <span id="port-error" class="port-error hidden text-red-300 text-[0.8rem]"></span>
+            <span id="port-error" class="port-error hidden text-red-300 text-[0.8rem]" role="status" aria-live="polite"></span>
           </label>
           <label class="flex flex-col gap-1.5 text-[0.85rem] text-stone-400">
             Framework (optional)
@@ -168,6 +179,17 @@ export function renderAddSite(
           <a href="/" class="${BUTTON_SECONDARY} no-underline">Cancel</a>
           <button type="submit" id="add-site-submit" class="${BUTTON_PRIMARY}">Add site</button>
         </div>
+
+        <div class="mt-5">
+          <p class="${CARD_LABEL}">On submit</p>
+          <ol id="add-site-steps" class="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 p-0 list-none grid gap-y-1.5">
+            ${ADD_STEPS.map(
+              (step, index) =>
+                `<li class="flex gap-2" data-step-id="${step.id}"><span class="text-stone-400 shrink-0">${index + 1}.</span><span>${escapeHtml(step.label)}</span><span class="step-mark ml-auto shrink-0"></span></li>`,
+            ).join("")}
+          </ol>
+          <p class="text-stone-400 text-[0.75rem] leading-snug m-0">If a step fails, the ones after it don't run.</p>
+        </div>
       </form>
     </div>
     `,
@@ -181,10 +203,16 @@ interface Hop {
   sub?: string;
   /** Tailwind text-colour class for the sub-line; defaults to muted stone. */
   subClass?: string;
+  /**
+   * Prefixes the sub-line with a decorative status dot, hidden from assistive
+   * tech — the status word right after it is the real information and stays
+   * in the accessible name.
+   */
+  subDot?: boolean;
 }
 
 const HOP_LABEL =
-  "font-mono text-[0.6rem] font-medium uppercase tracking-[0.09em] text-stone-400 m-0 mb-1.5";
+  "font-mono text-[0.6875rem] font-medium uppercase tracking-[0.09em] text-stone-400 m-0 mb-1.5";
 const HOP_VALUE = "font-mono text-[0.8rem] text-stone-50 m-0 mb-0.5 break-all";
 const DETAIL_ROW = "font-mono text-[0.8rem] m-0 mb-1 flex gap-3 last:mb-0";
 const DETAIL_KEY = "text-stone-400 min-w-[7.5rem] shrink-0";
@@ -193,7 +221,7 @@ function renderHop(hop: Hop): string {
   return `<div class="min-w-0">
             <p class="${HOP_LABEL}">${escapeHtml(hop.label)}</p>
             <p class="${HOP_VALUE}">${escapeHtml(hop.value)}</p>
-            ${hop.sub ? `<p class="font-mono text-[0.65rem] ${hop.subClass ?? "text-stone-400"} m-0 break-all">${escapeHtml(hop.sub)}</p>` : ""}
+            ${hop.sub ? `<p class="font-mono text-[0.72rem] ${hop.subClass ?? "text-stone-400"} m-0 break-all">${hop.subDot ? `<span aria-hidden="true">●</span> ` : ""}${escapeHtml(hop.sub)}</p>` : ""}
           </div>`;
 }
 
@@ -228,7 +256,7 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
       : {
           label: "Your app",
           value: `localhost:${site.target}`,
-          ...(labels ? { sub: `● ${labels.hop}`, subClass: TONE_TEXT[labels.tone] } : {}),
+          ...(labels ? { sub: labels.hop, subClass: TONE_TEXT[labels.tone], subDot: true } : {}),
         };
 
   const hops: Hop[] = [
@@ -266,7 +294,7 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
           containerIsBroken && filesPath
             ? `<div class="mt-4">
           <p class="text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5">Check the container's logs to see why:</p>
-          ${commandBlock("cmd-logs", "docker compose logs", filesPath)}
+          ${commandBlock("cmd-logs", "docker compose logs", "Copy logs command", filesPath)}
         </div>`
             : ""
         }
@@ -285,7 +313,7 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
 }
 
 const STEP_NUMBER =
-  "font-mono text-[0.625rem] text-rose-400 border border-rose-400/40 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5";
+  "font-mono text-[0.6875rem] text-rose-400 border border-rose-400/40 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5";
 const STEP_TEXT = "text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5";
 /**
  * Position for a copy button sitting in a single-line command box: vertically
@@ -316,12 +344,12 @@ const CODE_LINE =
  * Shared by the manual steps, the request path's failure hint, and Deploy's
  * by-hand alternative, so all three look and behave identically.
  */
-function commandBlock(id: string, value: string, cwd?: string): string {
+function commandBlock(id: string, value: string, label: string, cwd?: string): string {
   return `<div class="relative">
               <pre id="${id}" class="${CODE_LINE}">${escapeHtml(value)}</pre>
-              ${copyButton(id, "Copy command", COPY_IN_LINE)}
+              ${copyButton(id, label, COPY_IN_LINE)}
             </div>
-            ${cwd ? `<p class="font-mono text-[0.65rem] text-stone-400 m-0 mt-1">in ${escapeHtml(cwd)}/</p>` : ""}`;
+            ${cwd ? `<p class="font-mono text-[0.72rem] text-stone-400 m-0 mt-1">in ${escapeHtml(cwd)}/</p>` : ""}`;
 }
 
 interface ManualStep {
@@ -335,7 +363,7 @@ function renderStep(step: ManualStep, index: number): string {
           <span class="${STEP_NUMBER}">${index + 1}</span>
           <div class="flex-1 min-w-0">
             <p class="${STEP_TEXT}">${escapeHtml(step.text)}</p>
-            ${step.command ? commandBlock(step.command.id, step.command.value) : ""}
+            ${step.command ? commandBlock(step.command.id, step.command.value, "Copy DNS command") : ""}
           </div>
         </div>`;
 }
@@ -395,8 +423,8 @@ function renderDangerZone(): string {
   return `
       <section class="border border-red-900/60 bg-red-950/20 rounded-[10px] p-5 mt-4 flex items-center justify-between gap-4 flex-wrap">
         <div class="min-w-0">
-          <h3 class="font-mono text-[0.625rem] font-medium uppercase tracking-[0.1em] text-red-300 m-0 mb-1.5">Danger</h3>
-          <p class="text-stone-400 text-[0.8rem] leading-snug m-0">Removing takes the site out of the Caddyfile and the tunnel route, reloads Caddy, then restarts the tunnel. Your DNS record and files stay unless you ask otherwise.</p>
+          <h3 class="${CARD_LABEL_BASE} text-red-300 m-0 mb-1.5">Danger</h3>
+          <p class="text-stone-400 text-[0.8rem] leading-snug m-0">Removing takes the site out of the Caddyfile and the tunnel route, reloads Caddy, then restarts the sites tunnel. Your DNS record and files stay unless you ask otherwise.</p>
         </div>
         <button type="button" class="${BUTTON_DANGER} shrink-0" data-open-dialog="confirm-remove-dialog">${icon("trash")}Remove site</button>
       </section>`;
@@ -445,7 +473,7 @@ function renderDeploy(scaffold: NonNullable<SiteDetailOptions["scaffold"]>, file
         ${
           filesPath
             ? `<p class="text-stone-400 text-[0.8rem] leading-snug m-0 mt-3 mb-1.5">Not using GitHub Actions? Copy your source into the directory yourself, then run:</p>
-        ${commandBlock("cmd-compose", "docker compose up -d --build", filesPath)}`
+        ${commandBlock("cmd-compose", "docker compose up -d --build", "Copy docker compose command", filesPath)}`
             : ""
         }
         <div class="h-px bg-stone-700 my-4"></div>
@@ -487,7 +515,7 @@ function renderHostnameSwitcher(site: Site, opts: SiteDetailOptions): string {
       const current = entry.hostname === site.hostname;
       return `<li><a href="/sites/${encodeURIComponent(entry.hostname)}" class="${SWITCHER_ROW}"${
         current ? ` aria-current="page"` : ""
-      }><span>${escapeHtml(lead)}${dimmed ? `<span class="text-stone-400">${escapeHtml(dimmed)}</span>` : ""}</span><span class="text-[0.65rem] text-stone-400 shrink-0">${escapeHtml(typeHint(entry))}</span></a></li>`;
+      }><span>${escapeHtml(lead)}${dimmed ? `<span class="text-stone-400">${escapeHtml(dimmed)}</span>` : ""}</span><span class="text-[0.72rem] text-stone-300 shrink-0">${escapeHtml(typeHint(entry))}</span></a></li>`;
     })
     .join("");
 
@@ -521,7 +549,7 @@ function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
             <span class="inline-block font-mono text-[0.7rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border ${
               site.type === "static" ? TYPE_PILL_STATIC : TYPE_PILL_PROXY
             }">${site.type === "static" ? "static" : "proxy"}</span>
-            ${labels ? `<span class="${TONE_PILL[labels.tone]}" data-state-pill>&#9679; ${escapeHtml(labels.pill)}</span>` : ""}
+            ${labels ? `<span class="${TONE_PILL[labels.tone]}" data-state-pill><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span>` : ""}
           </div>
         </div>
         <a href="https://${escapeHtml(site.hostname)}" target="_blank" rel="noopener noreferrer" class="${BUTTON_PRIMARY} no-underline shrink-0">Visit ${icon("externalLink")}</a>
@@ -551,7 +579,7 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
     ? `
       <div class="flex flex-col gap-2 mb-5">
         <label class="flex flex-row items-center text-[0.8rem] text-stone-400 gap-1.5">
-          <input type="checkbox" id="confirm-remove-delete-files" />
+          <input type="checkbox" id="confirm-remove-delete-files" class="accent-rose-400 ${FOCUS_RING}" />
           Also delete files at <span class="font-mono">${escapeHtml(filesPath)}</span>
         </label>
         ${
@@ -577,20 +605,21 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       ${renderDangerZone()}
     </div>
 
-    <dialog id="confirm-remove-dialog" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
-      <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Remove site</h2>
+    <dialog id="confirm-remove-dialog" aria-labelledby="confirm-remove-title" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
+      <h2 id="confirm-remove-title" class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Remove site</h2>
       <p class="m-0 mb-3 leading-relaxed">Remove <strong>${escapeHtml(site.hostname)}</strong>? In this order:</p>
-      <ol class="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 p-0 list-none grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
-        <li class="flex gap-2"><span class="text-stone-400 shrink-0">1.</span><span>Caddyfile block removed</span></li>
-        <li class="flex gap-2"><span class="text-stone-400 shrink-0">2.</span><span>Tunnel route removed</span></li>
-        <li class="flex gap-2"><span class="text-stone-400 shrink-0">3.</span><span>Caddy validated and reloaded</span></li>
-        <li class="flex gap-2"><span class="text-stone-400 shrink-0">4.</span><span>cloudflared-sites restarted</span></li>
+      <ol id="confirm-remove-steps" class="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 p-0 list-none grid gap-y-1.5">
+        <li class="flex gap-2" data-step-id="caddyfile"><span class="text-stone-400 shrink-0">1.</span><span>Caddyfile block removed</span><span class="step-mark ml-auto shrink-0"></span></li>
+        <li class="flex gap-2" data-step-id="tunnel"><span class="text-stone-400 shrink-0">2.</span><span>Tunnel route removed</span><span class="step-mark ml-auto shrink-0"></span></li>
+        <li class="flex gap-2" data-step-id="caddy"><span class="text-stone-400 shrink-0">3.</span><span>Caddy validated and reloaded</span><span class="step-mark ml-auto shrink-0"></span></li>
+        <li class="flex gap-2" data-step-id="cloudflared"><span class="text-stone-400 shrink-0">4.</span><span>cloudflared-sites restarted</span><span class="step-mark ml-auto shrink-0"></span></li>
       </ol>
       <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mb-4">If a step fails, the ones after it don't run.</p>
+      <div id="confirm-remove-outcome" class="hidden font-mono text-[0.72rem] text-stone-400 leading-snug m-0 mb-4 flex items-start gap-2" role="status" aria-live="polite"><span id="confirm-remove-progress" class="hidden shrink-0 mt-[0.4em] h-1.5 w-1.5 rounded-full bg-stone-400 motion-safe:animate-pulse" aria-hidden="true"></span><span id="confirm-remove-outcome-text" class="whitespace-pre-wrap"></span></div>
       ${deleteFilesSection}
       <div class="flex justify-end gap-2.5">
-        <button type="button" class="${BUTTON_SECONDARY}" data-close-dialog="confirm-remove-dialog">Cancel</button>
-        <button type="button" id="confirm-remove-submit" class="${BUTTON_DANGER}" data-hostname="${escapeHtml(site.hostname)}">${icon("trash")}Remove site</button>
+        <button type="button" autofocus class="${BUTTON_SECONDARY}" data-close-dialog="confirm-remove-dialog">Cancel</button>
+        <button type="button" id="confirm-remove-submit" class="${BUTTON_DANGER}" data-hostname="${escapeHtml(site.hostname)}">${icon("trash")}Remove ${escapeHtml(site.hostname)}</button>
       </div>
     </dialog>
     `,

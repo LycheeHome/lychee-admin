@@ -195,7 +195,7 @@
       {
         "name": "scrim",
         "value": "rgba(0,0,0,0.6)",
-        "purpose": "Dialog ::backdrop. How a modal separates from the page — not a drop shadow."
+        "purpose": "Dialog ::backdrop. How a modal separates from the page \u2014 not a drop shadow."
       }
     ],
     "motion": [
@@ -254,7 +254,7 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "One per view, for its single forward action — Add site, Visit.",
+      "description": "One per view, for its single forward action \u2014 Add site, Visit.",
       "html": "<button class=\"ds-btn-primary\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg>Add site</button>",
       "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; background: oklch(71.2% 0.194 13.428); color: oklch(21.6% 0.006 56.043); border: none; border-radius: 6px; padding: 10px 16px; cursor: pointer; transition: background 150ms; } .ds-btn-primary svg { width: 1em; height: 1em; flex-shrink: 0; } .ds-btn-primary:hover { background: oklch(81% 0.117 11.638); } .ds-btn-primary:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; }"
     },
@@ -270,7 +270,7 @@
       "name": "Danger Button",
       "kind": "button",
       "refersTo": "button-danger",
-      "description": "Destructive action. Outlined Scorch, one size down from primary — never the largest control on screen.",
+      "description": "Destructive action. Outlined Scorch, one size down from primary \u2014 never the largest control on screen.",
       "html": "<button class=\"ds-btn-danger\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18\"/><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6\"/><path d=\"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/><line x1=\"10\" x2=\"10\" y1=\"11\" y2=\"17\"/><line x1=\"14\" x2=\"14\" y1=\"11\" y2=\"17\"/></svg>Remove site</button>",
       "css": ".ds-btn-danger { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.8rem; font-weight: 600; background: transparent; color: oklch(80.8% 0.114 19.571); border: 1px solid oklch(44.4% 0.177 26.899); border-radius: 6px; padding: 6px 12px; cursor: pointer; transition: background 150ms, color 150ms; } .ds-btn-danger svg { width: 1em; height: 1em; flex-shrink: 0; } .ds-btn-danger:hover { background: oklch(39.6% 0.141 25.723); color: oklch(98.5% 0.001 106.423); } .ds-btn-danger:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; }"
     },
@@ -294,9 +294,9 @@
       "name": "Site Card",
       "kind": "card",
       "refersTo": "site-card",
-      "description": "The whole card is one link. Display-face hostname, then the type pill and — for reverse-proxy sites — a status pill, so \"is anything down\" is answered here rather than one navigation per site. Hover moves the border to Ember Edge.",
+      "description": "The whole card is one link. Display-face hostname, then the type pill and \u2014 for reverse-proxy sites \u2014 a status pill, so \"is anything down\" is answered here rather than one navigation per site. Hover moves the border to Ember Edge.",
       "html": "<a class=\"ds-site-card\" href=\"#\"><div class=\"ds-site-card__top\"><p class=\"ds-site-card__host\">app.lyly.dev</p><div class=\"ds-site-card__pills\"><span class=\"ds-pill-proxy\">proxy</span><span class=\"ds-site-card__status\">&#9679; running</span></div></div><p class=\"ds-site-card__target\"><span class=\"ds-site-card__key\">localhost:</span>3000 &middot; Next.js</p></a>",
-      "css": ".ds-site-card { display: flex; flex-direction: column; gap: 14px; background: oklch(26.8% 0.007 34.298); border: 1px solid oklch(37.4% 0.01 67.558); border-radius: 10px; padding: 24px; text-decoration: none; transition: border-color 150ms; } .ds-site-card:hover { border-color: oklch(45.5% 0.188 13.697 / 0.7); } .ds-site-card:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-site-card__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; } .ds-site-card__host { font-family: 'Poetsen One', ui-sans-serif, system-ui, sans-serif; font-size: 1rem; line-height: 1.625; color: oklch(98.5% 0.001 106.423); margin: 0; word-break: break-word; } .ds-site-card__target { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85rem; line-height: 1.5; color: oklch(70.9% 0.01 56.259); margin: 0; } .ds-site-card__key { text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.03em; opacity: 0.7; } .ds-pill-proxy { flex-shrink: 0; font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: oklch(81% 0.117 11.638); background: oklch(27.1% 0.105 12.094); border: 1px solid transparent; border-radius: 9999px; padding: 4px 10px; } .ds-site-card__pills { display: flex; align-items: center; gap: 6px; flex-shrink: 0; } .ds-site-card__status { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; border-radius: 9999px; padding: 4px 10px; color: oklch(0.871 0.15 154.449); background: oklch(0.266 0.065 152.934 / 0.6); }"
+      "css": ".ds-site-card { display: flex; flex-direction: column; gap: 14px; background: oklch(26.8% 0.007 34.298); border: 1px solid oklch(37.4% 0.01 67.558); border-radius: 10px; padding: 24px; text-decoration: none; transition: border-color 150ms; } .ds-site-card:hover { border-color: oklch(45.5% 0.188 13.697 / 0.7); } .ds-site-card:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-site-card__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; } .ds-site-card__host { font-family: 'Poetsen One', ui-sans-serif, system-ui, sans-serif; font-size: 1rem; line-height: 1.625; color: oklch(98.5% 0.001 106.423); margin: 0; word-break: break-word; } .ds-site-card__target { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85rem; line-height: 1.5; color: oklch(70.9% 0.01 56.259); margin: 0; } .ds-site-card__key { text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.03em; opacity: 0.7; } .ds-pill-proxy { flex-shrink: 0; font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: oklch(81% 0.117 11.638); background: oklch(27.1% 0.105 12.094); border: 1px solid transparent; border-radius: 9999px; padding: 4px 10px; } .ds-site-card__pills { display: flex; align-items: center; gap: 6px; flex-shrink: 0; } .ds-site-card__status { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.06em; border-radius: 9999px; padding: 4px 10px; color: oklch(0.871 0.15 154.449); background: oklch(0.266 0.065 152.934 / 0.6); }"
     },
     {
       "name": "Status Pills",
@@ -304,7 +304,7 @@
       "refersTo": "pill-status-ok",
       "description": "Three tones and no more. starting and unknown take the neutral tone, never the bad one.",
       "html": "<div class=\"ds-pill-row\"><span class=\"ds-pill ds-pill--ok\">&#9679; running</span><span class=\"ds-pill ds-pill--bad\">&#9679; unhealthy</span><span class=\"ds-pill ds-pill--neutral\">&#9679; starting</span></div>",
-      "css": ".ds-pill-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .ds-pill { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid transparent; border-radius: 9999px; padding: 4px 10px; } .ds-pill--ok { color: oklch(87.1% 0.15 154.449); background: oklch(26.6% 0.065 152.934 / 0.6); } .ds-pill--bad { color: oklch(80.8% 0.114 19.571); background: oklch(25.8% 0.092 26.042 / 0.6); } .ds-pill--neutral { color: oklch(86.9% 0.005 56.366); background: oklch(37.4% 0.01 67.558); }"
+      "css": ".ds-pill-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .ds-pill { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid transparent; border-radius: 9999px; padding: 4px 10px; } .ds-pill--ok { color: oklch(87.1% 0.15 154.449); background: oklch(26.6% 0.065 152.934 / 0.6); } .ds-pill--bad { color: oklch(80.8% 0.114 19.571); background: oklch(25.8% 0.092 26.042 / 0.6); } .ds-pill--neutral { color: oklch(86.9% 0.005 56.366); background: oklch(37.4% 0.01 67.558); }"
     },
     {
       "name": "Hostname Switcher",
@@ -312,7 +312,7 @@
       "refersTo": "card",
       "description": "Site-to-site movement, on the breadcrumb line that already says which site you are looking at. Rows carry a hostname and a type hint and never status: the dropdown renders on every detail page, so a dot per row would cost one check per site per page view.",
       "html": "<nav class=\"ds-crumb\" aria-label=\"Breadcrumb\"><a class=\"ds-crumb__link\" href=\"#\">sites</a><span class=\"ds-crumb__sep\">/</span><details class=\"ds-switcher\" open><summary class=\"ds-switcher__trigger\" aria-label=\"Switch site \\u2014 currently app.lyly.dev\">app<span class=\"ds-switcher__dim\">.lyly.dev</span><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"/></svg></summary><ul class=\"ds-switcher__panel\"><li><a class=\"ds-switcher__row\" href=\"#\"><span>blog<span class=\"ds-switcher__dim\">.lyly.dev</span></span><span class=\"ds-switcher__hint\">static</span></a></li><li><a class=\"ds-switcher__row\" href=\"#\" aria-current=\"page\"><span>app<span class=\"ds-switcher__dim\">.lyly.dev</span></span><span class=\"ds-switcher__hint\">:3000</span></a></li></ul></details></nav>",
-      "css": ".ds-crumb { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.72rem; color: oklch(0.709 0.01 56.259); } .ds-crumb__link { color: oklch(0.709 0.01 56.259); text-decoration: none; } .ds-crumb__link:hover { color: oklch(0.985 0.001 106.423); text-decoration: underline; } .ds-crumb__sep { color: oklch(0.444 0.011 73.639); margin: 0 6px; } .ds-switcher { position: relative; display: inline-block; } .ds-switcher__trigger { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; padding: 2px 6px; color: oklch(0.985 0.001 106.423); } .ds-switcher__trigger::-webkit-details-marker { display: none; } .ds-switcher__trigger svg { width: 1em; height: 1em; } .ds-switcher__trigger:hover { background: oklch(0.268 0.007 34.298); } .ds-switcher__trigger:focus-visible { outline: 2px solid oklch(0.712 0.194 13.428); outline-offset: 2px; } .ds-switcher__dim { color: oklch(0.709 0.01 56.259); } .ds-switcher__panel { position: absolute; z-index: 30; left: 0; margin: 4px 0 0; padding: 0; min-width: 16rem; list-style: none; background: oklch(0.216 0.006 56.043); border: 1px solid oklch(0.374 0.01 67.558); border-radius: 10px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.4), 0 4px 6px -4px rgba(0,0,0,0.4); overflow: hidden; max-height: 70vh; overflow-y: auto; } .ds-switcher__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 10px; text-decoration: none; font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.75rem; color: oklch(0.985 0.001 106.423); border-bottom: 1px solid oklch(0.374 0.01 67.558); } .ds-switcher__row:last-child { border-bottom: 0; } .ds-switcher__row:hover { background: oklch(0.268 0.007 34.298); } .ds-switcher__row[aria-current=\"page\"] { background: oklch(0.374 0.01 67.558); border-left: 2px solid oklch(0.455 0.188 13.697); } .ds-switcher__row:focus-visible { outline: 2px solid oklch(0.712 0.194 13.428); outline-offset: 2px; } .ds-switcher__hint { font-size: 0.65rem; color: oklch(0.709 0.01 56.259); flex-shrink: 0; }"
+      "css": ".ds-crumb { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.72rem; color: oklch(0.709 0.01 56.259); } .ds-crumb__link { color: oklch(0.709 0.01 56.259); text-decoration: none; } .ds-crumb__link:hover { color: oklch(0.985 0.001 106.423); text-decoration: underline; } .ds-crumb__sep { color: oklch(0.444 0.011 73.639); margin: 0 6px; } .ds-switcher { position: relative; display: inline-block; } .ds-switcher__trigger { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; padding: 2px 6px; color: oklch(0.985 0.001 106.423); } .ds-switcher__trigger::-webkit-details-marker { display: none; } .ds-switcher__trigger svg { width: 1em; height: 1em; } .ds-switcher__trigger:hover { background: oklch(0.268 0.007 34.298); } .ds-switcher__trigger:focus-visible { outline: 2px solid oklch(0.712 0.194 13.428); outline-offset: 2px; } .ds-switcher__dim { color: oklch(0.709 0.01 56.259); } .ds-switcher__panel { position: absolute; z-index: 30; left: 0; margin: 4px 0 0; padding: 0; min-width: 16rem; list-style: none; background: oklch(0.216 0.006 56.043); border: 1px solid oklch(0.374 0.01 67.558); border-radius: 10px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.4), 0 4px 6px -4px rgba(0,0,0,0.4); overflow: hidden; max-height: 70vh; overflow-y: auto; } .ds-switcher__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 10px; text-decoration: none; font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.75rem; color: oklch(0.985 0.001 106.423); border-bottom: 1px solid oklch(0.374 0.01 67.558); } .ds-switcher__row:last-child { border-bottom: 0; } .ds-switcher__row:hover { background: oklch(0.268 0.007 34.298); } .ds-switcher__row[aria-current=\"page\"] { background: oklch(0.374 0.01 67.558); border-left: 2px solid oklch(0.455 0.188 13.697); } .ds-switcher__row:focus-visible { outline: 2px solid oklch(0.712 0.194 13.428); outline-offset: 2px; } .ds-switcher__hint { font-size: 0.72rem; color: oklch(0.709 0.01 56.259); flex-shrink: 0; }"
     },
     {
       "name": "Command Block",
@@ -320,7 +320,7 @@
       "refersTo": "code-line",
       "description": "The app's most-used component: a copyable one-line command, optionally captioned with the directory it runs in. The copy button's 6px inset and the block's 44px right padding are coupled.",
       "html": "<div class=\"ds-command\"><pre class=\"ds-command__code\">cloudflared tunnel route dns c7081f91-61c2-476b-8505-42d219bb6d7e app.lyly.dev</pre><button class=\"ds-command__copy\" aria-label=\"Copy command\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\" ry=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/></svg></button><p class=\"ds-command__cwd\">in /var/www/app.lyly.dev/</p></div>",
-      "css": ".ds-command { position: relative; } .ds-command__code { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.72rem; background: oklch(21.6% 0.006 56.043); color: oklch(98.5% 0.001 106.423); border: 1px solid oklch(37.4% 0.01 67.558); border-radius: 6px; padding: 10px 44px 10px 10px; overflow-x: auto; white-space: nowrap; margin: 0; } .ds-command__copy { position: absolute; top: 17px; transform: translateY(-50%); right: 6px; display: inline-flex; padding: 4px; background: oklch(26.8% 0.007 34.298); border: 1px solid oklch(37.4% 0.01 67.558); border-radius: 6px; color: oklch(70.9% 0.01 56.259); cursor: pointer; } .ds-command__copy svg { width: 16px; height: 16px; } .ds-command__copy:hover { color: oklch(98.5% 0.001 106.423); background: oklch(37.4% 0.01 67.558); } .ds-command__copy:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-command__cwd { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.65rem; color: oklch(55.3% 0.013 58.071); margin: 4px 0 0; }"
+      "css": ".ds-command { position: relative; } .ds-command__code { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.72rem; background: oklch(21.6% 0.006 56.043); color: oklch(98.5% 0.001 106.423); border: 1px solid oklch(37.4% 0.01 67.558); border-radius: 6px; padding: 10px 44px 10px 10px; overflow-x: auto; white-space: nowrap; margin: 0; } .ds-command__copy { position: absolute; top: 17px; transform: translateY(-50%); right: 6px; display: inline-flex; padding: 4px; background: oklch(26.8% 0.007 34.298); border: 1px solid oklch(37.4% 0.01 67.558); border-radius: 6px; color: oklch(70.9% 0.01 56.259); cursor: pointer; } .ds-command__copy svg { width: 16px; height: 16px; } .ds-command__copy:hover { color: oklch(98.5% 0.001 106.423); background: oklch(37.4% 0.01 67.558); } .ds-command__copy:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-command__cwd { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.72rem; color: oklch(55.3% 0.013 58.071); margin: 4px 0 0; }"
     },
     {
       "name": "Routing Hop Chain",
@@ -328,7 +328,7 @@
       "refersTo": "card",
       "description": "The app's thesis as a component: four labelled stages of a request's path. Only the last hop carries live state; hop one's sub-line reads manual step, permanently.",
       "html": "<section class=\"ds-hops-card\"><h3 class=\"ds-card-label\">Request path</h3><div class=\"ds-hops\"><div class=\"ds-hop\"><p class=\"ds-hop__label\">Cloudflare DNS</p><p class=\"ds-hop__value\">app.lyly.dev</p><p class=\"ds-hop__sub\">manual step</p></div><div class=\"ds-hop__arrow\" aria-hidden=\"true\">&rarr;</div><div class=\"ds-hop\"><p class=\"ds-hop__label\">Tunnel</p><p class=\"ds-hop__value\">cloudflared-sites</p><p class=\"ds-hop__sub\">/etc/cloudflared</p></div><div class=\"ds-hop__arrow\" aria-hidden=\"true\">&rarr;</div><div class=\"ds-hop\"><p class=\"ds-hop__label\">Caddy</p><p class=\"ds-hop__value\">:80</p><p class=\"ds-hop__sub\">/etc/caddy</p></div><div class=\"ds-hop__arrow\" aria-hidden=\"true\">&rarr;</div><div class=\"ds-hop\"><p class=\"ds-hop__label\">Your app</p><p class=\"ds-hop__value\">localhost:3000</p><p class=\"ds-hop__sub ds-hop__sub--ok\">&#9679; running &middot; healthy</p></div></div></section>",
-      "css": ".ds-hops-card { background: oklch(26.8% 0.007 34.298); border: 1px solid oklch(37.4% 0.01 67.558); border-radius: 10px; padding: 20px; } .ds-card-label { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.625rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(70.9% 0.01 56.259); margin: 0 0 12px; } .ds-hops { display: flex; align-items: stretch; } .ds-hop { min-width: 0; } .ds-hop__label { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.6rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.09em; color: oklch(55.3% 0.013 58.071); margin: 0 0 6px; } .ds-hop__value { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.8rem; color: oklch(98.5% 0.001 106.423); margin: 0 0 2px; word-break: break-all; } .ds-hop__sub { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.65rem; color: oklch(55.3% 0.013 58.071); margin: 0; word-break: break-all; } .ds-hop__sub--ok { color: oklch(87.1% 0.15 154.449); } .ds-hop__arrow { display: flex; align-items: center; justify-content: center; flex: 1; min-width: 2rem; color: oklch(44.4% 0.011 73.639); font-size: 0.875rem; } @media (max-width: 639px) { .ds-hops { flex-direction: column; gap: 12px; } .ds-hop__arrow { flex: none; } }"
+      "css": ".ds-hops-card { background: oklch(26.8% 0.007 34.298); border: 1px solid oklch(37.4% 0.01 67.558); border-radius: 10px; padding: 20px; } .ds-card-label { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; color: oklch(70.9% 0.01 56.259); margin: 0 0 12px; } .ds-hops { display: flex; align-items: stretch; } .ds-hop { min-width: 0; } .ds-hop__label { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.6875rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.09em; color: oklch(55.3% 0.013 58.071); margin: 0 0 6px; } .ds-hop__value { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.8rem; color: oklch(98.5% 0.001 106.423); margin: 0 0 2px; word-break: break-all; } .ds-hop__sub { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.72rem; color: oklch(55.3% 0.013 58.071); margin: 0; word-break: break-all; } .ds-hop__sub--ok { color: oklch(87.1% 0.15 154.449); } .ds-hop__arrow { display: flex; align-items: center; justify-content: center; flex: 1; min-width: 2rem; color: oklch(44.4% 0.011 73.639); font-size: 0.875rem; } @media (max-width: 639px) { .ds-hops { flex-direction: column; gap: 12px; } .ds-hop__arrow { flex: none; } }"
     },
     {
       "name": "Option Row",
@@ -341,25 +341,25 @@
   ],
   "narrative": {
     "northStar": "The Warm Terminal",
-    "overview": "A console you would choose to sit in. Nearly every fact on screen is set in DM Mono — hostnames, ports, paths, commands, service names, status words, even the section labels — because nearly every fact came from a machine and will be pasted back into one. Nunito carries only the sentences a person wrote. The ground is Hearth, a warm near-black with a trace of brown in it, never #000: this is a room with a lamp in it, not a void. Against that, exactly one chromatic voice — Ember — marks everything you can act on.\n\nThe density is deliberate and generous at once. There is one operator, one desktop viewport, and no competition for their attention, so nothing is folded, capped, truncated, or hidden behind a disclosure widget; a generated workflow file renders at its full height because it is a file you might read, not a blob you might copy. But the page is not a wall either — cards are tonal steps, not boxes with lines around them, and the vertical rhythm is loose enough that the four sections of a site's page read as four separate answers to four separate questions.\n\nComponents are tactile and confident: fuller padding than a dense admin panel would use, visible state changes on hover and focus, and an accent that is not shy about appearing on the things you press. Depth stays flat at rest and lifts only in response to state. Two directions are confirmed rejections: the generic dark SaaS dashboard (violet gradients, glassmorphism, KPI tiles and sparklines for metrics this app does not have) and terminal cosplay (scanlines, ASCII borders, green-on-black, faux boot logs). Mono type here is precision, not costume.",
+    "overview": "A console you would choose to sit in. Nearly every fact on screen is set in DM Mono \u2014 hostnames, ports, paths, commands, service names, status words, even the section labels \u2014 because nearly every fact came from a machine and will be pasted back into one. Nunito carries only the sentences a person wrote. The ground is Hearth, a warm near-black with a trace of brown in it, never #000: this is a room with a lamp in it, not a void. Against that, exactly one chromatic voice \u2014 Ember \u2014 marks everything you can act on.\n\nThe density is deliberate and generous at once. There is one operator, one desktop viewport, and no competition for their attention, so nothing is folded, capped, truncated, or hidden behind a disclosure widget; a generated workflow file renders at its full height because it is a file you might read, not a blob you might copy. But the page is not a wall either \u2014 cards are tonal steps, not boxes with lines around them, and the vertical rhythm is loose enough that the four sections of a site's page read as four separate answers to four separate questions.\n\nComponents are tactile and confident: fuller padding than a dense admin panel would use, visible state changes on hover and focus, and an accent that is not shy about appearing on the things you press. Depth stays flat at rest and lifts only in response to state. Two directions are confirmed rejections: the generic dark SaaS dashboard (violet gradients, glassmorphism, KPI tiles and sparklines for metrics this app does not have) and terminal cosplay (scanlines, ASCII borders, green-on-black, faux boot logs). Mono type here is precision, not costume.",
     "keyCharacteristics": [
-      "Warm near-black ground; no pure black, no pure white — Chalk, not #fff.",
+      "Warm near-black ground; no pure black, no pure white \u2014 Chalk, not #fff.",
       "One accent, Ember, reserved for what is interactive.",
       "Mono for machine facts, sans for human sentences; the split is absolute.",
       "Flat tonal layering at rest; shadow only as a response to state or float.",
       "Uppercase letterspaced micro-labels as the structural device.",
-      "Nothing folded, capped, or truncated — one operator, one wide viewport.",
+      "Nothing folded, capped, or truncated \u2014 one operator, one wide viewport.",
       "Poetsen One as a signature, twice, small."
     ],
     "rules": [
       {
         "name": "The Ember Is Interactive Rule",
-        "body": "Ember and its family mark what you can act on — buttons, focus rings, the checked option, step numerals, a card's hover edge — plus the one label that means \"something else runs here\" (the proxy pill). It never colors a heading, a body sentence, or a value you can only read. On any given screen it covers well under 10% of the pixels, and that rarity is what makes a primary button unmissable.",
+        "body": "Ember and its family mark what you can act on \u2014 buttons, focus rings, the checked option, step numerals, a card's hover edge \u2014 plus the one label that means \"something else runs here\" (the proxy pill). It never colors a heading, a body sentence, or a value you can only read. On any given screen it covers well under 10% of the pixels, and that rarity is what makes a primary button unmissable.",
         "section": "colors"
       },
       {
         "name": "The Three-Tone Status Rule",
-        "body": "Site state resolves to exactly three tones: Clear, Scorch, or Smoke. starting and unknown are Smoke, never Scorch — a container still running its first health check is not broken, and a status we failed to read is not evidence that anything is down. Never invent a fourth tone, and never let a tone appear without the canonical status word beside it.",
+        "body": "Site state resolves to exactly three tones: Clear, Scorch, or Smoke. starting and unknown are Smoke, never Scorch \u2014 a container still running its first health check is not broken, and a status we failed to read is not evidence that anything is down. Never invent a fourth tone, and never let a tone appear without the canonical status word beside it.",
         "section": "colors"
       },
       {
@@ -369,22 +369,22 @@
       },
       {
         "name": "The Dim-Text Rule",
-        "body": "Dim text is Smoke, not Smoke Deep. Smoke Deep carries text in exactly one place — the .lyly.dev suffix on a detail page's Headline, which at 27px is WCAG large text and clears the 3:1 that applies there. At any smaller size it fails the 4.5:1 that applies instead (3.16:1 on a card), so every label, key, caption, and hop sub-line takes Smoke. The one exception is the breadcrumb's /, which is decorative punctuation between two links rather than content anyone reads. When a new dim role appears, the question is not \"how dim can this be\" but \"does it clear 4.5:1 on both Hearth and Hearth Lift.\"",
+        "body": "Dim text is Smoke, not Smoke Deep. Smoke Deep carries text in exactly one place \u2014 the .lyly.dev suffix on a detail page's Headline, which at 27px is WCAG large text and clears the 3:1 that applies there. At any smaller size it fails the 4.5:1 that applies instead (3.16:1 on a card), so every label, key, caption, and hop sub-line takes Smoke. The one exception is the breadcrumb's /, which is decorative punctuation between two links rather than content anyone reads. When a new dim role appears, the question is not \"how dim can this be\" but \"does it clear 4.5:1 on both Hearth and Hearth Lift.\"",
         "section": "colors"
       },
       {
         "name": "The Mono-Carries-Facts Rule",
-        "body": "If a machine produced it or will consume it — hostname, port, path, command, service name, status word, framework name — it is DM Mono. If a person wrote it as a sentence, it is Nunito. There is no third case, and no sentence sets a path in Nunito.",
+        "body": "If a machine produced it or will consume it \u2014 hostname, port, path, command, service name, status word, framework name \u2014 it is DM Mono. If a person wrote it as a sentence, it is Nunito. There is no third case, and no sentence sets a path in Nunito.",
         "section": "typography"
       },
       {
         "name": "The Signature-Twice Rule",
-        "body": "Poetsen One appears in exactly two places: the wordmark and a site card's hostname. It is never a page heading, never above 1.5rem, never body copy, and never used for emphasis. The family also ships a single weight — do not request 600 and let the browser synthesize it.",
+        "body": "Poetsen One appears in exactly two places: the wordmark and a site card's hostname. It is never a page heading, never above 1.5rem, never body copy, and never used for emphasis. The family also ships a single weight \u2014 do not request 600 and let the browser synthesize it.",
         "section": "typography"
       },
       {
         "name": "The Uppercase-Is-Structural Rule",
-        "body": "Uppercase with letterspacing marks structure, never emphasis inside prose. Tracking widens as size shrinks (0.85rem/0.08em to 0.625rem/0.1em to 0.6rem/0.09em) so the smallest labels stay readable. Emphasis inside a sentence uses Chalk against Smoke, or strong, not caps.",
+        "body": "Uppercase with letterspacing marks structure, never emphasis inside prose. Tracking widens as size shrinks (0.85rem/0.08em to 0.75rem/0.1em to 0.6875rem/0.09em) so the smallest labels stay readable. Emphasis inside a sentence uses Chalk against Smoke, or strong, not caps.",
         "section": "typography"
       },
       {
@@ -399,7 +399,7 @@
       },
       {
         "name": "The Flat-At-Rest Rule",
-        "body": "A surface sitting in the document is flat: tone plus a Hairline, no shadow. Shadow means one of two things — this element floats above the page, or you are touching it right now. It never means \"this card is important.\"",
+        "body": "A surface sitting in the document is flat: tone plus a Hairline, no shadow. Shadow means one of two things \u2014 this element floats above the page, or you are touching it right now. It never means \"this card is important.\"",
         "section": "elevation"
       },
       {
@@ -409,7 +409,7 @@
       },
       {
         "name": "The Radius-Says-Size Rule",
-        "body": "10px contains, 6px is controlled, 4px is inline, round states one word. A new component takes the step matching its role — never a value between steps, and never a large radius to look friendlier.",
+        "body": "10px contains, 6px is controlled, 4px is inline, round states one word. A new component takes the step matching its role \u2014 never a value between steps, and never a large radius to look friendlier.",
         "section": "shapes"
       },
       {
@@ -422,22 +422,22 @@
       "Do set every machine fact in DM Mono and every human sentence in Nunito. A path in Nunito is a bug.",
       "Do reserve Ember for what the operator can act on, and keep it under ~10% of any screen.",
       "Do give starting and unknown the neutral Smoke tone. They are not failures.",
-      "Do show a status word with every status color — the dot and the tone are never the whole message.",
+      "Do show a status word with every status color \u2014 the dot and the tone are never the whole message.",
       "Do let long hostnames, paths, and commands break or scroll (break-all, or overflow-x auto plus nowrap for one-liners).",
       "Do put remediation beside the hop that reported the problem, not in a numbered step list.",
       "Do check a dim tone against both grounds before using it on text: 4.5:1 on Hearth and Hearth Lift below 24px, 3:1 at or above it.",
       "Do keep the shared focus ring: 2px Ember, 2px offset, :focus-visible.",
       "Do gate every transition and the dialog entrance behind motion-safe.",
       "Do state a destructive flow's steps in execution order, and say outright that a failed step stops the rest.",
-      "Do keep the copy-button fallback that selects text when navigator.clipboard is unavailable — over plain HTTP it always is."
+      "Do keep the copy-button fallback that selects text when navigator.clipboard is unavailable \u2014 over plain HTTP it always is."
     ],
     "donts": [
       "Don't fold, cap, truncate, or add an inner scrollbar to content the operator might read. One operator, one wide viewport.",
       "Don't use Poetsen One anywhere except the wordmark and a site card's hostname, and never above 1.5rem or at a weight it doesn't ship.",
-      "Don't fill a destructive button with Ember or make it the largest control on screen — Scorch outline, one size down.",
+      "Don't fill a destructive button with Ember or make it the largest control on screen \u2014 Scorch outline, one size down.",
       "Don't introduce a second accent hue, a gradient, or a chart. This app has no metrics to visualize.",
       "Don't add a shadow to a card, a pill, or anything else sitting in normal document flow.",
-      "Don't put a status color on prose, a heading, or a background behind a sentence — status colors belong to pills, sub-lines, and error surfaces.",
+      "Don't put a status color on prose, a heading, or a background behind a sentence \u2014 status colors belong to pills, sub-lines, and error surfaces.",
       "Don't use uppercase for emphasis inside a sentence; it marks structure only.",
       "Don't show a live-looking indicator for something nothing checks. Hops 1-3 carry derived values and manual step, not invented health.",
       "Don't auto-dismiss a banner that carries an unfinished manual action.",

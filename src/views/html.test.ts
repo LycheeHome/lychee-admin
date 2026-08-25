@@ -37,11 +37,53 @@ function tagById(html: string, id: string): string {
   return match[0];
 }
 
+/**
+ * Like tagById, but returns the whole <ol id="${id}">...</ol> — opening tag
+ * through its children — rather than just the opening tag, so an assertion
+ * about a `data-step-id` on a child <li> is anchored to this specific list
+ * rather than the whole document. Scoped to <ol> deliberately: it is the
+ * only tag this file needs full contents from, and assuming no nested <ol>
+ * (true of both step lists) keeps the match unambiguous.
+ */
+function listById(html: string, id: string): string {
+  const match = html.match(new RegExp(`<ol[^>]* id="${id}"[^>]*>[\\s\\S]*?<\\/ol>`));
+  assert.ok(match, `no <ol id="${id}"> was rendered`);
+  return match[0];
+}
+
 describe("renderAddSite heading", () => {
   test("the add-site page's heading is a documented ramp step", () => {
     const html = renderAddSite([], "lyly.dev", {});
     assert.match(html, /<h2 class="font-mono text-\[1\.7rem\]/);
     assert.doesNotMatch(html, /text-\[1\.35rem\]/);
+  });
+});
+
+describe("the hostname field", () => {
+  test("the hostname field affixes the domain instead of hiding it in a placeholder", () => {
+    const html = renderAddSite(SITES, "lyly.dev", {});
+    const input = tagById(html, "hostname-field");
+    assert.match(html, /id="hostname-suffix"[^>]*>\.lyly\.dev</);
+    assert.match(input, /aria-describedby="[^"]*hostname-suffix/);
+  });
+
+  test("the focus ring encloses the whole composed control, not the input alone", () => {
+    // INPUT bakes its own focus:outline directly onto the input. Left as-is,
+    // that ring would stop at the input/suffix seam and draw a rose bar
+    // between the two, splitting the composed control the moment it's used.
+    // The input's own ring must be suppressed (needs `!important` to beat
+    // INPUT's same-specificity utility regardless of class order) and the
+    // ring relocated to the row wrapper via focus-within, so it encloses
+    // both pieces as one control — same 2px rose outline, same offset,
+    // relocated rather than duplicated.
+    const html = renderAddSite(SITES, "lyly.dev", {});
+    const row = tagById(html, "hostname-row");
+    assert.match(row, /focus-within:outline\b/);
+    assert.match(row, /focus-within:outline-2\b/);
+    assert.match(row, /focus-within:outline-rose-400\b/);
+    assert.match(row, /focus-within:outline-offset-2\b/);
+    const input = tagById(html, "hostname-field");
+    assert.match(input, /focus:outline-none!/);
   });
 });
 
@@ -54,6 +96,11 @@ describe("accessible status and error wiring", () => {
   test("the port conflict message is the element the field names", () => {
     const span = tagById(renderAddSite(SITES, "lyly.dev", {}), "port-error");
     assert.match(span, /class="[^"]*port-error/);
+  });
+
+  test("a port conflict is announced, not just shown", () => {
+    const error = tagById(renderAddSite(SITES, "lyly.dev", {}), "port-error");
+    assert.match(error, /aria-live="polite"/);
   });
 
   test("a failed submit is announced, not only shown", () => {
@@ -118,13 +165,13 @@ describe("renderSiteDetail header", () => {
       ...OPTS,
       status: { kind: "container", state: "running", health: "unhealthy" },
     });
-    assert.match(html, /data-state-pill>&#9679; unhealthy<\/span>/);
-    assert.doesNotMatch(html, /&#9679; live|>\s*live\s*</);
+    assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> unhealthy<\/span>/);
+    assert.doesNotMatch(html, /<span aria-hidden="true">&#9679;<\/span> live|>\s*live\s*</);
   });
 
   test("a plain proxy's pill reports responding", () => {
     const html = renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: true } });
-    assert.match(html, /data-state-pill>&#9679; responding<\/span>/);
+    assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> responding<\/span>/);
   });
 
   test("widens the column past the old 640px", () => {
@@ -254,7 +301,7 @@ describe("renderSiteDetail request path", () => {
       ...OPTS,
       status: { kind: "container", state: "restarting" },
     });
-    assert.match(html, /text-red-300[^"]*">● restarting · crash-looping/);
+    assert.match(html, /text-red-300[^"]*"><span aria-hidden="true">●<\/span> restarting · crash-looping/);
   });
 
   test("a starting health check is not painted red", () => {
@@ -262,8 +309,8 @@ describe("renderSiteDetail request path", () => {
       ...OPTS,
       status: { kind: "container", state: "running", health: "starting" },
     });
-    assert.match(html, /text-stone-300[^"]*">● running · health check starting/);
-    assert.doesNotMatch(html, /text-red-300[^"]*">● running/);
+    assert.match(html, /text-stone-300[^"]*"><span aria-hidden="true">●<\/span> running · health check starting/);
+    assert.doesNotMatch(html, /text-red-300[^"]*"><span aria-hidden="true">●<\/span> running/);
   });
 
   test("shows the healthcheck path for a healthy site, not only when it fails", () => {
@@ -544,27 +591,38 @@ describe("renderSiteDetail deploy", () => {
     assert.doesNotMatch(html, />Deploy<\/h3>/);
     assert.doesNotMatch(html, /cmd-build|cmd-run|github-workflow-yaml/);
   });
+
+  test("copy buttons are distinguishable by name", () => {
+    const html = renderSiteDetail(NEXT_SITE, OPTS);
+    const labels = [...html.matchAll(/aria-label="(Copy [^"]*)"/g)].map((match) => match[1]);
+    assert.ok(labels.length >= 2, "expected at least two copy buttons");
+    assert.equal(new Set(labels).size, labels.length, `duplicate copy labels: ${labels.join(", ")}`);
+  });
 });
 
 describe("renderSiteDetail danger zone", () => {
   test("isolates the destructive action in a titled block with its consequence stated", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     assert.match(html, /Danger/);
-    assert.match(html, /reloads Caddy, then restarts the tunnel/);
+    assert.match(html, /reloads Caddy, then restarts the sites tunnel/);
   });
 
-  test("the remove action keeps one name from button to modal confirm", () => {
+  test("the Danger card names the sites tunnel, not the tunnel", () => {
+    const body = withoutHeader(renderSiteDetail(STATIC_SITE, OPTS));
+    assert.match(body, /restarts the sites tunnel/);
+    assert.doesNotMatch(body, /then restarts the tunnel\b/);
+  });
+
+  test("the trigger keeps the generic label; the confirm names the hostname", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     // Scoped to each button's own markup rather than counting the string
-    // page-wide: the danger-zone button already read "Remove site" before this
-    // task and the modal heading reads it too, so a whole-document count of 2+
-    // was satisfied before anything changed. Each regex walks forward from a
-    // button's identifying attribute without crossing a </button>, so it can
-    // only match that button's own label.
-    const labelled = (attr: string) =>
-      new RegExp(`${attr}(?:(?!<\\/button>)[\\s\\S])*Remove site<\\/button>`);
-    assert.match(html, labelled('data-open-dialog="confirm-remove-dialog"'));
-    assert.match(html, labelled('id="confirm-remove-submit"'));
+    // page-wide. Each regex walks forward from a button's identifying
+    // attribute without crossing a </button>, so it can only match that
+    // button's own label.
+    const labelled = (attr: string, label: string) =>
+      new RegExp(`${attr}(?:(?!<\\/button>)[\\s\\S])*${label}<\\/button>`);
+    assert.match(html, labelled('data-open-dialog="confirm-remove-dialog"', "Remove site"));
+    assert.match(html, labelled('id="confirm-remove-submit"', "Remove blog\\.lyly\\.dev"));
     // The old confirm button said just "Remove".
     assert.doesNotMatch(html, />Remove<\/button>/);
   });
@@ -599,6 +657,25 @@ describe("renderSiteDetail danger zone", () => {
     }
   });
 
+  test("the step list is addressable per step and reads as an ordered column", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    const list = listById(html, "confirm-remove-steps");
+    // An ordered sequence is a column; the 2x2 grid was the layout for peers.
+    assert.doesNotMatch(list, /sm:grid-cols-2/);
+    for (const id of ["caddyfile", "tunnel", "caddy", "cloudflared"]) {
+      assert.match(list, new RegExp(`data-step-id="${id}"`));
+    }
+    assert.ok(tagById(html, "confirm-remove-outcome"));
+  });
+
+  test("the outcome region starts neutral — it is a progress surface before it is ever a failure surface", () => {
+    // app.js only adds red styling once a failure actually lands; a
+    // successful removal must never flash a red panel on its way through.
+    const outcome = tagById(renderSiteDetail(STATIC_SITE, OPTS), "confirm-remove-outcome");
+    assert.doesNotMatch(outcome, /text-red-300/);
+    assert.doesNotMatch(outcome, /bg-red-950/);
+  });
+
   test("a site with files offers the delete checkbox naming the exact path", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     assert.match(html, /id="confirm-remove-delete-files"[\s\S]{0,200}?\/var\/www\/blog\.lyly\.dev/);
@@ -616,6 +693,47 @@ describe("renderSiteDetail danger zone", () => {
     });
     assert.match(html, /docker compose down/);
     assert.match(html, /won't stop it/);
+  });
+});
+
+describe("remove dialog accessibility", () => {
+  test("the dialog names itself with its own heading", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    const dialog = tagById(html, "confirm-remove-dialog");
+    assert.match(dialog, /aria-labelledby="confirm-remove-title"/);
+    // The id must actually exist, or the reference dangles and the dialog
+    // still announces as bare "dialog".
+    assert.ok(tagById(html, "confirm-remove-title"));
+  });
+
+  test("focus opens on Cancel, never on the delete-files checkbox", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    const cancel = html.match(/<button[^>]*data-close-dialog="confirm-remove-dialog"[^>]*>/);
+    assert.ok(cancel, "no Cancel button was rendered");
+    assert.match(cancel[0], /\bautofocus\b/);
+    const checkbox = tagById(html, "confirm-remove-delete-files");
+    assert.doesNotMatch(checkbox, /\bautofocus\b/);
+  });
+
+  test("the delete-files checkbox uses the system accent and focus ring", () => {
+    const checkbox = tagById(renderSiteDetail(STATIC_SITE, OPTS), "confirm-remove-delete-files");
+    assert.match(checkbox, /accent-rose-400/);
+    assert.match(checkbox, /focus-visible:outline-rose-400/);
+  });
+
+  test("the confirm button names the site, not the category", () => {
+    const html = renderSiteDetail(PROXY_SITE, OPTS);
+    const button = html.match(/<button[^>]*id="confirm-remove-submit"[\s\S]*?<\/button>/);
+    assert.ok(button, "no confirm button was rendered");
+    assert.match(button[0], /Remove api\.lyly\.dev/);
+    // The trigger keeps the generic label; only the confirm is specific. A
+    // fixed-length window here would be brittle: the trash icon's inline SVG
+    // sits between the attribute and the text and alone runs past 200 chars,
+    // so bound the scan at the button's own closing tag instead.
+    assert.match(
+      html,
+      /data-open-dialog="confirm-remove-dialog"(?:(?!<\/button>)[\s\S])*Remove site/,
+    );
   });
 });
 
@@ -713,30 +831,61 @@ describe("the ?created=1 notice", () => {
   });
 });
 
+describe("the removal notice on the site list", () => {
+  test("the removal reminder renders in flow, not as a timed toast", () => {
+    const html = renderSiteList(
+      [],
+      {},
+      undefined,
+      { page: "sites" },
+      "Removed blog.lyly.dev. Remember to remove the DNS record in Cloudflare manually.",
+    );
+    const notice = tagById(html, "page-notice");
+    assert.ok(notice);
+    assert.match(html, /Remember to remove the DNS record/);
+    // It must be dismissible rather than vanishing on a timer.
+    assert.ok(tagById(html, "page-notice-close"));
+  });
+
+  test("no notice renders without one", () => {
+    const html = renderSiteList([], {}, undefined, { page: "sites" });
+    assert.doesNotMatch(html, /id="page-notice"/);
+  });
+});
+
+describe("the site list heading", () => {
+  test("one destination has one name", () => {
+    const body = withoutHeader(renderSiteList(SITES, {}));
+    assert.doesNotMatch(body, /Existing sites/);
+    assert.match(body, /<h2[^>]*>Sites<\/h2>/);
+  });
+});
+
 describe("status on the site list", () => {
   // The pill entity, not the literal glyph: the rounded-full pill spans in
   // this module (the header pill at data-state-pill, and this one) render
   // "&#9679;" verbatim, the same convention as renderDetailHeader's pill —
   // see the "data-state-pill>&#9679;" assertions above. Only the request-path
-  // hop's plain-text sub-line uses the literal "●" character.
+  // hop's plain-text sub-line uses the literal "●" character. Both are wrapped
+  // in their own aria-hidden span so the dot never joins the accessible name.
   test("a proxy site's card carries its canonical status word", () => {
     const html = renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } });
-    assert.match(html, /&#9679; responding/);
+    assert.match(html, /<span aria-hidden="true">&#9679;<\/span> responding/);
   });
 
   test("a container site reports the worst-case word, not the lifecycle one", () => {
     const html = renderSiteList([NEXT_SITE], {
       [NEXT_SITE.hostname]: { kind: "container", state: "running", health: "unhealthy" },
     });
-    assert.match(html, /&#9679; unhealthy/);
+    assert.match(html, /<span aria-hidden="true">&#9679;<\/span> unhealthy/);
   });
 
   test("starting is neutral, not red", () => {
     const html = renderSiteList([NEXT_SITE], {
       [NEXT_SITE.hostname]: { kind: "container", state: "running", health: "starting" },
     });
-    assert.match(html, /text-stone-300[^"]*"[^>]*>&#9679; starting/);
-    assert.doesNotMatch(html, /text-red-300[^"]*"[^>]*>&#9679; starting/);
+    assert.match(html, /text-stone-300[^"]*"[^>]*><span aria-hidden="true">&#9679;<\/span> starting/);
+    assert.doesNotMatch(html, /text-red-300[^"]*"[^>]*><span aria-hidden="true">&#9679;<\/span> starting/);
   });
 
   test("a static site gets no status pill — nothing checks one", () => {
@@ -747,5 +896,89 @@ describe("status on the site list", () => {
   test("a site with no status entry renders no pill rather than a guess", () => {
     const html = renderSiteList([PROXY_SITE], {});
     assert.doesNotMatch(html, /&#9679;/);
+  });
+
+  test("the status dot is not part of any accessible name", () => {
+    const html = renderSiteList(SITES, { "api.lyly.dev": { kind: "tcp", responding: false } });
+    const dots = [...html.matchAll(/<span[^>]*>&#9679;/g)];
+    assert.ok(dots.length > 0, "no status dot was rendered");
+    for (const dot of dots) {
+      assert.match(dot[0], /aria-hidden="true"/);
+    }
+  });
+});
+
+describe("small-text ramp", () => {
+  test("card labels sit at the 12px step in Chalk-adjacent stone", () => {
+    const html = renderSiteDetail(NEXT_SITE, OPTS);
+    assert.match(html, /class="font-mono text-\[0\.75rem\] font-medium uppercase tracking-\[0\.1em\] text-stone-300/);
+    // Anchored to <h3> (the card-label element) rather than the whole
+    // document: the step-number badge legitimately still sits at 0.625rem
+    // until Task 5, and a document-wide regex here would be vacuous.
+    const headings = html.match(/<h3[^>]*>/g) ?? [];
+    assert.ok(headings.length > 0, "no card-label headings were rendered");
+    for (const heading of headings) assert.doesNotMatch(heading, /text-\[0\.625rem\]/);
+  });
+
+  test("the Danger heading reuses the card-label constant instead of restating it", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    const danger = html.match(/<h3[^>]*>Danger<\/h3>/);
+    assert.ok(danger, "no Danger heading was rendered");
+    // Same size and tracking as every other card label; only the colour differs.
+    assert.match(danger[0], /text-\[0\.75rem\]/);
+    assert.match(danger[0], /text-red-300/);
+  });
+
+  test("hop labels and step badges clear the 11px floor", () => {
+    const html = renderSiteDetail(NEXT_SITE, OPTS);
+    assert.match(html, /text-\[0\.6875rem\][^"]*uppercase tracking-\[0\.09em\]/);
+    assert.doesNotMatch(html, /text-\[0\.6rem\]/);
+    assert.doesNotMatch(html, /text-\[0\.625rem\]/);
+  });
+
+  test("status pills clear the 11px floor", () => {
+    const html = renderSiteList(SITES, { "api.lyly.dev": { kind: "tcp", responding: false } });
+    assert.match(html, /inline-flex items-center gap-1 shrink-0 font-mono text-\[0\.6875rem\] uppercase/);
+  });
+
+  test("small mono values sit on the code step, not the pill step", () => {
+    const html = renderSiteDetail(NEXT_SITE, OPTS);
+    assert.doesNotMatch(html, /text-\[0\.65rem\]/);
+  });
+
+  test("the switcher's current row states its port at readable contrast", () => {
+    const html = renderSiteDetail(NEXT_SITE, OPTS);
+    // stone-400 on the highlighted row measured 3.98:1; stone-300 clears 4.5:1.
+    // Anchored to the current row itself (aria-current="page"), not the
+    // whole document — every other row in the switcher's list uses the same
+    // hint span, so a document-wide assertion would pass regardless of
+    // whether the current row in particular carries the fix.
+    const currentRow = html.match(/<a[^>]*aria-current="page"[^>]*>[\s\S]*?<\/a>/);
+    assert.ok(currentRow, "no current row was rendered");
+    assert.match(currentRow[0], /text-\[0\.72rem\] text-stone-300 shrink-0/);
+  });
+
+  test("the type-option description clears AA on its raised card", () => {
+    const html = renderAddSite(SITES, "lyly.dev", {});
+    // Anchored to the two type-option <label> cards themselves, not the whole
+    // document — a document-wide regex here would also catch the header
+    // nav's unrelated bg-stone-700/text-stone-400 pairing and pass vacuously.
+    // On the checked state's raised background, the description measured
+    // 3.98:1 at 12px in stone-400; stone-300 clears 4.5:1.
+    const cards = html.match(/<label[^>]*has-\[:checked\][\s\S]*?<\/label>/g) ?? [];
+    assert.equal(cards.length, 2, "expected two type-option cards");
+    for (const card of cards) assert.doesNotMatch(card, /text-stone-400/);
+  });
+});
+
+describe("renderAddSite step list", () => {
+  test("the add form states its steps in execution order", () => {
+    const html = renderAddSite(SITES, "lyly.dev", {});
+    const list = listById(html, "add-site-steps");
+    for (const id of ["backup", "caddyfile", "files", "tunnel", "caddy", "cloudflared"]) {
+      assert.match(list, new RegExp(`data-step-id="${id}"`));
+    }
+    assert.match(html, /If a step fails, the ones after it don't run\./);
+    assert.match(html, /cloudflared-sites restarted/);
   });
 });

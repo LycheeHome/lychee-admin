@@ -6,6 +6,7 @@ import * as tunnelConfig from "../lib/tunnelConfig";
 import { CommandError } from "../lib/systemCommands";
 import { getFrameworkScaffold } from "../lib/frameworkScaffold";
 import { checkPortOpen } from "../lib/portStatus";
+import { ADD_STEPS, REMOVE_STEPS, createStepReport } from "../lib/stepReport";
 import { renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "../views/html";
 import type { SiteStatus } from "../lib/siteDisplay";
 import type { Site } from "../lib/caddyfile";
@@ -78,14 +79,23 @@ export function createSitesRouter(deps: Deps): Router {
   const { logAction } = deps.logger;
 
   sitesRouter.get("/", async (req, res) => {
+    // A fact about a removal that already completed, independent of whether
+    // the Caddyfile happens to be readable on this particular request — so
+    // it's computed once and threaded into both the success and error
+    // renders below, rather than only the happy path.
+    const removed = typeof req.query.removed === "string" ? req.query.removed : undefined;
+    const notice = removed
+      ? `Removed ${removed}. Remember to remove the DNS record in Cloudflare manually.`
+      : undefined;
+
     try {
       const content = deps.fs.readFile(config.caddyfilePath);
       const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname));
 
-      res.send(renderSiteList(sites, await computeStatuses(sites, deps)));
+      res.send(renderSiteList(sites, await computeStatuses(sites, deps), undefined, { page: "sites" }, notice));
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
-      res.status(500).send(renderSiteList([], {}, message));
+      res.status(500).send(renderSiteList([], {}, message, { page: "sites" }, notice));
     }
   });
 
@@ -208,6 +218,8 @@ export function createSitesRouter(deps: Deps): Router {
     let tunnelContent: string | undefined;
     let caddyReloaded = false;
 
+    const report = createStepReport(ADD_STEPS);
+
     try {
       caddyfileContent = deps.fs.readFile(config.caddyfilePath);
       if (caddyfile.hostnameExists(caddyfileContent, hostname)) {
@@ -230,47 +242,59 @@ export function createSitesRouter(deps: Deps): Router {
 
       tunnelContent = deps.fs.readFile(config.tunnelConfigPath);
 
-      // 1. Back up both config files before touching either.
-      backupFile(config.caddyfilePath);
-      backupFile(config.tunnelConfigPath);
+      await report.run("backup", async () => {
+        backupFile(config.caddyfilePath);
+        backupFile(config.tunnelConfigPath);
+      });
 
-      // 2. Append the Caddyfile block.
-      await deps.commands.writeManagedConfig(
-        config.caddyfilePath,
-        caddyfile.appendSite(caddyfileContent, { hostname, type, target, framework, healthcheckPath }),
+      await report.run("caddyfile", () =>
+        deps.commands.writeManagedConfig(
+          config.caddyfilePath,
+          caddyfile.appendSite(caddyfileContent!, { hostname, type, target, framework, healthcheckPath }),
+        ),
       );
 
-      // 3. Static sites get a directory + placeholder page; Next.js
+      // Static sites get a directory + placeholder page; Next.js
       // reverse-proxy sites get a directory + Dockerfile/docker-compose
-      // scaffold. Not covered by the rollback below if a later step fails —
-      // same deliberate asymmetry that already applies to the static
-      // placeholder file.
+      // scaffold. A plain reverse-proxy site has no directory to create, so
+      // that case is a skip, not a step that never ran. Not covered by the
+      // rollback below if a later step fails — same deliberate asymmetry
+      // that already applies to the static placeholder file.
       if (type === "static") {
-        await deps.commands.createSiteDirectory(hostname);
-        deps.fs.writeFile(path.join(sitePath, "index.html"), PLACEHOLDER_INDEX_HTML(hostname));
+        await report.run("files", async () => {
+          await deps.commands.createSiteDirectory(hostname);
+          deps.fs.writeFile(path.join(sitePath, "index.html"), PLACEHOLDER_INDEX_HTML(hostname));
+        });
       } else if (framework) {
-        const scaffold = getFrameworkScaffold(framework, port, hostname, config.sitesRoot, healthcheckPath ?? "/");
-        if (scaffold) {
+        await report.run("files", async () => {
+          const scaffold = getFrameworkScaffold(framework, port, hostname, config.sitesRoot, healthcheckPath ?? "/");
+          if (!scaffold) return;
           await deps.commands.createSiteDirectory(hostname);
           deps.fs.writeFile(path.join(sitePath, "Dockerfile"), scaffold.dockerfile);
           deps.fs.writeFile(path.join(sitePath, "docker-compose.yml"), scaffold.compose);
           deps.fs.writeFile(path.join(sitePath, ".dockerignore"), scaffold.dockerignore);
-        }
+        });
+      } else {
+        // A plain reverse-proxy site has no directory to create. This is not
+        // a blocked step, so it must not report as not-run.
+        report.skip("files");
       }
 
-      // 4. Append the tunnel ingress rule.
-      await deps.commands.writeManagedConfig(
-        config.tunnelConfigPath,
-        tunnelConfig.addIngressRule(tunnelContent, hostname, "http://localhost:80"),
+      await report.run("tunnel", () =>
+        deps.commands.writeManagedConfig(
+          config.tunnelConfigPath,
+          tunnelConfig.addIngressRule(tunnelContent!, hostname, "http://localhost:80"),
+        ),
       );
 
-      // 5. Validate before ever reloading — never reload a config we haven't checked.
-      await deps.commands.validateCaddyfile(config.caddyfilePath);
+      // Validate before ever reloading — never reload a config we haven't checked.
+      await report.run("caddy", async () => {
+        await deps.commands.validateCaddyfile(config.caddyfilePath);
+        await deps.commands.reloadCaddy();
+        caddyReloaded = true;
+      });
 
-      // 6. Reload Caddy, then restart cloudflared (ingress changes need a restart).
-      await deps.commands.reloadCaddy();
-      caddyReloaded = true;
-      await deps.commands.restartCloudflared();
+      await report.run("cloudflared", () => deps.commands.restartCloudflared());
 
       logAction({
         action: "add-site",
@@ -284,6 +308,7 @@ export function createSitesRouter(deps: Deps): Router {
         target,
         framework: framework ?? "none",
         tunnelId: tunnelConfig.readTunnelId(tunnelContent),
+        steps: report.steps(),
       });
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
@@ -305,13 +330,25 @@ export function createSitesRouter(deps: Deps): Router {
           logAction({ action: "add-site-rollback-failed", hostname, detail: rollbackMessage });
           res.status(500).json({
             error: `${message}\n\nAdditionally, restoring the original config failed: ${rollbackMessage}\n\nManual recovery needed — backups are in ${config.backupDir}.`,
+            steps: report.steps(),
           });
           return;
         }
       }
 
+      // The backup sentence must only appear when the backup step actually
+      // ran: every pre-step failure (duplicate hostname, reserved port, port
+      // conflict, either readFile) throws before report.run("backup", ...)
+      // ever executes, and asserting backups exist in that case would tell
+      // the operator root-owned configs might be in a bad state when nothing
+      // was ever touched.
+      const backupRan = report.steps().find((step) => step.id === "backup")?.status === "ok";
+      const backupNote = backupRan
+        ? `\n\nBacked-up copies of the Caddyfile and tunnel config were saved to ${config.backupDir} before this attempt — review and restore manually if the configs were left in a bad state.`
+        : "";
       res.status(500).json({
-        error: `${message}\n\nBacked-up copies of the Caddyfile and tunnel config were saved to ${config.backupDir} before this attempt — review and restore manually if the configs were left in a bad state.`,
+        error: `${message}${backupNote}`,
+        steps: report.steps(),
       });
     }
   });
@@ -328,22 +365,40 @@ export function createSitesRouter(deps: Deps): Router {
     let tunnelContent: string | undefined;
     let caddyReloaded = false;
 
+    const report = createStepReport(REMOVE_STEPS);
+    let rolledBack = false;
+
     try {
       caddyfileContent = deps.fs.readFile(config.caddyfilePath);
       const existingSite = caddyfile.parseSites(caddyfileContent).find((site) => site.hostname === hostname);
+      // Read up front, beside caddyfileContent — not after the Caddyfile
+      // write — so the rollback guard below (which requires both contents)
+      // can never be half-satisfied. A read failure here now aborts before
+      // anything is mutated, rather than leaving the Caddyfile
+      // edited-but-unapplied with no rollback and nothing to report it.
+      tunnelContent = deps.fs.readFile(config.tunnelConfigPath);
 
       backupFile(config.caddyfilePath);
       backupFile(config.tunnelConfigPath);
 
-      await deps.commands.writeManagedConfig(config.caddyfilePath, caddyfile.removeSite(caddyfileContent, hostname));
+      await report.run("caddyfile", () =>
+        deps.commands.writeManagedConfig(config.caddyfilePath, caddyfile.removeSite(caddyfileContent!, hostname)),
+      );
 
-      tunnelContent = deps.fs.readFile(config.tunnelConfigPath);
-      await deps.commands.writeManagedConfig(config.tunnelConfigPath, tunnelConfig.removeIngressRule(tunnelContent, hostname));
+      await report.run("tunnel", () =>
+        deps.commands.writeManagedConfig(
+          config.tunnelConfigPath,
+          tunnelConfig.removeIngressRule(tunnelContent!, hostname),
+        ),
+      );
 
-      await deps.commands.validateCaddyfile(config.caddyfilePath);
-      await deps.commands.reloadCaddy();
-      caddyReloaded = true;
-      await deps.commands.restartCloudflared();
+      await report.run("caddy", async () => {
+        await deps.commands.validateCaddyfile(config.caddyfilePath);
+        await deps.commands.reloadCaddy();
+        caddyReloaded = true;
+      });
+
+      await report.run("cloudflared", () => deps.commands.restartCloudflared());
 
       logAction({ action: "remove-site", hostname });
 
@@ -352,11 +407,11 @@ export function createSitesRouter(deps: Deps): Router {
       const filesPath = existingSite ? caddyfile.computeFilesPath(existingSite, config.sitesRoot) : null;
 
       if (wantsFileDelete && filesPath) {
-        res.json({ removed: true, needsFileConfirm: true, sitePath: filesPath });
+        res.json({ removed: true, needsFileConfirm: true, sitePath: filesPath, steps: report.steps() });
         return;
       }
 
-      res.json({ removed: true, needsFileConfirm: false });
+      res.json({ removed: true, needsFileConfirm: false, steps: report.steps() });
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
       logAction({ action: "remove-site-failed", hostname, detail: message });
@@ -369,6 +424,7 @@ export function createSitesRouter(deps: Deps): Router {
           await deps.commands.writeManagedConfig(config.caddyfilePath, caddyfileContent);
           await deps.commands.writeManagedConfig(config.tunnelConfigPath, tunnelContent);
           logAction({ action: "remove-site-rolled-back", hostname });
+          rolledBack = true;
         } catch (rollbackError) {
           const rollbackMessage =
             rollbackError instanceof CommandError
@@ -377,12 +433,14 @@ export function createSitesRouter(deps: Deps): Router {
           logAction({ action: "remove-site-rollback-failed", hostname, detail: rollbackMessage });
           res.status(500).json({
             error: `${message}\n\nAdditionally, restoring the original config failed: ${rollbackMessage}\n\nManual recovery needed — backups are in ${config.backupDir}.`,
+            steps: report.steps(),
+            rolledBack: false,
           });
           return;
         }
       }
 
-      res.status(500).json({ error: message });
+      res.status(500).json({ error: message, steps: report.steps(), rolledBack });
     }
   });
 
