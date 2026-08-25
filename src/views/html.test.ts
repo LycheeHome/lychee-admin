@@ -37,6 +37,20 @@ function tagById(html: string, id: string): string {
   return match[0];
 }
 
+/**
+ * Like tagById, but returns the whole <ol id="${id}">...</ol> — opening tag
+ * through its children — rather than just the opening tag, so an assertion
+ * about a `data-step-id` on a child <li> is anchored to this specific list
+ * rather than the whole document. Scoped to <ol> deliberately: it is the
+ * only tag this file needs full contents from, and assuming no nested <ol>
+ * (true of both step lists) keeps the match unambiguous.
+ */
+function listById(html: string, id: string): string {
+  const match = html.match(new RegExp(`<ol[^>]* id="${id}"[^>]*>[\\s\\S]*?<\\/ol>`));
+  assert.ok(match, `no <ol id="${id}"> was rendered`);
+  return match[0];
+}
+
 describe("renderAddSite heading", () => {
   test("the add-site page's heading is a documented ramp step", () => {
     const html = renderAddSite([], "lyly.dev", {});
@@ -152,7 +166,7 @@ describe("renderSiteDetail header", () => {
       status: { kind: "container", state: "running", health: "unhealthy" },
     });
     assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> unhealthy<\/span>/);
-    assert.doesNotMatch(html, /&#9679; live|>\s*live\s*</);
+    assert.doesNotMatch(html, /<span aria-hidden="true">&#9679;<\/span> live|>\s*live\s*</);
   });
 
   test("a plain proxy's pill reports responding", () => {
@@ -645,11 +659,11 @@ describe("renderSiteDetail danger zone", () => {
 
   test("the step list is addressable per step and reads as an ordered column", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
-    const list = tagById(html, "confirm-remove-steps");
+    const list = listById(html, "confirm-remove-steps");
     // An ordered sequence is a column; the 2x2 grid was the layout for peers.
     assert.doesNotMatch(list, /sm:grid-cols-2/);
     for (const id of ["caddyfile", "tunnel", "caddy", "cloudflared"]) {
-      assert.match(html, new RegExp(`data-step-id="${id}"`));
+      assert.match(list, new RegExp(`data-step-id="${id}"`));
     }
     assert.ok(tagById(html, "confirm-remove-outcome"));
   });
@@ -935,7 +949,13 @@ describe("small-text ramp", () => {
   test("the switcher's current row states its port at readable contrast", () => {
     const html = renderSiteDetail(NEXT_SITE, OPTS);
     // stone-400 on the highlighted row measured 3.98:1; stone-300 clears 4.5:1.
-    assert.doesNotMatch(html, /text-\[0\.65rem\] text-stone-400 shrink-0/);
+    // Anchored to the current row itself (aria-current="page"), not the
+    // whole document — every other row in the switcher's list uses the same
+    // hint span, so a document-wide assertion would pass regardless of
+    // whether the current row in particular carries the fix.
+    const currentRow = html.match(/<a[^>]*aria-current="page"[^>]*>[\s\S]*?<\/a>/);
+    assert.ok(currentRow, "no current row was rendered");
+    assert.match(currentRow[0], /text-\[0\.72rem\] text-stone-300 shrink-0/);
   });
 
   test("the type-option description clears AA on its raised card", () => {
@@ -954,10 +974,9 @@ describe("small-text ramp", () => {
 describe("renderAddSite step list", () => {
   test("the add form states its steps in execution order", () => {
     const html = renderAddSite(SITES, "lyly.dev", {});
-    const list = tagById(html, "add-site-steps");
-    assert.ok(list);
+    const list = listById(html, "add-site-steps");
     for (const id of ["backup", "caddyfile", "files", "tunnel", "caddy", "cloudflared"]) {
-      assert.match(html, new RegExp(`data-step-id="${id}"`));
+      assert.match(list, new RegExp(`data-step-id="${id}"`));
     }
     assert.match(html, /If a step fails, the ones after it don't run\./);
     assert.match(html, /cloudflared-sites restarted/);

@@ -337,7 +337,7 @@ says its own name and names a site.
 - **Title** (Poetsen One, 1rem, line-height 1.625): A site card's hostname in
   the list. The only other place the display face appears.
 - **Eyebrow** (DM Mono, 0.85rem, weight 500, uppercase, tracking 0.08em, Smoke):
-  Section and dialog headings — "Existing sites", "Add a site", "Remove site".
+  Section and dialog headings — "Sites", "Add a site", "Remove site".
 - **Label** (DM Mono, 0.75rem, weight 500, uppercase, tracking 0.1em, Smoke Light):
   Card headings inside the detail page — "Request path", "Manual steps",
   "Deploy", "Danger".
