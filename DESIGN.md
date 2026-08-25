@@ -503,6 +503,15 @@ value between steps, and never a large radius to look friendlier.
 - **Danger:** Transparent with a Scorch Border outline and Scorch text, one step
   smaller (0.8rem, 12px × 6px padding) — a destructive action is never the
   largest button on screen. Hover fills Scorch Rule with Chalk text.
+- **Disabled:** Smoke Deep text and `cursor: not-allowed`, with the outline
+  dropped to Hairline on the outlined buttons and the Ember fill taken to 40% on
+  the primary. **Tone, never opacity** — this system says "not actionable" by
+  going dim in the palette, the same way `starting` and `not deployed` say "not
+  a failure". A blanket `opacity` would fade the border and text together at a
+  rate the palette never chose, and nothing else here uses transparency as a
+  signal. Disabled is a real state on this app's buttons, not a theoretical one:
+  both mutating flows disable their confirm control for the length of a service
+  restart, and the sighted operator needs to see that their click landed.
 - **Focus:** Every button, link, and control shares one ring —
   `outline: 2px solid Ember; outline-offset: 2px` — via `:focus-visible`. Inputs
   use the same ring on plain `:focus`. There is no second focus treatment
