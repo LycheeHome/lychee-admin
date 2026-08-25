@@ -52,6 +52,25 @@ describe("the hostname field", () => {
     assert.match(html, /id="hostname-suffix"[^>]*>\.lyly\.dev</);
     assert.match(input, /aria-describedby="[^"]*hostname-suffix/);
   });
+
+  test("the focus ring encloses the whole composed control, not the input alone", () => {
+    // INPUT bakes its own focus:outline directly onto the input. Left as-is,
+    // that ring would stop at the input/suffix seam and draw a rose bar
+    // between the two, splitting the composed control the moment it's used.
+    // The input's own ring must be suppressed (needs `!important` to beat
+    // INPUT's same-specificity utility regardless of class order) and the
+    // ring relocated to the row wrapper via focus-within, so it encloses
+    // both pieces as one control — same 2px rose outline, same offset,
+    // relocated rather than duplicated.
+    const html = renderAddSite(SITES, "lyly.dev", {});
+    const row = tagById(html, "hostname-row");
+    assert.match(row, /focus-within:outline\b/);
+    assert.match(row, /focus-within:outline-2\b/);
+    assert.match(row, /focus-within:outline-rose-400\b/);
+    assert.match(row, /focus-within:outline-offset-2\b/);
+    const input = tagById(html, "hostname-field");
+    assert.match(input, /focus:outline-none!/);
+  });
 });
 
 describe("accessible status and error wiring", () => {

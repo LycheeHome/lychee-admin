@@ -258,11 +258,29 @@ addSiteForm?.addEventListener("submit", async (event) => {
   // fixed affix beside it (see #hostname-suffix in html.ts) so the managed
   // domain is structural rather than only a placeholder. Someone pasting a
   // full hostname (e.g. "blog.lyly.dev") into the label field must not have
-  // the domain doubled onto it, and a trailing "." from a copy-pasted FQDN
-  // must not survive to become "blog..lyly.dev".
+  // the domain doubled onto it, and trailing "."s from a copy-pasted FQDN
+  // must not survive to become "blog..lyly.dev". The doubling check compares
+  // case-insensitively (the server lowercases before validating, so a pasted
+  // "BLOG.LYLY.DEV" must be recognized as already-full the same as
+  // "blog.lyly.dev" would be) while composing with the label's original
+  // casing, since the server normalizes case anyway.
   const domain = document.getElementById("hostname-suffix")?.textContent?.replace(/^\./, "") ?? "";
-  const label = String(formData.get("hostname") ?? "").trim().replace(/\.$/, "");
-  const hostname = label.endsWith(`.${domain}`) || label === domain ? label : `${label}.${domain}`;
+  const label = String(formData.get("hostname") ?? "").trim().replace(/\.+$/, "");
+  if (!label) {
+    // Native `required` only rejects a zero-length value, so a whitespace-only
+    // entry (e.g. a single space) still passes it. Stop here rather than
+    // composing a bare ".lyly.dev" and letting the server reject it with a
+    // less legible error.
+    if (addSiteError) {
+      addSiteError.classList.remove("hidden");
+      addSiteError.textContent = "Enter a hostname.";
+    }
+    return;
+  }
+  const labelLower = label.toLowerCase();
+  const domainLower = domain.toLowerCase();
+  const hostname =
+    labelLower === domainLower || labelLower.endsWith(`.${domainLower}`) ? label : `${label}.${domain}`;
   const type = formData.get("type");
   const port = String(formData.get("port") ?? "").trim();
   const framework = String(formData.get("framework") ?? "").trim();
