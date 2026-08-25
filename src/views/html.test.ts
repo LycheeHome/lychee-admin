@@ -597,6 +597,25 @@ describe("renderSiteDetail danger zone", () => {
     }
   });
 
+  test("the step list is addressable per step and reads as an ordered column", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    const list = tagById(html, "confirm-remove-steps");
+    // An ordered sequence is a column; the 2x2 grid was the layout for peers.
+    assert.doesNotMatch(list, /sm:grid-cols-2/);
+    for (const id of ["caddyfile", "tunnel", "caddy", "cloudflared"]) {
+      assert.match(html, new RegExp(`data-step-id="${id}"`));
+    }
+    assert.ok(tagById(html, "confirm-remove-outcome"));
+  });
+
+  test("the outcome region starts neutral — it is a progress surface before it is ever a failure surface", () => {
+    // app.js only adds red styling once a failure actually lands; a
+    // successful removal must never flash a red panel on its way through.
+    const outcome = tagById(renderSiteDetail(STATIC_SITE, OPTS), "confirm-remove-outcome");
+    assert.doesNotMatch(outcome, /text-red-300/);
+    assert.doesNotMatch(outcome, /bg-red-950/);
+  });
+
   test("a site with files offers the delete checkbox naming the exact path", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     assert.match(html, /id="confirm-remove-delete-files"[\s\S]{0,200}?\/var\/www\/blog\.lyly\.dev/);

@@ -581,13 +581,14 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
     <dialog id="confirm-remove-dialog" aria-labelledby="confirm-remove-title" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
       <h2 id="confirm-remove-title" class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Remove site</h2>
       <p class="m-0 mb-3 leading-relaxed">Remove <strong>${escapeHtml(site.hostname)}</strong>? In this order:</p>
-      <ol class="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 p-0 list-none grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
-        <li class="flex gap-2"><span class="text-stone-400 shrink-0">1.</span><span>Caddyfile block removed</span></li>
-        <li class="flex gap-2"><span class="text-stone-400 shrink-0">2.</span><span>Tunnel route removed</span></li>
-        <li class="flex gap-2"><span class="text-stone-400 shrink-0">3.</span><span>Caddy validated and reloaded</span></li>
-        <li class="flex gap-2"><span class="text-stone-400 shrink-0">4.</span><span>cloudflared-sites restarted</span></li>
+      <ol id="confirm-remove-steps" class="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 p-0 list-none grid gap-y-1.5">
+        <li class="flex gap-2" data-step-id="caddyfile"><span class="text-stone-400 shrink-0">1.</span><span>Caddyfile block removed</span><span class="step-mark ml-auto shrink-0"></span></li>
+        <li class="flex gap-2" data-step-id="tunnel"><span class="text-stone-400 shrink-0">2.</span><span>Tunnel route removed</span><span class="step-mark ml-auto shrink-0"></span></li>
+        <li class="flex gap-2" data-step-id="caddy"><span class="text-stone-400 shrink-0">3.</span><span>Caddy validated and reloaded</span><span class="step-mark ml-auto shrink-0"></span></li>
+        <li class="flex gap-2" data-step-id="cloudflared"><span class="text-stone-400 shrink-0">4.</span><span>cloudflared-sites restarted</span><span class="step-mark ml-auto shrink-0"></span></li>
       </ol>
       <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mb-4">If a step fails, the ones after it don't run.</p>
+      <div id="confirm-remove-outcome" class="hidden font-mono text-[0.72rem] text-stone-400 leading-snug m-0 mb-4 whitespace-pre-wrap" role="status" aria-live="polite"></div>
       ${deleteFilesSection}
       <div class="flex justify-end gap-2.5">
         <button type="button" autofocus class="${BUTTON_SECONDARY}" data-close-dialog="confirm-remove-dialog">Cancel</button>

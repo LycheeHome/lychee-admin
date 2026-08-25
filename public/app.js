@@ -53,23 +53,130 @@ if (new URLSearchParams(window.location.search).has("created")) {
   history.replaceState(null, "", window.location.pathname);
 }
 
+const STEP_MARKS = { ok: "✓", failed: "✗", skipped: "—", "not-run": "·" };
+const STEP_MARK_CLASSES = {
+  ok: "text-green-300",
+  failed: "text-red-300",
+  skipped: "text-stone-400",
+  "not-run": "text-stone-400",
+};
+
+// Takes the list id (rather than hard-coding the remove dialog's) so the
+// add-site form's own step list can reuse this unchanged.
+function markSteps(listId, steps) {
+  for (const step of steps ?? []) {
+    const row = document.querySelector(`#${listId} [data-step-id="${step.id}"]`);
+    const mark = row?.querySelector(".step-mark");
+    if (!mark) continue;
+    mark.textContent = STEP_MARKS[step.status] ?? "";
+    mark.className = `step-mark ml-auto shrink-0 ${STEP_MARK_CLASSES[step.status] ?? ""}`;
+  }
+}
+
+function resetSteps(listId) {
+  document.querySelectorAll(`#${listId} .step-mark`).forEach((mark) => {
+    mark.textContent = "";
+    mark.className = "step-mark ml-auto shrink-0";
+  });
+}
+
+// Disables both dialog buttons and flags the dialog busy for assistive tech.
+// Deliberately does not touch either button's contents: the submit button
+// renders an icon plus the hostname (see html.ts), so overwriting
+// textContent here would destroy the icon irrecoverably, and restoring it
+// from the button's own (already-overwritten) textContent afterward would
+// leave the label frozen at "Removing…" forever. Progress and outcome text
+// live in #confirm-remove-outcome instead.
+function setRemoveBusy(busy) {
+  const submit = document.getElementById("confirm-remove-submit");
+  const cancel = document.querySelector('[data-close-dialog="confirm-remove-dialog"]');
+  if (submit) submit.disabled = busy;
+  if (cancel) cancel.disabled = busy;
+  confirmRemoveDialog?.setAttribute("aria-busy", busy ? "true" : "false");
+}
+
+const OUTCOME_NEUTRAL_CLASSES = ["text-stone-400"];
+const OUTCOME_ERROR_CLASSES = [
+  "text-red-300",
+  "bg-red-950/40",
+  "border",
+  "border-red-800/50",
+  "rounded-md",
+  "px-2.5",
+  "py-2",
+];
+
+// The outcome region is a progress surface first (plain muted text while a
+// step is running) and becomes a failure surface only once a failure
+// actually lands — never styled red for an in-flight or successful removal.
+function setOutcome(message, isError) {
+  const outcome = document.getElementById("confirm-remove-outcome");
+  if (!outcome) return;
+  outcome.classList.remove(...OUTCOME_NEUTRAL_CLASSES, ...OUTCOME_ERROR_CLASSES);
+  if (!message) {
+    outcome.textContent = "";
+    outcome.classList.add("hidden");
+    return;
+  }
+  outcome.textContent = message;
+  outcome.classList.remove("hidden");
+  outcome.classList.add(...(isError ? OUTCOME_ERROR_CLASSES : OUTCOME_NEUTRAL_CLASSES));
+}
+
+// Describes what actually happened on the host for a failed /delete call.
+// Mirrors src/routes/sites.ts's own logic rather than assuming every
+// non-rolled-back failure means Caddy already reloaded: if the rollback
+// attempt itself failed, result.error already explains that in full (and
+// where the backups are), and appending "Caddy had already reloaded" on top
+// would misstate what happened, since in that branch Caddy never reloaded.
+function hostStateMessage(result) {
+  if (result.rolledBack) {
+    return "The original Caddyfile and tunnel config were restored.";
+  }
+  const caddyStep = (result.steps ?? []).find((step) => step.id === "caddy");
+  if (caddyStep?.status === "ok") {
+    return "Caddy had already reloaded, so the edited config is live and was left in place.";
+  }
+  return "";
+}
+
+// Escape fires "cancel" before "close" on a <dialog>; block it while a
+// delete is in flight for the same reason the outside-click handler below
+// does — the dialog is the only place the outcome is shown, so dismissing
+// it mid-mutation would discard the result the operator is waiting on.
+confirmRemoveDialog?.addEventListener("cancel", (event) => {
+  if (deleteInFlight) event.preventDefault();
+});
+
 document.getElementById("confirm-remove-submit")?.addEventListener("click", async (event) => {
   if (deleteInFlight) return;
-  confirmRemoveDialog?.close();
   const hostname = event.currentTarget.dataset.hostname;
   if (!hostname) return;
 
   const deleteFilesChecked = confirmRemoveDeleteFilesCheckbox?.checked ?? false;
 
   deleteInFlight = true;
-  showBanner(`Removing ${hostname}…`, "info");
+  setRemoveBusy(true);
+  resetSteps("confirm-remove-steps");
+  setOutcome(`Removing ${hostname}…`, false);
   try {
     const response = await fetch(`/sites/${encodeURIComponent(hostname)}/delete`, {
       method: "POST",
       body: new URLSearchParams({ deleteFiles: deleteFilesChecked ? "on" : "" }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error ?? "Failed to remove site");
+    markSteps("confirm-remove-steps", result.steps);
+
+    if (!response.ok) {
+      // The dialog stays open: it stated the four steps, so it is where the
+      // outcome belongs.
+      const state = hostStateMessage(result);
+      const message = state
+        ? `${result.error ?? "Failed to remove site"}\n\n${state}`
+        : (result.error ?? "Failed to remove site");
+      setOutcome(message, true);
+      return;
+    }
 
     if (!result.needsFileConfirm) {
       window.location.href = `/?removed=${encodeURIComponent(hostname)}`;
@@ -82,14 +189,18 @@ document.getElementById("confirm-remove-submit")?.addEventListener("click", asyn
     const filesResponse = await fetch(`/sites/${encodeURIComponent(hostname)}/delete-files`, { method: "POST" });
     const filesResult = await filesResponse.json();
     if (!filesResponse.ok) {
-      showBanner(`Removed ${hostname}, but failed to delete its files: ${filesResult.error ?? "unknown error"}`, "error");
+      setOutcome(
+        `Removed ${hostname} from Caddy and the sites tunnel, but deleting its files failed:\n${filesResult.error ?? "unknown error"}\n\nThe site is no longer served. Its files are still on disk.`,
+        true,
+      );
       return;
     }
     window.location.href = `/?removed=${encodeURIComponent(hostname)}`;
   } catch (error) {
-    showBanner(error.message, "error");
+    setOutcome(error.message, true);
   } finally {
     deleteInFlight = false;
+    setRemoveBusy(false);
   }
 });
 
@@ -243,6 +354,9 @@ document.querySelectorAll("[data-copy-target]").forEach((button) => {
 
 document.querySelectorAll("dialog.modal").forEach((dialog) => {
   dialog.addEventListener("click", (event) => {
+    // The confirm-remove dialog is the progress/result surface for an
+    // in-flight delete; an outside click must not discard it mid-mutation.
+    if (dialog === confirmRemoveDialog && deleteInFlight) return;
     const rect = dialog.getBoundingClientRect();
     const inside =
       event.clientX >= rect.left &&
