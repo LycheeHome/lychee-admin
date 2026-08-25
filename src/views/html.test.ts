@@ -578,7 +578,13 @@ describe("renderSiteDetail danger zone", () => {
   test("isolates the destructive action in a titled block with its consequence stated", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     assert.match(html, /Danger/);
-    assert.match(html, /reloads Caddy, then restarts the tunnel/);
+    assert.match(html, /reloads Caddy, then restarts the sites tunnel/);
+  });
+
+  test("the Danger card names the sites tunnel, not the tunnel", () => {
+    const body = withoutHeader(renderSiteDetail(STATIC_SITE, OPTS));
+    assert.match(body, /restarts the sites tunnel/);
+    assert.doesNotMatch(body, /then restarts the tunnel\b/);
   });
 
   test("the trigger keeps the generic label; the confirm names the hostname", () => {
@@ -818,6 +824,14 @@ describe("the removal notice on the site list", () => {
   test("no notice renders without one", () => {
     const html = renderSiteList([], {}, undefined, { page: "sites" });
     assert.doesNotMatch(html, /id="page-notice"/);
+  });
+});
+
+describe("the site list heading", () => {
+  test("one destination has one name", () => {
+    const body = withoutHeader(renderSiteList(SITES, {}));
+    assert.doesNotMatch(body, /Existing sites/);
+    assert.match(body, /<h2[^>]*>Sites<\/h2>/);
   });
 });
 
