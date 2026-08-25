@@ -368,6 +368,7 @@ document.querySelectorAll("[data-copy-target]").forEach((button) => {
   button.addEventListener("click", async () => {
     const target = document.getElementById(button.dataset.copyTarget);
     if (!target) return;
+    const originalLabel = button.getAttribute("aria-label") ?? "Copy to clipboard";
     try {
       await navigator.clipboard.writeText(target.textContent ?? "");
       button.setAttribute("aria-label", "Copied!");
@@ -388,7 +389,7 @@ document.querySelectorAll("[data-copy-target]").forEach((button) => {
       if (copyStatus) copyStatus.textContent = "Text selected — press Ctrl+C to copy";
     }
     setTimeout(() => {
-      button.setAttribute("aria-label", "Copy to clipboard");
+      button.setAttribute("aria-label", originalLabel);
       if (copyStatus) copyStatus.textContent = "";
       idleIcon?.classList.remove("hidden");
       copiedIcon?.classList.add("hidden");

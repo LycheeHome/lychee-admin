@@ -288,7 +288,7 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
           containerIsBroken && filesPath
             ? `<div class="mt-4">
           <p class="text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5">Check the container's logs to see why:</p>
-          ${commandBlock("cmd-logs", "docker compose logs", filesPath)}
+          ${commandBlock("cmd-logs", "docker compose logs", "Copy logs command", filesPath)}
         </div>`
             : ""
         }
@@ -338,10 +338,10 @@ const CODE_LINE =
  * Shared by the manual steps, the request path's failure hint, and Deploy's
  * by-hand alternative, so all three look and behave identically.
  */
-function commandBlock(id: string, value: string, cwd?: string): string {
+function commandBlock(id: string, value: string, label: string, cwd?: string): string {
   return `<div class="relative">
               <pre id="${id}" class="${CODE_LINE}">${escapeHtml(value)}</pre>
-              ${copyButton(id, "Copy command", COPY_IN_LINE)}
+              ${copyButton(id, label, COPY_IN_LINE)}
             </div>
             ${cwd ? `<p class="font-mono text-[0.72rem] text-stone-400 m-0 mt-1">in ${escapeHtml(cwd)}/</p>` : ""}`;
 }
@@ -357,7 +357,7 @@ function renderStep(step: ManualStep, index: number): string {
           <span class="${STEP_NUMBER}">${index + 1}</span>
           <div class="flex-1 min-w-0">
             <p class="${STEP_TEXT}">${escapeHtml(step.text)}</p>
-            ${step.command ? commandBlock(step.command.id, step.command.value) : ""}
+            ${step.command ? commandBlock(step.command.id, step.command.value, "Copy DNS command") : ""}
           </div>
         </div>`;
 }
@@ -467,7 +467,7 @@ function renderDeploy(scaffold: NonNullable<SiteDetailOptions["scaffold"]>, file
         ${
           filesPath
             ? `<p class="text-stone-400 text-[0.8rem] leading-snug m-0 mt-3 mb-1.5">Not using GitHub Actions? Copy your source into the directory yourself, then run:</p>
-        ${commandBlock("cmd-compose", "docker compose up -d --build", filesPath)}`
+        ${commandBlock("cmd-compose", "docker compose up -d --build", "Copy docker compose command", filesPath)}`
             : ""
         }
         <div class="h-px bg-stone-700 my-4"></div>

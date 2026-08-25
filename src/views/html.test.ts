@@ -572,6 +572,13 @@ describe("renderSiteDetail deploy", () => {
     assert.doesNotMatch(html, />Deploy<\/h3>/);
     assert.doesNotMatch(html, /cmd-build|cmd-run|github-workflow-yaml/);
   });
+
+  test("copy buttons are distinguishable by name", () => {
+    const html = renderSiteDetail(NEXT_SITE, OPTS);
+    const labels = [...html.matchAll(/aria-label="(Copy [^"]*)"/g)].map((match) => match[1]);
+    assert.ok(labels.length >= 2, "expected at least two copy buttons");
+    assert.equal(new Set(labels).size, labels.length, `duplicate copy labels: ${labels.join(", ")}`);
+  });
 });
 
 describe("renderSiteDetail danger zone", () => {
