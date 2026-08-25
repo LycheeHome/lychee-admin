@@ -36,12 +36,6 @@
         ],
         "createdAt": "2026-08-24T16:56:36.179Z",
         "reason": "Controller ruling: renderPageNotice is Chalk on Ember Deep at 60% over the page ground, a documented DESIGN.md pair measured at 15.65:1; the rule's flat heuristic cannot see alpha compositing, same false-positive class as the html.ts and shared.ts waivers"
-      },
-      {
-        "rule": "design-system-font-size",
-        "value": "0.6875rem",
-        "createdAt": "2026-08-24T23:31:51.368Z",
-        "reason": "critique-remediation task 4-7: new micro-label/pill type step below old 11px floor's neighbors; DESIGN.md is re-derived by a separate tool run after this batch lands, task brief forbids hand-editing it here"
       }
     ]
   }

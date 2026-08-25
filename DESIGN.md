@@ -44,12 +44,12 @@ typography:
     letterSpacing: "0.08em"
   label:
     fontFamily: "DM Mono, ui-monospace, SFMono-Regular, Consolas, monospace"
-    fontSize: "0.625rem"
+    fontSize: "0.75rem"
     fontWeight: 500
     letterSpacing: "0.1em"
   micro-label:
     fontFamily: "DM Mono, ui-monospace, SFMono-Regular, Consolas, monospace"
-    fontSize: "0.6rem"
+    fontSize: "0.6875rem"
     fontWeight: 500
     letterSpacing: "0.09em"
   body:
@@ -73,7 +73,11 @@ typography:
     fontWeight: 400
   pill:
     fontFamily: "DM Mono, ui-monospace, SFMono-Regular, Consolas, monospace"
-    fontSize: "0.65rem"
+    fontSize: "0.6875rem"
+    letterSpacing: "0.06em"
+  type-pill:
+    fontFamily: "DM Mono, ui-monospace, SFMono-Regular, Consolas, monospace"
+    fontSize: "0.7rem"
     letterSpacing: "0.06em"
 rounded:
   inline: "4px"
@@ -334,12 +338,13 @@ says its own name and names a site.
   the list. The only other place the display face appears.
 - **Eyebrow** (DM Mono, 0.85rem, weight 500, uppercase, tracking 0.08em, Smoke):
   Section and dialog headings — "Existing sites", "Add a site", "Remove site".
-- **Label** (DM Mono, 0.625rem, weight 500, uppercase, tracking 0.1em, Smoke):
+- **Label** (DM Mono, 0.75rem, weight 500, uppercase, tracking 0.1em, Smoke Light):
   Card headings inside the detail page — "Request path", "Manual steps",
   "Deploy", "Danger".
-- **Micro-label** (DM Mono, 0.6rem, weight 500, uppercase, tracking 0.09em,
+- **Micro-label** (DM Mono, 0.6875rem, weight 500, uppercase, tracking 0.09em,
   Smoke): The label above a routing hop. The smallest type in the system, so it
-  gets the brightest of the dim tones, not the dimmest.
+  gets the brightest of the dim tones, not the dimmest. 0.6875rem is exactly
+  11px — the floor below which small UI text stops being reliably legible.
 - **Body** (Nunito, 0.8rem, line-height 1.375, Smoke): Every explanatory
   sentence. Longer prose sits inside cards no wider than 760px, which keeps it
   near 70ch. Dialog paragraphs step up to 1rem with relaxed leading.
@@ -352,7 +357,7 @@ says its own name and names a site.
   paths and hostnames).
 - **Code** (DM Mono, 0.72rem, Chalk on Hearth): Copyable commands and the
   generated workflow.
-- **Pill** (DM Mono, 0.65rem type / 0.7rem status, uppercase, tracking 0.06em):
+- **Pill** (DM Mono, 0.6875rem status / 0.7rem type, uppercase, tracking 0.06em):
   One word, or two.
 
 ### Named Rules
@@ -369,7 +374,7 @@ single weight — do not request 600 and let the browser synthesize it.
 
 **The Uppercase-Is-Structural Rule.** Uppercase with letterspacing marks
 structure, never emphasis inside prose. Tracking widens as size shrinks
-(0.85rem/0.08em → 0.625rem/0.1em → 0.6rem/0.09em) so the smallest labels stay
+(0.85rem/0.08em → 0.75rem/0.1em → 0.6875rem/0.09em) so the smallest labels stay
 readable. Emphasis inside a sentence uses Chalk against Smoke, or `<strong>`,
 not caps.
 
@@ -530,7 +535,8 @@ value between steps, and never a large radius to look friendlier.
   4px × 10px, fully round. `static` is Chalk on Hairline with a Hairline Strong
   edge; `proxy` is Ember Light on Ember Deep with no visible edge — the state
   that means "a process runs here" is the one that carries color.
-- **Status pills:** 0.65rem mono, uppercase, tracking 0.06em, prefixed with `●`,
+- **Status pills:** 0.6875rem mono, uppercase, tracking 0.06em, prefixed with a
+  decorative `●` that is `aria-hidden` so it never joins the accessible name,
   fully round, and colored by tone only: Clear on Clear Deep, Scorch on Scorch
   Deep, or Smoke Light on Hairline. `shrink-0`, because a status must never
   compress to fit a long hostname.
@@ -569,7 +575,7 @@ The most-used component in the app and the reason several other values are what
 they are. A `<pre>` at Code size on Hearth with a Hairline border and 6px radius,
 `overflow-x: auto` and `white-space: nowrap` so a long command scrolls rather
 than wraps, with a copy button absolutely positioned inside it. An optional
-caption beneath in 0.65rem Smoke names the directory the command must run in
+caption beneath in 0.72rem Smoke names the directory the command must run in
 (`in /var/www/app.lyly.dev/`) — a value you have to read, so it is not dimmed
 below Smoke.
 
@@ -590,7 +596,7 @@ button off the text. Change any one of the four and recompute the others.
 
 The component that states this app's whole thesis: a request's path as four
 labelled stages — Cloudflare DNS → the sites tunnel → Caddy → your files or your
-app. Each hop is a Micro-label above a Data value above an optional 0.65rem
+app. Each hop is a Micro-label above a Data value above an optional 0.72rem
 sub-line (Smoke by default, tone-colored when it carries live state).
 Separators are Hairline Strong arrows that flip from `→` to `↓` below `sm`, and
 are `aria-hidden`.
