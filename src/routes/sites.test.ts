@@ -540,7 +540,7 @@ describe("rollback", () => {
     assert.equal(fakeFs.readFile(CADDYFILE), before);
   });
 
-  test("aborts before mutating anything when the tunnel config can't be read", async () => {
+  test("aborts before mutating anything when the tunnel config read fails, even though backup would have succeeded", async () => {
     // Regression for an ordering bug: the delete handler used to read
     // tunnelContent only after rewriting the Caddyfile, so a read failure
     // here left the Caddyfile edited-but-unapplied — the caddyfile step
@@ -548,16 +548,75 @@ describe("rollback", () => {
     // no step reporting it, so the operator would see nothing at all.
     // Reading tunnelContent up front, beside caddyfileContent, makes that
     // combination impossible: this now fails before anything is mutated.
-    fakeFs.rmRecursive(TUNNEL_CONFIG);
-    const before = fakeFs.readFile(CADDYFILE);
+    //
+    // An earlier version of this test simulated the unreadable tunnel config
+    // by deleting it — but backupFile() also reads that same path (via
+    // fs.copyFile's readFile, see src/lib/backup.ts / src/dev/fakes.ts), and
+    // it runs before either ordering's Caddyfile write. So it threw first in
+    // both the fixed and the pre-fix handler, the Caddyfile was left
+    // untouched either way, and the test passed even with the old,
+    // buggy ordering restored. This version instead gives the route a
+    // no-op backup (so backup itself can never be what fails) and an `fs`
+    // whose readFile throws only for the tunnel config path — isolating the
+    // one thing that actually distinguishes the two orderings: whether the
+    // Caddyfile write step runs before or after the tunnel read.
+    const { createApp } = await import("../app");
+    const { createLogger } = await import("../lib/logger");
+    const { createFakes } = await import("../dev/fakes");
 
-    const response = await request("/sites/blog.lyly.dev/delete", form({}));
+    const fakes = createFakes();
+    fakes.fs.mkdir(SITES_ROOT);
+    fakes.fs.writeFile(CADDYFILE, SEED_CADDYFILE);
+    fakes.fs.writeFile(TUNNEL_CONFIG, SEED_TUNNEL);
 
-    assert.equal(response.status, 500);
-    const body = await json<{ steps: { id: string; status: string }[] }>(response);
-    const byId = Object.fromEntries(body.steps.map((s) => [s.id, s.status]));
-    assert.equal(byId.caddyfile, "not-run");
-    assert.equal(fakeFs.readFile(CADDYFILE), before);
+    const readOnlyFailingForTunnel: typeof fakes.fs = {
+      ...fakes.fs,
+      readFile(target: string): string {
+        if (target === TUNNEL_CONFIG) {
+          throw new Error("simulated read failure for the tunnel config");
+        }
+        return fakes.fs.readFile(target);
+      },
+    };
+
+    const app = createApp({
+      commands: fakes.commands,
+      fs: readOnlyFailingForTunnel,
+      // A no-op: it never reads the tunnel config, so it always succeeds —
+      // unlike the real backupFile, which would throw on the same read this
+      // test is targeting and mask the ordering bug all over again.
+      backup: { backupFile: () => "" },
+      logger: createLogger(fakes.fs),
+    });
+
+    const localServer = app.listen(0);
+    await once(localServer, "listening");
+    const address = localServer.address();
+    assert.ok(address && typeof address === "object");
+    const localBaseUrl = `http://127.0.0.1:${address.port}`;
+
+    const before = fakes.fs.readFile(CADDYFILE);
+
+    try {
+      const formInit = form({});
+      const response = await fetch(`${localBaseUrl}/sites/blog.lyly.dev/delete`, {
+        ...formInit,
+        headers: { Authorization: AUTH, ...formInit.headers },
+      });
+
+      assert.equal(response.status, 500);
+      const body = await json<{ steps: { id: string; status: string }[] }>(response);
+      const byId = Object.fromEntries(body.steps.map((s) => [s.id, s.status]));
+      // Pre-fix, the Caddyfile write ran before the tunnel read, so this
+      // would report "ok" here instead of "not-run".
+      assert.equal(byId.caddyfile, "not-run");
+      // Pre-fix, the write above would have actually landed, so this would
+      // differ from `before` instead of matching it byte-for-byte.
+      assert.equal(fakes.fs.readFile(CADDYFILE), before);
+    } finally {
+      localServer.close();
+      await once(localServer, "close");
+    }
   });
 
   test("does not roll back once Caddy has already reloaded, even if cloudflared then fails", async () => {

@@ -161,10 +161,14 @@ function setOutcome(message, isError) {
     progress?.classList.add("hidden");
     return;
   }
-  outcomeText.textContent = message;
+  // Unhide and set tone before writing text: a mutation inside a
+  // display:none subtree is not announced, and revealing an element that
+  // already holds its text generally isn't either — see the same fix
+  // beside #port-error and #add-site-error.
   outcome.classList.remove("hidden");
   outcome.classList.add(...(isError ? OUTCOME_ERROR_CLASSES : OUTCOME_NEUTRAL_CLASSES));
   progress?.classList.toggle("hidden", isError);
+  outcomeText.textContent = message;
 }
 
 // Describes what actually happened on the host for a failed /delete call.
