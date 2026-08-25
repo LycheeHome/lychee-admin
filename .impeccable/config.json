@@ -17,7 +17,7 @@
           "src/views/html.ts"
         ],
         "createdAt": "2026-08-24T16:56:23.481Z",
-        "reason": "User confirmed: the four hits are documented DESIGN.md pairs (Hearth on Ember for button-primary; Chalk on Scorch Deep/Rule for danger surfaces), all high-contrast. Rule targets washed-out mid-grays, which this palette does not use on fills."
+        "reason": "2 hits, both the same pairing: Chalk on Scorch Deep (text-stone-50 on bg-red-950) for the error banner, on the list page and the not-found page. Measured 16.40:1. NOTE: an earlier version of this reason claimed 4 hits and described button-primary, which does not appear in this file at all \u2014 html.ts only references ${BUTTON_PRIMARY}, which the static scanner cannot see through. Corrected 2026-08-25. This waiver must stay value:\"*\" \u2014 gray-on-color emits no ignoreValue, so per-pair waiving is not possible. The hit COUNT above is therefore the tripwire: if `detect.mjs --no-config src/views` reports more hits in this file than stated, something new is being silenced and the reason needs re-deriving."
       },
       {
         "rule": "gray-on-color",
@@ -26,7 +26,7 @@
           "src/views/shared.ts"
         ],
         "createdAt": "2026-08-24T16:56:29.039Z",
-        "reason": "User confirmed: documented DESIGN.md pairs (Hearth on Ember for button-primary; Chalk on Scorch Rule for danger hover), both high-contrast; rule targets washed-out mid-greys this palette never puts on a fill"
+        "reason": "4 hits, not 2. Two are the documented high-contrast pairs: Hearth on Ember (BUTTON_PRIMARY rest, 6.11:1) and Chalk on Scorch Rule (BUTTON_DANGER hover, 9.60:1). The other two are the disabled state the scanner pairs against a hover background it cannot know is neutralised: text-stone-500 with bg-rose-400 and with bg-red-900. Those are statically real and behaviourally dead \u2014 disabled:hover:bg-transparent removes the fill at runtime, verified in-browser as rgba(0,0,0,0) while disabled AND hovered. Disabled text is exempt from WCAG 1.4.3 (inactive components), and the live pairing is Smoke Deep on Hearth Lift at 3.16:1, deliberately dim. This waiver must stay value:\"*\" \u2014 gray-on-color emits no ignoreValue, so per-pair waiving is not possible. The hit COUNT above is therefore the tripwire: if `detect.mjs --no-config src/views` reports more hits in this file than stated, something new is being silenced and the reason needs re-deriving."
       },
       {
         "rule": "gray-on-color",
@@ -35,7 +35,7 @@
           "src/views/shell.ts"
         ],
         "createdAt": "2026-08-24T16:56:36.179Z",
-        "reason": "Controller ruling: renderPageNotice is Chalk on Ember Deep at 60% over the page ground, a documented DESIGN.md pair measured at 15.65:1; the rule's flat heuristic cannot see alpha compositing, same false-positive class as the html.ts and shared.ts waivers"
+        "reason": "1 hit: renderPageNotice, Chalk on Ember Deep at 60% over the page ground. Independently re-measured at 16.25:1 (an earlier version of this reason cited 15.65:1). Corrected 2026-08-25. This waiver must stay value:\"*\" \u2014 gray-on-color emits no ignoreValue, so per-pair waiving is not possible. The hit COUNT above is therefore the tripwire: if `detect.mjs --no-config src/views` reports more hits in this file than stated, something new is being silenced and the reason needs re-deriving."
       }
     ]
   }
