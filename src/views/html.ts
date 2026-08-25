@@ -5,6 +5,7 @@ import {
   splitHostnameForDisplay,
   type SiteStatus,
 } from "../lib/siteDisplay";
+import { ADD_STEPS } from "../lib/stepReport";
 import { layout, type Nav } from "./shell";
 import {
   escapeHtml,
@@ -172,6 +173,17 @@ export function renderAddSite(
         <div class="flex justify-end gap-2.5">
           <a href="/" class="${BUTTON_SECONDARY} no-underline">Cancel</a>
           <button type="submit" id="add-site-submit" class="${BUTTON_PRIMARY}">Add site</button>
+        </div>
+
+        <div class="mt-5">
+          <p class="${CARD_LABEL}">On submit</p>
+          <ol id="add-site-steps" class="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 p-0 list-none grid gap-y-1.5">
+            ${ADD_STEPS.map(
+              (step, index) =>
+                `<li class="flex gap-2" data-step-id="${step.id}"><span class="text-stone-400 shrink-0">${index + 1}.</span><span>${escapeHtml(step.label)}</span><span class="step-mark ml-auto shrink-0"></span></li>`,
+            ).join("")}
+          </ol>
+          <p class="text-stone-400 text-[0.75rem] leading-snug m-0">If a step fails, the ones after it don't run.</p>
         </div>
       </form>
     </div>

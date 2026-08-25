@@ -59,8 +59,11 @@ const DISMISS_BUTTON =
  * they get renderPageNotice() below instead.
  *
  * No tone classes are set here: showBanner() supplies them, and strips
- * bg-rose-950/60 and border-rose-400/70 before applying its own, so a second
- * banner on the same page cannot inherit the first one's colour.
+ * bg-rose-950 and border-rose-400/70 (and the error tone's own classes)
+ * before applying its own, so a second banner on the same page cannot
+ * inherit the first one's colour. The info/default tone's background is
+ * opaque (bg-rose-950, no /60) so it fully covers whatever it sits over —
+ * this banner is fixed and can overlap page content.
  */
 function renderFlashBanner(): string {
   const base =

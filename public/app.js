@@ -14,17 +14,17 @@ function showBanner(message, kind) {
   if (!flashBanner || !flashBannerMessage || !flashBannerClose) return;
   clearTimeout(flashBannerTimeout);
   flashBannerMessage.textContent = message;
-  flashBanner.classList.remove("hidden", "bg-red-950/60", "border-red-400/70", "bg-rose-950/60", "border-rose-400/70");
+  flashBanner.classList.remove("hidden", "bg-red-950/60", "border-red-400/70", "bg-rose-950", "border-rose-400/70");
   if (kind === "error") {
     flashBanner.classList.add("bg-red-950/60", "border-red-400/70");
     flashBannerClose.classList.remove("hidden");
   } else if (kind === "info") {
-    flashBanner.classList.add("bg-rose-950/60", "border-rose-400/70");
+    flashBanner.classList.add("bg-rose-950", "border-rose-400/70");
     flashBannerClose.classList.add("hidden");
     // No auto-dismiss: the caller replaces this banner with a terminal
     // success/error banner once the in-flight operation resolves.
   } else {
-    flashBanner.classList.add("bg-rose-950/60", "border-rose-400/70");
+    flashBanner.classList.add("bg-rose-950", "border-rose-400/70");
     flashBannerClose.classList.add("hidden");
     flashBannerTimeout = setTimeout(hideBanner, 4000);
   }
@@ -262,13 +262,19 @@ addSiteForm?.addEventListener("submit", async (event) => {
 
   addSiteInFlight = true;
   addSiteError?.classList.add("hidden");
+  const submitButton = addSiteForm.querySelector('button[type="submit"]');
+  if (submitButton) submitButton.disabled = true;
+  showBanner(`Adding ${hostname} — reloading Caddy and restarting cloudflared-sites…`, "info");
   try {
     const response = await fetch("/sites", {
       method: "POST",
       body: new URLSearchParams({ hostname, type, port, framework, healthcheckPath }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error ?? "Failed to add site");
+    if (!response.ok) {
+      markSteps("add-site-steps", result.steps);
+      throw new Error(result.error ?? "Failed to add site");
+    }
 
     // Land on the new site's own page: its Manual steps already states the
     // DNS command permanently, and a full navigation leaves the breadcrumb
@@ -284,6 +290,8 @@ addSiteForm?.addEventListener("submit", async (event) => {
     window.location.href = `/sites/${encodeURIComponent(result.hostname)}?created=1`;
   } catch (error) {
     addSiteInFlight = false;
+    if (submitButton) submitButton.disabled = false;
+    hideBanner();
     if (addSiteError) {
       // Unhide before writing: role="alert" announces content changes inside a
       // visible region, and a display:none element is not exposed at all, so
@@ -298,11 +306,20 @@ addSiteForm?.addEventListener("submit", async (event) => {
 // which restores the JS heap along with the DOM — nothing here opts out of it
 // (no Cache-Control: no-store). Without this the form would come back with
 // addSiteInFlight still true from the submit that navigated away, and every
-// later click would be swallowed by the guard above with no error shown.
+// later click would be swallowed by the guard above with no error shown. The
+// restored DOM also carries the in-flight submit button and banner from the
+// submission that navigated away, since the success path deliberately leaves
+// both alone rather than resetting them before window.location.href — so a
+// bfcache restore has to undo those too, or the form comes back with a
+// permanently disabled button and a stuck "Adding…" banner.
 // event.persisted is only true on a bfcache restore, so this cannot reopen the
 // double-submit window on a live page.
 window.addEventListener("pageshow", (event) => {
-  if (event.persisted) addSiteInFlight = false;
+  if (!event.persisted) return;
+  addSiteInFlight = false;
+  const submitButton = document.getElementById("add-site-submit");
+  if (submitButton) submitButton.disabled = false;
+  hideBanner();
 });
 
 document.querySelectorAll("[data-open-dialog]").forEach((trigger) => {

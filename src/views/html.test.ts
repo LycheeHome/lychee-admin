@@ -886,3 +886,16 @@ describe("small-text ramp", () => {
     for (const card of cards) assert.doesNotMatch(card, /text-stone-400/);
   });
 });
+
+describe("renderAddSite step list", () => {
+  test("the add form states its steps in execution order", () => {
+    const html = renderAddSite(SITES, "lyly.dev", {});
+    const list = tagById(html, "add-site-steps");
+    assert.ok(list);
+    for (const id of ["backup", "caddyfile", "files", "tunnel", "caddy", "cloudflared"]) {
+      assert.match(html, new RegExp(`data-step-id="${id}"`));
+    }
+    assert.match(html, /If a step fails, the ones after it don't run\./);
+    assert.match(html, /cloudflared-sites restarted/);
+  });
+});
