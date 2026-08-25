@@ -124,7 +124,12 @@ export function renderAddSite(
       <form id="add-site-form" method="post" action="/sites" class="flex flex-col gap-5">
         <label class="${FORM_LABEL}">
           Hostname
-          <input type="text" name="hostname" placeholder="blog.${escapeHtml(domain)}" required class="${INPUT}" />
+          <span class="flex items-stretch">
+            <input type="text" id="hostname-field" name="hostname" required autocomplete="off"
+                   aria-describedby="hostname-suffix"
+                   class="${INPUT} rounded-r-none flex-1 min-w-0" placeholder="blog" />
+            <span id="hostname-suffix" class="font-mono text-[0.72rem] text-stone-300 bg-stone-700 border border-l-0 border-stone-700 rounded-r-md px-2.5 flex items-center shrink-0">.${escapeHtml(domain)}</span>
+          </span>
         </label>
 
         <fieldset class="border-0 p-0 m-0 flex flex-col gap-2.5">

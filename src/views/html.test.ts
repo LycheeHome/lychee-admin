@@ -45,6 +45,15 @@ describe("renderAddSite heading", () => {
   });
 });
 
+describe("the hostname field", () => {
+  test("the hostname field affixes the domain instead of hiding it in a placeholder", () => {
+    const html = renderAddSite(SITES, "lyly.dev", {});
+    const input = tagById(html, "hostname-field");
+    assert.match(html, /id="hostname-suffix"[^>]*>\.lyly\.dev</);
+    assert.match(input, /aria-describedby="[^"]*hostname-suffix/);
+  });
+});
+
 describe("accessible status and error wiring", () => {
   test("the port field points at the message that explains a conflict", () => {
     const input = tagById(renderAddSite(SITES, "lyly.dev", {}), "port-field");

@@ -254,7 +254,15 @@ addSiteForm?.addEventListener("submit", async (event) => {
   if (addSiteInFlight) return;
 
   const formData = new FormData(addSiteForm);
-  const hostname = String(formData.get("hostname") ?? "").trim();
+  // The field only carries the subdomain label; the domain is rendered as a
+  // fixed affix beside it (see #hostname-suffix in html.ts) so the managed
+  // domain is structural rather than only a placeholder. Someone pasting a
+  // full hostname (e.g. "blog.lyly.dev") into the label field must not have
+  // the domain doubled onto it, and a trailing "." from a copy-pasted FQDN
+  // must not survive to become "blog..lyly.dev".
+  const domain = document.getElementById("hostname-suffix")?.textContent?.replace(/^\./, "") ?? "";
+  const label = String(formData.get("hostname") ?? "").trim().replace(/\.$/, "");
+  const hostname = label.endsWith(`.${domain}`) || label === domain ? label : `${label}.${domain}`;
   const type = formData.get("type");
   const port = String(formData.get("port") ?? "").trim();
   const framework = String(formData.get("framework") ?? "").trim();
