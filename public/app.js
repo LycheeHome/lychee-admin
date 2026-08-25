@@ -22,7 +22,6 @@ let flashBannerTimeout = null;
 function showBanner(message, kind) {
   if (!flashBanner || !flashBannerMessage || !flashBannerClose) return;
   clearTimeout(flashBannerTimeout);
-  flashBannerMessage.textContent = message;
   flashBanner.classList.remove("hidden", "bg-red-950/60", "border-red-400/70", "bg-rose-950", "border-rose-400/70");
   // Only the "info" tone is ever in-flight (see the add form's submit
   // handler, the one caller today) — the pulsing dot says "still working",
@@ -41,6 +40,11 @@ function showBanner(message, kind) {
     flashBannerClose.classList.add("hidden");
     flashBannerTimeout = setTimeout(hideBanner, 4000);
   }
+  // Written last, after the region is visible and toned: a mutation inside a
+  // display:none subtree is not announced, and revealing an element that
+  // already holds its text generally isn't either — the same ordering
+  // #port-error, #add-site-error and #confirm-remove-outcome all use.
+  flashBannerMessage.textContent = message;
 }
 
 function hideBanner() {
@@ -291,6 +295,7 @@ function validatePortField() {
   } else {
     portField.setCustomValidity("");
     portError.classList.add("hidden");
+    portError.textContent = "";
   }
 }
 

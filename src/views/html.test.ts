@@ -2,7 +2,8 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { withoutHeader } from "../dev/testHelpers";
-import { renderAddSite, renderSiteDetail, renderSiteList } from "./html";
+import { renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
+import { BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY } from "./shared";
 
 const STATIC_SITE: Site = { hostname: "blog.lyly.dev", type: "static", target: "/var/www/blog.lyly.dev" };
 const APEX_SITE: Site = { hostname: "lyly.dev", type: "static", target: "/var/www/lyly.dev" };
@@ -915,6 +916,61 @@ describe("status on the site list", () => {
     assert.ok(dots.length > 0, "no status dot was rendered");
     for (const dot of dots) {
       assert.match(dot[0], /aria-hidden="true"/);
+    }
+  });
+});
+
+describe("hardening: browser defaults never carry the design", () => {
+  test("every interactive element the design draws gets the project focus ring", () => {
+    const list = renderSiteList(SITES, {});
+    const card = list.match(/<a href="\/sites\/api\.lyly\.dev"[^>]*>/);
+    assert.ok(card, "no site-card link rendered");
+    assert.match(card[0], /focus-visible:outline-rose-400/);
+
+    const notFound = renderSiteNotFound("nope.lyly.dev");
+    const back = notFound.match(/<a href="\/"[^>]*>/);
+    assert.ok(back, "no back link rendered");
+    assert.match(back[0], /focus-visible:outline-rose-400/);
+
+    const add = renderAddSite(SITES, "lyly.dev", {});
+    for (const value of ["static", "reverse-proxy"]) {
+      const radio = add.match(new RegExp(`<input type="radio"[^>]*value="${value}"[^>]*>`));
+      assert.ok(radio, `no ${value} radio rendered`);
+      assert.match(radio[0], /focus-visible:outline-rose-400/);
+    }
+  });
+
+  test("a radio's accessible name is its option, not its explanation", () => {
+    const add = renderAddSite(SITES, "lyly.dev", {});
+    const radio = add.match(/<input type="radio"[^>]*value="static"[^>]*>/);
+    assert.ok(radio);
+    // The paragraph stays announced, as a description rather than a name.
+    assert.match(radio[0], /aria-label="Static site"/);
+    assert.match(radio[0], /aria-describedby="type-static-description"/);
+    assert.ok(tagById(add, "type-static-description"));
+  });
+
+  test("the breadcrumb separator is decoration, not content", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    const seps = [...html.matchAll(/<span[^>]*>\/<\/span>/g)];
+    assert.ok(seps.length > 0, "no breadcrumb separator rendered");
+    for (const sep of seps) assert.match(sep[0], /aria-hidden="true"/);
+  });
+
+  test("no transition escapes the reduced-motion gate", () => {
+    const add = renderAddSite(SITES, "lyly.dev", {});
+    const list = renderSiteList(SITES, {});
+    for (const html of [add, list]) {
+      assert.doesNotMatch(html, /(?<!motion-safe:)transition-colors/);
+    }
+  });
+
+  test("a disabled control says so tonally, not by going transparent", () => {
+    // No opacity as a state signal — this system carries meaning in tone.
+    for (const c of [BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_DANGER]) {
+      assert.match(c, /disabled:cursor-not-allowed/);
+      assert.match(c, /disabled:text-stone-500/);
+      assert.doesNotMatch(c, /disabled:opacity/);
     }
   });
 });

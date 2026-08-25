@@ -115,7 +115,7 @@ export function renderAddSite(
     <div class="${DETAIL_WIDTH} flex flex-col gap-5">
       <nav class="font-mono text-[0.72rem] text-stone-400 m-0" aria-label="Breadcrumb">
         <a href="/" class="text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}">sites</a>
-        <span class="text-stone-600 mx-1.5">/</span>
+        <span class="text-stone-600 mx-1.5" aria-hidden="true">/</span>
         <span class="text-stone-50">new</span>
       </nav>
 
@@ -135,20 +135,20 @@ export function renderAddSite(
         <fieldset class="border-0 p-0 m-0 flex flex-col gap-2.5">
           <legend class="font-mono text-[0.7rem] uppercase tracking-[0.06em] text-stone-400 px-0 mb-2">Type</legend>
 
-          <label class="flex flex-col gap-1 rounded-md border border-stone-600 bg-stone-700/50 px-3 py-2.5 cursor-pointer transition-colors hover:bg-stone-700/80 has-[:checked]:bg-stone-700 has-[:checked]:border-stone-500">
+          <label class="flex flex-col gap-1 rounded-md border border-stone-600 bg-stone-700/50 px-3 py-2.5 cursor-pointer motion-safe:transition-colors hover:bg-stone-700/80 has-[:checked]:bg-stone-700 has-[:checked]:border-stone-500">
             <span class="flex items-center gap-2 text-stone-50 text-[0.9rem] font-semibold">
-              <input type="radio" name="type" value="static" checked class="accent-stone-300" />
+              <input type="radio" name="type" value="static" checked aria-label="Static site" aria-describedby="type-static-description" class="accent-stone-300 ${FOCUS_RING}" />
               Static site
             </span>
-            <span class="text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]">Serves plain files from <code class="font-mono">/var/www/&lt;hostname&gt;</code>, which lyly-admin creates for you with a placeholder page — no process to run yourself.</span>
+            <span id="type-static-description" class="text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]">Serves plain files from <code class="font-mono">/var/www/&lt;hostname&gt;</code>, which lyly-admin creates for you with a placeholder page — no process to run yourself.</span>
           </label>
 
-          <label class="flex flex-col gap-1 rounded-md border border-stone-700 bg-transparent px-3 py-2.5 cursor-pointer transition-colors hover:bg-stone-800/40 has-[:checked]:bg-rose-950/50 has-[:checked]:border-rose-800/70">
+          <label class="flex flex-col gap-1 rounded-md border border-stone-700 bg-transparent px-3 py-2.5 cursor-pointer motion-safe:transition-colors hover:bg-stone-800/40 has-[:checked]:bg-rose-950/50 has-[:checked]:border-rose-800/70">
             <span class="flex items-center gap-2 text-stone-50 text-[0.9rem] font-semibold">
-              <input type="radio" name="type" value="reverse-proxy" class="accent-rose-400" />
+              <input type="radio" name="type" value="reverse-proxy" aria-label="Reverse proxy" aria-describedby="type-proxy-description" class="accent-rose-400 ${FOCUS_RING}" />
               Reverse proxy
             </span>
-            <span class="text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]">Routes to a process you already run and manage yourself on a local port (e.g. <code class="font-mono">next start</code>). lyly-admin only wires up the routing — it won't start, stop, or restart that process for you.</span>
+            <span id="type-proxy-description" class="text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]">Routes to a process you already run and manage yourself on a local port (e.g. <code class="font-mono">next start</code>). lyly-admin only wires up the routing — it won't start, stop, or restart that process for you.</span>
           </label>
         </fieldset>
 
@@ -536,7 +536,7 @@ function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
   return `
       <nav class="font-mono text-[0.72rem] text-stone-400 m-0" aria-label="Breadcrumb">
         <a href="/" class="text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}">sites</a>
-        <span class="text-stone-600 mx-1.5">/</span>
+        <span class="text-stone-600 mx-1.5" aria-hidden="true">/</span>
         ${renderHostnameSwitcher(site, opts)}
       </nav>
 
@@ -638,7 +638,7 @@ export function renderSiteNotFound(hostname: string): string {
     <div class="max-w-[640px] mx-auto flex flex-col gap-4">
       <h2 class="font-mono text-[1.7rem] leading-[1.2] tracking-[-0.01em] text-stone-50 m-0">Site not found</h2>
       <p class="font-mono text-[0.85rem] text-stone-50 bg-red-950/60 border border-red-400/70 rounded-md px-4 py-3">No managed site found for "${escapeHtml(hostname)}".</p>
-      <p class="m-0"><a href="/" class="text-rose-400 no-underline font-mono text-[0.85rem] hover:underline">&larr; Back to sites</a></p>
+      <p class="m-0"><a href="/" class="${FOCUS_RING} text-rose-400 no-underline font-mono text-[0.85rem] hover:underline">&larr; Back to sites</a></p>
     </div>
     `,
     { nav: {} },
