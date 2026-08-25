@@ -244,10 +244,11 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
   // "not-created" is excluded: a container that never existed has no logs, and
   // Deploy is where you learn how to start one.
   const containerStatus = opts.status?.kind === "container" ? opts.status : null;
-  const containerIsBroken =
-    containerStatus !== null &&
-    describeStatus(containerStatus).tone === "bad" &&
-    containerStatus.state !== "not-created";
+  // `not-created` needs no special case here: it is the neutral tone, so
+  // `tone === "bad"` already excludes it. A guard naming it would imply it is
+  // still considered a failure. Pinned by "a never-deployed container is not
+  // asked to read logs it has none of".
+  const containerIsBroken = containerStatus !== null && describeStatus(containerStatus).tone === "bad";
   const labels = opts.status ? describeStatus(opts.status) : null;
   const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
   const lastHop: Hop =

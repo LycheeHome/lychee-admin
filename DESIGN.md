@@ -263,7 +263,8 @@ carry a verdict.
   Dim-Text Rule.
 - **Smoke** (`stone-400`): Secondary text. Every explanatory sentence, form
   label, and card eyebrow.
-- **Smoke Light** (`stone-300`): Neutral status pill text, and the accent color
+- **Smoke Light** (`stone-300`): Neutral status pill text — the `neutral` tone,
+  carrying `starting`, `unknown` and `not deployed` — and the accent color
   of the static radio control.
 - **Chalk** (`stone-50`): Primary text and every value that matters. Warm white,
   never `#fff`.
@@ -276,8 +277,10 @@ decoration, as a background for prose, or as an accent.
 - **Clear** (`green-300`) on **Clear Deep** (`green-950` at 60%): the `ok` tone —
   `running`, `running · healthy`, `responding`.
 - **Scorch** (`red-300`) on **Scorch Deep** (`red-950` at 60%): the `bad` tone —
-  `unhealthy`, `exited`, `restarting · crash-looping`, `not responding`, `not
-  deployed` — plus the danger button's text and the Danger card's label.
+  `unhealthy`, `exited`, `restarting · crash-looping`, `not responding` — plus
+  the danger button's text and the Danger card's label. Every one of these is
+  something that tried and failed; see the Three-Tone Status Rule for why
+  `not deployed` is not among them.
 - **Scorch Edge** (`red-400` at 70%): the border of an error banner or inline
   error, where Scorch itself would not read against Scorch Deep.
 - **Scorch Border** (`red-800`) / **Scorch Rule** (`red-900`): the danger
@@ -294,10 +297,17 @@ read. On any given screen it covers well under 10% of the pixels, and that
 rarity is what makes a primary button unmissable.
 
 **The Three-Tone Status Rule.** Site state resolves to exactly three tones:
-Clear, Scorch, or Smoke. `starting` and `unknown` are **Smoke, never Scorch** —
-a container still running its first health check is not broken, and a status we
-failed to read is not evidence that anything is down. Never invent a fourth
-tone, and never let a tone appear without the canonical status word beside it.
+Clear, Scorch, or Smoke. `starting`, `unknown` and `not deployed` are **Smoke,
+never Scorch** — a container still running its first health check is not broken,
+a status we failed to read is not evidence that anything is down, and a
+container that was never created (or was deliberately taken down) has not
+crashed. Scorch is reserved for something that tried and failed, so that red
+keeps meaning "this needs you now": a site that has simply never been deployed
+must not look like one that died. Never invent a fourth tone, and never let a
+tone appear without the canonical status word beside it — that second clause is
+what makes the first safe, because the word carries which state it is while the
+tone carries only how bad it is. `not deployed` and `unknown` share Smoke and
+stay unambiguous.
 
 **The Dim-Text Rule.** Dim text is Smoke, not Smoke Deep. Smoke Deep carries
 text in exactly one place — the `.lyly.dev` suffix on a detail page's Headline,
@@ -646,8 +656,8 @@ deleting files will not stop a running container.
   A path in Nunito is a bug.
 - **Do** reserve Ember for what the operator can act on, and keep it under ~10%
   of any screen.
-- **Do** give `starting` and `unknown` the neutral Smoke tone. They are not
-  failures.
+- **Do** give `starting`, `unknown` and `not deployed` the neutral Smoke tone.
+  None of them is a failure.
 - **Do** show a status word with every status color — the `●` and the tone are
   never the whole message.
 - **Do** let long hostnames, paths, and commands break or scroll (`break-all`,

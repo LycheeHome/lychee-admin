@@ -313,6 +313,17 @@ describe("renderSiteDetail request path", () => {
     assert.doesNotMatch(html, /text-red-300[^"]*"><span aria-hidden="true">●<\/span> running/);
   });
 
+  test("a never-deployed container is not painted red", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...OPTS,
+      status: { kind: "container", state: "not-created" },
+    });
+    // Both surfaces that carry the tone: the header pill and the last hop's sub-line.
+    assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> not deployed<\/span>/);
+    assert.match(html, /text-stone-300[^"]*"><span aria-hidden="true">●<\/span> not deployed/);
+    assert.doesNotMatch(html, /text-red-300[^"]*"><span aria-hidden="true">●<\/span> not deployed/);
+  });
+
   test("shows the healthcheck path for a healthy site, not only when it fails", () => {
     const html = renderSiteDetail(NEXT_SITE, {
       ...OPTS,
