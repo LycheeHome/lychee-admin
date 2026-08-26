@@ -29,7 +29,7 @@ function header(html: string): string {
 
 describe("the header band", () => {
   test("renders on the site list", () => {
-    assert.match(header(renderSiteList(SITES, {})), /href="\/sites\/new"/);
+    assert.match(header(renderSiteList(SITES, {}, "lyly.dev")), /href="\/sites\/new"/);
   });
 
   test("renders on a site detail page", () => {
@@ -37,13 +37,13 @@ describe("the header band", () => {
   });
 
   test("carries the wordmark at its documented Display size", () => {
-    const block = header(renderSiteList(SITES, {}));
+    const block = header(renderSiteList(SITES, {}, "lyly.dev"));
     assert.match(block, /font-display text-2xl/);
     assert.match(block, /lyly<span class="text-rose-400">\.<\/span>admin/);
   });
 
   test("marks sites current on the list page only", () => {
-    const list = header(renderSiteList(SITES, {}));
+    const list = header(renderSiteList(SITES, {}, "lyly.dev"));
     assert.match(list, /href="\/"[^>]*aria-current="page"/);
     const detail = header(renderSiteDetail(SITES[0], DETAIL_OPTS));
     assert.doesNotMatch(detail, /aria-current="page"/);
@@ -60,7 +60,7 @@ describe("the header band", () => {
   });
 
   test("does not offset the page for a rail that no longer exists", () => {
-    const html = renderSiteList(SITES, {});
+    const html = renderSiteList(SITES, {}, "lyly.dev");
     assert.doesNotMatch(html, /id="site-nav"/);
     assert.doesNotMatch(html, /calc\(50% \+ 110px\)/);
     assert.match(html, /id="flash-banner"[^>]*left-1\/2/);
@@ -102,7 +102,7 @@ describe("the add-site page", () => {
   });
 
   test("the list page no longer carries the dialog", () => {
-    const html = renderSiteList(SITES, {});
+    const html = renderSiteList(SITES, {}, "lyly.dev");
     assert.doesNotMatch(html, /add-site-dialog/);
     assert.doesNotMatch(html, /id="add-site-form"/);
   });
@@ -112,7 +112,7 @@ describe("the add-site page", () => {
     // so this must assert against the page body with the header removed —
     // otherwise it passes on the header's item whether or not the primary
     // button was ever converted.
-    const body = withoutHeader(renderSiteList(SITES, {}));
+    const body = withoutHeader(renderSiteList(SITES, {}, "lyly.dev"));
     assert.match(body, /<a href="\/sites\/new"[^>]*>(?:(?!<\/a>)[\s\S])*Add site<\/a>/);
     assert.doesNotMatch(body, /data-open-dialog="add-site-dialog"/);
   });
@@ -128,7 +128,7 @@ describe("the shell's h1", () => {
   const countH1 = (html: string) => (html.match(/<h1[\s>]/g) ?? []).length;
 
   test("renders exactly one on the site list", () => {
-    assert.equal(countH1(renderSiteList(SITES, {})), 1);
+    assert.equal(countH1(renderSiteList(SITES, {}, "lyly.dev")), 1);
   });
 
   test("renders exactly one on the add-site page", () => {
@@ -144,7 +144,7 @@ describe("the shell's h1", () => {
   });
 
   test("wraps the wordmark home link, not a page topic heading", () => {
-    const html = header(renderSiteList(SITES, {}));
+    const html = header(renderSiteList(SITES, {}, "lyly.dev"));
     assert.match(
       html,
       /<h1[^>]*>\s*<a href="\/"[^>]*>lyly<span class="text-rose-400">\.<\/span>admin<\/a>\s*<\/h1>/,

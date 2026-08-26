@@ -43,9 +43,36 @@ const FRAMEWORK_LABELS: Record<string, string> = {
   nextjs: "Next.js",
 };
 
+/**
+ * One site's row. Full-bleed hover (`-mx-3` against the row's own `px-3`) so
+ * the highlight reaches the content column's edges rather than stopping at
+ * the text, and a hairline under every row but the last.
+ */
+const SITE_ROW =
+  `flex items-center justify-between gap-5 py-4 px-3 -mx-3 rounded-md no-underline ` +
+  `border-b border-stone-700 last:border-b-0 ` +
+  `motion-safe:transition-colors motion-safe:duration-150 hover:bg-stone-800 ${FOCUS_RING}`;
+
+/** The size, casing and shape both pills share; only the colours differ. */
+const TYPE_PILL_BASE =
+  "inline-block shrink-0 font-mono text-[0.7rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border";
+
+/**
+ * The status column reserves its width whether or not the row has a status to
+ * put in it. Without this, a static row's type pill slides right into the
+ * position a proxy row's status pill occupies, and the two pill columns stop
+ * lining up — which is the entire reason the list is rows rather than cards.
+ * Sized to the longest word in the vocabulary, "not responding", plus its dot.
+ */
+const STATUS_SLOT = "flex justify-end min-w-[9rem]";
+
 export function renderSiteList(
   sites: Site[],
   statuses: Record<string, SiteStatus>,
+  // Supplied by the route from config.domain rather than read here, matching
+  // renderAddSite and the detail page: a view that knows the domain by itself
+  // is a view that can disagree with the one the app actually manages.
+  domain: string,
   error?: string,
   // Every real caller of this page is GET /, where "sites" is genuinely
   // current. The one exception is the detail route's 500 fallback, which
@@ -57,34 +84,51 @@ export function renderSiteList(
   // transient toast, which times out after four seconds.
   notice?: string,
 ): string {
-  const cards = sites
+  const rows = sites
     .map((site) => {
       const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
       const status = statuses[site.hostname];
       const labels = status ? describeStatus(status) : null;
-      const statusPill = labels
-        ? `<span class="${TONE_PILL[labels.tone]}"><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span>`
-        : "";
+      const { lead, dimmed } = splitHostnameForDisplay(site.hostname, domain);
+      // The type is stated by the pill, so the sub-line carries only the
+      // address: a path needs no "path:" label in front of it, and a port is
+      // meaningless without the host it is on.
+      const target =
+        site.type === "static"
+          ? site.target
+          : `localhost:${site.target}${frameworkLabel ? ` · ${frameworkLabel}` : ""}`;
 
       return `
-      <a href="/sites/${encodeURIComponent(site.hostname)}" class="bg-stone-800 border border-stone-700 rounded-[10px] p-6 flex flex-col gap-3.5 motion-safe:transition-colors motion-safe:duration-150 hover:border-rose-800/70 no-underline ${FOCUS_RING}">
-        <div class="flex items-start justify-between gap-2">
-          <p class="font-display text-base leading-relaxed text-stone-50 m-0 break-words">${escapeHtml(site.hostname)}</p>
-          <div class="flex items-center gap-1.5 shrink-0">
-            <span class="inline-block shrink-0 font-mono text-[0.7rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border ${
-              site.type === "static" ? TYPE_PILL_STATIC : TYPE_PILL_PROXY
-            }">${site.type === "static" ? "static" : "proxy"}</span>
-            ${statusPill}
-          </div>
-        </div>
-        <p class="font-mono text-stone-400 text-[0.85rem] leading-relaxed m-0 break-words">${
-          site.type === "static"
-            ? `<span class="text-stone-400 uppercase text-[0.75rem] tracking-[0.03em]">path:</span> ${escapeHtml(site.target)}`
-            : `<span class="text-stone-400 uppercase text-[0.75rem] tracking-[0.03em]">localhost:</span>${escapeHtml(site.target)}${frameworkLabel ? ` · ${escapeHtml(frameworkLabel)}` : ""}`
-        }</p>
+      <a href="/sites/${encodeURIComponent(site.hostname)}" class="${SITE_ROW}">
+        <span class="flex flex-col gap-1.5 min-w-0">
+          <span class="font-display text-base leading-relaxed text-stone-50 break-words" data-hostname>${escapeHtml(lead)}${
+            dimmed ? `<span class="text-stone-400">${escapeHtml(dimmed)}</span>` : ""
+          }</span>
+          <span class="font-mono text-stone-400 text-[0.8rem] leading-relaxed break-all">${escapeHtml(target)}</span>
+        </span>
+        <span class="flex items-center gap-3 shrink-0" data-row-side>
+          <span class="${TYPE_PILL_BASE} ${
+            site.type === "static" ? TYPE_PILL_STATIC : TYPE_PILL_PROXY
+          }">${site.type === "static" ? "static" : "proxy"}</span>
+          <span class="${STATUS_SLOT}" data-status-slot>${
+            labels
+              ? `<span class="${TONE_PILL[labels.tone]}"><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span>`
+              : ""
+          }</span>
+        </span>
       </a>`;
     })
     .join("");
+
+  // With no sites, the Add-site button in the section header is the only call
+  // to action on the page — too quiet for the one thing there is to do. The
+  // empty state states what a site is and carries its own button.
+  const empty = `
+      <div id="empty-state" class="flex flex-col items-center text-center gap-4 border border-stone-700 rounded-[10px] bg-stone-800 px-6 py-6">
+        <h3 class="font-sans font-semibold text-base text-stone-50 m-0">No sites yet</h3>
+        <p class="text-stone-400 text-[0.8rem] m-0 max-w-[46ch]">A site is one <code class="font-mono text-[0.72rem] text-stone-300 bg-stone-900 rounded-[4px] px-1">*.${escapeHtml(domain)}</code> subdomain wired through Caddy and the sites tunnel — either a folder of static files, or a reverse proxy to a local port.</p>
+        <a id="empty-state-cta" href="/sites/new" class="${BUTTON_PRIMARY} no-underline">${icon("plus")}Add your first site</a>
+      </div>`;
 
   return layout(
     "Sites",
@@ -93,11 +137,13 @@ export function renderSiteList(
     <section>
       <div class="flex items-center justify-between gap-4 mb-5">
         <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Sites</h2>
-        <a href="/sites/new" class="${BUTTON_PRIMARY} no-underline">${icon("plus")}Add site</a>
+        ${
+          // With no sites the empty state carries this same action, and Ember
+          // spent twice on one destination makes neither the obvious one.
+          sites.length === 0 ? "" : `<a href="/sites/new" class="${BUTTON_PRIMARY} no-underline">${icon("plus")}Add site</a>`
+        }
       </div>
-      <div class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5">
-        ${cards || `<p class="col-span-full text-stone-400 italic m-0">No sites configured yet.</p>`}
-      </div>
+      ${sites.length === 0 ? empty : `<div class="flex flex-col">${rows}\n      </div>`}
     </section>
     `,
     { nav, banner: notice ? { message: notice } : undefined },

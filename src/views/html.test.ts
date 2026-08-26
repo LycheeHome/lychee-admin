@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { withoutHeader } from "../dev/testHelpers";
 import { renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
-import { BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY } from "./shared";
+import { BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, TYPE_PILL_PROXY } from "./shared";
 
 const STATIC_SITE: Site = { hostname: "blog.lyly.dev", type: "static", target: "/var/www/blog.lyly.dev" };
 const APEX_SITE: Site = { hostname: "lyly.dev", type: "static", target: "/var/www/lyly.dev" };
@@ -36,6 +36,49 @@ function tagById(html: string, id: string): string {
   const match = html.match(new RegExp(`<[a-z]+[^>]* id="${id}"[^>]*>`));
   assert.ok(match, `no element with id="${id}" was rendered`);
   return match[0];
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * The markup of one site's row on the list, from its opening anchor to the
+ * close of that anchor. Rows contain no nested links, so the first "</a>"
+ * after the opening tag is this row's own. Assertions anchor here rather than
+ * running document-wide, where a regex would pass on a match belonging to a
+ * different site's row.
+ */
+function rowFor(html: string, hostname: string): string {
+  const start = html.indexOf(`<a href="/sites/${encodeURIComponent(hostname)}"`);
+  assert.notEqual(start, -1, `no row rendered for ${hostname}`);
+  const end = html.indexOf("</a>", start);
+  assert.notEqual(end, -1, `row for ${hostname} was never closed`);
+  return html.slice(start, end);
+}
+
+/**
+ * The inner markup of a row's hostname element, so the dimmed suffix can be
+ * asserted without matching the identical dim class on the sub-line. Walks to
+ * the matching close rather than the first one, since the apex domain renders
+ * no nested span and a subdomain renders one.
+ */
+function hostnameCell(row: string): string {
+  const open = row.match(/<span [^>]*data-hostname[^>]*>/);
+  assert.ok(open, "no element carrying data-hostname was rendered in the row");
+  const start = (open.index ?? 0) + open[0].length;
+  let depth = 1;
+  let cursor = start;
+  while (depth > 0) {
+    const next = row.slice(cursor).match(/<\/?span\b/);
+    assert.ok(next, "the hostname element was never closed");
+    const at = cursor + (next.index ?? 0);
+    depth += next[0] === "</span" ? -1 : 1;
+    if (depth === 0) return row.slice(start, at);
+    cursor = at + next[0].length;
+  }
+  /* c8 ignore next */
+  throw new Error("unreachable");
 }
 
 /**
@@ -117,7 +160,7 @@ describe("accessible status and error wiring", () => {
   });
 
   test("the live region is on every page the shell renders, not only the detail page", () => {
-    const span = tagById(renderSiteList(SITES, {}), "copy-status");
+    const span = tagById(renderSiteList(SITES, {}, "lyly.dev"), "copy-status");
     assert.match(span, /aria-live="polite"/);
   });
 });
@@ -848,6 +891,7 @@ describe("the removal notice on the site list", () => {
     const html = renderSiteList(
       [],
       {},
+      "lyly.dev",
       undefined,
       { page: "sites" },
       "Removed blog.lyly.dev. Remember to remove the DNS record in Cloudflare manually.",
@@ -860,14 +904,14 @@ describe("the removal notice on the site list", () => {
   });
 
   test("no notice renders without one", () => {
-    const html = renderSiteList([], {}, undefined, { page: "sites" });
+    const html = renderSiteList([], {}, "lyly.dev", undefined, { page: "sites" });
     assert.doesNotMatch(html, /id="page-notice"/);
   });
 });
 
 describe("the site list heading", () => {
   test("one destination has one name", () => {
-    const body = withoutHeader(renderSiteList(SITES, {}));
+    const body = withoutHeader(renderSiteList(SITES, {}, "lyly.dev"));
     assert.doesNotMatch(body, /Existing sites/);
     assert.match(body, /<h2[^>]*>Sites<\/h2>/);
   });
@@ -881,37 +925,41 @@ describe("status on the site list", () => {
   // hop's plain-text sub-line uses the literal "●" character. Both are wrapped
   // in their own aria-hidden span so the dot never joins the accessible name.
   test("a proxy site's card carries its canonical status word", () => {
-    const html = renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } });
+    const html = renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lyly.dev");
     assert.match(html, /<span aria-hidden="true">&#9679;<\/span> responding/);
   });
 
   test("a container site reports the worst-case word, not the lifecycle one", () => {
-    const html = renderSiteList([NEXT_SITE], {
-      [NEXT_SITE.hostname]: { kind: "container", state: "running", health: "unhealthy" },
-    });
+    const html = renderSiteList(
+      [NEXT_SITE],
+      { [NEXT_SITE.hostname]: { kind: "container", state: "running", health: "unhealthy" } },
+      "lyly.dev",
+    );
     assert.match(html, /<span aria-hidden="true">&#9679;<\/span> unhealthy/);
   });
 
   test("starting is neutral, not red", () => {
-    const html = renderSiteList([NEXT_SITE], {
-      [NEXT_SITE.hostname]: { kind: "container", state: "running", health: "starting" },
-    });
+    const html = renderSiteList(
+      [NEXT_SITE],
+      { [NEXT_SITE.hostname]: { kind: "container", state: "running", health: "starting" } },
+      "lyly.dev",
+    );
     assert.match(html, /text-stone-300[^"]*"[^>]*><span aria-hidden="true">&#9679;<\/span> starting/);
     assert.doesNotMatch(html, /text-red-300[^"]*"[^>]*><span aria-hidden="true">&#9679;<\/span> starting/);
   });
 
   test("a static site gets no status pill — nothing checks one", () => {
-    const html = renderSiteList([STATIC_SITE], {});
+    const html = renderSiteList([STATIC_SITE], {}, "lyly.dev");
     assert.doesNotMatch(html, /&#9679;/);
   });
 
   test("a site with no status entry renders no pill rather than a guess", () => {
-    const html = renderSiteList([PROXY_SITE], {});
+    const html = renderSiteList([PROXY_SITE], {}, "lyly.dev");
     assert.doesNotMatch(html, /&#9679;/);
   });
 
   test("the status dot is not part of any accessible name", () => {
-    const html = renderSiteList(SITES, { "api.lyly.dev": { kind: "tcp", responding: false } });
+    const html = renderSiteList(SITES, { "api.lyly.dev": { kind: "tcp", responding: false } }, "lyly.dev");
     const dots = [...html.matchAll(/<span[^>]*>&#9679;/g)];
     assert.ok(dots.length > 0, "no status dot was rendered");
     for (const dot of dots) {
@@ -920,9 +968,93 @@ describe("status on the site list", () => {
   });
 });
 
+describe("the site list's ledger rows", () => {
+  test("a subdomain's shared suffix is dimmed, as it already is on the detail page", () => {
+    const cell = hostnameCell(rowFor(renderSiteList([STATIC_SITE], {}, "lyly.dev"), "blog.lyly.dev"));
+    assert.match(cell, /^blog<span [^>]*>\.lyly\.dev<\/span>$/);
+  });
+
+  test("the apex domain has no shared suffix to dim, so it stays whole", () => {
+    const cell = hostnameCell(rowFor(renderSiteList([APEX_SITE], {}, "lyly.dev"), "lyly.dev"));
+    assert.equal(cell, "lyly.dev");
+  });
+
+  test("a static row states its path with no key label in front of it", () => {
+    const row = rowFor(renderSiteList([STATIC_SITE], {}, "lyly.dev"), "blog.lyly.dev");
+    assert.match(row, /\/var\/www\/blog\.lyly\.dev/);
+    assert.doesNotMatch(row, /path:/);
+  });
+
+  test("a proxy row states one unbroken local address", () => {
+    const row = rowFor(renderSiteList([PROXY_SITE], {}, "lyly.dev"), "api.lyly.dev");
+    assert.match(row, /localhost:4000/);
+  });
+
+  test("a framework proxy row still names its framework", () => {
+    const row = rowFor(renderSiteList([NEXT_SITE], {}, "lyly.dev"), "app.lyly.dev");
+    assert.match(row, /localhost:3000/);
+    assert.match(row, /Next\.js/);
+  });
+
+  // The whole point of the layout change: pills that line up down the page.
+  // A static row has no status to show, but it must still occupy the column,
+  // or its type pill slides into the position a proxy row's status pill holds.
+  test("a status-less row still reserves the status column so the pills align", () => {
+    const staticRow = rowFor(renderSiteList([STATIC_SITE], {}, "lyly.dev"), "blog.lyly.dev");
+    const proxyRow = rowFor(
+      renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lyly.dev"),
+      "api.lyly.dev",
+    );
+    assert.match(staticRow, /data-status-slot/);
+    assert.match(proxyRow, /data-status-slot/);
+    assert.doesNotMatch(staticRow, /&#9679;/);
+  });
+
+  test("both pills share one right-hand group, so the row has two halves not three", () => {
+    const row = rowFor(
+      renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lyly.dev"),
+      "api.lyly.dev",
+    );
+    const at = row.indexOf("data-row-side");
+    assert.notEqual(at, -1, "no element carrying data-row-side was rendered in the row");
+    const side = row.slice(at);
+    assert.match(side, new RegExp(escapeRegex(TYPE_PILL_PROXY)));
+    assert.match(side, /data-status-slot/);
+  });
+});
+
+describe("the site list with no sites", () => {
+  test("the empty state carries the call to action rather than stranding it in the header", () => {
+    const html = renderSiteList([], {}, "lyly.dev");
+    assert.doesNotMatch(html, /No sites configured yet/);
+    assert.match(tagById(html, "empty-state-cta"), /href="\/sites\/new"/);
+  });
+
+  test("the empty state explains what a site is", () => {
+    const html = renderSiteList([], {}, "lyly.dev");
+    assert.match(html, /lyly\.dev/);
+    assert.ok(tagById(html, "empty-state"));
+  });
+
+  // Ember marks what you can act on and is capped at roughly a tenth of the
+  // screen. Two primary buttons pointing at the same destination spend it
+  // twice and make neither the obvious one, so the section header yields its
+  // button to the empty state rather than sitting beside it.
+  test("an empty page offers its one action once, not twice", () => {
+    const body = withoutHeader(renderSiteList([], {}, "lyly.dev"));
+    const ctas = [...body.matchAll(/href="\/sites\/new"/g)];
+    assert.equal(ctas.length, 1, "the section header and the empty state both offered Add site");
+  });
+
+  test("the section header keeps its button once there are sites to sit above", () => {
+    const body = withoutHeader(renderSiteList(SITES, {}, "lyly.dev"));
+    assert.match(body, /href="\/sites\/new"[^>]*>(?:(?!<\/a>)[\s\S])*Add site<\/a>/);
+  });
+});
+
 describe("hardening: browser defaults never carry the design", () => {
   test("every interactive element the design draws gets the project focus ring", () => {
-    const list = renderSiteList(SITES, {});
+    const list = renderSiteList(SITES, {}, "lyly.dev");
     const card = list.match(/<a href="\/sites\/api\.lyly\.dev"[^>]*>/);
     assert.ok(card, "no site-card link rendered");
     assert.match(card[0], /focus-visible:outline-rose-400/);
@@ -959,7 +1091,7 @@ describe("hardening: browser defaults never carry the design", () => {
 
   test("no transition escapes the reduced-motion gate", () => {
     const add = renderAddSite(SITES, "lyly.dev", {});
-    const list = renderSiteList(SITES, {});
+    const list = renderSiteList(SITES, {}, "lyly.dev");
     for (const html of [add, list]) {
       assert.doesNotMatch(html, /(?<!motion-safe:)transition-colors/);
     }
@@ -1015,7 +1147,7 @@ describe("small-text ramp", () => {
   });
 
   test("status pills clear the 11px floor", () => {
-    const html = renderSiteList(SITES, { "api.lyly.dev": { kind: "tcp", responding: false } });
+    const html = renderSiteList(SITES, { "api.lyly.dev": { kind: "tcp", responding: false } }, "lyly.dev");
     assert.match(html, /inline-flex items-center gap-1 shrink-0 font-mono text-\[0\.6875rem\] uppercase/);
   });
 

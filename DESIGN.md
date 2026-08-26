@@ -128,7 +128,15 @@ components:
     textColor: "{colors.chalk}"
     rounded: "{rounded.surface}"
     padding: "20px"
-  site-card:
+  site-row:
+    backgroundColor: "transparent"
+    textColor: "{colors.chalk}"
+    rounded: "{rounded.control}"
+    padding: "16px 12px"
+  site-row-hover:
+    backgroundColor: "{colors.hearth-lift}"
+    textColor: "{colors.chalk}"
+  empty-state:
     backgroundColor: "{colors.hearth-lift}"
     textColor: "{colors.chalk}"
     rounded: "{rounded.surface}"
@@ -235,10 +243,9 @@ carry a verdict.
   reverse-proxy radio, and the "back to sites" link on the not-found page.
 - **Ember Light** (`rose-300`): Ember's hover state on filled buttons, and the
   text color of the `proxy` type pill.
-- **Ember Edge** (`rose-800`): Structural Ember — the hairline that appears on a
-  site card's hover edge (at 70%), the border of the checked reverse-proxy
-  option, and the 2px left rule marking the port/framework branch of the add
-  form.
+- **Ember Edge** (`rose-800`): Structural Ember — the border of the checked
+  reverse-proxy option, the 2px left rule marking the port/framework branch of
+  the add form, and the 2px left rule on the current header nav item.
 - **Ember Deep** (`rose-950`): The ground beneath Ember text — the `proxy` pill,
   the checked reverse-proxy option's fill (at 50%), and every non-error flash
   banner (at 60%).
@@ -354,8 +361,9 @@ says its own name and names a site.
   Smoke Deep so the subdomain reads first — legible there because 27px is large
   text, and nowhere else. Slight negative tracking because mono at display size
   otherwise sprawls.
-- **Title** (Poetsen One, 1rem, line-height 1.625): A site card's hostname in
-  the list. The only other place the display face appears.
+- **Title** (Poetsen One, 1rem, line-height 1.625): A list row's hostname, with
+  the shared `.<domain>` suffix dropped to Smoke beside it. The only other place
+  the display face appears.
 - **Eyebrow** (DM Mono, 0.85rem, weight 500, uppercase, tracking 0.08em, Smoke):
   Section and dialog headings — "Sites", "Add a site", "Remove site".
 - **Label** (DM Mono, 0.75rem, weight 500, uppercase, tracking 0.1em, Smoke Light):
@@ -388,7 +396,7 @@ DM Mono. If a person wrote it as a sentence, it is Nunito. There is no third
 case, and no sentence sets a path in Nunito.
 
 **The Signature-Twice Rule.** Poetsen One appears in exactly two places: the
-wordmark and a site card's hostname. It is never a page heading, never above
+wordmark and a list row's hostname. It is never a page heading, never above
 1.5rem, never body copy, and never used for emphasis. The family also ships a
 single weight — do not request 600 and let the browser synthesize it.
 
@@ -401,17 +409,26 @@ not caps.
 ## Layout
 
 Two containers, chosen by what the page is for. The site list runs to 1080px and
-fills it with an auto-fill grid of cards (`minmax(280px, 1fr)`, 20px gutters), so
-a wider window means more sites per row. A site's detail page caps at 760px and
-stays one column, because everything on it is either a sentence to read or a
-command to copy, and neither improves at 1200px.
+fills it with one row per site, separated by a `1px` Hairline and stacked with no
+gap, so a wider window lengthens each row rather than adding a column. A site's
+detail page caps at 760px and stays one column, because everything on it is
+either a sentence to read or a command to copy, and neither improves at 1200px.
+
+A list row has two halves: the hostname and its mono address on the left, both
+pills on the right. The right half is a two-column grid, not a flex run — the
+status column reserves a fixed `9rem` whether or not the row has a status to put
+in it, sized to the longest word in the vocabulary (`not responding`) plus its
+dot. Without that reservation a static site's type pill slides into the position
+a reverse-proxy row's status pill holds, and neither column lines up down the
+page; the alignment is the entire reason the list is rows and not cards.
 
 The page ground has 24px of horizontal padding and a 64px-tall header band
 (32px of content height under 16px top and bottom padding) holding the wordmark
 and the two host-level nav items, aligned to the same 1080px container as the
 content below it; content starts below it with 24px gaps between sections.
 Content width equals viewport width, so `sm` (640px) means what it says.
-Inside a card, the rhythm is 20px padding (24px on site cards and dialogs), a
+Inside a card, the rhythm is 20px padding (24px on dialogs and the empty
+state), a
 12px gap between a label and its content, and a `1px` Hairline rule
 with 16px of air on both sides wherever one card holds two kinds of content —
 the request path's hops and its detail rows, or the Deploy workflow and what the
@@ -451,8 +468,9 @@ one shadow — the flash banner, fixed at the top of the viewport, which is
 genuinely above the page — and the dialog scrim, which is not a shadow at all
 but a `black/60` backdrop. State-driven lift is permitted by the system: a
 hovered or focused element may rise. Where the incumbent implementation does it
-differently, it shifts a border color instead (a site card's edge goes Ember
-Edge on hover), and that remains the lighter-touch option to reach for first.
+differently, it changes a background tone instead (a list row's ground goes
+Hearth Lift on hover, bleeding 12px past the text to the content column's
+edges), and that remains the lighter-touch option to reach for first.
 
 ### Shadow Vocabulary
 
@@ -476,9 +494,10 @@ scrim.
 ## Shapes
 
 A four-step radius scale, and the step says what kind of thing you are looking
-at: **10px** for a surface that contains other things (card, dialog, site card,
-the Danger panel), **6px** for a control or a container of text you act on
-(button, input, select, command block, copy button, inline error), **4px** for
+at: **10px** for a surface that contains other things (card, dialog, empty
+state, the Danger panel), **6px** for a control or a container of text you act
+on (button, input, select, command block, copy button, inline error, a list
+row's hover shape), **4px** for
 inline code inside a sentence, and **fully round** for anything stating a single
 word or numeral (type pills, status pills, the 1.2rem step numerals).
 
@@ -534,11 +553,21 @@ value between steps, and never a large radius to look friendlier.
 - **Border:** `1px` Hairline. The Danger card instead takes Scorch Border at 60%
   over a Scorch Deep wash at 20%.
 - **Shadow Strategy:** None at rest — see Elevation & Depth.
-- **Internal Padding:** 20px for detail cards, 24px for site cards and dialogs.
-- **Site card behavior:** The whole card is one `<a>`, undecorated, laid out as a
-  column with 14px gaps: hostname (Title face) and type pill on the first row,
-  the path or `localhost:<port>` beneath in Data. Hover moves the border to Ember
-  Edge at 70% over a 150ms color transition, gated behind `motion-safe:`.
+- **Internal Padding:** 20px for detail cards, 24px for dialogs and the empty
+  state.
+- **Site row behavior:** The whole row is one `<a>`, undecorated, `16px 12px` of
+  padding pulled back out with a matching negative margin so its hover ground
+  reaches the content column's edges. Left: the hostname (Title face, shared
+  suffix in Smoke) over its address in Data — a bare path, or `localhost:<port>`
+  with the framework after a middot. Right: the type pill, then the status pill
+  inside its reserved `9rem` column. A `1px` Hairline separates rows, dropped on
+  the last. Hover fills the row with Hearth Lift over a 150ms color transition,
+  gated behind `motion-safe:`.
+- **Empty state behavior:** Replaces the row list, and takes the section
+  header's Add-site button with it — Ember spent twice on one destination makes
+  neither the obvious one. Centered column, 16px gaps: a Body Strong heading in
+  Nunito (it is a sentence, not a machine fact), one Body line naming what a
+  site is, and the primary button.
 
 ### Inputs / Fields
 
@@ -696,7 +725,7 @@ deleting files will not stop a running container.
 
 - **Don't** fold, cap, truncate, or add an inner scrollbar to content the
   operator might read. One operator, one wide viewport.
-- **Don't** use Poetsen One anywhere except the wordmark and a site card's
+- **Don't** use Poetsen One anywhere except the wordmark and a list row's
   hostname, and never above 1.5rem or at a weight it doesn't ship.
 - **Don't** fill a destructive button with Ember or make it the largest control
   on screen — Scorch outline, one size down.
