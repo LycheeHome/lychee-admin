@@ -1034,6 +1034,60 @@ describe("the site list's ledger rows", () => {
   });
 });
 
+/**
+ * Approximates the accessible name a link computes from its contents: text
+ * nodes in order, minus anything aria-hidden, with whitespace collapsed the
+ * way a screen reader collapses it. sr-only text IS included — Tailwind's
+ * sr-only clips visually but leaves the node in the accessibility tree.
+ */
+function accessibleName(markup: string): string {
+  return markup
+    .replace(/<span[^>]*aria-hidden="true"[^>]*>[\s\S]*?<\/span>/g, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/\s+,/g, ",")
+    .trim();
+}
+
+describe("what a site row announces", () => {
+  // "api.lyly.dev localhost:4000 proxy not responding" is serviceable but runs
+  // four separate facts together. The separators are sr-only rather than an
+  // aria-label so the name still derives from the visible text and cannot
+  // drift from it.
+  test("a proxy row's four facts are separated rather than run together", () => {
+    const row = rowFor(
+      renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lyly.dev"),
+      "api.lyly.dev",
+    );
+    assert.equal(accessibleName(row), "api.lyly.dev, localhost:4000, proxy, responding");
+  });
+
+  test("a status-less row ends after its type, with no trailing separator", () => {
+    const row = rowFor(renderSiteList([STATIC_SITE], {}, "lyly.dev"), "blog.lyly.dev");
+    assert.equal(accessibleName(row), "blog.lyly.dev, /var/www/blog.lyly.dev, static");
+  });
+
+  test("the status dot is still absent from the name", () => {
+    const row = rowFor(
+      renderSiteList([NEXT_SITE], { [NEXT_SITE.hostname]: { kind: "container", state: "exited" } }, "lyly.dev"),
+      "app.lyly.dev",
+    );
+    assert.doesNotMatch(accessibleName(row), /&#9679;|●/);
+    assert.match(accessibleName(row), /, exited$/);
+  });
+});
+
+describe("the not-found page", () => {
+  // Same bug the site list's error banner had: mx-auto on a child of the
+  // shell's flex-column <main> shrink-wraps instead of centring a block.
+  test("the not-found wrapper spans its column instead of shrink-wrapping", () => {
+    const html = renderSiteNotFound("nope.lyly.dev");
+    const wrapper = html.match(/<div class="[^"]*max-w-\[640px\][^"]*"/);
+    assert.ok(wrapper, "no width-capped wrapper rendered");
+    assert.match(wrapper[0], /\bw-full\b/);
+  });
+});
+
 describe("the site list's error banner", () => {
   // The shell's <main> is a flex column, where `mx-auto` on a child stops
   // meaning "centre a block" and starts meaning "shrink to fit, then centre".

@@ -468,6 +468,46 @@ document.querySelectorAll("dialog.modal").forEach((dialog) => {
       event.clientY <= rect.bottom;
     if (!inside) dialog.close();
   });
+
+  // A modal <dialog> confines focus to the document, but it does not wrap Tab
+  // at its own edges: tabbing past the last focusable lands on <body> for one
+  // stop before re-entering, once per lap. Harmless on an ordinary form and
+  // expensive here — this is the app's one irreversible screen, and an
+  // operator tabbing fast to the confirm button can fire Enter into nothing.
+  //
+  // Focusables are re-queried on every keystroke rather than cached, because
+  // setRemoveBusy() changes the set mid-removal: both buttons disable while a
+  // delete is in flight, leaving only the checkbox, and on a site with no
+  // files to delete it leaves nothing at all. A cached list would trap focus
+  // onto a disabled button.
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab") return;
+
+    const focusables = [...dialog.querySelectorAll("button, input, select, textarea, a[href]")].filter(
+      (el) => !el.disabled,
+    );
+
+    // Mid-removal on a site with no delete-files checkbox: nothing in here can
+    // hold focus, so the only way to keep it inside is to refuse the key.
+    if (focusables.length === 0) {
+      event.preventDefault();
+      return;
+    }
+
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement;
+
+    // Wrapping at the edges is what keeps focus in: intercept the step that
+    // would have landed on <body>, and it never gets there.
+    if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    } else if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last.focus();
+    }
+  });
 });
 
 const siteSwitcher = document.getElementById("hostname-switcher");
