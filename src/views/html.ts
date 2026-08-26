@@ -63,8 +63,14 @@ const TYPE_PILL_BASE =
  * position a proxy row's status pill occupies, and the two pill columns stop
  * lining up — which is the entire reason the list is rows rather than cards.
  * Sized to the longest word in the vocabulary, "not responding", plus its dot.
+ *
+ * Only from `sm` up, though. Alignment is worth having where there is width to
+ * align across; below the floor the reservation just starves the hostname —
+ * measured at 380px, the pills held 215px and the address wrapped to a third
+ * line. Below `sm` the slot sizes to its content instead, and the row that
+ * has no status gives its width back to the name of the site.
  */
-const STATUS_SLOT = "flex justify-end min-w-[9rem]";
+const STATUS_SLOT = "flex justify-end sm:min-w-[9rem]";
 
 export function renderSiteList(
   sites: Site[],
@@ -133,7 +139,7 @@ export function renderSiteList(
   return layout(
     "Sites",
     `
-    ${error ? `<p class="font-mono text-[0.85rem] text-stone-50 bg-red-950/60 border border-red-400/70 rounded-md px-4 py-3 max-w-[1080px] mx-auto mb-5">${escapeHtml(error)}</p>` : ""}
+    ${error ? `<p class="font-mono text-[0.85rem] text-stone-50 bg-red-950/60 border border-red-400/70 rounded-md px-4 py-3 mb-5">${escapeHtml(error)}</p>` : ""}
     <section>
       <div class="flex items-center justify-between gap-4 mb-5">
         <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Sites</h2>

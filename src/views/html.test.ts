@@ -1010,6 +1010,17 @@ describe("the site list's ledger rows", () => {
     assert.doesNotMatch(staticRow, /&#9679;/);
   });
 
+  // The reserved column buys alignment, which is only worth having when there
+  // is width to align across. Below the sm floor it starves the hostname —
+  // measured at 380px, the pills held 215px while the hostname got 97 and the
+  // address wrapped — so the reservation starts at sm and not before.
+  test("the reserved status column starts at the sm floor, not below it", () => {
+    const row = rowFor(renderSiteList([STATIC_SITE], {}, "lyly.dev"), "blog.lyly.dev");
+    const slot = row.slice(row.indexOf("data-status-slot") - 200, row.indexOf("data-status-slot"));
+    assert.match(slot, /sm:min-w-/);
+    assert.doesNotMatch(slot, /(?<!sm:)\bmin-w-\[9rem\]/);
+  });
+
   test("both pills share one right-hand group, so the row has two halves not three", () => {
     const row = rowFor(
       renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lyly.dev"),
@@ -1020,6 +1031,26 @@ describe("the site list's ledger rows", () => {
     const side = row.slice(at);
     assert.match(side, new RegExp(escapeRegex(TYPE_PILL_PROXY)));
     assert.match(side, /data-status-slot/);
+  });
+});
+
+describe("the site list's error banner", () => {
+  // The shell's <main> is a flex column, where `mx-auto` on a child stops
+  // meaning "centre a block" and starts meaning "shrink to fit, then centre".
+  // Measured at 1280px the banner sat 276-1004 while every row ran 88-1192,
+  // so the one element reporting a broken Caddyfile was the one element not
+  // aligned to the page. DETAIL_WIDTH pairs mx-auto with w-full for exactly
+  // this reason; the banner simply never did.
+  test("the error banner spans the content column instead of shrink-wrapping", () => {
+    const html = renderSiteList([], {}, "lyly.dev", "caddy validate failed");
+    const banner = html.match(/<p class="[^"]*bg-red-950[^"]*"/);
+    assert.ok(banner, "no error banner rendered");
+    assert.doesNotMatch(banner[0], /\bmx-auto\b/);
+  });
+
+  test("the error banner still renders its message", () => {
+    const html = renderSiteList([], {}, "lyly.dev", "caddy validate failed");
+    assert.match(html, /caddy validate failed/);
   });
 });
 
