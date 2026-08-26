@@ -72,6 +72,17 @@ const TYPE_PILL_BASE =
  */
 const STATUS_SLOT = "flex justify-end sm:min-w-[9rem]";
 
+/**
+ * A comma only a screen reader hears. A row's accessible name is computed from
+ * its contents, so without these the four facts run together as
+ * "api.lyly.dev localhost:4000 proxy not responding". Separators rather than an
+ * aria-label, deliberately: the name keeps deriving from the visible text, so
+ * it cannot drift from what is on screen the way a hand-written label does.
+ * `sr-only` is absolutely positioned, so it contributes nothing to the flex
+ * layout it sits inside — no phantom gap.
+ */
+const SPOKEN_COMMA = `<span class="sr-only">, </span>`;
+
 export function renderSiteList(
   sites: Site[],
   statuses: Record<string, SiteStatus>,
@@ -109,16 +120,16 @@ export function renderSiteList(
         <span class="flex flex-col gap-1.5 min-w-0">
           <span class="font-display text-base leading-relaxed text-stone-50 break-words" data-hostname>${escapeHtml(lead)}${
             dimmed ? `<span class="text-stone-400">${escapeHtml(dimmed)}</span>` : ""
-          }</span>
+          }</span>${SPOKEN_COMMA}
           <span class="font-mono text-stone-400 text-[0.8rem] leading-relaxed break-all">${escapeHtml(target)}</span>
         </span>
-        <span class="flex items-center gap-3 shrink-0" data-row-side>
+        <span class="flex items-center gap-3 shrink-0" data-row-side>${SPOKEN_COMMA}
           <span class="${TYPE_PILL_BASE} ${
             site.type === "static" ? TYPE_PILL_STATIC : TYPE_PILL_PROXY
           }">${site.type === "static" ? "static" : "proxy"}</span>
           <span class="${STATUS_SLOT}" data-status-slot>${
             labels
-              ? `<span class="${TONE_PILL[labels.tone]}"><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span>`
+              ? `${SPOKEN_COMMA}<span class="${TONE_PILL[labels.tone]}"><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span>`
               : ""
           }</span>
         </span>
@@ -687,7 +698,7 @@ export function renderSiteNotFound(hostname: string): string {
   return layout(
     "Site not found",
     `
-    <div class="max-w-[640px] mx-auto flex flex-col gap-4">
+    <div class="max-w-[640px] mx-auto w-full flex flex-col gap-4">
       <h2 class="font-mono text-[1.7rem] leading-[1.2] tracking-[-0.01em] text-stone-50 m-0">Site not found</h2>
       <p class="font-mono text-[0.85rem] text-stone-50 bg-red-950/60 border border-red-400/70 rounded-md px-4 py-3">No managed site found for "${escapeHtml(hostname)}".</p>
       <p class="m-0"><a href="/" class="${FOCUS_RING} text-rose-400 no-underline font-mono text-[0.85rem] hover:underline">&larr; Back to sites</a></p>
