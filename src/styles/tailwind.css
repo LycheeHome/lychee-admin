@@ -27,6 +27,19 @@
   --animate-modal-in: modal-in 0.15s ease;
 }
 
+/*
+ * Text selection is a real interaction path in this app, not a browser
+ * detail to leave at its default: over plain HTTP `navigator.clipboard` is
+ * unavailable, so every copy button's fallback selects the text and asks the
+ * user to press Ctrl+C. The thing they are told to copy therefore has to be
+ * legible while selected. The UA default picks its own blue against Hearth;
+ * Ember Edge under Chalk keeps it inside the palette and well clear of AA.
+ */
+::selection {
+  background-color: oklch(45.5% 0.188 13.697);
+  color: oklch(98.5% 0.001 106.423);
+}
+
 @keyframes modal-in {
   from {
     opacity: 0;

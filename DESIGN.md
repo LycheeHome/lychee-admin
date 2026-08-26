@@ -410,9 +410,10 @@ not caps.
 
 Two containers, chosen by what the page is for. The site list runs to 1080px and
 fills it with one row per site, separated by a `1px` Hairline and stacked with no
-gap, so a wider window lengthens each row rather than adding a column. A site's
-detail page caps at 760px and stays one column, because everything on it is
-either a sentence to read or a command to copy, and neither improves at 1200px.
+gap, so a wider window widens the gap between a row's two halves rather than its
+content. A site's detail page caps at 760px and stays one column, because
+everything on it is either a sentence to read or a command to copy, and neither
+improves at 1200px.
 
 A list row has two halves: the hostname and its mono address on the left, both
 pills on the right. The right half is a two-column grid, not a flex run — the
@@ -427,18 +428,20 @@ The page ground has 24px of horizontal padding and a 64px-tall header band
 and the two host-level nav items, aligned to the same 1080px container as the
 content below it; content starts below it with 24px gaps between sections.
 Content width equals viewport width, so `sm` (640px) means what it says.
-Inside a card, the rhythm is 20px padding (24px on dialogs and the empty
-state), a
-12px gap between a label and its content, and a `1px` Hairline rule
+Inside a card, the rhythm is 20px padding (24px on dialogs and the empty state),
+a 12px gap between a label and its content, and a `1px` Hairline rule
 with 16px of air on both sides wherever one card holds two kinds of content —
 the request path's hops and its detail rows, or the Deploy workflow and what the
 image bakes in.
 
 The only breakpoint in the system is `sm` (640px). Below it, the routing hop
 chain turns from a row of four hops separated by `→` into a stacked column
-separated by `↓`, and the remove dialog's four-step list collapses from two
-columns to one. That is not a mobile design — PRODUCT.md records this as a
-desktop-only tool — it is the floor that keeps a narrow window honest.
+separated by `↓`, the remove dialog's four-step list collapses from two
+columns to one, and the site list's status column releases its reserved `9rem`
+— alignment is worth having only where there is width to align across, and
+holding the column open below the floor starves the hostname instead. That is
+not a mobile design — PRODUCT.md records this as a desktop-only tool — it is the
+floor that keeps a narrow window honest.
 
 Spacing steps in use: 6px, 8px, 10px, 12px, 14px, 16px, 20px, 24px. Nothing in
 between, and nothing above 24px except the header band.
@@ -452,9 +455,11 @@ horizontal overflow on a one-line command, which must not wrap: `overflow-x:
 auto` with `white-space: nowrap`. Long values wrap by breaking characters
 (`break-all`), never by being cut.
 
-**The Width-Follows-Purpose Rule.** 1080px for a grid of things you are choosing
+**The Width-Follows-Purpose Rule.** 1080px for a list of things you are choosing
 between; 760px for one thing you are reading and acting on. A wider viewport
-adds columns, never line length.
+never buys line length: on the detail page it is simply refused, and on the site
+list it goes to the gap between a row's hostname and its pills, never to the
+hostname or the address, both of which are as long as they are.
 
 ## Elevation & Depth
 
