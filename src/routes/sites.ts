@@ -92,10 +92,10 @@ export function createSitesRouter(deps: Deps): Router {
       const content = deps.fs.readFile(config.caddyfilePath);
       const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname));
 
-      res.send(renderSiteList(sites, await computeStatuses(sites, deps), undefined, { page: "sites" }, notice));
+      res.send(renderSiteList(sites, await computeStatuses(sites, deps), config.domain, undefined, { page: "sites" }, notice));
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
-      res.status(500).send(renderSiteList([], {}, message, { page: "sites" }, notice));
+      res.status(500).send(renderSiteList([], {}, config.domain, message, { page: "sites" }, notice));
     }
   });
 
@@ -181,7 +181,7 @@ export function createSitesRouter(deps: Deps): Router {
       // Unlike GET /'s own fallback, this page's URL is /sites/<hostname> —
       // marking "sites" current here would violate the header's own rule
       // that an item's destination never changes with location.
-      res.status(500).send(renderSiteList([], {}, message, {}));
+      res.status(500).send(renderSiteList([], {}, config.domain, message, {}));
     }
   });
 
