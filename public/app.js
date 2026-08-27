@@ -313,6 +313,12 @@ const previewBody = document.getElementById("preview-body");
 const previewError = document.getElementById("preview-error");
 const previewDomain = composedHostname?.dataset.domain ?? "";
 
+// The server already rendered the empty state, including the two paths this
+// page edits. Clone it once before anything mutates the panel, so returning to
+// empty restores exactly what the server sent — the client never duplicates
+// that markup, and never needs the path strings, which only the server knows.
+const previewEmptyState = previewBody?.cloneNode(true);
+
 // Responses can land out of order — a slow early request must never overwrite
 // a fast later one. Only the newest sequence number is allowed to render.
 let previewSequence = 0;
@@ -346,10 +352,29 @@ function renderComposedHostname(hostname) {
   composedHostname.textContent = hostname;
 }
 
-function previewLines(lines, className) {
+function previewLines(lines, contextAfter) {
   const pre = document.createElement("pre");
-  pre.className = `font-mono text-[0.72rem] leading-[1.55] text-stone-50 bg-stone-900 border border-stone-700 rounded-md p-2.5 m-0 overflow-x-auto whitespace-pre [tab-size:4] ${className ?? ""}`;
-  pre.textContent = lines.join("\n");
+  // No text colour on the <pre> itself: every child span sets its own, and a
+  // colour here would compete with them by stylesheet order rather than losing
+  // cleanly (Tailwind resolves competing utilities by their order in the
+  // generated stylesheet, not by class-attribute order, so appending a colour
+  // class after another one is not reliably an override).
+  pre.className =
+    "font-mono text-[0.72rem] leading-[1.55] bg-stone-900 border border-stone-700 rounded-md p-2.5 m-0 overflow-x-auto whitespace-pre [tab-size:4]";
+
+  // Everything but the trailing context line is an addition. Colouring rather
+  // than prefixing with "+" keeps a YAML list dash from reading as a deletion.
+  const added = document.createElement("span");
+  added.className = "text-green-300";
+  added.textContent = contextAfter ? `${lines.join("\n")}\n` : lines.join("\n");
+  pre.append(added);
+
+  if (contextAfter) {
+    const context = document.createElement("span");
+    context.className = "text-stone-600";
+    context.textContent = contextAfter;
+    pre.append(context);
+  }
   return pre;
 }
 
@@ -362,24 +387,7 @@ function previewSection(pathText, lines, contextAfter) {
   label.textContent = pathText;
   section.append(label);
 
-  const body = lines.slice();
-  if (contextAfter) body.push(contextAfter);
-  const pre = previewLines(body);
-  // Everything but the trailing context line is an addition. Colouring rather
-  // than prefixing with "+" keeps a YAML list dash from reading as a deletion.
-  if (contextAfter) {
-    pre.textContent = "";
-    const added = document.createElement("span");
-    added.className = "text-green-300";
-    added.textContent = `${lines.join("\n")}\n`;
-    const context = document.createElement("span");
-    context.className = "text-stone-600";
-    context.textContent = contextAfter;
-    pre.append(added, context);
-  } else {
-    pre.className += " text-green-300";
-  }
-  section.append(pre);
+  section.append(previewLines(lines, contextAfter));
   return section;
 }
 
@@ -393,14 +401,18 @@ function markSkips(listId, steps) {
   }
 }
 
-function renderPreviewEmpty(message) {
+function restorePreviewEmpty() {
+  if (!previewBody || !previewEmptyState) return;
+  previewBody.replaceChildren(...previewEmptyState.cloneNode(true).childNodes);
+  resetSteps("add-site-steps");
+}
+
+function renderPreviewMessage(message) {
   if (!previewBody) return;
-  previewBody.textContent = "";
   const line = document.createElement("p");
   line.className = "text-stone-400 text-[0.8rem] leading-snug m-0";
   line.textContent = message;
-  previewBody.append(line);
-  markSkips("add-site-steps", []);
+  previewBody.replaceChildren(line);
   resetSteps("add-site-steps");
 }
 
@@ -453,12 +465,12 @@ async function refreshPreview() {
       // role="status" does not announce a mutation inside a hidden subtree.
       previewError?.classList.remove("hidden");
       if (previewError) previewError.textContent = result.error;
-      renderPreviewEmpty("Fix the problem above and the block appears here.");
+      renderPreviewMessage("Fix the problem above and the block appears here.");
       return;
     }
 
     previewError?.classList.add("hidden");
-    renderPreviewEmpty("Name the site and the exact block and route appear here, before anything is written.");
+    restorePreviewEmpty();
   } catch {
     // A failed preview is a failed read. Keep the last good render and let the
     // submit's own validation be the gate — never block adding a site on it.
