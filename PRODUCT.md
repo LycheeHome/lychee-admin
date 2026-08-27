@@ -74,7 +74,10 @@ claim.
   anything.
 - **Surfaces today**: the site list (`GET /`), a site's detail page
   (`GET /sites/:hostname`), add-site as its own page (`GET /sites/new`,
-  `POST /sites`), remove (`POST /sites/:hostname/delete`), and a second,
+  `POST /sites`), which shows the exact Caddyfile block and tunnel route it is
+  about to write in a panel beside the form, fed by `POST /sites/preview` — a
+  read-only endpoint that calls the same writers the submit does, so the two
+  cannot disagree, remove (`POST /sites/:hostname/delete`), and a second,
   always-separate file deletion (`POST /sites/:hostname/delete-files`). A
   global header band (wordmark plus `sites` and `add site`) fronts every page;
   a site's detail page also carries a hostname dropdown on its breadcrumb for

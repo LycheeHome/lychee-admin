@@ -357,8 +357,9 @@ says its own name and names a site.
 - **Display** (Poetsen One, 1.5rem, tracking 0.025em): The wordmark only —
   `lyly` + an Ember period + `admin`.
 - **Headline** (DM Mono, 1.7rem, line-height 1.2, tracking -0.01em): A site's
-  hostname on its detail page, with the shared `.lyly.dev` suffix dropped to
-  Smoke Deep so the subdomain reads first — legible there because 27px is large
+  hostname on the page that owns it — its detail page, and the add-site page
+  while that hostname is being composed — with the shared `.lyly.dev` suffix
+  dimmed so the subdomain reads first. Legible there because 27px is large
   text, and nowhere else. Slight negative tracking because mono at display size
   otherwise sprawls.
 - **Title** (Poetsen One, 1rem, line-height 1.625): A list row's hostname, with
@@ -408,12 +409,13 @@ not caps.
 
 ## Layout
 
-Two containers, chosen by what the page is for. The site list runs to 1080px and
-fills it with one row per site, separated by a `1px` Hairline and stacked with no
-gap, so a wider window widens the gap between a row's two halves rather than its
-content. A site's detail page caps at 760px and stays one column, because
-everything on it is either a sentence to read or a command to copy, and neither
-improves at 1200px.
+A page frame and a reading column inside it, not two unrelated containers. The
+site list runs to the full 1080px frame and fills it with one row per site,
+separated by a `1px` Hairline and stacked with no gap, so a wider window widens
+the gap between a row's two halves rather than its content. A site's detail page
+caps at the 760px reading column and stays one column, because everything on it
+is either a sentence to read or a command to copy, and neither improves at
+1200px. Add-site takes the frame too — see The Frame-And-Column Rule below.
 
 A list row has two halves: the hostname and its mono address on the left, both
 pills on the right. The right half is a two-column grid, not a flex run — the
@@ -434,14 +436,14 @@ with 16px of air on both sides wherever one card holds two kinds of content —
 the request path's hops and its detail rows, or the Deploy workflow and what the
 image bakes in.
 
-The only breakpoint in the system is `sm` (640px). Below it, the routing hop
-chain turns from a row of four hops separated by `→` into a stacked column
-separated by `↓`, the remove dialog's four-step list collapses from two
-columns to one, and the site list's status column releases its reserved `9rem`
-— alignment is worth having only where there is width to align across, and
-holding the column open below the floor starves the hostname instead. That is
-not a mobile design — PRODUCT.md records this as a desktop-only tool — it is the
-floor that keeps a narrow window honest.
+Two breakpoints. `sm` (640px) is the floor that keeps a narrow window honest:
+below it the routing hop chain turns from a row of four hops separated by `→`
+into a stacked column separated by `↓`, the remove dialog's four-step list
+collapses from two columns to one, and the site list's status column releases
+its reserved `9rem`. `lg` (1024px) exists only for the add-site page, whose
+form and preview columns need 1128px to render side by side at full size and
+stack below it. Neither is a mobile design — PRODUCT.md records this as a
+desktop-only tool.
 
 Spacing steps in use: 6px, 8px, 10px, 12px, 14px, 16px, 20px, 24px. Nothing in
 between, and nothing above 24px except the header band.
@@ -455,11 +457,15 @@ horizontal overflow on a one-line command, which must not wrap: `overflow-x:
 auto` with `white-space: nowrap`. Long values wrap by breaking characters
 (`break-all`), never by being cut.
 
-**The Width-Follows-Purpose Rule.** 1080px for a list of things you are choosing
-between; 760px for one thing you are reading and acting on. A wider viewport
-never buys line length: on the detail page it is simply refused, and on the site
-list it goes to the gap between a row's hostname and its pills, never to the
-hostname or the address, both of which are as long as they are.
+**The Frame-And-Column Rule.** 1080px is the page frame — the header band, the
+shell's `<main>`, and any page holding two kinds of content that belong side by
+side. 760px is a reading column, applied *inside* that frame by a page holding
+one. No width ever lengthens a line of prose past ~70ch: on the add-site page
+the frame buys a second column and the form column is 656px, narrower than the
+760 it replaced. The site list fills the frame because its rows need the width
+to align a reserved status column; the detail page caps at 760 because
+everything on it is a sentence to read or a command to copy and it has nothing
+to put beside them. The system holds exactly two numbers and never a third.
 
 ## Elevation & Depth
 
@@ -654,6 +660,25 @@ copy". The selection is the feedback in that case, not an icon change.
 top-right in a multi-line one. The code block's 10px vertical padding and 44px
 right padding are chosen against those numbers to balance the gap and keep the
 button off the text. Change any one of the four and recompute the others.
+
+### What-Gets-Written Panel
+
+The add-site page's right column, and the only place in the app that shows
+config before it exists. A card holding, in order: each target file's path as
+a Micro-label with its uppercase dropped — a path is case-sensitive and must
+never be transformed — over a Hearth inset showing the lines to be added in
+Clear, with one line of surrounding context dimmed beneath them so the
+insertion point is visible. Additions are marked by colour, never by a `+`
+gutter, because a YAML list dash in the same column reads as a deletion.
+
+Below a `1px` Hairline rule, the six add steps in execution order, with any
+step that will not run for the chosen type carrying the same `—` mark the
+remove flow's report uses for `skipped`.
+
+The panel is not a live region. It rewrites on every debounced keystroke, and
+announcing a Caddyfile block that often would bury the field being typed into;
+the one actionable thing in it — a rejection the submit would also make — is
+announced by its own `role="status"` error instead.
 
 ### Routing Hop Chain (signature component)
 
