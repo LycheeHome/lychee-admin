@@ -278,8 +278,11 @@ carry a verdict.
 
 ### Tertiary
 
-Status verdicts, and nothing else. These two families never appear as
-decoration, as a background for prose, or as an accent.
+Status verdicts, and nothing else, with one deliberate exception: the
+what-gets-written panel's added-lines text is Clear, because marking a diff
+addition is not a site-state verdict — see the Three-Tone Status Rule.
+Outside that one use, these two families never appear as decoration, as a
+background for prose, or as an accent.
 
 - **Clear** (`green-300`) on **Clear Deep** (`green-950` at 60%): the `ok` tone —
   `running`, `running · healthy`, `responding`.
@@ -311,16 +314,19 @@ container that was never created (or was deliberately taken down) has not
 crashed. Scorch is reserved for something that tried and failed, so that red
 keeps meaning "this needs you now": a site that has simply never been deployed
 must not look like one that died. Never invent a fourth tone, and never let a
-tone appear without the canonical status word beside it — that second clause is
-what makes the first safe, because the word carries which state it is while the
-tone carries only how bad it is. `not deployed` and `unknown` share Smoke and
+tone marking site state appear without the canonical status word beside it —
+that second clause is what makes the first safe, because the word carries
+which state it is while the tone carries only how bad it is. The
+what-gets-written panel's Clear-marked added lines are the one place Clear
+appears without a status word, because marking a diff addition is not a
+site-state verdict for this rule to govern. `not deployed` and `unknown` share Smoke and
 stay unambiguous.
 
 **The Dim-Text Rule.** Dim text is Smoke, not Smoke Deep. Smoke Deep carries
-readable text in exactly one place — the `.lyly.dev` suffix on a detail page's
-Headline, which at 27px is WCAG large text and clears the 3:1 that applies
-there. At any smaller size it fails the 4.5:1 that applies instead (3.16:1 on a
-card), so every label, key, caption, and hop sub-line takes Smoke. When a new
+readable text in exactly one role — the `.lyly.dev` suffix on a Headline,
+which at 27px is WCAG large text and clears the 3:1 that applies there. At any
+smaller size it fails the 4.5:1 that applies instead (3.16:1 on a card), so
+every label, key, caption, and hop sub-line takes Smoke. When a new
 dim role appears, the question is not "how dim can this be" but "does it clear
 4.5:1 on both Hearth and Hearth Lift."
 
@@ -357,10 +363,11 @@ says its own name and names a site.
 - **Display** (Poetsen One, 1.5rem, tracking 0.025em): The wordmark only —
   `lyly` + an Ember period + `admin`.
 - **Headline** (DM Mono, 1.7rem, line-height 1.2, tracking -0.01em): A site's
-  hostname on its detail page, with the shared `.lyly.dev` suffix dropped to
-  Smoke Deep so the subdomain reads first — legible there because 27px is large
-  text, and nowhere else. Slight negative tracking because mono at display size
-  otherwise sprawls.
+  hostname on the page that owns it — its detail page, and the add-site page
+  while that hostname is being composed — with the shared `.lyly.dev` suffix
+  dropped to Smoke Deep so the subdomain reads first. Legible there because
+  27px is large text, and nowhere else. Slight negative tracking because mono
+  at display size otherwise sprawls.
 - **Title** (Poetsen One, 1rem, line-height 1.625): A list row's hostname, with
   the shared `.<domain>` suffix dropped to Smoke beside it. The only other place
   the display face appears.
@@ -408,12 +415,13 @@ not caps.
 
 ## Layout
 
-Two containers, chosen by what the page is for. The site list runs to 1080px and
-fills it with one row per site, separated by a `1px` Hairline and stacked with no
-gap, so a wider window widens the gap between a row's two halves rather than its
-content. A site's detail page caps at 760px and stays one column, because
-everything on it is either a sentence to read or a command to copy, and neither
-improves at 1200px.
+A page frame and a reading column inside it, not two unrelated containers. The
+site list runs to the full 1080px frame and fills it with one row per site,
+separated by a `1px` Hairline and stacked with no gap, so a wider window widens
+the gap between a row's two halves rather than its content. A site's detail page
+caps at the 760px reading column and stays one column, because everything on it
+is either a sentence to read or a command to copy, and neither improves at
+1200px. Add-site takes the frame too — see The Frame-And-Column Rule below.
 
 A list row has two halves: the hostname and its mono address on the left, both
 pills on the right. The right half is a two-column grid, not a flex run — the
@@ -434,14 +442,14 @@ with 16px of air on both sides wherever one card holds two kinds of content —
 the request path's hops and its detail rows, or the Deploy workflow and what the
 image bakes in.
 
-The only breakpoint in the system is `sm` (640px). Below it, the routing hop
-chain turns from a row of four hops separated by `→` into a stacked column
-separated by `↓`, the remove dialog's four-step list collapses from two
-columns to one, and the site list's status column releases its reserved `9rem`
-— alignment is worth having only where there is width to align across, and
-holding the column open below the floor starves the hostname instead. That is
-not a mobile design — PRODUCT.md records this as a desktop-only tool — it is the
-floor that keeps a narrow window honest.
+Two breakpoints. `sm` (640px) is the floor that keeps a narrow window honest:
+below it the routing hop chain turns from a row of four hops separated by `→`
+into a stacked column separated by `↓`, the remove dialog's four-step list
+collapses from two columns to one, and the site list's status column releases
+its reserved `9rem`. `lg` (1024px) exists only for the add-site page, whose
+form and preview columns need 1128px to render side by side at full size and
+stack below it. Neither is a mobile design — PRODUCT.md records this as a
+desktop-only tool.
 
 Spacing steps in use: 6px, 8px, 10px, 12px, 14px, 16px, 20px, 24px. Nothing in
 between, and nothing above 24px except the header band.
@@ -455,11 +463,15 @@ horizontal overflow on a one-line command, which must not wrap: `overflow-x:
 auto` with `white-space: nowrap`. Long values wrap by breaking characters
 (`break-all`), never by being cut.
 
-**The Width-Follows-Purpose Rule.** 1080px for a list of things you are choosing
-between; 760px for one thing you are reading and acting on. A wider viewport
-never buys line length: on the detail page it is simply refused, and on the site
-list it goes to the gap between a row's hostname and its pills, never to the
-hostname or the address, both of which are as long as they are.
+**The Frame-And-Column Rule.** 1080px is the page frame — the header band, the
+shell's `<main>`, and any page holding two kinds of content that belong side by
+side. 760px is a reading column, applied *inside* that frame by a page holding
+one. No width ever lengthens a line of prose past ~70ch: on the add-site page
+the frame buys a second column and the form column is 656px, narrower than the
+760 it replaced. The site list fills the frame because its rows need the width
+to align a reserved status column; the detail page caps at 760 because
+everything on it is a sentence to read or a command to copy and it has nothing
+to put beside them. The system holds exactly two numbers and never a third.
 
 ## Elevation & Depth
 
@@ -654,6 +666,27 @@ copy". The selection is the feedback in that case, not an icon change.
 top-right in a multi-line one. The code block's 10px vertical padding and 44px
 right padding are chosen against those numbers to balance the gap and keep the
 button off the text. Change any one of the four and recompute the others.
+
+### What-Gets-Written Panel
+
+The add-site page's right column, and the only place in the app that shows
+config before it exists. A card holding, in order: each target file's path as
+a Micro-label with its uppercase dropped — a path is case-sensitive and must
+never be transformed — over a Hearth inset showing the lines to be added in
+Clear, with one line of surrounding context in Smoke beneath them so the
+insertion point is visible — Smoke, not Smoke Deep, because this text is well
+below Headline size, where the Dim-Text Rule's 4.5:1 floor applies and Smoke
+Deep does not clear it. Additions are marked by colour, never by a `+` gutter,
+because a YAML list dash in the same column reads as a deletion.
+
+Below a `1px` Hairline rule, the six add steps in execution order, with any
+step that will not run for the chosen type carrying the same `—` mark the
+remove flow's report uses for `skipped`.
+
+The panel is not a live region. It rewrites on every debounced keystroke, and
+announcing a Caddyfile block that often would bury the field being typed into;
+the one actionable thing in it — a rejection the submit would also make — is
+announced by its own `role="status"` error instead.
 
 ### Routing Hop Chain (signature component)
 

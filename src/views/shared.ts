@@ -22,6 +22,12 @@ export const STATUS_PILL_BASE =
 export const FOCUS_RING =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
 export const DETAIL_WIDTH = "max-w-[760px] mx-auto w-full";
+/**
+ * The page frame — the same 1080px the shell's <main> and the header band
+ * already use. A page takes this when it has two kinds of content that belong
+ * side by side; DETAIL_WIDTH is the reading column it caps to when it has one.
+ */
+export const FRAME_WIDTH = "max-w-[1080px] mx-auto w-full";
 export const TYPE_PILL_STATIC = "border-stone-600 text-stone-50 bg-stone-700";
 export const TYPE_PILL_PROXY = "border-transparent text-rose-300 bg-rose-950";
 

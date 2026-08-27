@@ -50,7 +50,7 @@ describe("the header band", () => {
   });
 
   test("marks add site current on the add-site page", () => {
-    const block = header(renderAddSite(SITES, "lyly.dev", PORT_OWNERS));
+    const block = header(renderAddSite(SITES, "lyly.dev", PORT_OWNERS, PATHS));
     assert.match(block, /href="\/sites\/new"[^>]*aria-current="page"/);
   });
 
@@ -68,10 +68,14 @@ describe("the header band", () => {
 });
 
 const PORT_OWNERS = { "8787": "reserved (lyly-admin itself)", "4000": "api.lyly.dev" };
+const PATHS = {
+  caddyfilePath: "/etc/caddy/Caddyfile",
+  tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
+};
 
 describe("the add-site page", () => {
   test("renders the fields that used to live in the dialog", () => {
-    const html = renderAddSite(SITES, "lyly.dev", PORT_OWNERS);
+    const html = renderAddSite(SITES, "lyly.dev", PORT_OWNERS, PATHS);
     assert.match(html, /name="hostname"/);
     assert.match(html, /name="type"[^>]*value="static"/);
     assert.match(html, /name="type"[^>]*value="reverse-proxy"/);
@@ -92,11 +96,11 @@ describe("the add-site page", () => {
   });
 
   test("posts to the unchanged endpoint", () => {
-    assert.match(renderAddSite(SITES, "lyly.dev", PORT_OWNERS), /action="\/sites"/);
+    assert.match(renderAddSite(SITES, "lyly.dev", PORT_OWNERS, PATHS), /action="\/sites"/);
   });
 
   test("marks Add site current, and All sites not", () => {
-    const html = header(renderAddSite(SITES, "lyly.dev", PORT_OWNERS));
+    const html = header(renderAddSite(SITES, "lyly.dev", PORT_OWNERS, PATHS));
     assert.match(html, /href="\/sites\/new"[^>]*aria-current="page"/);
     assert.doesNotMatch(html, /href="\/"[^>]*aria-current="page"/);
   });
@@ -132,7 +136,7 @@ describe("the shell's h1", () => {
   });
 
   test("renders exactly one on the add-site page", () => {
-    assert.equal(countH1(renderAddSite(SITES, "lyly.dev", PORT_OWNERS)), 1);
+    assert.equal(countH1(renderAddSite(SITES, "lyly.dev", PORT_OWNERS, PATHS)), 1);
   });
 
   test("renders exactly one on a site detail page", () => {

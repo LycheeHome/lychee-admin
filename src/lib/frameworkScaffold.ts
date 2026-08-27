@@ -110,3 +110,25 @@ export function getFrameworkScaffold(
     deployWorkflow: nextjsDeployWorkflow(hostname, deployPath),
   };
 }
+
+/**
+ * The scaffold as files rather than fields, so the add handler that writes
+ * them and the preview that lists them read one mapping. A fourth scaffold
+ * file added here appears in the preview with no further change; a filename
+ * kept only in the route would make the panel quietly wrong.
+ */
+export function getScaffoldFiles(
+  framework: string,
+  port: string,
+  hostname: string,
+  sitesRoot: string,
+  healthcheckPath: string,
+): { name: string; content: string }[] | null {
+  const scaffold = getFrameworkScaffold(framework, port, hostname, sitesRoot, healthcheckPath);
+  if (!scaffold) return null;
+  return [
+    { name: "Dockerfile", content: scaffold.dockerfile },
+    { name: "docker-compose.yml", content: scaffold.compose },
+    { name: ".dockerignore", content: scaffold.dockerignore },
+  ];
+}
