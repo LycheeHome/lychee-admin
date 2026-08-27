@@ -265,7 +265,20 @@ const portError = document.querySelector(".port-error");
 function syncPortField() {
   const isProxy = document.querySelector('input[name="type"]:checked')?.value === "reverse-proxy";
   if (portFieldWrapper) portFieldWrapper.style.display = isProxy ? "flex" : "none";
-  if (portField) portField.required = isProxy;
+  if (portField) {
+    portField.required = isProxy;
+    // A display:none control is still a constraint-validation candidate: an
+    // out-of-range port (rangeOverflow) or a lingering setCustomValidity from
+    // validatePortField would keep the whole form invalid with no visible
+    // control to explain why, so the submit event would never fire. Disabling
+    // the field (not just hiding it) is what exempts it from constraint
+    // validation and drops it from FormData — which is correct regardless,
+    // since the server ignores `port` for a static site.
+    portField.disabled = !isProxy;
+    // Switching back to reverse proxy must re-check the current value so a
+    // conflict typed before the switch away is reported again, not forgotten.
+    if (isProxy) validatePortField();
+  }
 }
 
 typeInputs.forEach((input) => input.addEventListener("change", syncPortField));
@@ -324,6 +337,18 @@ const previewEmptyState = previewBody?.cloneNode(true);
 let previewSequence = 0;
 let previewTimer;
 
+// The field only carries the subdomain label; the domain is rendered as a
+// fixed affix beside it (see #hostname-suffix and #composed-hostname's
+// data-domain in html.ts) so the managed domain is structural rather than
+// only a placeholder. Someone pasting a full hostname (e.g. "blog.lyly.dev")
+// into the label field must not have the domain doubled onto it, and
+// trailing "."s from a copy-pasted FQDN must not survive to become
+// "blog..lyly.dev". The doubling check compares case-insensitively (the
+// server lowercases before validating, so a pasted "BLOG.LYLY.DEV" must be
+// recognized as already-full the same as "blog.lyly.dev" would be) while
+// composing with the label's original casing, since the server normalizes
+// case anyway. Both the preview and the submit handler call this so they can
+// never derive two different hostnames from the same input.
 function composeHostname(label) {
   const trimmed = label.trim().replace(/\.+$/, "");
   if (!trimmed) return "";
@@ -497,23 +522,15 @@ addSiteForm?.addEventListener("submit", async (event) => {
   if (addSiteInFlight) return;
 
   const formData = new FormData(addSiteForm);
-  // The field only carries the subdomain label; the domain is rendered as a
-  // fixed affix beside it (see #hostname-suffix in html.ts) so the managed
-  // domain is structural rather than only a placeholder. Someone pasting a
-  // full hostname (e.g. "blog.lyly.dev") into the label field must not have
-  // the domain doubled onto it, and trailing "."s from a copy-pasted FQDN
-  // must not survive to become "blog..lyly.dev". The doubling check compares
-  // case-insensitively (the server lowercases before validating, so a pasted
-  // "BLOG.LYLY.DEV" must be recognized as already-full the same as
-  // "blog.lyly.dev" would be) while composing with the label's original
-  // casing, since the server normalizes case anyway.
-  const domain = document.getElementById("hostname-suffix")?.textContent?.replace(/^\./, "") ?? "";
-  const label = String(formData.get("hostname") ?? "").trim().replace(/\.+$/, "");
-  if (!label) {
+  // Reuses the preview's own composeHostname (defined above) instead of
+  // re-deriving the domain and repeating its trim / doubling-check logic
+  // here, so submit and preview can never disagree on what "blog" becomes.
+  const hostname = composeHostname(String(formData.get("hostname") ?? ""));
+  if (!hostname) {
     // Native `required` only rejects a zero-length value, so a whitespace-only
-    // entry (e.g. a single space) still passes it. Stop here rather than
-    // composing a bare ".lyly.dev" and letting the server reject it with a
-    // less legible error.
+    // entry (e.g. a single space) still passes it; composeHostname trims and
+    // returns "" for that case too. Stop here rather than composing a bare
+    // ".lyly.dev" and letting the server reject it with a less legible error.
     resetSteps("add-site-steps");
     if (addSiteError) {
       addSiteError.classList.remove("hidden");
@@ -521,10 +538,6 @@ addSiteForm?.addEventListener("submit", async (event) => {
     }
     return;
   }
-  const labelLower = label.toLowerCase();
-  const domainLower = domain.toLowerCase();
-  const hostname =
-    labelLower === domainLower || labelLower.endsWith(`.${domainLower}`) ? label : `${label}.${domain}`;
   const type = formData.get("type");
   const port = String(formData.get("port") ?? "").trim();
   const framework = String(formData.get("framework") ?? "").trim();
