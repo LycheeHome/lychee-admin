@@ -278,8 +278,11 @@ carry a verdict.
 
 ### Tertiary
 
-Status verdicts, and nothing else. These two families never appear as
-decoration, as a background for prose, or as an accent.
+Status verdicts, and nothing else, with one deliberate exception: the
+what-gets-written panel's added-lines text is Clear, because marking a diff
+addition is not a site-state verdict — see the Three-Tone Status Rule.
+Outside that one use, these two families never appear as decoration, as a
+background for prose, or as an accent.
 
 - **Clear** (`green-300`) on **Clear Deep** (`green-950` at 60%): the `ok` tone —
   `running`, `running · healthy`, `responding`.
@@ -311,9 +314,12 @@ container that was never created (or was deliberately taken down) has not
 crashed. Scorch is reserved for something that tried and failed, so that red
 keeps meaning "this needs you now": a site that has simply never been deployed
 must not look like one that died. Never invent a fourth tone, and never let a
-tone appear without the canonical status word beside it — that second clause is
-what makes the first safe, because the word carries which state it is while the
-tone carries only how bad it is. `not deployed` and `unknown` share Smoke and
+tone marking site state appear without the canonical status word beside it —
+that second clause is what makes the first safe, because the word carries
+which state it is while the tone carries only how bad it is. The
+what-gets-written panel's Clear-marked added lines are the one place Clear
+appears without a status word, because marking a diff addition is not a
+site-state verdict for this rule to govern. `not deployed` and `unknown` share Smoke and
 stay unambiguous.
 
 **The Dim-Text Rule.** Dim text is Smoke, not Smoke Deep. Smoke Deep carries

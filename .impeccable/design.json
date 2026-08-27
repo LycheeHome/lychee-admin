@@ -390,7 +390,7 @@
       },
       {
         "name": "The Dim-Text Rule",
-        "body": "Dim text is Smoke, not Smoke Deep. Smoke Deep carries readable text in exactly one place — the .lyly.dev suffix on a detail page's Headline, which at 27px is WCAG large text and clears the 3:1 that applies there. At any smaller size it fails the 4.5:1 that applies instead (3.16:1 on a card), so every label, key, caption and hop sub-line takes Smoke. Two things sit outside that test because neither is text you read to learn something: the breadcrumb's decorative slash, marked aria-hidden, and a disabled control's label, which takes Smoke Deep on purpose because WCAG 1.4.3 exempts text in an inactive user interface component and dimness past the readable floor is the signal. A disabled control must never keep a hover fill underneath it.",
+        "body": "Dim text is Smoke, not Smoke Deep. Smoke Deep carries readable text in exactly one role — the .lyly.dev suffix on a Headline, which at 27px is WCAG large text and clears the 3:1 that applies there. At any smaller size it fails the 4.5:1 that applies instead (3.16:1 on a card), so every label, key, caption and hop sub-line takes Smoke. Two things sit outside that test because neither is text you read to learn something: the breadcrumb's decorative slash, marked aria-hidden, and a disabled control's label, which takes Smoke Deep on purpose because WCAG 1.4.3 exempts text in an inactive user interface component and dimness past the readable floor is the signal. A disabled control must never keep a hover fill underneath it.",
         "section": "colors"
       },
       {
@@ -414,8 +414,8 @@
         "section": "layout"
       },
       {
-        "name": "The Width-Follows-Purpose Rule",
-        "body": "1080px for a grid of things you are choosing between; 760px for one thing you are reading and acting on. A wider viewport adds columns, never line length.",
+        "name": "The Frame-And-Column Rule",
+        "body": "1080px is the page frame — the header band, the shell's <main>, and any page holding two kinds of content that belong side by side. 760px is a reading column, applied inside that frame by a page holding one. No width ever lengthens a line of prose past ~70ch: on the add-site page the frame buys a second column and the form column is 656px, narrower than the 760 it replaced. The site list fills the frame because its rows need the width to align a reserved status column; the detail page caps at 760 because everything on it is a sentence to read or a command to copy and it has nothing to put beside them. The system holds exactly two numbers and never a third.",
         "section": "layout"
       },
       {
