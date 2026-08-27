@@ -344,7 +344,7 @@ function renderComposedHostname(hostname) {
     composedHostname.textContent = "";
     composedHostname.append(label);
     const dim = document.createElement("span");
-    dim.className = "text-stone-600";
+    dim.className = "text-stone-500";
     dim.textContent = hostname.slice(hostname.length - suffix.length);
     composedHostname.append(dim);
     return;
@@ -371,7 +371,7 @@ function previewLines(lines, contextAfter) {
 
   if (contextAfter) {
     const context = document.createElement("span");
-    context.className = "text-stone-600";
+    context.className = "text-stone-400";
     context.textContent = contextAfter;
     pre.append(context);
   }

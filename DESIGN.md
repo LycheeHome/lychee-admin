@@ -317,10 +317,10 @@ tone carries only how bad it is. `not deployed` and `unknown` share Smoke and
 stay unambiguous.
 
 **The Dim-Text Rule.** Dim text is Smoke, not Smoke Deep. Smoke Deep carries
-readable text in exactly one place — the `.lyly.dev` suffix on a detail page's
-Headline, which at 27px is WCAG large text and clears the 3:1 that applies
-there. At any smaller size it fails the 4.5:1 that applies instead (3.16:1 on a
-card), so every label, key, caption, and hop sub-line takes Smoke. When a new
+readable text in exactly one role — the `.lyly.dev` suffix on a Headline,
+which at 27px is WCAG large text and clears the 3:1 that applies there. At any
+smaller size it fails the 4.5:1 that applies instead (3.16:1 on a card), so
+every label, key, caption, and hop sub-line takes Smoke. When a new
 dim role appears, the question is not "how dim can this be" but "does it clear
 4.5:1 on both Hearth and Hearth Lift."
 
@@ -359,9 +359,9 @@ says its own name and names a site.
 - **Headline** (DM Mono, 1.7rem, line-height 1.2, tracking -0.01em): A site's
   hostname on the page that owns it — its detail page, and the add-site page
   while that hostname is being composed — with the shared `.lyly.dev` suffix
-  dimmed so the subdomain reads first. Legible there because 27px is large
-  text, and nowhere else. Slight negative tracking because mono at display size
-  otherwise sprawls.
+  dropped to Smoke Deep so the subdomain reads first. Legible there because
+  27px is large text, and nowhere else. Slight negative tracking because mono
+  at display size otherwise sprawls.
 - **Title** (Poetsen One, 1rem, line-height 1.625): A list row's hostname, with
   the shared `.<domain>` suffix dropped to Smoke beside it. The only other place
   the display face appears.
@@ -667,9 +667,11 @@ The add-site page's right column, and the only place in the app that shows
 config before it exists. A card holding, in order: each target file's path as
 a Micro-label with its uppercase dropped — a path is case-sensitive and must
 never be transformed — over a Hearth inset showing the lines to be added in
-Clear, with one line of surrounding context dimmed beneath them so the
-insertion point is visible. Additions are marked by colour, never by a `+`
-gutter, because a YAML list dash in the same column reads as a deletion.
+Clear, with one line of surrounding context in Smoke beneath them so the
+insertion point is visible — Smoke, not Smoke Deep, because this text is well
+below Headline size, where the Dim-Text Rule's 4.5:1 floor applies and Smoke
+Deep does not clear it. Additions are marked by colour, never by a `+` gutter,
+because a YAML list dash in the same column reads as a deletion.
 
 Below a `1px` Hairline rule, the six add steps in execution order, with any
 step that will not run for the chosen type carrying the same `—` mark the
