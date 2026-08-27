@@ -7,6 +7,15 @@ import { CommandError } from "../lib/systemCommands";
 import { getFrameworkScaffold, getScaffoldFiles } from "../lib/frameworkScaffold";
 import { checkPortOpen } from "../lib/portStatus";
 import { ADD_STEPS, REMOVE_STEPS, createStepReport } from "../lib/stepReport";
+import {
+  isManagedHostname as isManaged,
+  isValidHostname,
+  readSiteInput,
+  validateAgainstExisting,
+  validateSiteInput,
+  type SiteEnv,
+} from "../lib/siteValidation";
+import { buildSitePreview } from "../lib/sitePreview";
 import { renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "../views/html";
 import type { SiteStatus } from "../lib/siteDisplay";
 import type { Site } from "../lib/caddyfile";
@@ -16,25 +25,13 @@ import type { Deps } from "../deps";
 // what's in the Caddyfile, so it can't be caught by parsing existing sites.
 const CADDY_ADMIN_PORT = 2019;
 
-const hostnamePattern = new RegExp(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?\\.${escapeRegex(config.domain)}$`, "i");
-
-const HEALTHCHECK_PATH_PATTERN = /^\/[A-Za-z0-9._~\-/]{0,199}$/;
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function isValidHostname(hostname: string): boolean {
-  return hostnamePattern.test(hostname);
-}
-
-// Caddyfile blocks lyly-admin doesn't own (e.g. a manually added local-LAN
-// block like lychee.local for admin access) must never show up as a managed
-// site, since removing them here would still delete their local directory
-// or tunnel ingress rule.
-function isManagedHostname(hostname: string): boolean {
-  return hostname === config.domain || isValidHostname(hostname);
-}
+const SITE_ENV: SiteEnv = {
+  domain: config.domain,
+  sitesRoot: config.sitesRoot,
+  caddyfilePath: config.caddyfilePath,
+  tunnelConfigPath: config.tunnelConfigPath,
+  reservedPorts: [config.port, CADDY_ADMIN_PORT],
+};
 
 const PLACEHOLDER_INDEX_HTML = (hostname: string) =>
   `<!doctype html>\n<html><head><title>${hostname}</title></head><body><h1>${hostname}</h1><p>Site created by lyly-admin. Replace this file with your content.</p></body></html>\n`;
@@ -90,7 +87,7 @@ export function createSitesRouter(deps: Deps): Router {
 
     try {
       const content = deps.fs.readFile(config.caddyfilePath);
-      const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname));
+      const sites = caddyfile.parseSites(content).filter((site) => isManaged(site.hostname, config.domain));
 
       res.send(renderSiteList(sites, await computeStatuses(sites, deps), config.domain, undefined, { page: "sites" }, notice));
     } catch (error) {
@@ -104,7 +101,7 @@ export function createSitesRouter(deps: Deps): Router {
   // :hostname, fail isManagedHostname, and 404 instead of rendering the form.
   sitesRouter.get("/sites/new", (req, res) => {
     const content = deps.fs.readFile(config.caddyfilePath);
-    const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname));
+    const sites = caddyfile.parseSites(content).filter((site) => isManaged(site.hostname, config.domain));
     res.send(renderAddSite(sites, config.domain, computePortOwners(sites)));
   });
 
@@ -114,7 +111,7 @@ export function createSitesRouter(deps: Deps): Router {
 
     try {
       const content = deps.fs.readFile(config.caddyfilePath);
-      const sites = caddyfile.parseSites(content).filter((s) => isManagedHostname(s.hostname));
+      const sites = caddyfile.parseSites(content).filter((s) => isManaged(s.hostname, config.domain));
       const site = sites.find((s) => s.hostname === hostname);
 
       // Read for display only, so an unreadable tunnel config must not take the
@@ -186,26 +183,12 @@ export function createSitesRouter(deps: Deps): Router {
   });
 
   sitesRouter.post("/sites", async (req, res) => {
-    const hostname = String(req.body?.hostname ?? "").trim().toLowerCase();
-    const type = req.body?.type === "reverse-proxy" ? "reverse-proxy" : "static";
-    const port = String(req.body?.port ?? "").trim();
-    const rawFramework = String(req.body?.framework ?? "").trim();
-    const framework = type === "reverse-proxy" && rawFramework === "nextjs" ? "nextjs" : undefined;
-    const rawHealthcheckPath = String(req.body?.healthcheckPath ?? "").trim();
-    const healthcheckPath = framework === "nextjs" ? rawHealthcheckPath || "/" : undefined;
+    const input = readSiteInput(req.body);
+    const { hostname, type, port, framework, healthcheckPath } = input;
 
-    if (!isValidHostname(hostname)) {
-      res.status(400).json({ error: `"${hostname}" must be a subdomain of ${config.domain}` });
-      return;
-    }
-
-    if (type === "reverse-proxy" && (!port || Number(port) < 1 || Number(port) > 65535)) {
-      res.status(400).json({ error: "A valid local port is required for a reverse proxy site" });
-      return;
-    }
-
-    if (healthcheckPath && !HEALTHCHECK_PATH_PATTERN.test(healthcheckPath)) {
-      res.status(400).json({ error: `"${healthcheckPath}" is not a valid healthcheck path` });
+    const validation = validateSiteInput(input, SITE_ENV);
+    if (!validation.ok) {
+      res.status(400).json({ error: validation.error });
       return;
     }
 
@@ -222,23 +205,8 @@ export function createSitesRouter(deps: Deps): Router {
 
     try {
       caddyfileContent = deps.fs.readFile(config.caddyfilePath);
-      if (caddyfile.hostnameExists(caddyfileContent, hostname)) {
-        throw new Error(`${hostname} already exists in the Caddyfile`);
-      }
-
-      if (type === "reverse-proxy") {
-        const reservedPorts = new Set([config.port, CADDY_ADMIN_PORT]);
-        if (reservedPorts.has(Number(port))) {
-          throw new Error(`Port ${port} is reserved (used by lyly-admin itself or Caddy's admin API)`);
-        }
-
-        const conflictingSite = caddyfile
-          .parseSites(caddyfileContent)
-          .find((site) => site.type === "reverse-proxy" && site.target === port);
-        if (conflictingSite) {
-          throw new Error(`Port ${port} is already used by ${conflictingSite.hostname}`);
-        }
-      }
+      const existing = validateAgainstExisting(input, caddyfileContent, SITE_ENV);
+      if (!existing.ok) throw new Error(existing.error);
 
       tunnelContent = deps.fs.readFile(config.tunnelConfigPath);
 
@@ -309,7 +277,13 @@ export function createSitesRouter(deps: Deps): Router {
         steps: report.steps(),
       });
     } catch (error) {
-      const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
+      // Plain Error here means a thrown validator error — its .message is
+      // already the validator's own string. String(error) would prepend
+      // "Error: ", which the preview route (reporting the same validator's
+      // .error directly, never through throw/catch) never adds; extracting
+      // .message keeps POST /sites and POST /sites/preview byte-identical
+      // for the same rejected input.
+      const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : error instanceof Error ? error.message : String(error);
       logAction({ action: "add-site-failed", hostname, detail: message });
 
       // Only roll back if Caddy never actually reloaded with the edited
@@ -349,6 +323,40 @@ export function createSitesRouter(deps: Deps): Router {
         steps: report.steps(),
       });
     }
+  });
+
+  /**
+   * What POST /sites would write, without writing it. Reads the two config
+   * files and calls the same validators and the same appendSite /
+   * addIngressRule the add handler does, so the panel it feeds cannot drift
+   * from what actually lands on disk.
+   *
+   * Always 200. A half-typed form is not a client error, and a 4xx per
+   * keystroke would fill the console with failures that are merely early.
+   */
+  sitesRouter.post("/sites/preview", (req, res) => {
+    const input = readSiteInput(req.body);
+    if (!input.hostname) {
+      res.json({ ready: false });
+      return;
+    }
+
+    const validation = validateSiteInput(input, SITE_ENV);
+    if (!validation.ok) {
+      res.json({ ready: false, error: validation.error });
+      return;
+    }
+
+    const caddyfileContent = deps.fs.readFile(config.caddyfilePath);
+    const tunnelContent = deps.fs.readFile(config.tunnelConfigPath);
+
+    const existing = validateAgainstExisting(input, caddyfileContent, SITE_ENV);
+    if (!existing.ok) {
+      res.json({ ready: false, error: existing.error });
+      return;
+    }
+
+    res.json({ ready: true, preview: buildSitePreview(input, { caddyfileContent, tunnelContent }, SITE_ENV) });
   });
 
   sitesRouter.post("/sites/:hostname/delete", async (req, res) => {
@@ -445,7 +453,7 @@ export function createSitesRouter(deps: Deps): Router {
   sitesRouter.post("/sites/:hostname/delete-files", (req, res) => {
     const hostname = req.params.hostname.toLowerCase();
 
-    if (!isValidHostname(hostname)) {
+    if (!isValidHostname(hostname, config.domain)) {
       res.status(400).json({ error: `"${hostname}" must be a subdomain of ${config.domain}` });
       return;
     }

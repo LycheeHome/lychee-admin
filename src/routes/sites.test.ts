@@ -667,6 +667,81 @@ describe("rollback", () => {
   });
 });
 
+describe("POST /sites/preview", () => {
+  test("returns the Caddyfile block that POST /sites would append", async () => {
+    const response = await request("/sites/preview", form({ hostname: "docs.lyly.dev", type: "static" }));
+    assert.equal(response.status, 200);
+    const body = await json<{ ready: boolean; preview: { caddy: { added: string[] } } }>(response);
+    assert.equal(body.ready, true);
+    assert.deepEqual(body.preview.caddy.added, [
+      "http://docs.lyly.dev {",
+      `\troot * ${SITES_ROOT}/docs.lyly.dev`,
+      "\tfile_server",
+      "}",
+    ]);
+  });
+
+  test("writes nothing — the Caddyfile is byte-identical afterwards", async () => {
+    const before = fakeFs.readFile(CADDYFILE);
+    const beforeTunnel = fakeFs.readFile(TUNNEL_CONFIG);
+    await request("/sites/preview", form({ hostname: "docs.lyly.dev", type: "static" }));
+    assert.equal(fakeFs.readFile(CADDYFILE), before);
+    assert.equal(fakeFs.readFile(TUNNEL_CONFIG), beforeTunnel);
+  });
+
+  test("creates no site directory", async () => {
+    await request("/sites/preview", form({ hostname: "docs.lyly.dev", type: "static" }));
+    // hasDir/hasFile, not exists — the in-memory fake exposes those two
+    // (src/dev/fakes.ts), and the static-add test above already uses hasDir.
+    assert.equal(fakeFs.hasDir(path.join(SITES_ROOT, "docs.lyly.dev")), false);
+    assert.equal(fakeFs.hasFile(path.join(SITES_ROOT, "docs.lyly.dev", "index.html")), false);
+  });
+
+  test("an empty hostname is not ready and not an error — the form is merely early", async () => {
+    const response = await request("/sites/preview", form({ hostname: "", type: "static" }));
+    assert.equal(response.status, 200);
+    const body = await json<{ ready: boolean; error?: string }>(response);
+    assert.equal(body.ready, false);
+    assert.equal(body.error, undefined);
+  });
+
+  test("reports a duplicate hostname before submit, in the submit's own words", async () => {
+    const response = await request("/sites/preview", form({ hostname: "blog.lyly.dev", type: "static" }));
+    const body = await json<{ ready: boolean; error: string }>(response);
+    assert.equal(body.ready, false);
+    assert.equal(body.error, "blog.lyly.dev already exists in the Caddyfile");
+  });
+
+  test("reports a port conflict with the same string the submit would return", async () => {
+    const preview = await json<{ error: string }>(
+      await request("/sites/preview", form({ hostname: "docs.lyly.dev", type: "reverse-proxy", port: "4000" })),
+    );
+    const submit = await json<{ error: string }>(
+      await request("/sites", form({ hostname: "docs.lyly.dev", type: "reverse-proxy", port: "4000" })),
+    );
+    assert.equal(preview.error, submit.error);
+  });
+
+  test("marks the directory step as not running for a plain reverse proxy", async () => {
+    const response = await request(
+      "/sites/preview",
+      form({ hostname: "docs.lyly.dev", type: "reverse-proxy", port: "4100" }),
+    );
+    const body = await json<{ preview: { steps: { id: string; willRun: boolean }[] } }>(response);
+    const skipped = body.preview.steps.filter((step) => !step.willRun).map((step) => step.id);
+    assert.deepEqual(skipped, ["files"]);
+  });
+
+  test("requires authentication like every other route", async () => {
+    const response = await fetch(`${baseUrl}/sites/preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ hostname: "docs.lyly.dev" }).toString(),
+    });
+    assert.equal(response.status, 401);
+  });
+});
+
 describe("audit log", () => {
   test("records a line for a successful add", async () => {
     await request("/sites", form({ hostname: "new.lyly.dev", type: "static" }));
