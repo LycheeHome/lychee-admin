@@ -302,6 +302,181 @@ function validatePortField() {
 portField?.addEventListener("input", validatePortField);
 
 const addSiteForm = document.getElementById("add-site-form");
+
+// --- Add-site preview -----------------------------------------------------
+// Fetches what POST /sites would write and renders it beside the form. The
+// endpoint calls the same appendSite/addIngressRule the submit does, so this
+// panel cannot describe an edit that differs from the one performed.
+
+const composedHostname = document.getElementById("composed-hostname");
+const previewBody = document.getElementById("preview-body");
+const previewError = document.getElementById("preview-error");
+const previewDomain = composedHostname?.dataset.domain ?? "";
+
+// Responses can land out of order — a slow early request must never overwrite
+// a fast later one. Only the newest sequence number is allowed to render.
+let previewSequence = 0;
+let previewTimer;
+
+function composeHostname(label) {
+  const trimmed = label.trim().replace(/\.+$/, "");
+  if (!trimmed) return "";
+  const lower = trimmed.toLowerCase();
+  const domainLower = previewDomain.toLowerCase();
+  return lower === domainLower || lower.endsWith(`.${domainLower}`) ? trimmed : `${trimmed}.${previewDomain}`;
+}
+
+function renderComposedHostname(hostname) {
+  if (!composedHostname) return;
+  if (!hostname) {
+    composedHostname.textContent = "Add a site";
+    return;
+  }
+  const suffix = `.${previewDomain}`;
+  if (hostname.toLowerCase().endsWith(suffix.toLowerCase()) && hostname.length > suffix.length) {
+    const label = hostname.slice(0, hostname.length - suffix.length);
+    composedHostname.textContent = "";
+    composedHostname.append(label);
+    const dim = document.createElement("span");
+    dim.className = "text-stone-600";
+    dim.textContent = hostname.slice(hostname.length - suffix.length);
+    composedHostname.append(dim);
+    return;
+  }
+  composedHostname.textContent = hostname;
+}
+
+function previewLines(lines, className) {
+  const pre = document.createElement("pre");
+  pre.className = `font-mono text-[0.72rem] leading-[1.55] text-stone-50 bg-stone-900 border border-stone-700 rounded-md p-2.5 m-0 overflow-x-auto whitespace-pre [tab-size:4] ${className ?? ""}`;
+  pre.textContent = lines.join("\n");
+  return pre;
+}
+
+function previewSection(pathText, lines, contextAfter) {
+  const section = document.createElement("div");
+  section.className = "flex flex-col gap-1.5";
+
+  const label = document.createElement("p");
+  label.className = "font-mono text-[0.6875rem] font-medium tracking-[0.02em] text-stone-400 m-0 break-all";
+  label.textContent = pathText;
+  section.append(label);
+
+  const body = lines.slice();
+  if (contextAfter) body.push(contextAfter);
+  const pre = previewLines(body);
+  // Everything but the trailing context line is an addition. Colouring rather
+  // than prefixing with "+" keeps a YAML list dash from reading as a deletion.
+  if (contextAfter) {
+    pre.textContent = "";
+    const added = document.createElement("span");
+    added.className = "text-green-300";
+    added.textContent = `${lines.join("\n")}\n`;
+    const context = document.createElement("span");
+    context.className = "text-stone-600";
+    context.textContent = contextAfter;
+    pre.append(added, context);
+  } else {
+    pre.className += " text-green-300";
+  }
+  section.append(pre);
+  return section;
+}
+
+function markSkips(listId, steps) {
+  for (const step of steps ?? []) {
+    const row = document.querySelector(`#${listId} [data-step-id="${step.id}"]`);
+    const mark = row?.querySelector(".step-mark");
+    if (!mark) continue;
+    mark.textContent = step.willRun ? "" : STEP_MARKS.skipped;
+    mark.className = `step-mark ml-auto shrink-0 ${step.willRun ? "" : STEP_MARK_CLASSES.skipped}`;
+  }
+}
+
+function renderPreviewEmpty(message) {
+  if (!previewBody) return;
+  previewBody.textContent = "";
+  const line = document.createElement("p");
+  line.className = "text-stone-400 text-[0.8rem] leading-snug m-0";
+  line.textContent = message;
+  previewBody.append(line);
+  markSkips("add-site-steps", []);
+  resetSteps("add-site-steps");
+}
+
+function renderPreview(preview) {
+  if (!previewBody) return;
+  previewBody.textContent = "";
+  previewBody.append(previewSection(preview.caddy.path, preview.caddy.added, null));
+  previewBody.append(previewSection(preview.tunnel.path, preview.tunnel.added, preview.tunnel.contextAfter));
+
+  if (preview.files) {
+    previewBody.append(previewSection(preview.files.path, preview.files.creates, null));
+  }
+
+  markSkips("add-site-steps", preview.steps);
+}
+
+async function refreshPreview() {
+  if (!previewBody || !addSiteForm) return;
+
+  const data = new FormData(addSiteForm);
+  const hostname = composeHostname(String(data.get("hostname") ?? ""));
+  renderComposedHostname(hostname);
+
+  const sequence = ++previewSequence;
+  try {
+    const response = await fetch("/sites/preview", {
+      method: "POST",
+      body: new URLSearchParams({
+        hostname,
+        type: String(data.get("type") ?? "static"),
+        port: String(data.get("port") ?? "").trim(),
+        framework: String(data.get("framework") ?? "").trim(),
+        healthcheckPath: String(data.get("healthcheckPath") ?? "").trim(),
+      }),
+    });
+    if (sequence !== previewSequence) return;
+    if (!response.ok) return;
+
+    const result = await response.json();
+    if (sequence !== previewSequence) return;
+
+    if (result.ready) {
+      previewError?.classList.add("hidden");
+      renderPreview(result.preview);
+      return;
+    }
+
+    if (result.error) {
+      // Unhide before writing, for the same reason #add-site-error does:
+      // role="status" does not announce a mutation inside a hidden subtree.
+      previewError?.classList.remove("hidden");
+      if (previewError) previewError.textContent = result.error;
+      renderPreviewEmpty("Fix the problem above and the block appears here.");
+      return;
+    }
+
+    previewError?.classList.add("hidden");
+    renderPreviewEmpty("Name the site and the exact block and route appear here, before anything is written.");
+  } catch {
+    // A failed preview is a failed read. Keep the last good render and let the
+    // submit's own validation be the gate — never block adding a site on it.
+  }
+}
+
+function schedulePreview() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(refreshPreview, 250);
+}
+
+document.getElementById("hostname-field")?.addEventListener("input", schedulePreview);
+portField?.addEventListener("input", schedulePreview);
+frameworkField?.addEventListener("change", schedulePreview);
+document.getElementById("healthcheck-field")?.addEventListener("input", schedulePreview);
+typeInputs.forEach((input) => input.addEventListener("change", schedulePreview));
+if (document.getElementById("add-site-form")) refreshPreview();
+
 const addSiteError = document.getElementById("add-site-error");
 let addSiteInFlight = false;
 
