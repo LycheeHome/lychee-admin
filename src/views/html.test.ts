@@ -4,6 +4,7 @@ import type { Site } from "../lib/caddyfile";
 import { withoutHeader } from "../dev/testHelpers";
 import { renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
 import { BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, TYPE_PILL_PROXY } from "./shared";
+import { ADD_STEPS } from "../lib/stepReport";
 
 const STATIC_SITE: Site = { hostname: "blog.lyly.dev", type: "static", target: "/var/www/blog.lyly.dev" };
 const APEX_SITE: Site = { hostname: "lyly.dev", type: "static", target: "/var/www/lyly.dev" };
@@ -26,6 +27,11 @@ const OPTS = {
 };
 
 const SITES = [STATIC_SITE, APEX_SITE, PROXY_SITE, NEXT_SITE];
+
+const PATHS = {
+  caddyfilePath: "/etc/caddy/Caddyfile",
+  tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
+};
 
 /**
  * Returns the opening tag of the element with `id`, so an assertion is made
@@ -95,9 +101,20 @@ function listById(html: string, id: string): string {
   return match[0];
 }
 
+/**
+ * The whole <aside id="..."> ... </aside>, so a claim about the preview panel
+ * is anchored to it rather than to the document — where the same path string
+ * also appears in the form's own copy.
+ */
+function sectionById(html: string, id: string): string {
+  const match = html.match(new RegExp(`<aside[^>]* id="${id}"[^>]*>[\\s\\S]*?<\\/aside>`));
+  assert.ok(match, `no <aside id="${id}"> was rendered`);
+  return match[0];
+}
+
 describe("renderAddSite heading", () => {
   test("the add-site page's heading is a documented ramp step", () => {
-    const html = renderAddSite([], "lyly.dev", {});
+    const html = renderAddSite([], "lyly.dev", {}, PATHS);
     assert.match(html, /<h2 class="font-mono text-\[1\.7rem\]/);
     assert.doesNotMatch(html, /text-\[1\.35rem\]/);
   });
@@ -105,7 +122,7 @@ describe("renderAddSite heading", () => {
 
 describe("the hostname field", () => {
   test("the hostname field affixes the domain instead of hiding it in a placeholder", () => {
-    const html = renderAddSite(SITES, "lyly.dev", {});
+    const html = renderAddSite(SITES, "lyly.dev", {}, PATHS);
     const input = tagById(html, "hostname-field");
     assert.match(html, /id="hostname-suffix"[^>]*>\.lyly\.dev</);
     assert.match(input, /aria-describedby="[^"]*hostname-suffix/);
@@ -120,7 +137,7 @@ describe("the hostname field", () => {
     // ring relocated to the row wrapper via focus-within, so it encloses
     // both pieces as one control — same 2px rose outline, same offset,
     // relocated rather than duplicated.
-    const html = renderAddSite(SITES, "lyly.dev", {});
+    const html = renderAddSite(SITES, "lyly.dev", {}, PATHS);
     const row = tagById(html, "hostname-row");
     assert.match(row, /focus-within:outline\b/);
     assert.match(row, /focus-within:outline-2\b/);
@@ -133,22 +150,22 @@ describe("the hostname field", () => {
 
 describe("accessible status and error wiring", () => {
   test("the port field points at the message that explains a conflict", () => {
-    const input = tagById(renderAddSite(SITES, "lyly.dev", {}), "port-field");
+    const input = tagById(renderAddSite(SITES, "lyly.dev", {}, PATHS), "port-field");
     assert.match(input, /aria-describedby="port-error"/);
   });
 
   test("the port conflict message is the element the field names", () => {
-    const span = tagById(renderAddSite(SITES, "lyly.dev", {}), "port-error");
+    const span = tagById(renderAddSite(SITES, "lyly.dev", {}, PATHS), "port-error");
     assert.match(span, /class="[^"]*port-error/);
   });
 
   test("a port conflict is announced, not just shown", () => {
-    const error = tagById(renderAddSite(SITES, "lyly.dev", {}), "port-error");
+    const error = tagById(renderAddSite(SITES, "lyly.dev", {}, PATHS), "port-error");
     assert.match(error, /aria-live="polite"/);
   });
 
   test("a failed submit is announced, not only shown", () => {
-    const p = tagById(renderAddSite(SITES, "lyly.dev", {}), "add-site-error");
+    const p = tagById(renderAddSite(SITES, "lyly.dev", {}, PATHS), "add-site-error");
     assert.match(p, /role="alert"/);
   });
 
@@ -1149,7 +1166,7 @@ describe("hardening: browser defaults never carry the design", () => {
     assert.ok(back, "no back link rendered");
     assert.match(back[0], /focus-visible:outline-rose-400/);
 
-    const add = renderAddSite(SITES, "lyly.dev", {});
+    const add = renderAddSite(SITES, "lyly.dev", {}, PATHS);
     for (const value of ["static", "reverse-proxy"]) {
       const radio = add.match(new RegExp(`<input type="radio"[^>]*value="${value}"[^>]*>`));
       assert.ok(radio, `no ${value} radio rendered`);
@@ -1158,7 +1175,7 @@ describe("hardening: browser defaults never carry the design", () => {
   });
 
   test("a radio's accessible name is its option, not its explanation", () => {
-    const add = renderAddSite(SITES, "lyly.dev", {});
+    const add = renderAddSite(SITES, "lyly.dev", {}, PATHS);
     const radio = add.match(/<input type="radio"[^>]*value="static"[^>]*>/);
     assert.ok(radio);
     // The paragraph stays announced, as a description rather than a name.
@@ -1175,7 +1192,7 @@ describe("hardening: browser defaults never carry the design", () => {
   });
 
   test("no transition escapes the reduced-motion gate", () => {
-    const add = renderAddSite(SITES, "lyly.dev", {});
+    const add = renderAddSite(SITES, "lyly.dev", {}, PATHS);
     const list = renderSiteList(SITES, {}, "lyly.dev");
     for (const html of [add, list]) {
       assert.doesNotMatch(html, /(?<!motion-safe:)transition-colors/);
@@ -1254,7 +1271,7 @@ describe("small-text ramp", () => {
   });
 
   test("the type-option description clears AA on its raised card", () => {
-    const html = renderAddSite(SITES, "lyly.dev", {});
+    const html = renderAddSite(SITES, "lyly.dev", {}, PATHS);
     // Anchored to the two type-option <label> cards themselves, not the whole
     // document — a document-wide regex here would also catch the header
     // nav's unrelated bg-stone-700/text-stone-400 pairing and pass vacuously.
@@ -1268,12 +1285,66 @@ describe("small-text ramp", () => {
 
 describe("renderAddSite step list", () => {
   test("the add form states its steps in execution order", () => {
-    const html = renderAddSite(SITES, "lyly.dev", {});
+    const html = renderAddSite(SITES, "lyly.dev", {}, PATHS);
     const list = listById(html, "add-site-steps");
     for (const id of ["backup", "caddyfile", "files", "tunnel", "caddy", "cloudflared"]) {
       assert.match(list, new RegExp(`data-step-id="${id}"`));
     }
     assert.match(html, /If a step fails, the ones after it don't run\./);
     assert.match(html, /cloudflared-sites restarted/);
+  });
+});
+
+describe("the add-site preview panel", () => {
+  const html = renderAddSite(SITES, "lyly.dev", {}, PATHS);
+
+  test("takes the 1080px frame rather than the 760px reading column", () => {
+    const body = withoutHeader(html);
+    assert.doesNotMatch(body, /max-w-\[760px\]/, "add-site should no longer cap at the detail page's width");
+  });
+
+  test("puts the form and the panel in one grid that collapses below lg", () => {
+    const grid = tagById(html, "add-site-columns");
+    assert.match(grid, /grid-cols-1/);
+    assert.match(grid, /lg:grid-cols-\[1fr_400px\]/);
+  });
+
+  test("names both files it is going to edit, before anything is typed", () => {
+    const panel = sectionById(html, "write-preview");
+    assert.match(panel, /\/etc\/caddy\/Caddyfile/);
+    assert.match(panel, /\/etc\/cloudflared\/sites-config\.yml/);
+  });
+
+  test("renders the step list inside the panel, keeping the id the submit handler marks", () => {
+    const panel = sectionById(html, "write-preview");
+    assert.match(panel, /id="add-site-steps"/);
+  });
+
+  test("every step keeps its data-step-id, so a failed submit can still mark it", () => {
+    const list = listById(html, "add-site-steps");
+    for (const step of ADD_STEPS) {
+      assert.match(list, new RegExp(`data-step-id="${step.id}"`));
+    }
+  });
+
+  test("the panel's error region is announced, since a duplicate hostname is actionable", () => {
+    const error = tagById(html, "preview-error");
+    assert.match(error, /role="status"/);
+  });
+
+  test("the panel itself is not a live region — announcing a config block per keystroke is hostile", () => {
+    const panel = tagById(html, "write-preview");
+    assert.doesNotMatch(panel, /aria-live/);
+  });
+
+  test("the headline carries an element the client can retype as the hostname", () => {
+    assert.ok(tagById(html, "composed-hostname"));
+  });
+
+  test("the port branch keeps the 2px Ember Edge rule DESIGN.md documents", () => {
+    const branch = withoutHeader(html).match(/<div class="port-input[^"]*"/);
+    assert.ok(branch);
+    assert.match(branch[0], /border-l-2/);
+    assert.match(branch[0], /border-l-rose-800/);
   });
 });

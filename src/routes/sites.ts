@@ -102,7 +102,12 @@ export function createSitesRouter(deps: Deps): Router {
   sitesRouter.get("/sites/new", (req, res) => {
     const content = deps.fs.readFile(config.caddyfilePath);
     const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname, config.domain));
-    res.send(renderAddSite(sites, config.domain, computePortOwners(sites)));
+    res.send(
+      renderAddSite(sites, config.domain, computePortOwners(sites), {
+        caddyfilePath: config.caddyfilePath,
+        tunnelConfigPath: config.tunnelConfigPath,
+      }),
+    );
   });
 
   sitesRouter.get("/sites/:hostname", async (req, res) => {
