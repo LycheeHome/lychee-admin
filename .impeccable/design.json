@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-25T20:00:00Z",
+  "generatedAt": "2026-08-27T18:03:14Z",
   "title": "Design System: lyly-admin",
   "extensions": {
     "colorMeta": {
@@ -151,7 +151,7 @@
       },
       "title": {
         "displayName": "Title",
-        "purpose": "A site card's hostname in the list. The only other use of the display face."
+        "purpose": "A list row's hostname. The only other use of the display face."
       },
       "eyebrow": {
         "displayName": "Eyebrow",
@@ -243,9 +243,9 @@
         "purpose": "A reading column applied inside the frame by a page holding one kind of content. The site detail page caps here: everything on it is a sentence to read or a command to copy, with nothing to put beside them."
       },
       {
-        "name": "grid-track",
-        "value": "minmax(280px, 1fr)",
-        "purpose": "Auto-fill site card track, 20px gutters."
+        "name": "status-column",
+        "value": "9rem",
+        "purpose": "Reserved width for a list row's status pill, sized to the longest status word (not responding) plus its dot. Released below sm, where holding it open would starve the hostname."
       },
       {
         "name": "header",
@@ -380,7 +380,7 @@
       },
       {
         "name": "The Three-Tone Status Rule",
-        "body": "Site state resolves to exactly three tones: Clear, Scorch, or Smoke. starting, unknown and not deployed are Smoke, never Scorch — a container still running its first health check is not broken, a status we failed to read is not evidence that anything is down, and a container that was never created (or was deliberately taken down) has not crashed. Scorch is reserved for something that tried and failed, so that red keeps meaning \"this needs you now\". Never invent a fourth tone, and never let a tone appear without the canonical status word beside it — that second clause is what makes the first safe, because the word carries which state it is while the tone carries only how bad it is.",
+        "body": "Site state resolves to exactly three tones: Clear, Scorch, or Smoke. starting, unknown and not deployed are Smoke, never Scorch — a container still running its first health check is not broken, a status we failed to read is not evidence that anything is down, and a container that was never created (or was deliberately taken down) has not crashed. Scorch is reserved for something that tried and failed, so that red keeps meaning \"this needs you now\": a site that has simply never been deployed must not look like one that died. Never invent a fourth tone, and never let a tone marking site state appear without the canonical status word beside it — that second clause is what makes the first safe, because the word carries which state it is while the tone carries only how bad it is. The what-gets-written panel's Clear-marked added lines are the one place Clear appears without a status word, because marking a diff addition is not a site-state verdict for this rule to govern. not deployed and unknown share Smoke and stay unambiguous.",
         "section": "colors"
       },
       {
@@ -390,7 +390,7 @@
       },
       {
         "name": "The Dim-Text Rule",
-        "body": "Dim text is Smoke, not Smoke Deep. Smoke Deep carries readable text in exactly one role — the .lyly.dev suffix on a Headline, which at 27px is WCAG large text and clears the 3:1 that applies there. At any smaller size it fails the 4.5:1 that applies instead (3.16:1 on a card), so every label, key, caption and hop sub-line takes Smoke. Two things sit outside that test because neither is text you read to learn something: the breadcrumb's decorative slash, marked aria-hidden, and a disabled control's label, which takes Smoke Deep on purpose because WCAG 1.4.3 exempts text in an inactive user interface component and dimness past the readable floor is the signal. A disabled control must never keep a hover fill underneath it.",
+        "body": "Dim text is Smoke, not Smoke Deep. Smoke Deep carries readable text in exactly one role — the .lyly.dev suffix on a Headline, which at 27px is WCAG large text and clears the 3:1 that applies there. At any smaller size it fails the 4.5:1 that applies instead (3.16:1 on a card), so every label, key, caption, and hop sub-line takes Smoke. When a new dim role appears, the question is not \"how dim can this be\" but \"does it clear 4.5:1 on both Hearth and Hearth Lift.\" Two things are deliberately outside that test, because neither is text you read to learn something. The breadcrumb's / is decorative punctuation between two links, and is marked aria-hidden to say so. And a disabled control's label takes Smoke Deep on purpose: WCAG 1.4.3 exempts text that is part of an inactive user interface component, and dimness past the readable floor is precisely the signal that the control is not yours to press right now. That exemption is not a license to dim anything inconvenient — it applies only while the control is genuinely disabled, and it is why a disabled control must never keep a hover fill underneath it (measured at 2.09:1 the one time it did, which is unreadable rather than merely dim).",
         "section": "colors"
       },
       {
@@ -400,22 +400,22 @@
       },
       {
         "name": "The Signature-Twice Rule",
-        "body": "Poetsen One appears in exactly two places: the wordmark and a site card's hostname. It is never a page heading, never above 1.5rem, never body copy, and never used for emphasis. The family also ships a single weight — do not request 600 and let the browser synthesize it.",
+        "body": "Poetsen One appears in exactly two places: the wordmark and a list row's hostname. It is never a page heading, never above 1.5rem, never body copy, and never used for emphasis. The family also ships a single weight — do not request 600 and let the browser synthesize it.",
         "section": "typography"
       },
       {
         "name": "The Uppercase-Is-Structural Rule",
-        "body": "Uppercase with letterspacing marks structure, never emphasis inside prose. Tracking widens as size shrinks (0.85rem/0.08em to 0.75rem/0.1em to 0.6875rem/0.09em) so the smallest labels stay readable. Emphasis inside a sentence uses Chalk against Smoke, or strong, not caps.",
+        "body": "Uppercase with letterspacing marks structure, never emphasis inside prose. Tracking widens as size shrinks (0.85rem/0.08em → 0.75rem/0.1em → 0.6875rem/0.09em) so the smallest labels stay readable. Emphasis inside a sentence uses Chalk against Smoke, or <strong>, not caps.",
         "section": "typography"
       },
       {
         "name": "The Show-It Rule",
-        "body": "There is one operator and one wide viewport, so content is never folded, capped, truncated with an ellipsis, or put inside an inner scroll box. A generated workflow file renders at full height. The single exception is horizontal overflow on a one-line command, which must not wrap: overflow-x auto with white-space nowrap. Long values wrap by breaking characters, never by being cut.",
+        "body": "There is one operator and one wide viewport, so content is never folded, capped, truncated with an ellipsis, or put inside an inner scroll box. A generated workflow file renders at full height. The single exception is horizontal overflow on a one-line command, which must not wrap: overflow-x: auto with white-space: nowrap. Long values wrap by breaking characters (break-all), never by being cut.",
         "section": "layout"
       },
       {
         "name": "The Frame-And-Column Rule",
-        "body": "1080px is the page frame — the header band, the shell's <main>, and any page holding two kinds of content that belong side by side. 760px is a reading column, applied inside that frame by a page holding one. No width ever lengthens a line of prose past ~70ch: on the add-site page the frame buys a second column and the form column is 656px, narrower than the 760 it replaced. The site list fills the frame because its rows need the width to align a reserved status column; the detail page caps at 760 because everything on it is a sentence to read or a command to copy and it has nothing to put beside them. The system holds exactly two numbers and never a third.",
+        "body": "1080px is the page frame — the header band, the shell's <main>, and any page holding two kinds of content that belong side by side. 760px is a reading column, applied *inside* that frame by a page holding one. No width ever lengthens a line of prose past ~70ch: on the add-site page the frame buys a second column and the form column is 656px, narrower than the 760 it replaced. The site list fills the frame because its rows need the width to align a reserved status column; the detail page caps at 760 because everything on it is a sentence to read or a command to copy and it has nothing to put beside them. The system holds exactly two numbers and never a third.",
         "section": "layout"
       },
       {
@@ -435,7 +435,7 @@
       },
       {
         "name": "The Coupled-Inset Rule",
-        "body": "Every copy button in the app is one size (16px icon to 26px button) at one inset (6px), pinned center-right in a single-line block and top-right in a multi-line one. The code block's 10px vertical padding and 44px right padding are chosen against those numbers to balance the gap and keep the button off the text. Change any one of the four and recompute the others.",
+        "body": "Every copy button in the app is one size (16px icon → 26px button) at one inset (6px), pinned center-right in a single-line block and top-right in a multi-line one. The code block's 10px vertical padding and 44px right padding are chosen against those numbers to balance the gap and keep the button off the text. Change any one of the four and recompute the others.",
         "section": "components"
       }
     ],
@@ -443,7 +443,7 @@
       "Do set every machine fact in DM Mono and every human sentence in Nunito. A path in Nunito is a bug.",
       "Do reserve Ember for what the operator can act on, and keep it under ~10% of any screen.",
       "Do give starting and unknown the neutral Smoke tone. They are not failures.",
-      "Do show a status word with every status color — the dot and the tone are never the whole message.",
+      "Do show a status word with every tone that marks site state — the dot and the tone are never the whole message. The what-gets-written panel's Clear-marked added lines are the one exception, because a diff addition is not a site-state verdict.",
       "Do let long hostnames, paths, and commands break or scroll (break-all, or overflow-x auto plus nowrap for one-liners).",
       "Do put remediation beside the hop that reported the problem, not in a numbered step list.",
       "Do check a dim tone against both grounds before using it on text: 4.5:1 on Hearth and Hearth Lift below 24px, 3:1 at or above it.",
@@ -454,7 +454,7 @@
     ],
     "donts": [
       "Don't fold, cap, truncate, or add an inner scrollbar to content the operator might read. One operator, one wide viewport.",
-      "Don't use Poetsen One anywhere except the wordmark and a site card's hostname, and never above 1.5rem or at a weight it doesn't ship.",
+      "Don't use Poetsen One anywhere except the wordmark and a list row's hostname, and never above 1.5rem or at a weight it doesn't ship.",
       "Don't fill a destructive button with Ember or make it the largest control on screen — Scorch outline, one size down.",
       "Don't introduce a second accent hue, a gradient, or a chart. This app has no metrics to visualize.",
       "Don't add a shadow to a card, a pill, or anything else sitting in normal document flow.",
