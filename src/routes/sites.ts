@@ -4,7 +4,7 @@ import { config } from "../config";
 import * as caddyfile from "../lib/caddyfile";
 import * as tunnelConfig from "../lib/tunnelConfig";
 import { CommandError } from "../lib/systemCommands";
-import { getFrameworkScaffold } from "../lib/frameworkScaffold";
+import { getFrameworkScaffold, getScaffoldFiles } from "../lib/frameworkScaffold";
 import { checkPortOpen } from "../lib/portStatus";
 import { ADD_STEPS, REMOVE_STEPS, createStepReport } from "../lib/stepReport";
 import { renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "../views/html";
@@ -267,12 +267,10 @@ export function createSitesRouter(deps: Deps): Router {
         });
       } else if (framework) {
         await report.run("files", async () => {
-          const scaffold = getFrameworkScaffold(framework, port, hostname, config.sitesRoot, healthcheckPath ?? "/");
-          if (!scaffold) return;
+          const files = getScaffoldFiles(framework, port, hostname, config.sitesRoot, healthcheckPath ?? "/");
+          if (!files) return;
           await deps.commands.createSiteDirectory(hostname);
-          deps.fs.writeFile(path.join(sitePath, "Dockerfile"), scaffold.dockerfile);
-          deps.fs.writeFile(path.join(sitePath, "docker-compose.yml"), scaffold.compose);
-          deps.fs.writeFile(path.join(sitePath, ".dockerignore"), scaffold.dockerignore);
+          for (const file of files) deps.fs.writeFile(path.join(sitePath, file.name), file.content);
         });
       } else {
         // A plain reverse-proxy site has no directory to create. This is not
