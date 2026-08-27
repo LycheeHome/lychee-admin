@@ -8,7 +8,7 @@ import { getFrameworkScaffold, getScaffoldFiles } from "../lib/frameworkScaffold
 import { checkPortOpen } from "../lib/portStatus";
 import { ADD_STEPS, REMOVE_STEPS, createStepReport } from "../lib/stepReport";
 import {
-  isManagedHostname as isManaged,
+  isManagedHostname,
   isValidHostname,
   readSiteInput,
   validateAgainstExisting,
@@ -87,7 +87,7 @@ export function createSitesRouter(deps: Deps): Router {
 
     try {
       const content = deps.fs.readFile(config.caddyfilePath);
-      const sites = caddyfile.parseSites(content).filter((site) => isManaged(site.hostname, config.domain));
+      const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname, config.domain));
 
       res.send(renderSiteList(sites, await computeStatuses(sites, deps), config.domain, undefined, { page: "sites" }, notice));
     } catch (error) {
@@ -101,7 +101,7 @@ export function createSitesRouter(deps: Deps): Router {
   // :hostname, fail isManagedHostname, and 404 instead of rendering the form.
   sitesRouter.get("/sites/new", (req, res) => {
     const content = deps.fs.readFile(config.caddyfilePath);
-    const sites = caddyfile.parseSites(content).filter((site) => isManaged(site.hostname, config.domain));
+    const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname, config.domain));
     res.send(renderAddSite(sites, config.domain, computePortOwners(sites)));
   });
 
@@ -111,7 +111,7 @@ export function createSitesRouter(deps: Deps): Router {
 
     try {
       const content = deps.fs.readFile(config.caddyfilePath);
-      const sites = caddyfile.parseSites(content).filter((s) => isManaged(s.hostname, config.domain));
+      const sites = caddyfile.parseSites(content).filter((s) => isManagedHostname(s.hostname, config.domain));
       const site = sites.find((s) => s.hostname === hostname);
 
       // Read for display only, so an unreadable tunnel config must not take the
