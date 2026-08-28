@@ -97,8 +97,8 @@ components:
     backgroundColor: "{colors.ember}"
     textColor: "{colors.hearth}"
     rounded: "{rounded.control}"
-    padding: "0 16px"
-    height: "40px"
+    padding: "10px 16px"
+    minHeight: "40px"
   button-primary-hover:
     backgroundColor: "{colors.ember-light}"
     textColor: "{colors.hearth}"
@@ -106,8 +106,8 @@ components:
     backgroundColor: "{colors.hairline-strong}"
     textColor: "{colors.chalk}"
     rounded: "{rounded.control}"
-    padding: "0 16px"
-    height: "40px"
+    padding: "10px 16px"
+    minHeight: "40px"
   button-secondary-hover:
     backgroundColor: "{colors.hairline}"
     textColor: "{colors.chalk}"
@@ -115,8 +115,8 @@ components:
     backgroundColor: "transparent"
     textColor: "{colors.scorch}"
     rounded: "{rounded.control}"
-    padding: "0 12px"
-    height: "32px"
+    padding: "6px 12px"
+    minHeight: "32px"
   button-danger-hover:
     backgroundColor: "{colors.scorch-rule}"
     textColor: "{colors.chalk}"
@@ -559,13 +559,17 @@ exceptions to it.
 ### Buttons
 
 - **Shape:** Softly squared (6px radius), always `inline-flex` with a 6px gap so
-  a 1em icon sits on the text baseline without extra markup. Height is stated,
-  not derived from padding — 40px for primary and secondary, 32px for danger —
-  because a flex row's default `align-items: stretch` otherwise resizes the
-  shortest control to match its tallest sibling, which had the danger button
-  rendering at 33.2px in the Danger card and 42px in the confirm dialog.
-- **Primary:** Ember fill, Hearth text, semibold Nunito at 0.875rem, 16px
-  horizontal padding and a stated 40px height (no vertical padding). Used once
+  a 1em icon sits on the text baseline without extra markup. Height is a floor,
+  not a fixed value: `min-height` guarantees the resting size — 40px for primary
+  and secondary, 32px for danger — while padding and content can still grow the
+  button past it, which is what lets a long `Remove <hostname>` label wrap to two
+  lines instead of spilling outside its own outline. The footers that pair two
+  buttons take `items-center`, because a flex row's default `align-items: stretch`
+  otherwise resizes the shortest control to match its tallest sibling — which had
+  the danger button rendering at 33.2px in the Danger card and 42px in the
+  confirm dialog.
+- **Primary:** Ember fill, Hearth text, semibold Nunito at 0.875rem, 10px
+  vertical and 16px horizontal padding over a 40px minimum height. Used once
   per view for its one forward action — "Add site", "Visit". Hover goes Ember
   Light.
 - **Secondary:** A Hairline Strong fill with Chalk text, same size as primary,
@@ -577,9 +581,9 @@ exceptions to it.
   unmistakable as a surface, and the dialog is where it was faintest and where
   it sits beside the one irreversible action.
 - **Danger:** Transparent with a Scorch Border outline and Scorch text, one step
-  smaller (0.8rem, 12px horizontal padding and a stated 32px height) — a
-  destructive action is never the largest button on screen. Hover fills Scorch
-  Rule with Chalk text.
+  smaller (0.8rem, 6px vertical and 12px horizontal padding over a 32px minimum
+  height) — a destructive action is never the largest button on screen. Hover
+  fills Scorch Rule with Chalk text.
 - **Disabled:** Smoke Deep text and `cursor: not-allowed`, with the danger
   button — the only outlined button left in the system — dropping its outline
   to Hairline, and the secondary's fill dissolving to transparent while the
