@@ -529,9 +529,10 @@ conditional branch — the port, framework, and healthcheck fields sit behind a
 system where a border carries meaning rather than edge definition.
 
 Icons are 24×24 stroked line icons at `1em`, `stroke-width: 2`, round caps and
-joins, inheriting `currentColor` — plus, trash, clipboard, check, external link.
-Status is marked by a `●` glyph inside the pill, not by an icon. Nothing in the
-system is filled, gradient-filled, or beveled.
+joins, inheriting `currentColor` — plus, trash, clipboard, check, external
+link, chevron down, layout grid. Status is marked by a `●` glyph inside the
+pill, not by an icon. Nothing in the system is filled, gradient-filled, or
+beveled.
 
 ### Named Rules
 
@@ -539,15 +540,19 @@ system is filled, gradient-filled, or beveled.
 round states one word. A new component takes the step matching its role — never a
 value between steps, and never a large radius to look friendlier.
 
-**The Icon-Says-Direction Rule.** A button's icon states which way the action
-goes, so its position is not decorative. A **leading** icon names the action's
-category — `plus` for "this creates something", `trash` for "this destroys
-something". A **trailing** icon means the action leaves the app, which is why
-"Visit" carries `external-link` on the right and nothing else does. **No icon**
-means the surface you are already on has stated the action: the add-site page's
-submit button is a bare "Add site" because the heading above it already reads
-"Add a site", and a `plus` there would say it twice. A button never carries an
-icon on both sides, and a purely decorative icon is not a fourth option.
+**The Icon-Says-Direction Rule.** In a button that pairs an icon with a text
+label, the icon's position states which way the action goes — not decoration.
+A **leading** icon names the action's category — `plus` for "this creates
+something", `trash` for "this destroys something". A **trailing** icon means
+the action leaves the app, which is why "Visit" carries `external-link` on
+the right and nothing else does. **No icon** means the surface you are
+already on has stated the action: the add-site page's submit button is a bare
+"Add site" because the heading above it already reads "Add a site", and a
+`plus` there would say it twice. A button never carries an icon on both
+sides, and a purely decorative icon is not a fourth option. An icon-only
+control — the copy button — and a label-only control with nothing to add,
+like Cancel, sit outside this rule's domain rather than counting as
+exceptions to it.
 
 ## Components
 
@@ -577,15 +582,19 @@ icon on both sides, and a purely decorative icon is not a fourth option.
   Rule with Chalk text.
 - **Disabled:** Smoke Deep text and `cursor: not-allowed`, with the danger
   button — the only outlined button left in the system — dropping its outline
-  to Hairline, the secondary's fill dissolving to transparent, and the
-  primary's fill taken to 40% Ember. **Tone, never opacity** — this system says
-  "not actionable" by
-  going dim in the palette, the same way `starting` and `not deployed` say "not
-  a failure". A blanket `opacity` would fade the border and text together at a
-  rate the palette never chose, and nothing else here uses transparency as a
-  signal. Disabled is a real state on this app's buttons, not a theoretical one:
-  both mutating flows disable their confirm control for the length of a service
-  restart, and the sighted operator needs to see that their click landed.
+  to Hairline, and the secondary's fill dissolving to transparent while the
+  primary's fill is taken to 40% Ember. The two disabled treatments differ
+  because their enabled states differ: the secondary's enabled look *is* its
+  fill, so removing that fill is the strongest available "not yours to press"
+  signal, while the danger button has no fill to remove and so dims its
+  outline instead. **Tone, never opacity** — this system says "not actionable"
+  by going dim in the palette, the same way `starting` and `not deployed` say
+  "not a failure". A blanket `opacity` would fade the border and text together
+  at a rate the palette never chose, and nothing else here uses transparency
+  as a signal. Disabled is a real state on this app's buttons, not a
+  theoretical one: both mutating flows disable their confirm control for the
+  length of a service restart, and the sighted operator needs to see that
+  their click landed.
 - **Pressed:** A 1px downward `translate`, gated behind `motion-safe`. Not a
   shadow — The Flat-At-Rest Rule allows shadow for "you are touching it right
   now", but a transform satisfies the intent without putting depth at rest, and
