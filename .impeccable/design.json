@@ -437,6 +437,11 @@
         "name": "The Coupled-Inset Rule",
         "body": "Every copy button in the app is one size (16px icon → 26px button) at one inset (6px), pinned center-right in a single-line block and top-right in a multi-line one. The code block's 10px vertical padding and 44px right padding are chosen against those numbers to balance the gap and keep the button off the text. Change any one of the four and recompute the others.",
         "section": "components"
+      },
+      {
+        "name": "The Icon-Says-Direction Rule",
+        "body": "A button's icon states which way the action goes, so its position is not decorative. A leading icon names the action's category — plus for \"this creates something\", trash for \"this destroys something\". A trailing icon means the action leaves the app, which is why \"Visit\" carries external-link on the right and nothing else does. No icon means the surface you are already on has stated the action: the add-site page's submit button is a bare \"Add site\" because the heading above it already reads \"Add a site\", and a plus there would say it twice. A button never carries an icon on both sides, and a purely decorative icon is not a fourth option.",
+        "section": "shapes"
       }
     ],
     "dos": [

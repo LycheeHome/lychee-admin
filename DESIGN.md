@@ -539,6 +539,16 @@ system is filled, gradient-filled, or beveled.
 round states one word. A new component takes the step matching its role — never a
 value between steps, and never a large radius to look friendlier.
 
+**The Icon-Says-Direction Rule.** A button's icon states which way the action
+goes, so its position is not decorative. A **leading** icon names the action's
+category — `plus` for "this creates something", `trash` for "this destroys
+something". A **trailing** icon means the action leaves the app, which is why
+"Visit" carries `external-link` on the right and nothing else does. **No icon**
+means the surface you are already on has stated the action: the add-site page's
+submit button is a bare "Add site" because the heading above it already reads
+"Add a site", and a `plus` there would say it twice. A button never carries an
+icon on both sides, and a purely decorative icon is not a fourth option.
+
 ## Components
 
 ### Buttons
