@@ -5,5 +5,18 @@
     "typescript-lsp@claude-plugins-official": true,
     "playwright@claude-plugins-official": true,
     "impeccable@impeccable": true
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/design-variants-reminder.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
   }
 }
