@@ -1274,6 +1274,29 @@ describe("hardening: browser defaults never carry the design", () => {
       `danger h-${step(BUTTON_DANGER)} is not smaller than primary h-${step(BUTTON_PRIMARY)}`,
     );
   });
+
+  test("buttons transition their state changes, gated behind motion-safe", () => {
+    // DESIGN.md's motion table already claimed a 150ms state-transition for
+    // "cards, buttons and option rows". Cards and option rows had it; the
+    // button constants did not. This closes that gap rather than adding a
+    // new claim.
+    for (const c of [BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_DANGER]) {
+      assert.match(c, /motion-safe:transition-colors/, `no gated transition in: ${c}`);
+      assert.match(c, /motion-safe:duration-150/, `no 150ms duration in: ${c}`);
+      assert.doesNotMatch(c, /(?<!motion-safe:)transition-colors/, `ungated transition in: ${c}`);
+    }
+  });
+
+  test("a pressed button moves, and only for viewers who want motion", () => {
+    // The Flat-At-Rest Rule already allows for "you are touching it right
+    // now"; nothing in the app had ever used that clause. A 1px translate
+    // satisfies it without introducing a resting shadow, which is what made
+    // the rejected Keycap variant expensive.
+    for (const c of [BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_DANGER]) {
+      assert.match(c, /motion-safe:active:translate-y-px/, `no press state in: ${c}`);
+      assert.doesNotMatch(c, /(?<!motion-safe:)active:translate/, `ungated press in: ${c}`);
+    }
+  });
 });
 
 describe("small-text ramp", () => {
