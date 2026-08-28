@@ -1218,6 +1218,38 @@ describe("hardening: browser defaults never carry the design", () => {
       assert.doesNotMatch(c, /disabled:opacity/);
     }
   });
+
+  test("the secondary is a filled object, not an outline", () => {
+    // Measured: a Hairline Strong 1px outline is 2.29:1 on Hearth and 1.99:1
+    // on Hearth Lift — invisible as a line, unmistakable as a surface. Same
+    // token, different amount of it.
+    assert.match(BUTTON_SECONDARY, /\bbg-stone-600\b/);
+    assert.match(BUTTON_SECONDARY, /\btext-stone-50\b/);
+    assert.match(BUTTON_SECONDARY, /\bborder-none\b/);
+    assert.doesNotMatch(BUTTON_SECONDARY, /\bborder-stone-600\b/);
+  });
+
+  test("the secondary's hover recedes toward the ground, it does not brighten", () => {
+    // Chalk on Hairline is 9.85:1. Brightening to Smoke Deep would have been
+    // 4.61:1 — inside AA, but the weakest ratio in a system that runs 6-9:1.
+    // Asserted as a property (hover step is darker than rest) rather than a
+    // literal, so the direction survives a future retune of either token.
+    const rest = BUTTON_SECONDARY.match(/\bbg-stone-(\d+)\b/);
+    const hover = BUTTON_SECONDARY.match(/\bhover:bg-stone-(\d+)\b/);
+    assert.ok(rest, "secondary has no resting stone fill");
+    assert.ok(hover, "secondary has no stone hover fill");
+    assert.ok(
+      Number(hover[1]) > Number(rest[1]),
+      `hover fill stone-${hover[1]} should be darker than rest fill stone-${rest[1]}`,
+    );
+  });
+
+  test("a disabled secondary dissolves into the page rather than staying solid", () => {
+    // The enabled/disabled distinction is now fill-versus-none, which is a
+    // louder signal than the text-tone change it used to be.
+    assert.match(BUTTON_SECONDARY, /disabled:bg-transparent/);
+    assert.match(BUTTON_SECONDARY, /disabled:hover:bg-transparent/);
+  });
 });
 
 describe("small-text ramp", () => {
