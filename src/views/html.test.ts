@@ -1250,6 +1250,30 @@ describe("hardening: browser defaults never carry the design", () => {
     assert.match(BUTTON_SECONDARY, /disabled:bg-transparent/);
     assert.match(BUTTON_SECONDARY, /disabled:hover:bg-transparent/);
   });
+
+  test("every button states its own height instead of inheriting one", () => {
+    // Measured before this change: the primary was 40px on the list header
+    // and 42px in the add-site footer; the danger button was 33.2px in the
+    // Danger card and 42px in the confirm dialog — the same component at two
+    // sizes, because a flex row's default align-items:stretch resized it.
+    // An explicit height wins over stretch (stretch only applies when the
+    // cross size is auto), so the fix is a height, not a container change.
+    for (const c of [BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_DANGER]) {
+      assert.match(c, /\bh-\d+\b/, `no explicit height in: ${c}`);
+      assert.doesNotMatch(c, /\bpy-[\d.]+\b/, `height still derived from padding in: ${c}`);
+    }
+  });
+
+  test("the danger button stays one size down from the primary", () => {
+    // The Scorch-Is-Not-Ember Rule: a destructive action is never the largest
+    // control on screen. Stretch defeated this in the dialog before Task 2.
+    const step = (c: string) => Number(c.match(/\bh-(\d+)\b/)![1]);
+    assert.equal(step(BUTTON_PRIMARY), step(BUTTON_SECONDARY));
+    assert.ok(
+      step(BUTTON_DANGER) < step(BUTTON_PRIMARY),
+      `danger h-${step(BUTTON_DANGER)} is not smaller than primary h-${step(BUTTON_PRIMARY)}`,
+    );
+  });
 });
 
 describe("small-text ramp", () => {
