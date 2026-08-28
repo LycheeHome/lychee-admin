@@ -98,14 +98,16 @@ components:
     textColor: "{colors.hearth}"
     rounded: "{rounded.control}"
     padding: "10px 16px"
+    minHeight: "40px"
   button-primary-hover:
     backgroundColor: "{colors.ember-light}"
     textColor: "{colors.hearth}"
   button-secondary:
-    backgroundColor: "transparent"
-    textColor: "{colors.smoke}"
+    backgroundColor: "{colors.hairline-strong}"
+    textColor: "{colors.chalk}"
     rounded: "{rounded.control}"
     padding: "10px 16px"
+    minHeight: "40px"
   button-secondary-hover:
     backgroundColor: "{colors.hairline}"
     textColor: "{colors.chalk}"
@@ -114,6 +116,7 @@ components:
     textColor: "{colors.scorch}"
     rounded: "{rounded.control}"
     padding: "6px 12px"
+    minHeight: "32px"
   button-danger-hover:
     backgroundColor: "{colors.scorch-rule}"
     textColor: "{colors.chalk}"
@@ -260,9 +263,11 @@ carry a verdict.
 - **Hairline** (`stone-700`): Borders on cards, dialogs, inputs and code blocks;
   the divider rule inside a card (`1px`); the fill of the `static` type pill and
   the neutral status pill; the hover fill of secondary buttons.
-- **Hairline Strong** (`stone-600`): The one step where a border must be seen
-  against Hairline — the secondary button's outline, the `static` pill's edge,
-  and the arrows between routing hops.
+- **Hairline Strong** (`stone-600`): The secondary button's fill, the `static`
+  pill's edge, and the arrows between routing hops. It carries Chalk at 7.32:1
+  as a surface, having been unusable as a 1px line against Hearth (2.29:1) or
+  Hearth Lift (1.99:1) — the same token reads completely differently depending
+  on how much of it there is.
 - **Smoke Deep** (`stone-500`): Structure, not prose. Arrows between routing
   hops, the breadcrumb's `/`, and the trailing `.lyly.dev` of a hostname at
   Headline size. It measures 3.64:1 on Hearth and 3.16:1 on Hearth Lift, so it
@@ -524,9 +529,10 @@ conditional branch — the port, framework, and healthcheck fields sit behind a
 system where a border carries meaning rather than edge definition.
 
 Icons are 24×24 stroked line icons at `1em`, `stroke-width: 2`, round caps and
-joins, inheriting `currentColor` — plus, trash, clipboard, check, external link.
-Status is marked by a `●` glyph inside the pill, not by an icon. Nothing in the
-system is filled, gradient-filled, or beveled.
+joins, inheriting `currentColor` — plus, trash, clipboard, check, external
+link, chevron down, layout grid. Status is marked by a `●` glyph inside the
+pill, not by an icon. Nothing in the system is filled, gradient-filled, or
+beveled.
 
 ### Named Rules
 
@@ -534,30 +540,69 @@ system is filled, gradient-filled, or beveled.
 round states one word. A new component takes the step matching its role — never a
 value between steps, and never a large radius to look friendlier.
 
+**The Icon-Says-Direction Rule.** In a button that pairs an icon with a text
+label, the icon's position states which way the action goes — not decoration.
+A **leading** icon names the action's category — `plus` for "this creates
+something", `trash` for "this destroys something". A **trailing** icon means
+the action leaves the app, which is why "Visit" carries `external-link` on
+the right and nothing else does. **No icon** means the surface you are
+already on has stated the action: the add-site page's submit button is a bare
+"Add site" because the heading above it already reads "Add a site", and a
+`plus` there would say it twice. A button never carries an icon on both
+sides, and a purely decorative icon is not a fourth option. An icon-only
+control — the copy button — and a label-only control with nothing to add,
+like Cancel, sit outside this rule's domain rather than counting as
+exceptions to it.
+
 ## Components
 
 ### Buttons
 
 - **Shape:** Softly squared (6px radius), always `inline-flex` with a 6px gap so
-  a 1em icon sits on the text baseline without extra markup.
-- **Primary:** Ember fill, Hearth text, semibold Nunito at 0.875rem, 16px × 10px
-  padding. Used once per view for its one forward action — "Add site", "Visit".
-  Hover goes Ember Light.
-- **Secondary:** Transparent with a Hairline Strong outline and Smoke text, same
-  size as primary. Hover fills Hairline and brings text to Chalk. Always the
-  cancel side of a dialog.
+  a 1em icon sits on the text baseline without extra markup. Height is a floor,
+  not a fixed value: `min-height` guarantees the resting size — 40px for primary
+  and secondary, 32px for danger — while padding and content can still grow the
+  button past it, which is what lets a long `Remove <hostname>` label wrap to two
+  lines instead of spilling outside its own outline. The footers that pair two
+  buttons take `items-center`, because a flex row's default `align-items: stretch`
+  otherwise resizes the shortest control to match its tallest sibling — which had
+  the danger button rendering at 33.2px in the Danger card and 42px in the
+  confirm dialog.
+- **Primary:** Ember fill, Hearth text, semibold Nunito at 0.875rem, 10px
+  vertical and 16px horizontal padding over a 40px minimum height. Used once
+  per view for its one forward action — "Add site", "Visit". Hover goes Ember
+  Light.
+- **Secondary:** A Hairline Strong fill with Chalk text, same size as primary,
+  no border. Hover **recedes** to Hairline rather than brightening, which takes
+  the label from 7.32:1 to 9.85:1; brightening to Smoke Deep would have been
+  4.61:1, the weakest ratio in the system. Always the cancel side of a dialog.
+  It is filled rather than outlined because a 1px Hairline Strong line measures
+  2.29:1 on Hearth and 1.99:1 on Hearth Lift — invisible as an edge,
+  unmistakable as a surface, and the dialog is where it was faintest and where
+  it sits beside the one irreversible action.
 - **Danger:** Transparent with a Scorch Border outline and Scorch text, one step
-  smaller (0.8rem, 12px × 6px padding) — a destructive action is never the
-  largest button on screen. Hover fills Scorch Rule with Chalk text.
-- **Disabled:** Smoke Deep text and `cursor: not-allowed`, with the outline
-  dropped to Hairline on the outlined buttons and the Ember fill taken to 40% on
-  the primary. **Tone, never opacity** — this system says "not actionable" by
-  going dim in the palette, the same way `starting` and `not deployed` say "not
-  a failure". A blanket `opacity` would fade the border and text together at a
-  rate the palette never chose, and nothing else here uses transparency as a
-  signal. Disabled is a real state on this app's buttons, not a theoretical one:
-  both mutating flows disable their confirm control for the length of a service
-  restart, and the sighted operator needs to see that their click landed.
+  smaller (0.8rem, 6px vertical and 12px horizontal padding over a 32px minimum
+  height) — a destructive action is never the largest button on screen. Hover
+  fills Scorch Rule with Chalk text.
+- **Disabled:** Smoke Deep text and `cursor: not-allowed`, with the danger
+  button — the only outlined button left in the system — dropping its outline
+  to Hairline, and the secondary's fill dissolving to transparent while the
+  primary's fill is taken to 40% Ember. The two disabled treatments differ
+  because their enabled states differ: the secondary's enabled look *is* its
+  fill, so removing that fill is the strongest available "not yours to press"
+  signal, while the danger button has no fill to remove and so dims its
+  outline instead. **Tone, never opacity** — this system says "not actionable"
+  by going dim in the palette, the same way `starting` and `not deployed` say
+  "not a failure". A blanket `opacity` would fade the border and text together
+  at a rate the palette never chose, and nothing else here uses transparency
+  as a signal. Disabled is a real state on this app's buttons, not a
+  theoretical one: both mutating flows disable their confirm control for the
+  length of a service restart, and the sighted operator needs to see that
+  their click landed.
+- **Pressed:** A 1px downward `translate`, gated behind `motion-safe`. Not a
+  shadow — The Flat-At-Rest Rule allows shadow for "you are touching it right
+  now", but a transform satisfies the intent without putting depth at rest, and
+  depth at rest is what makes a beveled button expensive here.
 - **Focus:** Every button, link, and control shares one ring —
   `outline: 2px solid Ember; outline-offset: 2px` — via `:focus-visible`. Inputs
   use the same ring on plain `:focus`. There is no second focus treatment

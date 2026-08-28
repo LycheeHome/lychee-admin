@@ -255,7 +255,7 @@ export function renderAddSite(
 
           <p id="add-site-error" role="alert" class="hidden font-mono text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0"></p>
 
-          <div class="flex justify-end gap-2.5">
+          <div class="flex items-center justify-end gap-2.5">
             <a href="/" class="${BUTTON_SECONDARY} no-underline">Cancel</a>
             <button type="submit" id="add-site-submit" class="${BUTTON_PRIMARY}">Add site</button>
           </div>
@@ -732,7 +732,7 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mb-4">If a step fails, the ones after it don't run.</p>
       <div id="confirm-remove-outcome" class="hidden font-mono text-[0.72rem] text-stone-400 leading-snug m-0 mb-4 flex items-start gap-2" role="status" aria-live="polite"><span id="confirm-remove-progress" class="hidden shrink-0 mt-[0.4em] h-1.5 w-1.5 rounded-full bg-stone-400 motion-safe:animate-pulse" aria-hidden="true"></span><span id="confirm-remove-outcome-text" class="whitespace-pre-wrap"></span></div>
       ${deleteFilesSection}
-      <div class="flex justify-end gap-2.5">
+      <div class="flex items-center justify-end gap-2.5">
         <button type="button" autofocus class="${BUTTON_SECONDARY}" data-close-dialog="confirm-remove-dialog">Cancel</button>
         <button type="button" id="confirm-remove-submit" class="${BUTTON_DANGER}" data-hostname="${escapeHtml(site.hostname)}">${icon("trash")}Remove ${escapeHtml(site.hostname)}</button>
       </div>

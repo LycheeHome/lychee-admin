@@ -218,6 +218,11 @@
         "name": "banner-dismiss",
         "value": "4000ms",
         "purpose": "Success banner auto-dismiss. Never applied to a banner carrying an unfinished manual action."
+      },
+      {
+        "name": "press",
+        "value": "translateY(1px) on :active",
+        "purpose": "Button press feedback — a 1px downward shift while the button is held. Gated behind motion-safe."
       }
     ],
     "breakpoints": [
@@ -261,15 +266,15 @@
       "refersTo": "button-primary",
       "description": "One per view, for its single forward action — Add site, Visit.",
       "html": "<button class=\"ds-btn-primary\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg>Add site</button>",
-      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; background: oklch(71.2% 0.194 13.428); color: oklch(21.6% 0.006 56.043); border: none; border-radius: 6px; padding: 10px 16px; cursor: pointer; transition: background 150ms; } .ds-btn-primary svg { width: 1em; height: 1em; flex-shrink: 0; } .ds-btn-primary:hover { background: oklch(81% 0.117 11.638); } .ds-btn-primary:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-btn-primary:disabled { background: oklch(71.2% 0.194 13.428 / 0.4); color: oklch(55.3% 0.013 58.071); cursor: not-allowed; } .ds-btn-primary:disabled:hover { background: oklch(71.2% 0.194 13.428 / 0.4); }"
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; background: oklch(71.2% 0.194 13.428); color: oklch(21.6% 0.006 56.043); border: none; border-radius: 6px; height: 40px; padding: 0 16px; cursor: pointer; transition: background 150ms; } .ds-btn-primary svg { width: 1em; height: 1em; flex-shrink: 0; } .ds-btn-primary:hover { background: oklch(81% 0.117 11.638); } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-btn-primary:disabled { background: oklch(71.2% 0.194 13.428 / 0.4); color: oklch(55.3% 0.013 58.071); cursor: not-allowed; } .ds-btn-primary:disabled:hover { background: oklch(71.2% 0.194 13.428 / 0.4); }"
     },
     {
       "name": "Secondary Button",
       "kind": "button",
       "refersTo": "button-secondary",
-      "description": "The cancel side of a dialog. Same size as primary, outlined instead of filled.",
+      "description": "The cancel side of a dialog. Same size as primary, filled Hairline Strong rather than outlined, because a 1px line at this tone is invisible against both grounds.",
       "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
-      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; background: transparent; color: oklch(70.9% 0.01 56.259); border: 1px solid oklch(44.4% 0.011 73.639); border-radius: 6px; padding: 10px 16px; cursor: pointer; transition: background 150ms, color 150ms; } .ds-btn-secondary:hover { background: oklch(37.4% 0.01 67.558); color: oklch(98.5% 0.001 106.423); } .ds-btn-secondary:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-btn-secondary:disabled { color: oklch(55.3% 0.013 58.071); border-color: oklch(37.4% 0.01 67.558); cursor: not-allowed; } .ds-btn-secondary:disabled:hover { background: transparent; color: oklch(55.3% 0.013 58.071); }"
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; background: oklch(44.4% 0.011 73.639); color: oklch(98.5% 0.001 106.423); border: none; border-radius: 6px; height: 40px; padding: 0 16px; cursor: pointer; transition: background 150ms, color 150ms; } .ds-btn-secondary:hover { background: oklch(37.4% 0.01 67.558); } .ds-btn-secondary:active { transform: translateY(1px); } .ds-btn-secondary:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-btn-secondary:disabled { background: transparent; color: oklch(55.3% 0.013 58.071); cursor: not-allowed; } .ds-btn-secondary:disabled:hover { background: transparent; }"
     },
     {
       "name": "Danger Button",
@@ -277,7 +282,7 @@
       "refersTo": "button-danger",
       "description": "Destructive action. Outlined Scorch, one size down from primary — never the largest control on screen.",
       "html": "<button class=\"ds-btn-danger\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18\"/><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6\"/><path d=\"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/><line x1=\"10\" x2=\"10\" y1=\"11\" y2=\"17\"/><line x1=\"14\" x2=\"14\" y1=\"11\" y2=\"17\"/></svg>Remove site</button>",
-      "css": ".ds-btn-danger { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.8rem; font-weight: 600; background: transparent; color: oklch(80.8% 0.114 19.571); border: 1px solid oklch(44.4% 0.177 26.899); border-radius: 6px; padding: 6px 12px; cursor: pointer; transition: background 150ms, color 150ms; } .ds-btn-danger svg { width: 1em; height: 1em; flex-shrink: 0; } .ds-btn-danger:hover { background: oklch(39.6% 0.141 25.723); color: oklch(98.5% 0.001 106.423); } .ds-btn-danger:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-btn-danger:disabled { color: oklch(55.3% 0.013 58.071); border-color: oklch(37.4% 0.01 67.558); cursor: not-allowed; } .ds-btn-danger:disabled:hover { background: transparent; color: oklch(55.3% 0.013 58.071); }"
+      "css": ".ds-btn-danger { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.8rem; font-weight: 600; background: transparent; color: oklch(80.8% 0.114 19.571); border: 1px solid oklch(44.4% 0.177 26.899); border-radius: 6px; height: 32px; padding: 0 12px; cursor: pointer; transition: background 150ms, color 150ms; } .ds-btn-danger svg { width: 1em; height: 1em; flex-shrink: 0; } .ds-btn-danger:hover { background: oklch(39.6% 0.141 25.723); color: oklch(98.5% 0.001 106.423); } .ds-btn-danger:active { transform: translateY(1px); } .ds-btn-danger:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-btn-danger:disabled { color: oklch(55.3% 0.013 58.071); border-color: oklch(37.4% 0.01 67.558); cursor: not-allowed; } .ds-btn-danger:disabled:hover { background: transparent; color: oklch(55.3% 0.013 58.071); }"
     },
     {
       "name": "Text Field",
@@ -437,6 +442,11 @@
         "name": "The Coupled-Inset Rule",
         "body": "Every copy button in the app is one size (16px icon → 26px button) at one inset (6px), pinned center-right in a single-line block and top-right in a multi-line one. The code block's 10px vertical padding and 44px right padding are chosen against those numbers to balance the gap and keep the button off the text. Change any one of the four and recompute the others.",
         "section": "components"
+      },
+      {
+        "name": "The Icon-Says-Direction Rule",
+        "body": "In a button that pairs an icon with a text label, the icon's position states which way the action goes — not decoration. A leading icon names the action's category — plus for \"this creates something\", trash for \"this destroys something\". A trailing icon means the action leaves the app, which is why \"Visit\" carries external-link on the right and nothing else does. No icon means the surface you are already on has stated the action: the add-site page's submit button is a bare \"Add site\" because the heading above it already reads \"Add a site\", and a plus there would say it twice. A button never carries an icon on both sides, and a purely decorative icon is not a fourth option. An icon-only control — the copy button — and a label-only control with nothing to add, like Cancel, sit outside this rule's domain rather than counting as exceptions to it.",
+        "section": "shapes"
       }
     ],
     "dos": [

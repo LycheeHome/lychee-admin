@@ -1218,6 +1218,90 @@ describe("hardening: browser defaults never carry the design", () => {
       assert.doesNotMatch(c, /disabled:opacity/);
     }
   });
+
+  test("the secondary is a filled object, not an outline", () => {
+    // Measured: a Hairline Strong 1px outline is 2.29:1 on Hearth and 1.99:1
+    // on Hearth Lift — invisible as a line, unmistakable as a surface. Same
+    // token, different amount of it.
+    assert.match(BUTTON_SECONDARY, /\bbg-stone-600\b/);
+    assert.match(BUTTON_SECONDARY, /\btext-stone-50\b/);
+    assert.match(BUTTON_SECONDARY, /\bborder-none\b/);
+    assert.doesNotMatch(BUTTON_SECONDARY, /\bborder-stone-600\b/);
+  });
+
+  test("the secondary's hover recedes toward the ground, it does not brighten", () => {
+    // Chalk on Hairline is 9.85:1. Brightening to Smoke Deep would have been
+    // 4.61:1 — inside AA, but the weakest ratio in a system that runs 6-9:1.
+    // Asserted as a property (hover step is darker than rest) rather than a
+    // literal, so the direction survives a future retune of either token.
+    const rest = BUTTON_SECONDARY.match(/(?<![-:\w])bg-stone-(\d+)\b/);
+    const hover = BUTTON_SECONDARY.match(/\bhover:bg-stone-(\d+)\b/);
+    assert.ok(rest, "secondary has no resting stone fill");
+    assert.ok(hover, "secondary has no stone hover fill");
+    assert.ok(
+      Number(hover[1]) > Number(rest[1]),
+      `hover fill stone-${hover[1]} should be darker than rest fill stone-${rest[1]}`,
+    );
+  });
+
+  test("a disabled secondary dissolves into the page rather than staying solid", () => {
+    // The enabled/disabled distinction is now fill-versus-none, which is a
+    // louder signal than the text-tone change it used to be.
+    assert.match(BUTTON_SECONDARY, /disabled:bg-transparent/);
+    assert.match(BUTTON_SECONDARY, /disabled:hover:bg-transparent/);
+  });
+
+  test("every button states its own min-height instead of inheriting one", () => {
+    // Measured before this change: the primary was 40px on the list header
+    // and 42px in the add-site footer; the danger button was 33.2px in the
+    // Danger card and 42px in the confirm dialog — the same component at two
+    // sizes, because a flex row's default align-items:stretch resized it.
+    // A stated min-height wins over stretch (stretch only applies when the
+    // cross size is auto) while still letting a long label grow the button
+    // instead of overflowing it — a fixed height cannot do that, which is
+    // why the dialog's Remove button once spilled out of its own outline.
+    for (const c of [BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_DANGER]) {
+      assert.match(c, /\bmin-h-\d+\b/, `no explicit min-height in: ${c}`);
+    }
+  });
+
+  test("the danger button stays one size down from the primary", () => {
+    // The Scorch-Is-Not-Ember Rule: a destructive action is never the largest
+    // control on screen. Stretch defeated this in the dialog before Task 2.
+    const step = (c: string) => {
+      const match = c.match(/\bmin-h-(\d+)\b/);
+      assert.ok(match, `no min-h-* step found in: ${c}`);
+      return Number(match[1]);
+    };
+    assert.equal(step(BUTTON_PRIMARY), step(BUTTON_SECONDARY));
+    assert.ok(
+      step(BUTTON_DANGER) < step(BUTTON_PRIMARY),
+      `danger min-h-${step(BUTTON_DANGER)} is not smaller than primary min-h-${step(BUTTON_PRIMARY)}`,
+    );
+  });
+
+  test("buttons transition their state changes, gated behind motion-safe", () => {
+    // DESIGN.md's motion table already claimed a 150ms state-transition for
+    // "cards, buttons and option rows". Cards and option rows had it; the
+    // button constants did not. This closes that gap rather than adding a
+    // new claim.
+    for (const c of [BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_DANGER]) {
+      assert.match(c, /motion-safe:transition-colors/, `no gated transition in: ${c}`);
+      assert.match(c, /motion-safe:duration-150/, `no 150ms duration in: ${c}`);
+      assert.doesNotMatch(c, /(?<!motion-safe:)transition-colors/, `ungated transition in: ${c}`);
+    }
+  });
+
+  test("a pressed button moves, and only for viewers who want motion", () => {
+    // The Flat-At-Rest Rule already allows for "you are touching it right
+    // now"; nothing in the app had ever used that clause. A 1px translate
+    // satisfies it without introducing a resting shadow, which is what made
+    // the rejected Keycap variant expensive.
+    for (const c of [BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_DANGER]) {
+      assert.match(c, /motion-safe:active:translate-y-px/, `no press state in: ${c}`);
+      assert.doesNotMatch(c, /(?<!motion-safe:)active:translate/, `ungated press in: ${c}`);
+    }
+  });
 });
 
 describe("small-text ramp", () => {
