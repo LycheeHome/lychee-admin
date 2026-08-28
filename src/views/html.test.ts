@@ -1234,7 +1234,7 @@ describe("hardening: browser defaults never carry the design", () => {
     // 4.61:1 — inside AA, but the weakest ratio in a system that runs 6-9:1.
     // Asserted as a property (hover step is darker than rest) rather than a
     // literal, so the direction survives a future retune of either token.
-    const rest = BUTTON_SECONDARY.match(/\bbg-stone-(\d+)\b/);
+    const rest = BUTTON_SECONDARY.match(/(?<![-:\w])bg-stone-(\d+)\b/);
     const hover = BUTTON_SECONDARY.match(/\bhover:bg-stone-(\d+)\b/);
     assert.ok(rest, "secondary has no resting stone fill");
     assert.ok(hover, "secondary has no stone hover fill");
@@ -1251,27 +1251,32 @@ describe("hardening: browser defaults never carry the design", () => {
     assert.match(BUTTON_SECONDARY, /disabled:hover:bg-transparent/);
   });
 
-  test("every button states its own height instead of inheriting one", () => {
+  test("every button states its own min-height instead of inheriting one", () => {
     // Measured before this change: the primary was 40px on the list header
     // and 42px in the add-site footer; the danger button was 33.2px in the
     // Danger card and 42px in the confirm dialog — the same component at two
     // sizes, because a flex row's default align-items:stretch resized it.
-    // An explicit height wins over stretch (stretch only applies when the
-    // cross size is auto), so the fix is a height, not a container change.
+    // A stated min-height wins over stretch (stretch only applies when the
+    // cross size is auto) while still letting a long label grow the button
+    // instead of overflowing it — a fixed height cannot do that, which is
+    // why the dialog's Remove button once spilled out of its own outline.
     for (const c of [BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_DANGER]) {
-      assert.match(c, /\bh-\d+\b/, `no explicit height in: ${c}`);
-      assert.doesNotMatch(c, /\bpy-[\d.]+\b/, `height still derived from padding in: ${c}`);
+      assert.match(c, /\bmin-h-\d+\b/, `no explicit min-height in: ${c}`);
     }
   });
 
   test("the danger button stays one size down from the primary", () => {
     // The Scorch-Is-Not-Ember Rule: a destructive action is never the largest
     // control on screen. Stretch defeated this in the dialog before Task 2.
-    const step = (c: string) => Number(c.match(/\bh-(\d+)\b/)![1]);
+    const step = (c: string) => {
+      const match = c.match(/\bmin-h-(\d+)\b/);
+      assert.ok(match, `no min-h-* step found in: ${c}`);
+      return Number(match[1]);
+    };
     assert.equal(step(BUTTON_PRIMARY), step(BUTTON_SECONDARY));
     assert.ok(
       step(BUTTON_DANGER) < step(BUTTON_PRIMARY),
-      `danger h-${step(BUTTON_DANGER)} is not smaller than primary h-${step(BUTTON_PRIMARY)}`,
+      `danger min-h-${step(BUTTON_DANGER)} is not smaller than primary min-h-${step(BUTTON_PRIMARY)}`,
     );
   });
 
