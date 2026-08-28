@@ -549,9 +549,10 @@ value between steps, and never a large radius to look friendlier.
   because a flex row's default `align-items: stretch` otherwise resizes the
   shortest control to match its tallest sibling, which had the danger button
   rendering at 33.2px in the Danger card and 42px in the confirm dialog.
-- **Primary:** Ember fill, Hearth text, semibold Nunito at 0.875rem, 16px × 10px
-  padding. Used once per view for its one forward action — "Add site", "Visit".
-  Hover goes Ember Light.
+- **Primary:** Ember fill, Hearth text, semibold Nunito at 0.875rem, 16px
+  horizontal padding and a stated 40px height (no vertical padding). Used once
+  per view for its one forward action — "Add site", "Visit". Hover goes Ember
+  Light.
 - **Secondary:** A Hairline Strong fill with Chalk text, same size as primary,
   no border. Hover **recedes** to Hairline rather than brightening, which takes
   the label from 7.32:1 to 9.85:1; brightening to Smoke Deep would have been
@@ -561,11 +562,14 @@ value between steps, and never a large radius to look friendlier.
   unmistakable as a surface, and the dialog is where it was faintest and where
   it sits beside the one irreversible action.
 - **Danger:** Transparent with a Scorch Border outline and Scorch text, one step
-  smaller (0.8rem, 12px × 6px padding) — a destructive action is never the
-  largest button on screen. Hover fills Scorch Rule with Chalk text.
-- **Disabled:** Smoke Deep text and `cursor: not-allowed`, with the outline
-  dropped to Hairline on the outlined buttons and the Ember fill taken to 40% on
-  the primary. **Tone, never opacity** — this system says "not actionable" by
+  smaller (0.8rem, 12px horizontal padding and a stated 32px height) — a
+  destructive action is never the largest button on screen. Hover fills Scorch
+  Rule with Chalk text.
+- **Disabled:** Smoke Deep text and `cursor: not-allowed`, with the danger
+  button — the only outlined button left in the system — dropping its outline
+  to Hairline, the secondary's fill dissolving to transparent, and the
+  primary's fill taken to 40% Ember. **Tone, never opacity** — this system says
+  "not actionable" by
   going dim in the palette, the same way `starting` and `not deployed` say "not
   a failure". A blanket `opacity` would fade the border and text together at a
   rate the palette never chose, and nothing else here uses transparency as a
