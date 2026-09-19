@@ -3,6 +3,7 @@ dist/
 .env
 *.log
 .idea/
+.DS_Store
 public/style.css
 .claude/worktrees/
 .superpowers/
