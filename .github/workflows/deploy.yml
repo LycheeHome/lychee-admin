@@ -4,7 +4,7 @@ name: CI and deploy
 # to main.
 #
 # There is deliberately no "make this a required status check" instruction
-# here: the Lychee-Home org is on GitHub Free and this repo is private, a
+# here: the LycheeHome org is on GitHub Free and this repo is private, a
 # combination for which both branch protection and rulesets are unavailable
 # (their APIs return 403, "Upgrade to GitHub Pro or make this repository
 # public"). So nothing mechanically prevents merging a PR whose test run is
