@@ -38,6 +38,8 @@ Other scripts: `npm test` (`tsx --test`), `npm run build`, `npm run build:css`,
 
 ## Deployment
 
-Runs as its own systemd service (`deploy/lyly-admin.service`) under a dedicated low-privilege user with narrowly scoped `sudo` rights — see `deploy/sudoers.example` and the wrapper scripts in `deploy/` for exactly what it's allowed to do (validate/reload Caddy, restart the tunnel, write two specific config files, create site directories, check a Next.js site's container status). CI/CD (`.github/workflows/deploy.yml`) is split into two jobs: `test` runs on a GitHub-hosted runner for every pull request and push to `main`, and `deploy` runs on the self-hosted runner — builds, syncs, and restarts the service — only on `main` and only once `test` passes.
+Runs as its own systemd service under a dedicated low-privilege user with narrowly scoped `sudo` rights. The unit, the sudoers drop-in and the wrapper scripts it may invoke (validate/reload Caddy, restart the sites tunnel, write two specific config files, create site directories, check a Next.js site's container status) all live in the private `LycheeHome/lychee-ops` repo, which declares and continuously reconciles them onto the host.
+
+CI here is one job: `.github/workflows/ci.yml` runs `test` on a GitHub-hosted runner for every pull request and push to `main`. Deployment is pull-based and happens off this repo entirely — `lychee` runs `ansible-pull` against `lychee-ops` on a 5-minute timer, refuses to install unless that commit's `test` job is green, then builds, installs and health-checks. Nothing here reaches into the host.
 
 Full architecture notes, safety constraints, and host-specific details live in [`CLAUDE.md`](./CLAUDE.md).
