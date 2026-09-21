@@ -16,8 +16,12 @@ permissions:
   contents: read
 
 jobs:
-  # Name is load-bearing: lychee-ops gates its deploy on a check run called
-  # exactly "test". Renaming this job silently stops all deploys.
+  # Name is load-bearing: lychee-ops gates its deploy on an Actions JOB
+  # named exactly "test" for the target commit, via
+  # /actions/runs/{id}/jobs. Renaming this key — or giving it a `name:`
+  # override, which replaces the job name the API reports — silently stops
+  # every deploy, reporting "job test concluded: missing", which reads like
+  # CI never ran.
   test:
     runs-on: ubuntu-latest
 
