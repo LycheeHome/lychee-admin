@@ -32,7 +32,7 @@ const STATUS_READ_TIMEOUT_MS = 2000;
 /**
  * Runs a single privileged command via execFile (never a shell), so arguments
  * can't be reinterpreted by a shell. Every command here must have a matching
- * narrowly-scoped entry in the sudoers file — see deploy/sudoers.example.
+ * narrowly-scoped entry in the sudoers file — see lychee-ops' sudoers.example.
  *
  * `timeoutMs` is opt-in per call rather than a default, for the reason above.
  * When it fires, execFile sends SIGTERM and rejects, which the caller sees as
@@ -78,7 +78,7 @@ export const realSystemCommands: SystemCommands = {
   /**
    * Restarts cloudflared-sites, not the box's original cloudflared.service —
    * lyly-admin only manages hostnames on the split-off "sites" tunnel
-   * (see deploy/cloudflared-sites.service), so this never interrupts
+   * (see lychee-ops' cloudflared-sites.service), so this never interrupts
    * ssh.lyly.dev, which stays on its own separate tunnel/service.
    */
   restartCloudflared() {
@@ -87,7 +87,7 @@ export const realSystemCommands: SystemCommands = {
 
   /**
    * Creates /var/www/<hostname> owned web:webdeploy with the setgid bit so new
-   * files inherit the group, via deploy/lyly-admin-create-site-dir.sh. That
+   * files inherit the group, via lychee-ops' lyly-admin-create-site-dir.sh. That
    * script (not sudoers) validates the hostname and hardcodes the owner/group —
    * sudoers can't safely restrict install(1)'s arguments to "some path under
    * /var/www" without wildcards, which aren't supported on every sudo build.
@@ -98,7 +98,7 @@ export const realSystemCommands: SystemCommands = {
 
   /**
    * Writes `content` to a root-owned config file (the Caddyfile or the tunnel
-   * config.yml) by piping it into deploy/lyly-admin-write-config.sh via sudo.
+   * config.yml) by piping it into lychee-ops' lyly-admin-write-config.sh via sudo.
    * That script only accepts these two exact paths — see sudoers.example.
    * Needed because /etc/caddy and /etc/cloudflared are root:root 755, so the
    * dedicated low-privilege app user has no direct write access to either file.
@@ -128,7 +128,7 @@ export const realSystemCommands: SystemCommands = {
 
   /**
    * Reads container lifecycle state + Docker health (if the image defines a
-   * HEALTHCHECK) for a Next.js-scaffolded site via deploy/lyly-admin-docker-status.sh.
+   * HEALTHCHECK) for a Next.js-scaffolded site via lychee-ops' lyly-admin-docker-status.sh.
    * Unlike every other function in this file, failures are swallowed into
    * { state: "unknown" } rather than thrown — this is best-effort display
    * data for the detail page, not a mutating action a caller needs to detect
