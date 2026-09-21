@@ -138,7 +138,8 @@ done it.
 ## Evidence on Hand
 
 - Real host facts, tunnel IDs, paths, ownership, and sudo layout —
-  `CLAUDE.md`, `deploy/`.
+  `CLAUDE.md`, and the `LycheeHome/lychee-ops` repo that now declares and
+  reconciles them (the host files formerly in `deploy/`).
 - Real seeded site data exercising every Caddyfile parser branch, including a
   deliberately unmanaged block that must never appear in the list —
   `src/dev/seed.ts`.

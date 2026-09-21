@@ -1,0 +1,43 @@
+name: CI
+
+# Runs on every pull request against main and every push to main, always on
+# a GitHub-hosted runner. Deployment is no longer performed here: lychee
+# pulls from main on a timer via LycheeHome/lychee-ops. That split is what
+# lets this repo be public — a fork PR supplies its own workflow file, so a
+# self-hosted runner reachable from here would be a remote code execution
+# path onto the host.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # Name is load-bearing: lychee-ops gates its deploy on an Actions JOB
+  # named exactly "test" for the target commit, via
+  # /actions/runs/{id}/jobs. Renaming this key — or giving it a `name:`
+  # override, which replaces the job name the API reports — silently stops
+  # every deploy, reporting "job test concluded: missing", which reads like
+  # CI never ran.
+  test:
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: test-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
