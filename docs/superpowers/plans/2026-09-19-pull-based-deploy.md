@@ -133,7 +133,10 @@ ops_root: /var/lib/lychee-ops
 build_dir: "{{ ops_root }}/build"
 src_dir: "{{ ops_root }}/src/lyly-admin"
 
-app_repo_url: https://github.com/LycheeHome/lyly-admin.git
+# SSH, not https: works while lyly-admin is private AND after it goes
+# public, so there is no transition to forget. Needs a read-only deploy
+# key at /root/.ssh/id_lyly_admin.
+app_repo_url: git@github.com:LycheeHome/lyly-admin.git
 app_repo_slug: LycheeHome/lyly-admin
 app_branch: main
 app_install_dir: /opt/lyly-admin
@@ -154,11 +157,13 @@ reconcile_interval: 5min
 - name: Reconcile lychee
   hosts: lychee
   become: true
-  roles:
-    - reconciler
-    - lyly_admin_host
-    - lyly_admin_app
+  roles: []
 ```
+
+Each role-creating task appends its own entry: Task 2 adds `lyly_admin_host`,
+Task 3 appends `lyly_admin_app`, Task 6 **prepends** `reconciler` so the final
+order is `[reconciler, lyly_admin_host, lyly_admin_app]`. Listing a role before
+it exists makes this task's own syntax check fail.
 
 - [ ] **Step 5: Create `.gitignore`**
 
@@ -351,7 +356,7 @@ git commit -m "feat: declare lyly-admin host files"
 
 **Interfaces:**
 - Consumes: `app_repo_url`, `app_repo_slug`, `app_branch`, `src_dir`, `required_check` from `group_vars/all.yml`
-- Produces: facts `target_sha` (string, 40-hex), `installed_sha` (string or `"none"`), `deploy_gate_passed` (bool), `gate_reason` (string). Task 4 and Task 5 both read these.
+- Produces: facts `lyly_admin_app_target_sha` (string, 40-hex), `lyly_admin_app_installed_sha` (string or `"none"`), `lyly_admin_app_deploy_gate_passed` (bool), `lyly_admin_app_gate_reason` (string). Task 4 and Task 5 both read these.
 
 - [ ] **Step 1: Create `roles/lyly_admin_app/defaults/main.yml`**
 
@@ -359,69 +364,93 @@ git commit -m "feat: declare lyly-admin host files"
 # Optional. Required only while lyly-admin is a private repo; once it is
 # public the check-runs API answers unauthenticated. Supply via ansible-vault
 # or a file the reconcile unit sources. Empty string means "call anonymously".
-github_token: ""
+lyly_admin_app_github_token: ""
+
+# Read-only deploy key for the app repo, installed by the operator at cutover.
+lyly_admin_app_deploy_key: /root/.ssh/id_lyly_admin
 ```
 
 - [ ] **Step 2: Create `roles/lyly_admin_app/tasks/main.yml` — resolve and gate**
 
 ```yaml
+# Ownership is split deliberately. The checkout stays root-owned because the
+# fetch runs as root (Ruling 4); handing it to another uid makes root's next
+# `git fetch` die with "detected dubious ownership". Only build_dir belongs to
+# the app user, because that is the only place anything builds.
+#
+# No webdeploy group-write on any of these: the gate attests a SHA on GitHub,
+# but what gets built is whatever is on disk at build time. Group-write would
+# let any webdeploy member (web, caddy, github-runner) edit the tree between
+# the gate and the build, installing untested code past a green gate.
 - name: Ensure ops directories exist
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ item.path }}"
     state: directory
-    owner: "{{ app_user }}"
-    group: "{{ app_group }}"
-    mode: "2775"
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "0755"
   loop:
-    - "{{ ops_root }}"
-    - "{{ build_dir }}"
-    - "{{ src_dir | dirname }}"
+    - path: "{{ ops_root }}"
+      owner: root
+      group: root
+    - path: "{{ src_dir | dirname }}"
+      owner: root
+      group: root
+    - path: "{{ build_dir }}"
+      owner: "{{ app_user }}"
+      group: "{{ app_group }}"
 
+# Runs as root, NOT as app_user: the deploy key lives in /root/.ssh. The
+# checkout is chowned below so Task 4 can build there unprivileged.
 - name: Fetch the app repo
   ansible.builtin.git:
     repo: "{{ app_repo_url }}"
     dest: "{{ src_dir }}"
     version: "{{ app_branch }}"
     force: true
-  become_user: "{{ app_user }}"
-  register: app_checkout
+    # Non-default filename: ssh will not offer it unless git is told. And
+    # ansible.cfg's host_key_checking=False does not apply here — that governs
+    # Ansible's own SSH, and this play is connection: local.
+    key_file: "{{ lyly_admin_app_deploy_key }}"
+    accept_newhostkey: true
+  register: lyly_admin_app_checkout
 
 - name: Record the target commit
   ansible.builtin.set_fact:
-    target_sha: "{{ app_checkout.after }}"
+    lyly_admin_app_target_sha: "{{ lyly_admin_app_checkout.after }}"
 
 - name: Read the currently installed commit
   ansible.builtin.slurp:
     src: "{{ app_install_dir }}/.deployed-sha"
-  register: installed_sha_raw
+  register: lyly_admin_app_installed_sha_raw
   failed_when: false
 
 - name: Record the installed commit
   ansible.builtin.set_fact:
-    installed_sha: >-
-      {{ (installed_sha_raw.content | b64decode | trim)
-         if installed_sha_raw.content is defined else 'none' }}
+    lyly_admin_app_installed_sha: >-
+      {{ (lyly_admin_app_installed_sha_raw.content | b64decode | trim)
+         if lyly_admin_app_installed_sha_raw.content is defined else 'none' }}
 
 # The gate. This is what `needs: test` does today: a red main leaves lychee
 # serving the last good build rather than installing broken code.
 - name: Query check runs for the target commit
   ansible.builtin.uri:
-    url: "https://api.github.com/repos/{{ app_repo_slug }}/commits/{{ target_sha }}/check-runs"
+    url: "https://api.github.com/repos/{{ app_repo_slug }}/commits/{{ lyly_admin_app_target_sha }}/check-runs"
     method: GET
     headers: >-
       {{ {'Accept': 'application/vnd.github+json'}
-         | combine({'Authorization': 'Bearer ' + github_token} if github_token else {}) }}
+         | combine({'Authorization': 'Bearer ' + lyly_admin_app_github_token} if lyly_admin_app_github_token else {}) }}
     return_content: true
     status_code: [200]
-  register: check_runs
+  register: lyly_admin_app_check_runs
   retries: 3
   delay: 10
-  until: check_runs.status == 200
+  until: lyly_admin_app_check_runs.status == 200
 
 - name: Decide whether the gate passes
   ansible.builtin.set_fact:
-    gate_conclusion: >-
-      {{ (check_runs.json.check_runs
+    lyly_admin_app_gate_conclusion: >-
+      {{ (lyly_admin_app_check_runs.json.check_runs
           | selectattr('name', 'equalto', required_check)
           | map(attribute='conclusion')
           | list
@@ -429,18 +458,18 @@ github_token: ""
 
 - name: Record the gate outcome
   ansible.builtin.set_fact:
-    deploy_gate_passed: "{{ gate_conclusion == 'success' }}"
-    gate_reason: >-
-      {{ 'ok' if gate_conclusion == 'success'
-         else 'check ' ~ required_check ~ ' concluded: ' ~ gate_conclusion }}
+    lyly_admin_app_deploy_gate_passed: "{{ lyly_admin_app_gate_conclusion == 'success' }}"
+    lyly_admin_app_gate_reason: >-
+      {{ 'ok' if lyly_admin_app_gate_conclusion == 'success'
+         else 'check ' ~ required_check ~ ' concluded: ' ~ lyly_admin_app_gate_conclusion }}
 
 - name: Report a blocked deploy
   ansible.builtin.debug:
-    msg: "Not deploying {{ target_sha[:8] }} — {{ gate_reason }}"
-  when: not deploy_gate_passed
+    msg: "Not deploying {{ lyly_admin_app_target_sha[:8] }} — {{ lyly_admin_app_gate_reason }}"
+  when: not lyly_admin_app_deploy_gate_passed
 ```
 
-`gate_conclusion` is `'missing'` when no check run named `test` exists for
+`lyly_admin_app_gate_conclusion` is `'missing'` when no check run named `test` exists for
 that commit — which happens if the workflow has not started yet. That is
 correctly treated as not-green: the next tick five minutes later will see
 it. Deliberately **fails closed**, unlike `deploy-needed.sh`, because the
@@ -465,7 +494,7 @@ On `lychee`, with `--check`:
 ```bash
 sudo ansible-playbook -i inventory.yml playbook.yml --check --diff
 ```
-Expected on a green `main`: `gate_reason: ok`.
+Expected on a green `main`: `lyly_admin_app_gate_reason: ok`.
 Then temporarily set `app_branch` to a branch with a failing `test` run and
 re-run. Expected: the debug message `Not deploying <sha> — check test
 concluded: failure`, and no install tasks attempted. Restore `app_branch`.
@@ -485,17 +514,29 @@ git commit -m "feat: resolve target commit and gate on green CI"
 - Modify: `lychee-ops/roles/lyly_admin_app/tasks/main.yml` (append)
 
 **Interfaces:**
-- Consumes: `target_sha`, `installed_sha`, `deploy_gate_passed` from Task 3
-- Produces: `deploy_result` (string: `"deployed"`, `"skipped"`, or `"blocked"`) and `deploy_failed_step` (string or empty), both read by Task 5's status file.
+- Consumes: `lyly_admin_app_target_sha`, `lyly_admin_app_installed_sha`, `lyly_admin_app_deploy_gate_passed` from Task 3
+- Produces: `lyly_admin_app_deploy_result` (string: `"deployed"`, `"skipped"`, or `"blocked"`) and `lyly_admin_app_deploy_failed_step` (string or empty), both read by Task 5's status file.
 
 - [ ] **Step 1: Append the install block to `roles/lyly_admin_app/tasks/main.yml`**
 
 ```yaml
 - name: Install the new build
   when:
-    - deploy_gate_passed
-    - target_sha != installed_sha
+    - lyly_admin_app_deploy_gate_passed
+    - lyly_admin_app_target_sha != lyly_admin_app_installed_sha
   block:
+    # Runs as ROOT, then hands the result to the app user below.
+    #
+    # The obvious alternative — sync as app_user, reading src_dir directly —
+    # was tried and reversed. src_dir is created by the git module's clone,
+    # which sets no explicit mode, so its permissions come from whatever
+    # umask root runs under. Under the usual 022 that lands world-readable
+    # and the app user can read it; under a hardened 027/077 it does not,
+    # and the sync fails with Permission denied on every tick. That is the
+    # same stuck-forever reconcile loop the ownership fix already cost us
+    # once, reached through file mode instead of ownership. Root can always
+    # read a root-owned checkout, so syncing as root removes the dependency
+    # on umask entirely rather than documenting an assumption about it.
     - name: Sync source into the build directory
       ansible.posix.synchronize:
         src: "{{ src_dir }}/"
@@ -506,6 +547,18 @@ git commit -m "feat: resolve target commit and gate on green CI"
           - "--exclude=.git"
           - "--exclude=node_modules"
       delegate_to: "{{ inventory_hostname }}"
+
+    # build_dir is not a git repo, so unlike the checkout this chown creates
+    # no dubious-ownership problem, and it is idempotent in steady state:
+    # rsync does not preserve ownership, so an unchanged tree stays
+    # app-user-owned and this reports ok.
+    - name: Hand the build tree to the app user
+      ansible.builtin.file:
+        path: "{{ build_dir }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        recurse: true
 
     # Builds run as lyly-admin, never root: npm install executes dependency
     # lifecycle scripts, and those must not have privilege. Same reasoning
@@ -572,7 +625,7 @@ git commit -m "feat: resolve target commit and gate on green CI"
 
     - name: Record the deployed commit
       ansible.builtin.copy:
-        content: "{{ target_sha }}\n"
+        content: "{{ lyly_admin_app_target_sha }}\n"
         dest: "{{ app_install_dir }}/.deployed-sha"
         owner: "{{ app_user }}"
         group: "{{ app_group }}"
@@ -580,8 +633,8 @@ git commit -m "feat: resolve target commit and gate on green CI"
 
     - name: Mark the deploy successful
       ansible.builtin.set_fact:
-        deploy_result: deployed
-        deploy_failed_step: ""
+        lyly_admin_app_deploy_result: deployed
+        lyly_admin_app_deploy_failed_step: ""
 
   rescue:
     # Deliberately does NOT roll back. The service keeps running whatever it
@@ -593,14 +646,14 @@ git commit -m "feat: resolve target commit and gate on green CI"
     # write, so the unit still exits non-zero and OnFailure= still fires.
     - name: Mark the deploy failed
       ansible.builtin.set_fact:
-        deploy_result: failed
-        deploy_failed_step: "{{ ansible_failed_task.name | default('unknown') }}"
+        lyly_admin_app_deploy_result: failed
+        lyly_admin_app_deploy_failed_step: "{{ ansible_failed_task.name | default('unknown') }}"
 
 - name: Record a no-op run
   ansible.builtin.set_fact:
-    deploy_result: "{{ 'blocked' if not deploy_gate_passed else 'skipped' }}"
-    deploy_failed_step: ""
-  when: deploy_result is not defined
+    lyly_admin_app_deploy_result: "{{ 'blocked' if not lyly_admin_app_deploy_gate_passed else 'skipped' }}"
+    lyly_admin_app_deploy_failed_step: ""
+  when: lyly_admin_app_deploy_result is not defined
 ```
 
 - [ ] **Step 2: Lint**
@@ -612,7 +665,7 @@ Expected: exit 0.
 
 Run the playbook for real twice on `lychee`. Expected: the first run may
 deploy; the **second run must report `changed=0`** for this role and
-`deploy_result: skipped`. A second run that deploys again means
+`lyly_admin_app_deploy_result: skipped`. A second run that deploys again means
 `.deployed-sha` is not being read or written correctly — fix before moving on.
 
 - [ ] **Step 4: Commit**
@@ -624,14 +677,14 @@ git commit -m "feat: build, install and health-check the app"
 
 ---
 
-### Task 5: Deploy status file
+### Task 5: Deploy status file and failure memory
 
 **Files:**
 - Create: `lychee-ops/roles/lyly_admin_app/templates/deploy-status.json.j2`
 - Modify: `lychee-ops/roles/lyly_admin_app/tasks/main.yml` (append)
 
 **Interfaces:**
-- Consumes: `target_sha`, `installed_sha`, `deploy_result`, `deploy_failed_step`, `gate_reason`
+- Consumes: `lyly_admin_app_target_sha`, `lyly_admin_app_installed_sha`, `lyly_admin_app_deploy_result`, `lyly_admin_app_deploy_failed_step`, `lyly_admin_app_gate_reason`
 - Produces: `/var/lib/lyly-admin/deploy-status.json`, read by the operator and, later, possibly by the app itself.
 
 - [ ] **Step 1: Create `roles/lyly_admin_app/templates/deploy-status.json.j2`**
@@ -639,11 +692,12 @@ git commit -m "feat: build, install and health-check the app"
 ```jinja
 {
   "last_run": "{{ ansible_date_time.iso8601 }}",
-  "target_commit": "{{ target_sha | default('unknown') }}",
-  "installed_commit": "{{ installed_sha | default('none') }}",
-  "result": "{{ deploy_result | default('unknown') }}",
-  "gate": "{{ gate_reason | default('unknown') }}",
-  "failed_step": "{{ deploy_failed_step | default('') }}"
+  "target_commit": "{{ lyly_admin_app_target_sha | default('unknown') }}",
+  "installed_commit": "{{ lyly_admin_app_installed_sha | default('none') }}",
+  "result": "{{ lyly_admin_app_deploy_result | default('unknown') }}",
+  "_result_values": "deployed | skipped | blocked | failed",
+  "gate": "{{ lyly_admin_app_gate_reason | default('unknown') }}",
+  "failed_step": "{{ lyly_admin_app_deploy_failed_step | default('') }}"
 }
 ```
 
@@ -675,13 +729,73 @@ would never run on the skipped path, which is the most common path of all.
 # and still trips OnFailure= — but only once the failure has been recorded.
 - name: Fail the run if the deploy failed
   ansible.builtin.fail:
-    msg: "Deploy of {{ target_sha[:8] }} failed at: {{ deploy_failed_step }}"
-  when: deploy_result == 'failed'
+    msg: "Deploy of {{ lyly_admin_app_target_sha[:8] }} failed at: {{ lyly_admin_app_deploy_failed_step }}"
+  when: lyly_admin_app_deploy_result == 'failed'
 ```
 
 The status file must be written on **every** path — deployed, skipped,
 blocked and failed. A status file that only appears on success cannot tell
 you the reconciler is stuck.
+
+- [ ] **Step 2b: Add failure memory, so a bad commit stops retrying**
+
+Without this, a commit that passes the GitHub `test` gate but fails its
+health check re-syncs, rebuilds and **restarts the service** every five
+minutes, forever. If the failure mode is "slow to answer" rather than
+"broken", that takes down a healthy service on a five-minute cycle.
+
+Three pieces, in three places in `roles/lyly_admin_app/tasks/main.yml`:
+
+1. **Read**, inserted next to the existing `.deployed-sha` slurp near the top
+   — that block is already "what do we know before deciding":
+
+```yaml
+- name: Read the last failed deploy
+  ansible.builtin.slurp:
+    src: "{{ app_install_dir }}/.failed-sha"
+  register: lyly_admin_app_failed_raw
+  failed_when: false
+
+- name: Record the last failed deploy
+  ansible.builtin.set_fact:
+    lyly_admin_app_failed_sha: >-
+      {{ (lyly_admin_app_failed_raw.content | b64decode).split()[0]
+         if lyly_admin_app_failed_raw.content is defined else 'none' }}
+    lyly_admin_app_failed_count: >-
+      {{ (lyly_admin_app_failed_raw.content | b64decode).split()[1] | int
+         if lyly_admin_app_failed_raw.content is defined else 0 }}
+```
+
+2. **Guard**, appended to Task 4's install-block `when:` list:
+
+```yaml
+    - not (lyly_admin_app_target_sha == lyly_admin_app_failed_sha
+           and lyly_admin_app_failed_count | int >= 3)
+```
+
+3. **Write**, in Task 4's `rescue`, incrementing when the SHA matches and
+   resetting to 1 when it does not:
+
+```yaml
+    - name: Remember the failed commit
+      ansible.builtin.copy:
+        content: >-
+          {{ lyly_admin_app_target_sha }} {{
+            (lyly_admin_app_failed_count | int + 1)
+            if lyly_admin_app_target_sha == lyly_admin_app_failed_sha else 1 }}
+        dest: "{{ app_install_dir }}/.failed-sha"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: "0644"
+```
+
+`.failed-sha` must be added to the install sync's `--exclude` list alongside
+`.deployed-sha`, or `--delete` removes it every deploy.
+
+The blocked case must be distinguishable in the status file — `result`
+`blocked` with a `gate` string naming the retry cap, not a silent skip. A
+commit that has burned its retries and says nothing is worse than one that
+keeps failing loudly.
 
 - [ ] **Step 3: Verify the status file is valid JSON** — operator step
 
@@ -838,6 +952,29 @@ discord_webhook_url: ""
     daemon_reload: true
 ```
 
+- [ ] **Step 7b: Create `requirements.yml` at the repo root**
+
+`lyly_admin_app` uses `ansible.posix.synchronize`, which is NOT in
+`ansible-core`. Declare it rather than assuming it:
+
+```yaml
+---
+collections:
+  - name: ansible.posix
+    version: ">=2.2.2"
+```
+
+Debian's `ansible` package happens to bundle `ansible.posix`, so
+`bootstrap.sh`'s `apt-get install ansible` would probably satisfy it by
+accident. "Probably, by accident" is the class of assumption this project
+exists to remove.
+
+Deliberately NOT installed on every tick via `ExecStartPre`: that would make
+a Galaxy outage break deploys, trading a clear one-time setup error for a
+recurring network dependency. Installed once by bootstrap; a missing
+collection then fails with Ansible's own clear "couldn't resolve
+module/action" message.
+
 - [ ] **Step 8: Create `bootstrap.sh`**
 
 ```bash
@@ -853,15 +990,29 @@ OPS_REPO=git@github.com:LycheeHome/lychee-ops.git
 
 command -v ansible-pull >/dev/null || {
   apt-get update
-  apt-get install -y ansible
+  # acl is not optional: Ansible needs setfacl to hand temp files to an
+  # unprivileged user when a root play uses become_user. Without it every
+  # npm task dies with "Failed to set permissions on the temporary files
+  # Ansible needs to create when becoming an unprivileged user".
+  apt-get install -y ansible acl
 }
 
 install -d -m 0755 "$OPS_ROOT"
+
+# Collections ansible-core does not ship. See requirements.yml.
+ansible-galaxy collection install -r requirements.yml
 
 # Read-only deploy key for the private ops repo must already be in place at
 # /root/.ssh/id_lychee_ops with a matching Host entry in /root/.ssh/config.
 test -f /root/.ssh/id_lychee_ops || {
   echo "Missing /root/.ssh/id_lychee_ops — add the deploy key first." >&2
+  exit 1
+}
+
+# Second read-only deploy key, for the lyly-admin app repo. Separate from the
+# ops key so either can be revoked alone.
+test -f /root/.ssh/id_lyly_admin || {
+  echo "Missing /root/.ssh/id_lyly_admin — add the app deploy key first." >&2
   exit 1
 }
 
@@ -1131,20 +1282,41 @@ git commit -m "docs: rewrite Deployment for the pull-based model"
 of them can lock the app out of its own sudo commands. Do them in order.
 
 - [ ] **Step 0: Create the ops repo.** `gh repo create LycheeHome/lychee-ops --private`,
-  push Tasks 1–6. Generate a read-only deploy key, add it to the repo's deploy
-  keys, install it at `/root/.ssh/id_lychee_ops` with a matching `Host` entry
-  in `/root/.ssh/config`.
+  push Tasks 1–6. Generate **two** read-only deploy keys with matching `Host`
+  entries in `/root/.ssh/config`: one for `lychee-ops` at
+  `/root/.ssh/id_lychee_ops`, one for `lyly-admin` at
+  `/root/.ssh/id_lyly_admin`. Separate keys so either can be revoked alone.
 
-- [ ] **Step 1: Dry run.** `sudo bash bootstrap.sh` — installs ansible, then runs
-  `--check --diff`. Iterate until it is a clean no-op. **Every diff is a real
-  finding**: it means the host drifted from what `deploy/` claimed, which is
-  the drift this project exists to catch. Read them all.
+- [ ] **Step 1: Dry run.** `sudo bash bootstrap.sh` — installs ansible, then
+  runs `--check --diff --skip-tags app`. Iterate until it is a clean no-op.
+  **Every diff is a real finding**: it means the host drifted from what
+  `deploy/` claimed, which is the drift this project exists to catch. Read
+  them all.
+
+  The app role is deliberately skipped, and cannot be included. Check mode
+  is not a supported path for it: `ansible.builtin.uri` does not declare
+  `supports_check_mode`, so the CI-gate task is *skipped* rather than run,
+  its registered result has no `.status` for the `until:` and no `.json` for
+  the `set_fact` that follows — a top-level task with no rescue — and the
+  play dies there. `git` also does not clone in check mode, so the first
+  sync would have no source, and every `command`/`shell` returns skipped.
+  Nothing is lost: the dry run's value is seeing which of the six host files
+  drifted, which is exactly what the host role covers.
 
 - [ ] **Step 2: First real run.** Keep a **second root shell open** throughout.
   `/etc/sudoers.d/lyly-admin` is the step that can break sudo for the app —
   `validate: visudo -cf %s` refuses a malformed file, but not a valid file with
   wrong content. Verify after: `sudo -u lyly-admin sudo -ln` lists the expected
   eight commands.
+
+- [ ] **Step 2b: Confirm npm works as the app user.** The only unverifiable
+  assumption left in the role. `lyly-admin` is a system user whose home may
+  not exist; `npm_config_cache` is set to `/var/lib/lychee-ops/.npm` to avoid
+  npm creating `~/.npm`, which is the usual remedy, but nothing off-host can
+  prove it. Check: `sudo -H -u lyly-admin npm config get cache` resolves, and
+  the first real run's `npm ci` emits no warning mentioning `~/.npmrc` or
+  `os.homedir()`. If it does, set `HOME` alongside `npm_config_cache` on the
+  three npm tasks.
 
 - [ ] **Step 3: Verify a real deploy.** Push a trivial commit to `main`. Confirm
   within one tick: the timer fired (`systemctl list-timers`), the status file
