@@ -133,12 +133,24 @@ git commit -m "ci: run the test suite"
 ```yaml
 swee_repo_slug: LycheeHome/swee
 swee_repo_url: git@github.com:LycheeHome/swee.git
-swee_dir: /opt/swee
-swee_user: swee
-swee_group: swee
+swee_dir: /home/steam/swee
+swee_user: steam
+swee_group: steam
 ```
 
-**Confirm `swee_dir` and `swee_user` against the host before relying on them** — they are currently supplied as GitHub repo *variables* (`SWEE_DIR`, `SWEE_USER`), so the real values live in `swee`'s repo settings, not in any file. Cutover Step 0 checks them.
+These are the **real** values, read from `swee`'s GitHub repo variables
+(`SWEE_DIR`, `SWEE_USER`) rather than assumed — an earlier draft of this plan
+guessed a dedicated `swee` user under `/opt`, and was wrong.
+
+`swee` runs as **`steam`, the Palworld server's own user, inside its home
+directory.** That is not incidental: it is what lets `swee` restart the palworld
+unit, run `steamcmd` against the game install, and read `PalWorldSettings.ini`.
+It is the clearest evidence for the host-agent classification in the spec, and
+it means this role creates no user and no directory — both already exist and
+belong to the game server.
+
+Confirm `swee_group` on the host (Cutover Step 0); `steam` is the likely primary
+group but has not been verified.
 
 - [ ] **Step 2: Copy the unit, resolving its placeholders**
 
@@ -324,7 +336,12 @@ Guarded by `when:` on gate passed **and** `swee_app_target_sha != swee_app_insta
         state: restarted
 ```
 
-**Ownership warning.** `lyly-admin`'s equivalent failed on the real host because `node_modules` was owned by the old CI user and the app user could not remove it. `{{ swee_dir }}` and its `.venv` have been written by whatever user the old runner deployment used. Cutover Step 0 checks ownership; expect a one-time `chown` to be needed.
+**Ownership note.** `lyly-admin`'s equivalent failed on the real host because
+`node_modules` was owned by the old CI user and the app user could not remove
+it. That is **less likely here**: `swee`'s old workflow already ran its deploy
+as `SWEE_USER` (`sudo -u "$SWEE_USER" ci-deploy.sh`), so `.venv` should already
+belong to `steam`. Cutover Step 0 verifies rather than assumes — the failure
+mode is identical if it turns out otherwise.
 
 Unlike `lyly_admin_app` there is **no build directory** — `swee` is interpreted, so the checkout is the deployment. That also means the window where `pip install` has removed a package and not yet replaced it is a window where the running process could crash-restart into a broken tree. Accepted for now: the unit has `Restart=on-failure`, and the next tick re-runs the same steps. Record it as a known limitation rather than solving it.
 
@@ -384,12 +401,13 @@ Not agent tasks. These need a shell on `lychee`.
 ```
 gh api repos/LycheeHome/swee/actions/variables --jq '.variables[] | {name, value}'
 systemctl cat swee | head -20
-stat -c '%a %U:%G %n' /opt/swee /opt/swee/.venv    # substitute the real SWEE_DIR
-sudo -u swee sudo -ln                               # what swee may already do
+stat -c '%a %U:%G %n' /home/steam/swee /home/steam/swee/.venv
+id steam                                            # confirm swee_group
+sudo -u steam sudo -ln                              # what swee may already do
 python3 --version
 ```
 
-Correct `group_vars/all.yml` and Task 1's Python pin to match. **Expect the `.venv` to be owned by whichever user the old deploy used**; if it is not `swee`, a one-time `sudo chown -R swee:swee $SWEE_DIR` is needed before the first real run — this is exactly what broke `lyly-admin`'s first attempt.
+Correct `group_vars/all.yml` and Task 1's Python pin to match. **Expect the `.venv` to be owned by whichever user the old deploy used**; if it is not `swee`, a one-time `sudo chown -R steam:steam /home/steam/swee` is needed before the first real run — this is exactly what broke `lyly-admin`'s first attempt.
 
 - [ ] **Step 1: Deploy key.** Generate `/root/.ssh/id_swee` on `lychee`, add the public half to `LycheeHome/swee` → Deploy keys, **read-only**. `/root/.ssh/config` already has a `Host github.com` block pointing at `id_lychee_ops`; `key_file:` overrides it per-task, so no config change is needed.
 
