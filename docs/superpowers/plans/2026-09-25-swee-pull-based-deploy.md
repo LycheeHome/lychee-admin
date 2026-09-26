@@ -433,21 +433,25 @@ python3 --version
 
 Correct `group_vars/all.yml` and Task 1's Python pin to match. **Expect the `.venv` to be owned by whichever user the old deploy used**; if it is not `swee`, a one-time `sudo chown -R steam:steam /home/steam/swee` is needed before the first real run — this is exactly what broke `lyly-admin`'s first attempt.
 
-- [ ] **Step 1: Deploy key.** Generate `/root/.ssh/id_swee` on `lychee`, add the public half to `LycheeHome/swee` → Deploy keys, **read-only**. `/root/.ssh/config` already has a `Host github.com` block pointing at `id_lychee_ops`; `key_file:` overrides it per-task, so no config change is needed.
+- [ ] **Step 1: No deploy key is needed — confirm that is still true.**
+  `swee` is a public repo, so the fetch clones anonymously over HTTPS and
+  runs as `steam`, the directory's own owner. Verified against live
+  endpoints: `info/refs`, `releases/latest` and `actions/runs` all return
+  200 with no credential. **If `swee` has been made private since this was
+  written, stop** — the role needs an SSH URL and a root-readable key, and
+  the ownership problem that avoids comes back with it.
 
-- [ ] **Step 2: Token.** Add `Actions: Read` on `LycheeHome/swee` to the existing fine-grained PAT, or mint a second one, and set `swee_app_github_token` in `/etc/lychee-ops/secrets.yml`. Verify before relying on it:
+- [ ] **Step 2: Token, for rate limits rather than access.** Set
+  `swee_app_github_token` in `/etc/lychee-ops/secrets.yml`. The **existing
+  `lyly-admin` PAT works unmodified** — an authenticated request gets
+  5000/hr even for public repos the token has no explicit access to.
 
-```
-curl -sS -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer TOKEN" \
-  https://api.github.com/repos/LycheeHome/swee/releases/latest
-```
-
-- [ ] **Step 2b: Cut a release AFTER Task 1 has merged.** The gate matches a
-  job named `test` on the release commit, and **releases cut before Task 1
-  merges do not have one** — verified: `v2.11.2` ran only `release-please`
-  and `deploy`. Until a newer release exists, the gate correctly reports
-  `blocked — job test concluded: missing`, which reads exactly like a broken
-  gate. Expect it, and do not debug it; cut a release and it clears.
+  This is not optional despite `swee` being public. `swee_app` makes 4 API
+  calls per tick and `lyly_admin_app` 2; at 5-minute intervals that is 72 an
+  hour against an anonymous limit of 60 per IP. Without a token the loop
+  succeeds for roughly the first 50 minutes of each hour and then 403s until
+  the window resets — which reads as intermittent flakiness rather than a
+  budget being exhausted.
 
 - [ ] **Step 3: Dry run, then apply, then verify a real deploy.** `--check --diff --skip-tags app` first; read every diff. Then apply with a second root shell open. Then cut a release in `swee` and confirm it lands within a tick, `journalctl -u swee` shows `Logged in as`, and the bot responds in Discord.
 
