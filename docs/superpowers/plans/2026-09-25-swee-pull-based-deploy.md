@@ -453,10 +453,50 @@ Correct `group_vars/all.yml` and Task 1's Python pin to match. **Expect the `.ve
   the window resets — which reads as intermittent flakiness rather than a
   budget being exhausted.
 
-- [ ] **Step 3: Dry run, then apply, then verify a real deploy.** `--check --diff --skip-tags app` first; read every diff. Then apply with a second root shell open. Then cut a release in `swee` and confirm it lands within a tick, `journalctl -u swee` shows `Logged in as`, and the bot responds in Discord.
+> **Steps 3-5 were reordered during execution.** Task 1 merged as
+> `ci: run the test suite`, and `ci:` is not a releasable type under
+> release-please's defaults, so no release appeared — leaving the latest
+> release at `v2.11.2`, which predates the `test` job. The gate has nothing
+> green to find. The title was correct; calling it `feat:` to force a release
+> would have put a false entry in the CHANGELOG.
 
-- [ ] **Step 4: Merge Task 5.** Only now.
+- [ ] **Step 3: Stop the timer, then push and apply.** The reconciler is
+  **live**, so pushing `lychee-ops` *is* applying it within five minutes —
+  unlike the first cutover, where nothing ran until invoked by hand.
 
-- [ ] **Step 5: Confirm the runner has one fewer dependent.** `swee` is off it. The runner still cannot be retired — scaffolded sites still emit `runs-on: self-hosted`.
+  ```
+  sudo systemctl stop lyly-reconcile.timer
+  ```
+
+  Then push, pull the bootstrap clone, and dry-run:
+  `--check --diff --skip-tags app`. Read every diff — `swee.service` already
+  exists on the host, installed by `swee`'s own `deploy/setup.sh`, so expect
+  a diff there and check it is only the header comment and whitespace before
+  applying. Applying restarts `swee`.
+
+- [ ] **Step 4: Verify what can be verified — the gate blocking correctly.**
+  `swee_app` should resolve `v2.11.2`, find no `test` job on it, and report
+  `blocked — job test concluded: missing` in
+  `/var/lib/swee/deploy-status.json`. **That is the gate working, not a
+  failure.** It exercises release resolution, the lightweight-tag assertion,
+  both API calls, the status file, and the four-outcome logic — everything
+  except the install block. Restart the timer once it looks right.
+
+- [ ] **Step 5: Merge Task 5**, removing `swee`'s old deploy job. From here
+  until Step 6, `swee` cannot be updated by either path. It keeps running;
+  reverting Task 5 restores the old one.
+
+- [ ] **Step 6: Force one release and verify the install block.** An empty
+  commit on `main` carrying a `Release-As:` footer makes release-please cut
+  one. The reconciler should then deploy it within a tick: `journalctl -u
+  swee` shows `Logged in as`, the status file reads `deployed`, and the bot
+  responds in Discord.
+
+  Doing this before Step 5 would fire both deploy paths on the same release,
+  racing two `pip install`s and two restarts against one directory.
+
+- [ ] **Step 7: Confirm the runner has one fewer dependent.** `swee` is off
+  it. The runner still cannot be retired — scaffolded sites still emit
+  `runs-on: self-hosted`.
 
 **Rollback** before Step 4: `swee`'s deploy job still exists and still works, provided its sudo grant and `SWEE_DIR` ownership were not changed by Step 0's `chown`. If they were, restoring means reverting the ownership.
