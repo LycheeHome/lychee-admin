@@ -1,7 +1,7 @@
 # Managed services — design
 
 Date: 2026-09-25
-Status: approved shape, decomposition pending sign-off
+Status: shape and decisions approved; decomposition pending sign-off
 Supersedes a scope boundary in `PRODUCT.md` — see "Product scope change"
 
 ## Problem
@@ -165,6 +165,17 @@ decorative.
 bind address outside a small allowlist, so a declaration cannot move a loopback
 service onto the LAN.
 
+**`image` must be constrained to a trusted namespace, enforced by the
+reconciler.** This is as load-bearing as the absent `command:` field, and it is
+easy to miss. If a compromised `lyly-admin` could write an arbitrary `image`, it
+could exfiltrate every secret on the host regardless of how they are stored —
+point a service at an attacker-controlled image, the reconciler injects the
+decrypted environment by design, and the container posts it anywhere. Encryption
+at rest is irrelevant to that path, because secrets are decrypted at the moment
+of use. With the namespace pinned to `ghcr.io/lycheehome/*`, the worst a
+compromised UI achieves is running a wrong or stale version of your own
+images.
+
 ### Supervision
 
 Compose `restart: unless-stopped` plus the Docker daemon enabled at boot. No
@@ -178,33 +189,88 @@ Deliberately not in the first version — `lyly-admin` will be reading
 `docker compose ps` for all of these anyway, which covers most of the
 visibility that would buy.
 
-## Open decisions
+## Decisions
 
-These are real forks, not details. Each needs answering before implementation.
+### Secrets — SOPS with `age`
 
-**Secrets.** `swee` needs a Discord token and an Anthropic key; `palsave-api`
-likely needs its own. The declaration references a secrets file and must never
-contain one — but something has to put `/etc/lychee-ops/secrets/<name>.env` on
-the host, and that is outside git by definition. The existing precedent is
-`/etc/lychee-ops/secrets.yml`, created by `bootstrap.sh` as a `0600` template
-the operator fills in. Extending that pattern is the obvious answer; whether
-`lyly-admin` should be able to *tell you a secret is missing* without being able
-to read it is the interesting part.
+Secrets are encrypted in `lychee-services` alongside the declarations, decrypted
+by the reconciler at apply time. `lyly-admin` holds the **public** key; `lychee`
+holds the **private** key.
 
-**Registry and authentication.** `ghcr.io` is the natural home. Private images
-mean another credential on the host — read-only, scoped to packages, but real.
-Public images would avoid it at the cost of publishing build artifacts.
+`age` is asymmetric, and that asymmetry is the whole point: encryption needs only
+the public key, so the app can *write* a new secret and cannot *read* any
+existing one. A symmetric scheme — Ansible Vault, which would otherwise be the
+natural choice since the reconciler is already Ansible — cannot do this. One
+password both encrypts and decrypts, so an app able to write secrets can read
+them all.
 
-**Deletion.** A declaration disappearing means "tear this service down" — a
-destructive action triggered by a file vanishing from git. A bad merge or a
-mis-click would stop a running service. This needs the treatment site removal
-already gets: explicit confirmation, never silent, and probably a tombstone
-rather than an immediate `down`.
+Rejected: letting `lyly-admin` write plaintext secrets to the host, which turns
+the app into a secrets store and makes one compromise leak every service's
+credentials at once. Today the app holds exactly one secret — its own bcrypt
+hash, which it only ever compares against — and that is worth preserving.
 
-**Migrating already-deployed scaffolded sites.** Changing the generator does not
-change workflows already running in other people's repositories. Retiring the
-runner requires migrating those too, and that is a conversation with their
-owners, not a code change.
+Also rejected: plain `.env` files placed by hand, which is what most homelabs do
+and is perfectly defensible. It avoids the dependency entirely, at the cost of
+secrets that are unversioned, unbacked-up, and gone when the host is rebuilt —
+on a host whose rebuildability is a stated goal of `lychee-ops`.
+
+The declaration still names which keys a service requires:
+
+```yaml
+env_keys: [DISCORD_TOKEN, ANTHROPIC_API_KEY]   # names only, never values
+```
+
+so the reconciler can fail loudly on a service declared without its secrets,
+rather than starting a container that crash-loops on a missing variable. The
+result lands in the status file `lyly-admin` already reads, so the UI can say
+exactly which key is missing without ever holding its value.
+
+**Honest cost:** one more tool to understand, and losing the private key means
+losing every secret. It must be backed up somewhere that is not `lychee`.
+
+### Registry — `ghcr.io`, private, one read-only token
+
+CI builds on GitHub-hosted runners and pushes; the host only pulls. The host
+needs one credential scoped to `read:packages`, regardless of how many services
+exist.
+
+The alternative — building on the host from a git checkout, which is what both
+the current Next.js scaffold and `lyly-admin`'s own deploy do — needs a deploy
+key **per app repository**. One credential versus N, plus every build's load on
+the box.
+
+Private rather than public images: `swee` and `palsave-api` are public repos, so
+public images would leak nothing new for them. But it would not generalise to
+scaffolded sites, which belong to other people and may be private. One mechanism
+that covers both is worth more than saving a credential.
+
+### Deletion — state is declared, never implied by absence
+
+```yaml
+state: running    # default
+state: stopped    # container down, everything kept
+state: absent     # container removed, named volumes preserved
+```
+
+**Deleting the file does nothing.** A running container with no declaration is
+reported as drift, not acted on. A bad merge or a mis-click cannot stop a
+service, because stopping one requires someone to write the word `stopped`.
+
+Purging volumes is a separate, deliberate action, unreachable from editing a
+declaration.
+
+This follows the precedent already in the codebase rather than inventing a new
+rule: CLAUDE.md requires that removing a site be two *separate* requests, so a
+failed config change can never cascade into deleted data. The cost is that
+`absent` entries accumulate as cruft, which is the right trade against a
+mechanism whose failure mode would otherwise be "a file vanished and a service
+died."
+
+### Migrating already-deployed scaffolded sites
+
+Still open, and not a code decision. Changing the generator does not change
+workflows already running in other people's repositories. Retiring the runner
+requires migrating those too, and that is a conversation with their owners.
 
 ## Decomposition
 
