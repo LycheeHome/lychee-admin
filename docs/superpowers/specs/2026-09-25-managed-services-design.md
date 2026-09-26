@@ -69,6 +69,46 @@ quietly dropping the old sentence.
   nothing here should be designed as though that were temporary.
 - Replacing `lychee-ops`. This extends it.
 
+## Two categories, not one runtime
+
+The first draft of this design assumed every long-lived process on `lychee`
+could become a container. Checking the code before planning showed that is
+false, and the distinction it exposes is more useful than the uniformity it
+cost.
+
+**`swee` is a host agent, not a portable service.** It runs
+`sudo systemctl restart palworld` (`swee/restart.py:41`), reads `/proc/meminfo`
+(`swee/ram.py:5`), shells out to `steamcmd` against `PALWORLD_INSTALL_DIR`, and
+reads `PalWorldSettings.ini` under `/home/steam`. Containerising it would need
+host PID namespace, `/proc`, a route to the host's `systemctl`, and bind mounts
+into another user's home — at which point the container boundary is decorative,
+and the security argument this whole design rests on collapses, because a
+container that can `systemctl restart` on the host has arbitrary root by another
+road.
+
+**`palsave-api` is a portable service.** It reads a backup directory and writes
+`snapshots/` and `state.json` (`config.py:8-12`). No subprocess, no `systemctl`,
+no `/proc`. One read-only bind mount and one volume.
+
+So the managed surface splits in two, and each half gets the mechanism that fits:
+
+| | examples | declared in | runtime | `lyly-admin` can |
+|---|---|---|---|---|
+| **Host agents** | `lyly-admin`, `swee` | `lychee-ops` | systemd unit | **observe** |
+| **Application services** | `palsave-api`, scaffolded sites | `lychee-services` | container | **observe and manage** |
+
+This is a better answer than the one it replaces. Host agents are few, change
+rarely, and are intrinsically privileged — they belong in the root-owned repo
+that already declares `lyly-admin` itself, reviewed as code. Application services
+are the ones that multiply, and they are exactly the ones a bounded declaration
+can safely describe.
+
+It also means "`lyly-admin` knows what runs on `lychee`" resolves differently per
+category: it *sees* everything, and *changes* only the things it is safe to
+change through a schema. That is a sharper product statement than "manages
+services", and it does not require the app to hold privileges over the agents
+that manage the host.
+
 ## Why containers, and why that decides the security model
 
 The obvious reading of "let `lyly-admin` manage services" is that it writes
@@ -274,33 +314,34 @@ requires migrating those too, and that is a conversation with their owners.
 
 ## Decomposition
 
-Too large for one implementation plan. Proposed sub-projects, each producing
-something that works on its own:
+Each sub-project produces something that works on its own.
 
-1. **Containerize `swee`.** Dockerfile, CI that builds and pushes to a registry
-   on release. Still deployed the old way at the end of this. Smallest useful
-   unit, and it makes `swee` a real test case for everything after.
-2. **Service reconciliation in `lychee-ops`.** The `lychee-services` repo, the
-   schema, the templates, validate/render/apply, deletion semantics. Proven
-   with a hand-written declaration for `swee` — no UI yet. **At the end of this,
-   `swee` is off the self-hosted runner.**
-3. **`palsave-api` as the second case.** The schema's first real test against
-   something it was not designed around — it binds a port, `swee` does not, and
-   it is deployed by hand today rather than by CI, so it also exercises the
-   "no existing pipeline" path. Expect it to find gaps; that is why it is
-   separate. Note this slice buys uniformity and observability, **not** runner
-   retirement: `palsave-api` was never on the runner.
-4. **`lyly-admin` writes declarations.** The UI, the git push, the "requested
-   but not yet applied" state the app has no concept of today. This is the
-   `PRODUCT.md` change and the largest single piece.
-5. **The scaffold emits declarations.** `frameworkScaffold.ts` stops generating
-   a self-hosted-runner workflow. **This is the actual goal**, and only after it
-   — plus migrating existing sites — can the runner be retired.
+1. **`swee` deployed by `lychee-ops`.** A role mirroring `lyly_admin_app`: fetch
+   the repo, gate on CI, build the venv, restart the unit. No containers, no
+   declarations — `swee` is a host agent. **At the end of this `swee` is off the
+   self-hosted runner**, which is the security payoff, and the pattern is already
+   proven in production by `lyly-admin`'s own role.
+2. **Container service reconciliation**, proven with `palsave-api`. The
+   `lychee-services` repo, the schema, root-owned templates, SOPS/`age`, the
+   `image` allowlist, deletion semantics. Hand-written declaration, no UI yet.
+   `palsave-api` is a better first case than `swee` would have been: it was never
+   designed around this schema, so it tests it honestly.
+3. **`lyly-admin` observes.** Read-only inventory of both categories — host
+   agents from `lychee-ops`' status output, services from `docker compose ps`,
+   which the app already reads through an existing sudo-pinned wrapper. No new
+   privilege, no `PRODUCT.md` change, and it delivers "knows what runs on
+   `lychee`" on its own.
+4. **`lyly-admin` manages services.** Writes declarations, commits them, and
+   represents "requested but not yet applied" — a state the app has no concept of
+   today. This is the `PRODUCT.md` change and the largest piece.
+5. **The scaffold emits declarations.** `frameworkScaffold.ts` stops generating a
+   self-hosted-runner workflow. **The actual goal**, and only after it — plus
+   migrating sites already deployed in other people's repositories — can the
+   runner be retired.
 
-Sequencing note: 1–3 are infrastructure and can proceed without touching
-`lyly-admin` at all. The security benefit is back-loaded: `swee` leaves the
-runner at the end of 2, but the runner itself cannot go until 5 and the
-migration of existing sites are both done.
+Note that 3 was previously folded into 4. Separating them matters: observation is
+the whole of the stated goal, needs no new privilege, and can ship long before
+anyone decides whether the app should mutate anything.
 
 ## What this does not fix
 
