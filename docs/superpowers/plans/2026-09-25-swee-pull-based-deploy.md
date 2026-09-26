@@ -241,7 +241,31 @@ swee_app_deploy_key: /root/.ssh/id_swee
     swee_app_target_tag: "{{ swee_app_release.json.tag_name }}"
 ```
 
-Then resolve that tag to a commit SHA via `/git/ref/tags/{{ tag }}`, handling **both** a lightweight tag (`object.type == "commit"`) and an annotated one (`object.type == "tag"`, needing a second dereference through `/git/tags/{sha}`). release-please creates annotated tags; do not assume the simple case.
+Then resolve that tag to a commit SHA via `/git/ref/tags/{{ tag }}`.
+
+**Verified against the live repo: release-please creates LIGHTWEIGHT tags.**
+`refs/tags/v2.11.2` returns `object.type == "commit"`, so `object.sha` is the
+commit SHA directly. An earlier draft of this plan claimed the opposite and
+asked for an annotated-tag dereference; that path would never execute and
+would be untested code in the most correctness-critical part of the role.
+
+Do not write the dereference. Instead **assert** the shape and fail loudly if
+it ever changes:
+
+```yaml
+- name: Fail if the release tag is not a lightweight tag
+  ansible.builtin.fail:
+    msg: >-
+      Expected a lightweight tag for {{ swee_app_target_tag }}, got
+      object.type={{ swee_app_tag_ref.json.object.type }}. release-please's
+      tag format has changed; this role resolves object.sha directly and
+      would now be resolving a tag object, not a commit.
+  when: swee_app_tag_ref.json.object.type != 'commit'
+```
+
+Silently resolving a tag object's SHA as though it were a commit would gate
+against a SHA that has no workflow runs at all — reported as `missing`, which
+reads like CI never ran.
 
 - [ ] **Step 2b: Read what is currently installed**
 
@@ -417,6 +441,13 @@ Correct `group_vars/all.yml` and Task 1's Python pin to match. **Expect the `.ve
 curl -sS -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer TOKEN" \
   https://api.github.com/repos/LycheeHome/swee/releases/latest
 ```
+
+- [ ] **Step 2b: Cut a release AFTER Task 1 has merged.** The gate matches a
+  job named `test` on the release commit, and **releases cut before Task 1
+  merges do not have one** — verified: `v2.11.2` ran only `release-please`
+  and `deploy`. Until a newer release exists, the gate correctly reports
+  `blocked — job test concluded: missing`, which reads exactly like a broken
+  gate. Expect it, and do not debug it; cut a release and it clears.
 
 - [ ] **Step 3: Dry run, then apply, then verify a real deploy.** `--check --diff --skip-tags app` first; read every diff. Then apply with a second root shell open. Then cut a release in `swee` and confirm it lands within a tick, `journalctl -u swee` shows `Logged in as`, and the bot responds in Discord.
 
