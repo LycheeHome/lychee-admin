@@ -80,7 +80,7 @@ printf 'tests/.venv/\n' >> .gitignore
 
 - [ ] **Step 3: Write the failing tests**
 
-Each case is its own play so facts cannot leak between them; `meta: clear_facts` makes that explicit rather than relying on every `set_fact` overwriting.
+**Fact isolation between plays does not exist, and `meta: clear_facts` does not provide it** — verified by probe: a `set_fact` value survives `clear_facts` into the next play intact, and with `gather_facts: false` there are no gathered facts for it to clear either. Worse, a leaked fact **outranks a later play's `vars:`** in Ansible's precedence ladder, so leakage changes control flow and not just assertions. Therefore: a play that must override a name any imported file sets via `set_fact` has to set it with its own `set_fact`, not in `vars:`; and a play that would assert a fact is absent must assert a sentinel value instead.
 
 ```yaml
 # tests/test_swee_decide.yml
@@ -769,9 +769,13 @@ Guard the three existing tasks in that file on `swee_app_pin_moved`, then append
 Run: `./tests/run.sh`
 Expected: PASS, 17 plays.
 
-- [ ] **Step 6: Guard the API calls in `main.yml`**
+- [ ] **Step 6: Reorder, then guard the API calls in `main.yml`**
 
-Add `when: swee_app_pin_moved` to each of these four tasks: `Resolve the release tag to a commit`, `Fail if the release tag is not a lightweight tag`, `Query workflow runs for the target commit`, and `Query jobs for each completed workflow run`.
+**Reorder first.** `main.yml` currently resolves the tag *before* it reads the installed markers and imports `decide_target.yml` — which is the only thing that sets `swee_app_pin_moved`. Guarding without reordering references an undefined variable, and Ansible **raises** on an undefined var in `when:` rather than skipping, so every tick would fail. Move `Read the currently installed tag`, `Read the currently installed commit` and `Decide the target state` above the first guarded task.
+
+Then add `when: swee_app_pin_moved` to each of these **five** tasks: `Resolve the release tag to a commit`, `Fail if the release tag is not a lightweight tag`, `Record the target commit`, `Query workflow runs for the target commit`, and `Query jobs for each completed workflow run`.
+
+`Record the target commit` is easy to miss — it dereferences `swee_app_tag_ref.json.object.sha`, the same registered result as the assertion beside it, so it raises on a skipped tick exactly as the assertion would.
 
 The assertion **must** be guarded alongside the call it reads. It dereferences `swee_app_tag_ref.json.object.type`, so an unguarded assertion raises on every skipped tick — which is the commonest tick there is.
 
