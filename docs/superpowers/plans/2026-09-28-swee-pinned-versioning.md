@@ -1132,7 +1132,7 @@ Expected: FAIL — `swee_app_failed_tag` is undefined.
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `./tests/run.sh`
-Expected: PASS, 25 plays.
+Expected: PASS, 26 plays (Task 6's review added an ordering test).
 
 - [ ] **Step 5: Slurp the marker in `main.yml`**
 
@@ -1333,7 +1333,7 @@ Expected: only the `uri` header expressions inside the two roles' task files.
 - [ ] **Step 6: Run the full suite and commit**
 
 Run: `./tests/run.sh`
-Expected: PASS, 25 plays.
+Expected: PASS, 26 plays (Task 6's review added an ordering test).
 
 ```bash
 git add group_vars/all.yml roles/ bootstrap.sh README.md
