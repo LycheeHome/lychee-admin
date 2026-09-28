@@ -42,12 +42,13 @@ instead of only saying that something is.
 
 ## Positioning
 
-This is not a general reverse-proxy panel. It knows *this* host: that there
-are two Cloudflare Tunnels deliberately split so restarting the sites tunnel
-never drops `ssh.lyly.dev`; that `/etc/caddy/Caddyfile` uses explicit
-`http://` prefixes because TLS terminates at Cloudflare's edge and
-`auto_https` is off; that site directories are `web:webdeploy` `2775`; that
-the app's own user cannot write either config file except through two
+This is not a general reverse-proxy panel. It knows *this* host: that
+the sites tunnel is deliberately its own service, a boundary drawn so
+restarting it never dropped `ssh.lyly.dev` and kept after that tunnel
+was retired; that `/etc/caddy/Caddyfile` uses explicit `http://`
+prefixes because TLS terminates at Cloudflare's edge and `auto_https`
+is off; that site directories are `web:webdeploy` `2775`; that the
+app's own user cannot write either config file except through two
 sudo-pinned wrapper scripts.
 
 A generic tool (Nginx Proxy Manager, Caddy's admin API, the Cloudflare

@@ -78,8 +78,9 @@ export const realSystemCommands: SystemCommands = {
   /**
    * Restarts cloudflared-sites, not the box's original cloudflared.service —
    * lyly-admin only manages hostnames on the split-off "sites" tunnel
-   * (see lychee-ops' cloudflared-sites.service), so this never interrupts
-   * ssh.lyly.dev, which stays on its own separate tunnel/service.
+   * (see lychee-ops' cloudflared-sites.service). The split was drawn so this
+   * could never interrupt ssh.lyly.dev; that tunnel is retired and host
+   * access is Tailscale now, but the scope stays exactly as narrow as it was.
    */
   restartCloudflared() {
     return run("sudo", ["/usr/bin/systemctl", "restart", "cloudflared-sites"]);
