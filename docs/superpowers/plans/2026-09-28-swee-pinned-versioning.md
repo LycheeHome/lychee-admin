@@ -101,7 +101,6 @@ printf 'tests/.venv/\n' >> .gitignore
               - { name: test, conclusion: success }
               - { name: release-please, conclusion: success }
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_gate.yml
     - name: Assert the gate passed
       ansible.builtin.assert:
@@ -122,7 +121,6 @@ printf 'tests/.venv/\n' >> .gitignore
             jobs:
               - { name: test, conclusion: failure }
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_gate.yml
     - name: Assert the gate blocked and named the conclusion
       ansible.builtin.assert:
@@ -142,7 +140,6 @@ printf 'tests/.venv/\n' >> .gitignore
               - { name: release-please, conclusion: success }
               - { name: deploy, conclusion: success }
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_gate.yml
     - name: Assert the gate blocked as missing
       ansible.builtin.assert:
@@ -160,7 +157,6 @@ printf 'tests/.venv/\n' >> .gitignore
         - json: { jobs: [{ name: test, conclusion: success }] }
         - json: { jobs: [{ name: test, conclusion: failure }] }
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_gate.yml
     - name: Assert a disagreement blocks regardless of order
       ansible.builtin.assert:
@@ -177,7 +173,6 @@ printf 'tests/.venv/\n' >> .gitignore
         - json: { jobs: [{ name: test, conclusion: failure }] }
         - json: { jobs: [{ name: test, conclusion: success }] }
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_gate.yml
     - name: Assert the reverse order blocks too
       ansible.builtin.assert:
@@ -193,7 +188,6 @@ printf 'tests/.venv/\n' >> .gitignore
       results:
         - json: { jobs: [{ name: test, conclusion: null }] }
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_gate.yml
     - name: Assert a null conclusion is legible
       ansible.builtin.assert:
@@ -348,7 +342,6 @@ Append to `tests/test_swee_decide.yml`:
   vars:
     swee_version: ""
   tasks:
-    - ansible.builtin.meta: clear_facts
     - name: Import the target decision, expecting it to fail
       block:
         - ansible.builtin.import_tasks: ../roles/swee_app/tasks/assert_pin.yml
@@ -461,7 +454,6 @@ Append to `tests/test_swee_decide.yml`:
     swee_app_installed_tag_raw: { failed: true }
     swee_app_installed_sha_raw: { failed: true }
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_target.yml
     - name: Assert first-deploy state
       ansible.builtin.assert:
@@ -480,7 +472,6 @@ Append to `tests/test_swee_decide.yml`:
     swee_app_installed_sha_raw:
       content: "NDQ3NDU4ZTlmN2U0N2RiNjY1ZGYxODI0MDdjOTNlMWRkOWRmZGEzNAo="
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_target.yml
     - name: Assert the installed markers decode
       ansible.builtin.assert:
@@ -496,7 +487,6 @@ Append to `tests/test_swee_decide.yml`:
     swee_app_installed_tag_raw: { content: "" }
     swee_app_installed_sha_raw: { content: "" }
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_target.yml
     - name: Assert an empty marker reads as none
       ansible.builtin.assert:
@@ -639,7 +629,6 @@ Append to `tests/test_swee_decide.yml`:
     swee_app_installed_tag_raw: { content: "djIuMTEuMgo=" }
     swee_app_installed_sha_raw: { failed: true }
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_target.yml
     - name: Assert the steady state
       ansible.builtin.assert:
@@ -655,7 +644,6 @@ Append to `tests/test_swee_decide.yml`:
     swee_app_installed_tag_raw: { content: "djIuMTEuMgo=" }
     swee_app_installed_sha_raw: { failed: true }
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_target.yml
     - name: Assert a promotion is detected
       ansible.builtin.assert:
@@ -670,7 +658,6 @@ Append to `tests/test_swee_decide.yml`:
     swee_app_installed_tag_raw: { failed: true }
     swee_app_installed_sha_raw: { failed: true }
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_target.yml
     - name: Assert an absent marker counts as moved
       ansible.builtin.assert:
@@ -684,7 +671,6 @@ Append to `tests/test_swee_decide.yml`:
     required_check: test
     swee_app_pin_moved: false
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_gate.yml
     - name: Assert the gate was never consulted
       ansible.builtin.assert:
@@ -705,7 +691,6 @@ Append to `tests/test_swee_decide.yml`:
       results:
         - json: { jobs: [{ name: test, conclusion: failure }] }
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_gate.yml
     - name: Assert a promotion that fails CI is blocked
       ansible.builtin.assert:
@@ -868,7 +853,6 @@ Append to `tests/test_swee_decide.yml`:
     swee_app_workflow_runs: { json: { workflow_runs: [] } }
     swee_app_run_jobs: {}
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_gate.yml
     - name: Assert the no-runs string
       ansible.builtin.assert:
@@ -886,7 +870,6 @@ Append to `tests/test_swee_decide.yml`:
     swee_app_workflow_runs: {}
     swee_app_run_jobs: {}
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_gate.yml
     - name: Assert a missing key reads as zero runs
       ansible.builtin.assert:
@@ -908,7 +891,6 @@ Append to `tests/test_swee_decide.yml`:
               - { name: release-please, conclusion: success }
               - { name: deploy, conclusion: success }
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_gate.yml
     - name: Assert the renamed-or-too-old string
       ansible.builtin.assert:
@@ -933,6 +915,8 @@ In `decide_gate.yml`, add before `Explain the gate outcome`:
       {{ swee_app_workflow_runs.json.workflow_runs | default([], true) | length }}
   when: swee_app_pin_moved | default(true)
 ```
+
+**Every play below that needs `swee_app_pin_moved` must establish it with the play's own `set_fact` task, never in `vars:`** — `decide_target.yml` sets that name via `set_fact`, and a leaked fact outranks a later play's `vars:`. The snippets in this task and the next show it in `vars:` for brevity; that is wrong and the file's own header says so.
 
 **If the absent-`workflow_runs`-key test raises rather than returning `0`, that is a real finding, not a bad test.** `| default([], true)` cannot rescue an expression that raised while being evaluated, and `.json` is absent whenever a response was not JSON. Use the defensive form instead:
 
@@ -1028,7 +1012,6 @@ Append to `tests/test_swee_decide.yml`:
     # base64 of "v2.12.0 2"
     swee_app_failed_raw: { content: "djIuMTIuMCAy" }
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_target.yml
     - name: Assert two failures still allow a third attempt
       ansible.builtin.assert:
@@ -1047,7 +1030,6 @@ Append to `tests/test_swee_decide.yml`:
     # base64 of "v2.12.0 3"
     swee_app_failed_raw: { content: "djIuMTIuMCAz" }
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_target.yml
     - name: Assert the third failure stops further attempts
       ansible.builtin.assert:
@@ -1063,7 +1045,6 @@ Append to `tests/test_swee_decide.yml`:
     swee_app_installed_sha_raw: { failed: true }
     swee_app_failed_raw: { content: "djIuMTIuMCAz" }
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_target.yml
     - name: Assert rolling back to another tag starts fresh
       ansible.builtin.assert:
@@ -1080,7 +1061,6 @@ Append to `tests/test_swee_decide.yml`:
     # base64 of "v2.12.0" — an operator hand-clearing the cap
     swee_app_failed_raw: { content: "djIuMTIuMA==" }
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_target.yml
     - name: Assert a one-token file reads as zero failures
       ansible.builtin.assert:
@@ -1098,7 +1078,6 @@ Append to `tests/test_swee_decide.yml`:
     swee_app_installed_sha_raw: { failed: true }
     swee_app_failed_raw: { failed: true }
   tasks:
-    - ansible.builtin.meta: clear_facts
     - ansible.builtin.import_tasks: ../roles/swee_app/tasks/decide_target.yml
     - name: Assert the clean state
       ansible.builtin.assert:
