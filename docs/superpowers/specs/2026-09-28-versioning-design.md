@@ -224,8 +224,10 @@ undefined variable in a role with no rescue.
 
 ### Status file
 
-`target_version` and `installed_version` join `target_commit` and
-`installed_commit`. The SHAs stay — they are what the gate verified — but the
+`installed_tag` joins the `target_tag` field `swee_app`'s status template
+already carries, beside `target_commit` and `installed_commit`. (This spec said
+`target_version`/`installed_version` when written; the implementation follows
+the field name already in the template rather than renaming it.) The SHAs stay — they are what the gate verified — but the
 version answers "what is running?"
 
 `installed_version` follows `installed_commit`'s existing reporting rule in
@@ -282,6 +284,12 @@ bot every five minutes indefinitely, with a Discord alert each time. Pinning is
 what makes that loop reachable by a one-line commit, so the mechanism is ported
 across as part of this work.
 
+**Keyed on the tag rather than the SHA**, unlike `lyly_admin_app`. The cap is
+then computable from local disk before any API call, so a capped pin skips even
+the tag resolution — zero calls rather than three. Rollback semantics are
+unchanged: a different tag is a different key and starts fresh, which makes
+promoting another version the primary recovery, needing no host access.
+
 ### What gets better
 
 **Recovery stops needing host access.** Reverting the pin commit yields a
@@ -318,9 +326,14 @@ Two corrections to that document, found while writing this one:
   running mods inherits all of it, and the converse. It should move to `/opt/swee`
   under a dedicated `swee` system user. **Sequenced after slice 1**, because
   moving a service and changing how it is deployed in one step gives two suspects
-  when it breaks. The move must carry `player_history`, session, last-release and
-  palfeed state files, journal read access, and the sudoers grant. It does not
-  interact with this design: `swee_dir` and `swee_user` are already `group_vars`
+  when it breaks. The move is harder than it first looks, and `group_vars/all.yml` records
+  why: swee runs as `steam` because that is what lets it restart the palworld
+  unit, run `steamcmd` against the game install, and read `PalWorldSettings.ini`.
+  A dedicated user needs each of those granted back explicitly — group membership
+  on the game install, a sudoers entry, journal read access — so the slice
+  replaces one shared identity with several narrow grants rather than simply
+  moving a directory. It must also carry `player_history`, session, last-release
+  and palfeed state files. It does not interact with this design: `swee_dir` and `swee_user` are already `group_vars`
   variables.
 
 ## Slicing
