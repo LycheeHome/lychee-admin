@@ -412,7 +412,7 @@ Update the file's header comment — its last paragraph currently says swee depl
 - [ ] **Step 6: Run the tests to verify they pass**
 
 Run: `./tests/run.sh`
-Expected: PASS, 7 plays.
+Expected: PASS, 7 plays (9 after Task 2's review fix adds the undefined and latest/main/HEAD cases).
 
 - [ ] **Step 7: Verify nothing still references the deleted fact**
 
@@ -544,7 +544,7 @@ Expected: FAIL with `Could not find or access '../roles/swee_app/tasks/decide_ta
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `./tests/run.sh`
-Expected: PASS, 10 plays.
+Expected: PASS, 12 plays.
 
 - [ ] **Step 5: Wire it into `main.yml`**
 
@@ -767,7 +767,7 @@ Guard the three existing tasks in that file on `swee_app_pin_moved`, then append
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `./tests/run.sh`
-Expected: PASS, 15 plays.
+Expected: PASS, 17 plays.
 
 - [ ] **Step 6: Guard the API calls in `main.yml`**
 
@@ -975,7 +975,7 @@ Then replace `Explain the gate outcome` with:
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `./tests/run.sh`
-Expected: PASS, 18 plays. The Task 1 case asserting `'job test concluded: missing'` now fails — update that assertion to `'no job named test in 1 completed run(s) for '` plus its tag, and give that play a `swee_app_workflow_runs` with one run and a `swee_app_target_tag`.
+Expected: PASS, 20 plays. The Task 1 case asserting `'job test concluded: missing'` now fails — update that assertion to `'no job named test in 1 completed run(s) for '` plus its tag, and give that play a `swee_app_workflow_runs` with one run and a `swee_app_target_tag`.
 
 - [ ] **Step 5: Commit**
 
@@ -1149,7 +1149,7 @@ Expected: FAIL — `swee_app_failed_tag` is undefined.
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `./tests/run.sh`
-Expected: PASS, 23 plays.
+Expected: PASS, 25 plays.
 
 - [ ] **Step 5: Slurp the marker in `main.yml`**
 
@@ -1248,7 +1248,7 @@ In `deploy-status.json.j2`, before the closing brace:
 - [ ] **Step 10: Run the full suite**
 
 Run: `./tests/run.sh`
-Expected: PASS, 23 plays, `failed=0`.
+Expected: PASS, 25 plays, `failed=0`.
 
 - [ ] **Step 11: Commit**
 
@@ -1350,7 +1350,7 @@ Expected: only the `uri` header expressions inside the two roles' task files.
 - [ ] **Step 6: Run the full suite and commit**
 
 Run: `./tests/run.sh`
-Expected: PASS, 23 plays.
+Expected: PASS, 25 plays.
 
 ```bash
 git add group_vars/all.yml roles/ bootstrap.sh README.md
