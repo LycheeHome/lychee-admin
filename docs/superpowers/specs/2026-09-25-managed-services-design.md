@@ -17,6 +17,13 @@ Cloudflare tunnels, Caddy, and one Docker container per Next.js site that
 
 Two consequences, one of them urgent.
 
+> **Superseded 2026-09-28.** The runner was retired once `swee` came off it. The
+> claim below that scaffolded sites blocked this was wrong: the runner was
+> org-scoped, so repositories outside `LycheeHome` could never reach it. Goal 2
+> and slice 5 survive as a correctness fix to generated output, not as a security
+> blocker. The original text is kept because the reasoning it contains about fork
+> pull requests is still correct and still the reason the deploy job had to go.
+
 **The self-hosted runner cannot be retired.** `swee` deploys through it, and
 `src/lib/frameworkScaffold.ts:75` emits `runs-on: self-hosted` into the GitHub
 Actions workflow of *every* Next.js site the app scaffolds. Those workflows are
