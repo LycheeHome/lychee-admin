@@ -231,6 +231,23 @@ The performance flags come from a `group_vars` variable rather than being
 hardcoded, so tuning them stays a one-line change — a committed one, applied
 within a tick.
 
+**Enablement is a task, not a handler**, and this is the one place the role must
+differ in shape from `swee_host`. Every other role in `lychee-ops` enables what it
+declares by riding `enabled: true` on its restart handler; this role has no
+restart handler to ride, and that absence is the point of it. A handler notified
+by the template task fires only on a tick where the unit's bytes change, which
+asserts *enabled as of the last edit* rather than *enabled*. Two routes then reach
+the failure that enabling exists to prevent: someone runs `systemctl disable` and
+nothing undoes it, or someone hand-edits the live unit to the relocated paths
+while troubleshooting, after which the template renders byte-identical, reports
+`ok`, and notifies nothing. Both leave the unit present and unenabled, which
+surfaces only at a reboot the server does not come back from.
+
+`enabled: true` carries **no `state:` key** — `state:` is the field that would
+start or restart the service, and its absence is what lets enablement be
+reasserted every tick without ever touching the running process. Do not model this
+on `roles/reconciler`'s timer task, which carries `state: started`.
+
 ### 4. swee gets its own user, `/opt/swee` and `/var/lib/swee`
 
 Carried forward from the superseded spec, where it remains correct.
@@ -320,6 +337,8 @@ identity migration.
 
 ### 1b — the foundation
 
+**Complete, 2026-09-30** — see *What the 1b migration turned up* below.
+
 Relocate Palworld to `/srv/games/palworld/pal-chuds`; create the `palworld` group
 and the setgid layout; declare the unit in `lychee-ops`.
 
@@ -385,6 +404,56 @@ Each grant fails separately, so verification is a matrix:
 `/config set` is the one to watch: it is the only check that exercises setgid
 inheritance and the ownership flip together, and it is the mechanism that replaced
 the ACL.
+
+## What the 1b migration turned up (2026-09-30)
+
+Executed and verified end to end. The guard held — `palworld_host` ticked for
+roughly an hour against a host where `/srv/games/palworld/pal-chuds` did not yet
+exist, and the live unit still read `/home/steam` when the operator began, which
+is the inertness property no off-host test can establish. After the move: the
+permission chain reads `0755 → 2755 → 2755 → 2755 → 2775` with the group-write bit
+appearing exactly once; three consecutive ticks reported every task `ok` with
+nothing `changed`; and a `/config set` from Discord left
+`PalWorldSettings.ini` as `steam:palworld 664`. That last check is the design in
+one line — swee runs as `steam`, whose primary group is `steam`, so a file it
+creates would be `steam:steam` by default. The group reading `palworld` on a
+brand-new inode is setgid inheritance overriding that, which is the whole
+mechanism the superseded ACL design was reaching for.
+
+Three things the migration found that this spec did not anticipate:
+
+**`/srv/games` and `/srv/games/palworld` are undeclared.** The role declares
+`palworld_install_dir` and everything below it; the two levels above are whatever
+the operator's `mkdir -p` produced — `root:root 0755`. Traversal works and nothing
+enforces it, so `chmod 0750 /srv/games` would break the server with no tick to
+correct it. This is the same finding review raised about `Pal` and
+`Pal/Saved/Config`, one level higher, and it lands in slice 2: the moment
+`games_root` holds a second game, those levels stop being incidental.
+
+**There was a second Palworld instance nobody had recorded.**
+`/home/steam/palworld/sandbox`, 4.9 GB, downloaded 2026-07-15 and never started —
+no `Pal/Saved`, no unit, no consumer configuration referencing it. Deleted during
+the migration. It is worth recording not for its own sake but because this spec's
+Problem section reasoned about `/home/steam` from a listing that included it and
+treated it as one instance. The `palworld_root`/`palworld_instance` split in
+`group_vars` already anticipates multiple instances; what was missing was knowing
+there already were two.
+
+**swee's `GITHUB_REPO` still named the pre-rename org.** Its release ticker had
+been raising `HTTPStatusError: 301 Moved Permanently` every cycle since
+`lychee-home` became `LycheeHome`, because GitHub redirects renamed orgs to a
+canonical repository-ID URL and `httpx` does not follow redirects by default.
+Fixed in `.env` and `.env.save`. Unrelated to the relocation and found only
+because restarting swee for a different reason put the traceback at the top of the
+log — the failure was silent, recurring, and had no detector. The org name is
+copied into swee's `.env`, `.env.save`, `.env.example` and its documentation, with
+nothing comparing them; a sweep belongs in 1c, which touches swee's configuration
+anyway.
+
+Note that the steamcmd-state question is **not** among these: Decision 1 already
+settles it. `~/.steam` and `~/.local/share/Steam` stay in `/home/steam` because
+`+force_install_dir` relocates the game and not the bookkeeping, and 1c inherits
+that decision rather than reopening it.
 
 ## Corrections to earlier documents
 
