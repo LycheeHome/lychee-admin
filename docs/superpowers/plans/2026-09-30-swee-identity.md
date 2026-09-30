@@ -291,6 +291,8 @@ git add roles/swee_host/ tests/
 git commit -m "feat: grant swee what /update actually needs"
 ```
 
+**What Task 3's review changed, recorded because later tasks read this section.** The task as built differs from the steps above in four ways, all from its review: `validate:` is `visudo -csf %s`, not `-cf` — `-cf` prints "Cmnd_Alias referenced but not defined" to stderr and *then* prints "parsed OK" and exits 0, so it would install a drop-in granting nothing, and the test's substring assertions survive a mistyped alias block too, meaning validator and test shared one blind spot. The same flag was corrected in `roles/lyly_admin_host/tasks/main.yml`, which had the identical hole in a file already live on the host. The wrapper entry ends `""`, which pins it to zero arguments — without it sudoers permits *any* arguments, and the no-argument safety would be a property of the shell script rather than of the grant. And the play carries two assertions beyond the five written above: one comparing the restart grant against `palworld_service` read from `group_vars`, and one comparing the whole grant block.
+
 **Phase 1 lands as one PR.** Merge it and let a tick apply it before starting phase 2. Verify on the host:
 
 ```bash
@@ -683,7 +685,7 @@ Remove `steam ALL=(root) NOPASSWD: SWEE_CMDS` and rewrite the comment above it: 
 
 Note this task must be **added to the same loop that already removes the two retired CI drop-ins**, or added beside it — but the existing loop's comment explicitly says this file must NOT be removed. Update that comment in the same commit, or it will contradict the task directly below it.
 
-- [ ] **Step 3: Invert the test assertion**
+- [ ] **Step 3: Invert the test assertion — in both places it now lives**
 
 Task 3's play asserted both principals. Change it to assert `swee` is granted and `steam` is **not**:
 
@@ -693,6 +695,10 @@ Task 3's play asserted both principals. Change it to assert `swee` is granted an
 ```
 
 The negative assertion is the one that matters, and it is why Task 3 asserted the positive: the removal cannot happen accidentally, because a test fails until someone edits it deliberately.
+
+**That play grew during Task 3's review, so there is a second edit here the original plan did not anticipate.** It now also holds `Assert the grant block is exactly what slice 1c intends`, comparing the drop-in's non-comment lines as a list against `sudoers_swee_grants_expected`. Remove the `steam ALL=(root) NOPASSWD: SWEE_CMDS` element from that expected list too. If you miss it the suite goes red rather than silently passing — which is the assertion working — but the failure names a list mismatch rather than the narrowing you meant to make, so do both edits together.
+
+Why that assertion exists, since it changes how this step should be checked: every other assertion in the play is a substring check, and a substring check cannot see an **added** line at all. A fifth command in the `Cmnd_Alias` or a third principal satisfies all of them. It also cannot see an appended suffix — proven during Task 3's own fix round, where renaming the unit to `palworld-palchuds-WRONGNAME` left the suite green, because the wrong name is a superstring of the right one.
 
 - [ ] **Step 4: Run the suite and commit**
 
