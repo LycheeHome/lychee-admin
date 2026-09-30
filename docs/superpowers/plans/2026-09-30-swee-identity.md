@@ -58,7 +58,9 @@ Five failure modes the spec implies but no task's tests would otherwise exercise
 
 ## Phase 1 — `lychee-ops` declares the wrapper and dual-named grants
 
-Nothing in this phase changes swee's behaviour. It runs as `steam` throughout, and nothing invokes the wrapper until phase 2 ships.
+**The wrapper is inert in this phase. The stop/start grants are not.** swee runs as `steam` throughout and nothing invokes the wrapper until phase 2 ships — but the drop-in also grants `steam` `systemctl stop` and `systemctl start`, and the **deployed** v2.11.3 already calls both (`swee/server_update.py:38` and `:63`). They fail today only because the hand-made `/etc/sudoers.d/swee-palworld-restart` grants `restart` alone — that silent failure *is* the `/update` bug. So from the first tick after this merges, `/update` on the unchanged bot will genuinely stop the server, run `steamcmd` directly against the stopped install, and start it again.
+
+That is the correct behaviour arriving a phase early rather than a regression, and it is strictly better than running `steamcmd validate` against a live server. But it is a live change to a running game server with no swee release involved, so it is a thing to know before merging rather than to discover from a `/update`. An earlier draft of this plan asserted the opposite — that nothing in this phase changes swee's behaviour — which was wrong, and wrong in the direction that skips the analysis.
 
 ### Task 1: Identity variables in `group_vars`
 
@@ -293,14 +295,36 @@ git commit -m "feat: grant swee what /update actually needs"
 
 **What Task 3's review changed, recorded because later tasks read this section.** The task as built differs from the steps above in four ways, all from its review: `validate:` is `visudo -csf %s`, not `-cf` — `-cf` prints "Cmnd_Alias referenced but not defined" to stderr and *then* prints "parsed OK" and exits 0, so it would install a drop-in granting nothing, and the test's substring assertions survive a mistyped alias block too, meaning validator and test shared one blind spot. The same flag was corrected in `roles/lyly_admin_host/tasks/main.yml`, which had the identical hole in a file already live on the host. The wrapper entry ends `""`, which pins it to zero arguments — without it sudoers permits *any* arguments, and the no-argument safety would be a property of the shell script rather than of the grant. And the play carries two assertions beyond the five written above: one comparing the restart grant against `palworld_service` read from `group_vars`, and one comparing the whole grant block.
 
-**Phase 1 lands as one PR.** Merge it and let a tick apply it before starting phase 2. Verify on the host:
+**Phase 1 lands as one PR.** Merge it and let a tick apply it before starting phase 2. Then correct `lyly-admin`'s `CLAUDE.md`, which states that `/etc/sudoers.d/lyly-admin` is installed through `validate: visudo -cf %s` — true until this branch merges and false afterwards. Nothing detects that drift, which is why it is written here as a step rather than left to be noticed. Verify on the host:
 
 ```bash
 sudo ls -l /usr/local/sbin/swee-update-palworld /etc/sudoers.d/swee
+
+# The grant that stays unused this phase
 sudo -u steam sudo -n -l /usr/local/sbin/swee-update-palworld
+
+# The grants that go LIVE this phase — these are the ones that change behaviour
+sudo -u steam sudo -n -l /usr/bin/systemctl stop palworld-palchuds
+sudo -u steam sudo -n -l /usr/bin/systemctl start palworld-palchuds
+
+# The merged policy, which `validate:` cannot check
+sudo visudo -c
+
+# Smoke-test the privilege drop without touching the install
+sudo runuser -u steam -- /usr/games/steamcmd +quit
 ```
 
-The second command is the one that matters: it asks sudo whether `steam` may run the wrapper without a password, which is exactly what swee will ask in phase 2. A `sudo: a password is required` here means the drop-in is wrong, and finding that out now is much cheaper than finding it out from a failed `/update`.
+These ask sudo directly whether `steam` may run each command without a password, which is exactly what swee asks. A `sudo: a password is required` means the drop-in is wrong, and finding that out here is much cheaper than from a failed `/update`.
+
+Three of them are not obvious and each covers a gap nothing else does:
+
+**The stop/start checks cover the only grants that change behaviour this phase.** Checking the wrapper alone verifies the grant that stays unused while leaving the two that go live untested.
+
+**`visudo -c` checks the merged policy.** `validate: visudo -csf %s` parses the candidate *in isolation* — it cannot see that `/etc/sudoers.d/swee` now sits beside the hand-made `/etc/sudoers.d/swee-palworld-restart` in one concatenated policy. A collision, most plausibly a duplicate `Cmnd_Alias` name, would install cleanly and break `sudo` for every user on the box.
+
+**The `runuser` smoke test proves what no test can.** It exercises the privilege drop, `/usr/games/steamcmd` existing at that path, `runuser` resolving, `HOME=/home/steam`, and the `cd /` working directory — all in one command that downloads nothing and touches no install. Otherwise the first execution of that whole chain is a phase-2 `/update` with the server already stopped, which is the worst possible place to learn any of it is wrong. **Do not run the wrapper itself here** — `+app_update validate` against a running server is precisely what this slice exists to prevent.
+
+One thing to check before the first `/update` in the window between this merge and the v2.12.0 pin, because v2.11.3 calls `steamcmd` directly with a path from its own config: `sudo grep PALWORLD_INSTALL_DIR /home/steam/swee/.env` should read `/srv/games/palworld/pal-chuds`. It was corrected and verified during slice 1b's migration, so this is a confirmation rather than an expected fix. A stale value would have `steamcmd` download a fresh 9.7 GB copy into the old path while the real server is down.
 
 ---
 
@@ -601,8 +625,9 @@ sudo systemctl start swee
 **Files:**
 - Modify: `lychee-ops/group_vars/all.yml`
 - Modify: `lychee-ops/roles/swee_host/templates/swee.service.j2`
+- Modify: `lychee-ops/roles/swee_host/templates/swee-update-palworld.sh.j2` — its `cd /` comment says the inherited cwd is "today `/home/steam/swee`", which stops being true here
 - Modify: `lychee-ops/roles/swee_app/tasks/main.yml`
-- Modify: `lychee-ops/tests/test_swee_decide.yml`
+- Modify: `lychee-ops/tests/test_swee_decide.yml` — **two** expected literals move, not one: the unit body and the wrapper body, both whole-body compares that fail until their literal is updated in the same commit
 
 - [ ] **Step 1: Change the identity variables**
 
