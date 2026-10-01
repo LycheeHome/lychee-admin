@@ -41,8 +41,19 @@ identical fix.
 
 `ooz/bin/libooz.so` is built on the host; only `ooz/bin/.gitkeep` is tracked. Without it
 Oodle-compressed (`PlM`) saves cannot be decompressed — zlib (`PlZ`) ones still work, so
-the service degrades rather than failing. A deploy that force-checks-out the repo would
-delete it, and nothing would rebuild it.
+the service degrades rather than failing.
+
+The original argument for moving it was that a force-checkout would delete it. **That is
+false, and was probed rather than reasoned about**: `ansible.builtin.git` with
+`force: true` runs `reset --hard` plus `checkout --force`, which touch tracked files only
+— the module never calls `git clean`. A scratch repo with a gitignored file and a
+gitignored directory, force-fetched to a different tag, kept both while the tracked file
+did change. `ooz/bin/*` is gitignored, so today's fetch leaves it alone.
+
+The decision stands on the true reason instead: the deploy mechanism can change under it.
+An rsync-style sync, or this task later gaining `clean: true`, takes the artifact, and
+nothing rebuilds it. Keeping it beside the state makes its survival a property of the
+layout rather than of which deploy module happens to be in use.
 
 ## What investigation established
 

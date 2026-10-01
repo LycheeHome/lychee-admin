@@ -27,6 +27,8 @@ Five failure modes the spec implies that no task's tests would otherwise exercis
 
 1. **`palsave-api` reads an empty directory and reports healthy.** It polls; an empty directory and an unreadable one are indistinguishable from a `200` on `/events/new-pals`. Every verification row but one can pass while the service sees nothing. Pinned to the Phase B precondition and the Phase C matrix's palfeed row.
 2. **The snapshot archive or `state.json` is lost in the move**, so the watcher restarts from zero and re-announces catches swee already posted. Pinned to Phase C steps 4 and 7 — the copy, and the ownership assertion that must come *after* the last copy rather than before the first — and to the matrix rows that read both back.
+
+   This is no longer hypothetical. An earlier draft had Phase B point `WorkingDirectory` at `palsave_api_state_dir` while the service still ran from `palsave_api_dir`, which would have produced exactly this: the watcher starting from zero in an empty directory, swee re-announcing the whole rotation window, and step 4 then copying a stale `state.json` over what it had written since. It would also have failed the restart outright, because that directory did not exist — see Task 6 Step 2. **Moving `WorkingDirectory` is moving the state**, and the two belong in one commit.
 3. **`libooz.so` is not where the new config says**, so Oodle saves fail while zlib ones keep working — a partial failure that looks like nothing at all. Pinned to Task 1's test and the Phase C matrix.
 4. **The permission chain is declared but the service still cannot read**, because a link was missed or the GUID is wrong. Pinned to Task 4 and the Phase B precondition, which tests it with `swee` as a stand-in before anything depends on it.
 5. **A new world GUID appears** and the declaration covers nothing. No test can catch this; it is recorded in the spec and in Task 4's comment so it is recognisable.
@@ -93,9 +95,10 @@ Expected: FAIL on the second test — the path is currently computed from `__fil
 
 ```python
 # Absolute by configuration, repo-relative by default. The deployed service
-# keeps this outside the install directory (/var/lib/palsave-api/lib), because
-# the reconciler force-fetches over the checkout on every pin bump and would
-# otherwise delete a native artifact that nothing rebuilds. Read from the
+# keeps this outside the install directory (/var/lib/palsave-api/lib), so its
+# survival is a property of the layout rather than of which deploy module is
+# in use: today's force-fetch leaves gitignored files alone (probed), but an
+# rsync-style sync or a later clean: true would take it. Read from the
 # environment rather than from config.py deliberately: this module is
 # self-contained by design, and config.py requires PALSAVE_API_BACKUP_DIR at
 # import, which would make every decompression test depend on an env var it
@@ -201,10 +204,14 @@ palsave_api_dir: /home/steam/palsave-api   # becomes /opt/palsave-api in phase C
 # in the rotation must not be inside it.
 palsave_api_state_dir: /var/lib/palsave-api
 
-# Outside the install directory for the same reason, and one the layout makes
-# structural rather than procedural: ooz/bin/libooz.so is built on the host and
-# is not in git, so a force-fetch over the checkout would delete a native
-# artifact nothing rebuilds.
+# Outside the install directory, and the reason is narrower than it first
+# looks. ooz/bin/libooz.so is built on the host and is not in git — but
+# ansible.builtin.git's force: true only resets TRACKED files; it never runs
+# git clean, so today's fetch would leave it. Probed against tests/.venv, not
+# inferred: a gitignored file and directory both survived a force-fetch to a
+# different tag while the tracked file changed. What the split actually buys
+# is independence from the deploy mechanism — an rsync-style sync, or this
+# task gaining clean: true, would take it, and nothing rebuilds it.
 palsave_api_ooz_lib: "{{ palsave_api_state_dir }}/lib/libooz.so"
 
 # Moved off 8787, which lyly-admin also binds (on the LAN interface rather than
@@ -336,7 +343,19 @@ git add roles/palsave_api_host roles/palsave_api_app playbook.yml tests/
 git commit -m "feat: bring palsave-api's unit and deployment under the reconciler"
 ```
 
-### Operator: Phase B verification, before Phase C
+### Operator: Phase B — capture the live unit BEFORE merging
+
+Phase B is the phase that first replaces `/etc/systemd/system/palsave-api.service`, and `ansible.builtin.template` has no inverse. Phase C has a step 0 for exactly this reason; Phase B needs one too, and it is more urgent here: the rendered unit's comment header differs from the one `setup.sh` installed, so the template is **certain** to report `changed` on the first tick, which means the restart handler is **certain** to fire.
+
+```bash
+sudo systemctl cat palsave-api | sudo tee /root/palsave-api.service.pre-reconciler
+```
+
+Then read it against the rendered body before merging. The directives were verified to match `palsave-api`'s own `deploy/palsave-api.service`, which is what installed the live file — but not against the live file itself. A hand-edit on the host (an added `Environment=`, an `EnvironmentFile=`, a `Group=`) would be dropped silently and would surface only at that restart.
+
+`palsave_api_host` is the **last** host role, so a failed restart there skips all three app roles together and repeats every five minutes.
+
+### Operator: Phase B verification, after merging, before Phase C
 
 Merge, let a tick land, then — **this is the precondition the whole design rests on**:
 
@@ -349,7 +368,9 @@ sudo -u swee cat "$NEWEST/Level.sav" > /dev/null && echo "a palworld member CAN 
 
 Note the `sudo ls -d` wraps the glob in a root-run command. A bare `sudo ls -d /path/*/` expands the glob in the *invoking* shell, which cannot traverse `0700` directories, matches nothing, and passes the literal through — which reads as "the directory is empty". That mistake was made twice while designing this slice.
 
-Also check: `sudo cat /var/lib/palsave-api/deploy-status.json` reports `deployed`, and `systemctl show palsave-api -p WorkingDirectory` is **still** the old directory, because Phase B does not move anything.
+Also check: `sudo cat /var/lib/palsave-api/deploy-status.json` reports `deployed` — **not `failed`, and not `blocked`**. A `failed` here means the health check could not reach the service, which is the shape a wrong `palsave_api_port` produces; a `blocked` naming the retry cap means it has already failed three times and will not retry until `/home/steam/palsave-api/.failed-tag` is removed.
+
+And `systemctl show palsave-api -p User,WorkingDirectory` should be **unchanged** — `steam` and the old directory — because Phase B does not move anything. If either has changed, something from Phase C leaked into Phase B.
 
 ---
 
@@ -368,12 +389,13 @@ Run by hand. `palsave-api` is down for the duration; the game server is not touc
    ```
    `palworld` only. No `adm` — it reads no journals.
 2. **Stop it.** `sudo systemctl stop palsave-api`
-3. **Create the directories.**
+3. **Create `/opt/palsave-api`; take ownership of `/var/lib/palsave-api`.**
    ```
    sudo mkdir -p /opt/palsave-api /var/lib/palsave-api/lib
-   sudo chown palsave-api:palsave-api /opt/palsave-api /var/lib/palsave-api /var/lib/palsave-api/lib
+   sudo chown -R palsave-api:palsave-api /opt/palsave-api /var/lib/palsave-api
    sudo chmod 0750 /opt/palsave-api /var/lib/palsave-api
    ```
+   **`/var/lib/palsave-api` already exists by this point**, created in Phase B as a side effect: `palsave_api_app_status_file` is `{{ palsave_api_state_dir }}/deploy-status.json`, so the app role has been declaring that directory since the pin landed — as `steam:steam 0750`, because that is what the variables said then. The `chown` here is what hands it over, and the next tick's app role re-declares it under the new values. Only `lib/` is genuinely new.
 4. **Move code and state separately.**
    ```
    sudo rsync -a --exclude='.venv' --exclude='snapshots' --exclude='state.json' \
@@ -416,23 +438,44 @@ Run by hand. `palsave-api` is down for the duration; the game server is not touc
 
 **Files:**
 - Modify: `lychee-ops/group_vars/all.yml`
+- Modify: `lychee-ops/roles/palsave_api_host/templates/palsave-api.service.j2` — this task changes the template, not only the variables. See Step 2.
 - Modify: `lychee-ops/tests/test_swee_decide.yml`
 
-- [ ] **Step 1: Flip the three variables**
+- [ ] **Step 1: Flip the identity variables**
 
-`palsave_api_user: palsave-api`, `palsave_api_group: palsave-api`, `palsave_api_dir: /opt/palsave-api`. Rewrite the comment above them — it currently explains that the service still runs as `steam` from its home directory, which goes false the moment this lands.
+`palsave_api_user: palsave-api`, `palsave_api_group: palsave-api`, `palsave_api_dir: /opt/palsave-api`. Rewrite the comment above them — it explains that the service still runs as `steam` from its home directory, which goes false the moment this lands.
 
-- [ ] **Step 2: The render test's expected literal moves**
+- [ ] **Step 2: Change the unit template — two lines Phase B deliberately left alone**
 
-The whole-body compare fails until it does. That is the assertion working; update both in the same commit.
+Phase B declared the unit **the service already had**, so the template still reads `WorkingDirectory={{ palsave_api_dir }}` and carries no `Environment=` line. Both change here, in the same commit as the state move, and **they cannot be separated from it**:
 
-- [ ] **Step 3: Run the suite and commit**
+```
+WorkingDirectory={{ palsave_api_state_dir }}
+...
+Environment=PALSAVE_API_OOZ_LIB_PATH={{ palsave_api_ooz_lib }}
+```
+
+**And `palsave_api_port: 8787` becomes `8788` here**, in `group_vars`, for the same reason. The service listens on `8787` until step 7 of the migration seds its `.env` — verified on the host, where `127.0.0.1:8787` answers `200` and nothing is bound to `8788`. Leaving `8788` live in Phase B points `palsave_api_app`'s health check at a port nothing listens on, so every tick fails it, `.deployed-tag` is never written, three alerts fire, and the pin wedges at the retry cap. Worse, `.failed-tag` then rides step 4's `rsync` into `/opt/palsave-api` and blocks Phase C's first tick too, with nothing here telling you to remove it.
+
+Why Phase B could not do this, recorded because it was tried and would have been serious: `/var/lib/palsave-api` did not exist when Phase B was written, and systemd cannot start a unit whose `WorkingDirectory` is missing — so the restart handler fails, a failed handler fails the host, and every role after `palsave_api_host` is skipped, **including the app role that creates that directory**. It does not self-heal; it repeats every five minutes with palsave-api down and the other two services no longer deploying.
+
+And even with the directory present it would have been wrong. `ARCHIVE_DIR` and `STATE_PATH` are relative, so moving `WorkingDirectory` moves the watcher's position: it restarts from zero, swee re-announces every catch in the rotation window, and step 4's copy then puts the old `state.json` back over whatever it wrote in between.
+
+The `Environment=` line waits for the same reason — until the library is at `palsave_api_ooz_lib`, `decompress.py`'s own repo-relative default is the only path that finds it.
+
+- [ ] **Step 3: The render test's expected literal moves, for both changes**
+
+The whole-body compare fails until it does — that is the assertion working. Update the template and the literal in the same commit.
+
+**Do not regenerate the literal from the template.** Doing so makes the two agree by construction and the assertion cannot catch an error in the edit. If you do regenerate it, say so and re-prove the assertion bites afterwards by deleting a line and watching it fail — the proof is what makes it trustworthy, not the green suite. (This happened during Phase B's fix; the proof is why it is still trusted.)
+
+- [ ] **Step 4: Run the suite and commit**
 
 Run: `./tests/run.sh`
 Expected: green.
 
 ```bash
-git add group_vars/all.yml tests/
+git add group_vars/all.yml roles/palsave_api_host/templates/ tests/
 git commit -m "feat: palsave-api runs as itself"
 ```
 
