@@ -590,7 +590,13 @@ Run by hand. swee is down for the duration; the game server is not touched.
    sudo -u swee python3 -m venv /opt/swee/.venv
    sudo -u swee /opt/swee/.venv/bin/pip install -q -r /opt/swee/requirements.txt
    ```
-6. **Copy `.env` and tighten it.** `sudo cp /home/steam/swee/.env /opt/swee/.env && sudo chown swee:swee /opt/swee/.env && sudo chmod 0600 /opt/swee/.env`
+6. **Copy `.env`, drop the dead line, and tighten it.**
+   ```
+   sudo cp /home/steam/swee/.env /opt/swee/.env
+   sudo sed -i '/^PALWORLD_INSTALL_DIR=/d' /opt/swee/.env
+   sudo chown swee:swee /opt/swee/.env && sudo chmod 0600 /opt/swee/.env
+   ```
+   Phase 2 removed `PALWORLD_INSTALL_DIR` from swee's code — the wrapper owns the install path now. Copying it forward would carry a variable nothing reads into the new home permanently, and the next person to read that file would have two apparent sources of truth for the install directory with no way to tell which wins. `STEAMCMD_PATH` was commented out in the shipped `.env.example` and is unlikely to be present, but delete it too if it is.
 7. **Merge the phase-3 `lychee-ops` PR** (Task 6), then apply:
    ```
    sudo systemctl stop lyly-reconcile.timer
@@ -690,6 +696,8 @@ git commit -m "feat: swee runs as itself"
 
 Merge this only after the phase-3 verification matrix is clean. It is deliberately a separate commit from the identity switch, so reverting the narrowing cannot also revert the identity.
 
+**A precondition, closed in Phase 2 rather than here.** This narrowing rewrites `/etc/sudoers.d/swee` **under a running bot**, with no restart — which is exactly the window `restart.py`'s `check_palworld_service()` startup guard cannot see. Until Phase 2, `/restart` discarded its own return code: a failed `sudo systemctl restart` left the server running, so the liveness poll succeeded on the first try and the embed read "Back online after 0s". A mis-narrowed grant would therefore have made `/update` abort honestly while `/restart` lied — and since `/update` is this phase's verification step, nobody would have looked at `/restart`. Phase 2 fixes that return code for the same reason it fixed `/update`'s.
+
 ### Task 7: Remove `steam` from the grant, and declare the old drop-in absent
 
 **Files:**
@@ -748,9 +756,19 @@ git commit -m "chore: steam no longer needs swee's grants"
 
 ```bash
 sudo ls -l /etc/sudoers.d/ | grep swee
+
+# steam must now be REFUSED all three — that is the narrowing working
 sudo -u steam sudo -n -l /usr/local/sbin/swee-update-palworld 2>&1 | head -2
+sudo -u steam sudo -n -l /usr/bin/systemctl stop palworld-palchuds 2>&1 | head -2
+
+# swee must still have all three, not just the wrapper
 sudo -u swee sudo -n -l /usr/local/sbin/swee-update-palworld
+sudo -u swee sudo -n -l /usr/bin/systemctl stop palworld-palchuds
+sudo -u swee sudo -n -l /usr/bin/systemctl start palworld-palchuds
+sudo visudo -c
 ```
+
+Checking the wrapper alone verifies one grant of three, and `/update`'s preflight needs all of them — a narrowing that dropped `stop` would pass a wrapper-only check and then abort on the first real `/update`. Same reasoning as Phase 1's checklist.
 
 The middle command must now **fail** — that is the narrowing working. The third must succeed. Then run `/update` in Discord once more: it exercises the grant that just changed, under the identity that just became its only holder.
 
