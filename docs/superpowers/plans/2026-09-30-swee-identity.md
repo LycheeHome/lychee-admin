@@ -392,6 +392,12 @@ git commit -m "refactor: drop the config the wrapper made dead"
 
 **Follow the pattern already in the repo.** `swee/restart.py:27-32` runs `sudo -n -l <cmd>` as a preflight and returns a clear error when the grant is missing. `server_update.py` has no equivalent, which is half of why the bug was invisible. Mirror `restart.py`; do not invent a second shape.
 
+**To be precise about where**, because this was ambiguous enough to be read the other way during execution: the preflight belongs **inside `update_palworld()`**, at the top, before the warning broadcast. It does *not* belong in `restart.py`'s `check_palworld_service()`, whose only caller is `main.py:57` — `if not check_palworld_service(): raise SystemExit(1)` — so adding `/update`-only grants there would take the whole bot down (relay, stats, `/restart`, `/config`) over a capability none of them use.
+
+Without a preflight in the flow, a missing grant is still *safe* — sudo exits non-zero, the stop's return-code check fires, and the abort holds — but the bot broadcasts the update warning to Discord, announces the restart in-game, sleeps `RAM_RESTART_WARNING_SEC`, and saves the world before discovering it was never permitted to stop anything. Phase 4 removes `steam` from the grant and uses `/update` as the verification, so that is exactly the path this lands on.
+
+Use `asyncio.create_subprocess_exec` rather than `restart.py`'s `subprocess.run`: that one runs at startup in a sync context, while this one would block the event loop. And name the specific missing grant — "sudo not configured" sends someone to the wrong file; "no NOPASSWD grant for `systemctl stop palworld-palchuds`" sends them to the right one.
+
 - [ ] **Step 1: Write the failing tests**
 
 Create `tests/test_server_update.py`:
@@ -488,7 +494,8 @@ In `swee/server_update.py`, replace the stop block and the steamcmd block:
             embed.add_field(
                 name="Status",
                 value=f"Could not stop {PALWORLD_SERVICE_NAME} (exit {stop_rc}). "
-                      "The server was left running and nothing was updated.",
+                      f"Nothing was updated and the server was not restarted — "
+                      f"check `systemctl status {PALWORLD_SERVICE_NAME}`.",
                 inline=False,
             )
             return embed
@@ -521,7 +528,7 @@ and check the start too, since the existing code discards that return code as we
             log.error("server update: start failed with rc=%s", start_rc)
 ```
 
-A failed start is not fatal here — the liveness poll below already catches a server that does not come back, and reports "Update timed out". Logging it turns a 120-second mystery into one line.
+A failed start is not fatal here — the liveness poll below already catches a server that does not come back, and reports "Update timed out". Logging it turns a 120-second mystery into one line. Make the later "Server was still restarted with the existing install" field conditional on `start_rc == 0` while you are here: once the return code is captured, printing that claim unconditionally is stating something the code now knows may be false.
 
 Update the import at line 8 to drop `PALWORLD_INSTALL_DIR` and `STEAMCMD_PATH` and add `SWEE_UPDATE_WRAPPER`.
 
@@ -546,10 +553,12 @@ git commit -m "fix: /update ran steamcmd against a live server"
 
 Not a task — two commits and a wait, in this order:
 
-1. **Merge the swee PR.** `fix:` is releasable, so release-please opens a release PR on its own. Merge that too; it tags `v2.12.0`.
-2. **Bump the pin** in `lychee-ops` `group_vars/all.yml`: `swee_version: v2.12.0`. Merge.
-3. **Watch one tick.** `sudo cat /var/lib/swee/deploy-status.json`. Expect `result: deployed` and `deployed_tag: v2.12.0`. Note that `/var/lib/swee` **already exists** — `swee_app_status_file` (`roles/swee_app/defaults/main.yml:15`) has always written there, created by `Ensure the swee status directory exists`. Phase 3 does not create that directory; it changes its ownership and adds the five state files beside the status file already in it.
-4. **Exercise `/update` in Discord, while swee still runs as `steam`.** This is the whole reason for the ordering. It proves the wrapper, the grants and the code change all work *before* identity is added as a variable. If `/update` is broken here, it is broken for a reason that has nothing to do with the migration, and that is worth knowing separately.
+1. **Merge the swee PR.** `fix:` is releasable, so release-please opens a release PR on its own. Merge that too.
+
+   **Read the tag it cut; do not predict it.** An earlier draft of this plan said `v2.12.0`, and that was wrong: every commit in this phase is `fix:`, `refactor:`, `test:` or `docs:` with no `feat:`, and release-please maps `fix:` to a **patch** bump — so from `v2.11.3` it cuts `v2.11.4`. Squash-merging means the PR *title* becomes the commit subject, so the title's conventional-commit prefix is what decides this. Do not retitle to `feat:` to force a minor version; this is a bug fix and the version should say so.
+2. **Bump the pin** in `lychee-ops` `group_vars/all.yml` to whatever tag step 1 actually produced: `swee_version: v2.11.4`. Merge. A pin naming a tag that does not exist is caught — slice 1a's gate reports an unresolvable pin and blocks rather than killing the play — but it costs a cycle to notice.
+3. **Watch one tick.** `sudo cat /var/lib/swee/deploy-status.json`. Expect `result: deployed` and `deployed_tag` matching the tag from step 1. Note that `/var/lib/swee` **already exists** — `swee_app_status_file` (`roles/swee_app/defaults/main.yml:15`) has always written there, created by `Ensure the swee status directory exists`. Phase 3 does not create that directory; it changes its ownership and adds the five state files beside the status file already in it.
+4. **Exercise `/update` in Discord, while swee still runs as `steam`.** The preflight added in Task 5 means a missing grant now aborts immediately with the grant named, before any broadcast — so a failure here is diagnostic rather than a 60-second wait followed by a mystery. This is the whole reason for the ordering. It proves the wrapper, the grants and the code change all work *before* identity is added as a variable. If `/update` is broken here, it is broken for a reason that has nothing to do with the migration, and that is worth knowing separately.
 
 ---
 
@@ -581,7 +590,13 @@ Run by hand. swee is down for the duration; the game server is not touched.
    sudo -u swee python3 -m venv /opt/swee/.venv
    sudo -u swee /opt/swee/.venv/bin/pip install -q -r /opt/swee/requirements.txt
    ```
-6. **Copy `.env` and tighten it.** `sudo cp /home/steam/swee/.env /opt/swee/.env && sudo chown swee:swee /opt/swee/.env && sudo chmod 0600 /opt/swee/.env`
+6. **Copy `.env`, drop the dead line, and tighten it.**
+   ```
+   sudo cp /home/steam/swee/.env /opt/swee/.env
+   sudo sed -i '/^PALWORLD_INSTALL_DIR=/d' /opt/swee/.env
+   sudo chown swee:swee /opt/swee/.env && sudo chmod 0600 /opt/swee/.env
+   ```
+   Phase 2 removed `PALWORLD_INSTALL_DIR` from swee's code — the wrapper owns the install path now. Copying it forward would carry a variable nothing reads into the new home permanently, and the next person to read that file would have two apparent sources of truth for the install directory with no way to tell which wins. `STEAMCMD_PATH` was commented out in the shipped `.env.example` and is unlikely to be present, but delete it too if it is.
 7. **Merge the phase-3 `lychee-ops` PR** (Task 6), then apply:
    ```
    sudo systemctl stop lyly-reconcile.timer
@@ -683,6 +698,8 @@ git commit -m "feat: swee runs as itself"
 
 Merge this only after the phase-3 verification matrix is clean. It is deliberately a separate commit from the identity switch, so reverting the narrowing cannot also revert the identity.
 
+**A precondition, closed in Phase 2 rather than here.** This narrowing rewrites `/etc/sudoers.d/swee` **under a running bot**, with no restart — which is exactly the window `restart.py`'s `check_palworld_service()` startup guard cannot see. Until Phase 2, `/restart` discarded its own return code: a failed `sudo systemctl restart` left the server running, so the liveness poll succeeded on the first try and the embed read "Back online after 0s". A mis-narrowed grant would therefore have made `/update` abort honestly while `/restart` lied — and since `/update` is this phase's verification step, nobody would have looked at `/restart`. Phase 2 fixes that return code for the same reason it fixed `/update`'s.
+
 ### Task 7: Remove `steam` from the grant, and declare the old drop-in absent
 
 **Files:**
@@ -741,9 +758,19 @@ git commit -m "chore: steam no longer needs swee's grants"
 
 ```bash
 sudo ls -l /etc/sudoers.d/ | grep swee
+
+# steam must now be REFUSED all three — that is the narrowing working
 sudo -u steam sudo -n -l /usr/local/sbin/swee-update-palworld 2>&1 | head -2
+sudo -u steam sudo -n -l /usr/bin/systemctl stop palworld-palchuds 2>&1 | head -2
+
+# swee must still have all three, not just the wrapper
 sudo -u swee sudo -n -l /usr/local/sbin/swee-update-palworld
+sudo -u swee sudo -n -l /usr/bin/systemctl stop palworld-palchuds
+sudo -u swee sudo -n -l /usr/bin/systemctl start palworld-palchuds
+sudo visudo -c
 ```
+
+Checking the wrapper alone verifies one grant of three, and `/update`'s preflight needs all of them — a narrowing that dropped `stop` would pass a wrapper-only check and then abort on the first real `/update`. Same reasoning as Phase 1's checklist.
 
 The middle command must now **fail** — that is the narrowing working. The third must succeed. Then run `/update` in Discord once more: it exercises the grant that just changed, under the identity that just became its only holder.
 
