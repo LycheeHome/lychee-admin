@@ -619,7 +619,9 @@ Run by hand. swee is down for the duration; the game server is not touched.
 | `/config set`, then `stat -c '%U:%G %a' …/PalWorldSettings.ini` | group write still works from the new identity — expect `steam:palworld 664` |
 | `/restart` | the sudoers drop-in under the new principal |
 | `/update` | **the wrapper, the stop/start grants, and the return-code fix together** |
-| `ls -la /var/lib/swee` | the five `.json` files are being written here, not in `/opt/swee` |
+| `sudo ls -la /var/lib/swee` | the five `.json` files are being written here, not in `/opt/swee` |
+
+That row needs `sudo` and the one above it does not, which is new as of Task 6: `swee_app` now declares `/var/lib/swee` as `0750 swee:swee`, so `byron` cannot list it. Before that change the directory was `0755` and the reconciler quietly reverted the migration's `chmod` on every tick — the mode the spec, this plan and the wrapper's own comment all asserted was the one thing nothing enforced.
 
 The relay and `/update` are the two to watch. The relay is the one that fails *silently* — swee will start cleanly, log nothing unusual, and simply never post a join again.
 

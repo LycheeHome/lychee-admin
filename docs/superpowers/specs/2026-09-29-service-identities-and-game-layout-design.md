@@ -363,11 +363,80 @@ swee's code change ships through a release and a pin bump; then the migration;
 then the grants narrow and the old drop-in is declared absent. `/update` works at
 every step.
 
-### 2 — `palsave-api`
+### 2 — `palsave-api`, and retiring `steam`'s blanket root
 
-The same treatment, inheriting the pattern. Its needs are narrower: read on saves,
-no wrapper, no game-config write. This is where the managed-services spec's
-container-service work begins, and the layout will already be in place.
+The same treatment, inheriting the pattern. `palsave-api`'s own needs are narrower:
+read on saves, no wrapper, no game-config write. This is where the managed-services
+spec's container-service work begins, and the layout will already be in place.
+
+**It also has to carry a finding slice 1c surfaced on its last day**, because
+`palsave-api` is the only thing still blocking it.
+
+#### `steam` has passwordless root, and has had since July
+
+```
+/etc/sudoers.d/steam-nopasswd:  steam ALL=(ALL) NOPASSWD: ALL
+```
+
+Not the `sudo` group — `steam` is in that too, but its password is locked (`passwd -S
+steam` returns `L`), which is why an earlier pass through this material dismissed the
+membership as inert. That was true about the group and answered the wrong question.
+This is a separate drop-in, and `NOPASSWD` makes the locked password irrelevant: any
+process running as `steam` is one `sudo` away from root with no authentication.
+
+The Palworld dedicated server runs as `steam`, on a public tunnel. So does
+`palsave-api`. Until 2026-10-01 so did `swee` — which means the four-command grant
+slice 1c built for it was decorative until the identity moved, and moving it is what
+made that grant mean anything.
+
+#### What actually depends on it — evidenced, not inferred
+
+Every `sudo` invocation by `steam` in the journal, which retains back to 2026-07-14,
+before either service was installed:
+
+| | |
+|---|---|
+| `systemctl stop\|start\|restart palworld-palchuds` | 13 — all swee, all now granted to `swee` explicitly |
+| `/usr/local/sbin/swee-update-palworld` | 1 — the first `/update` after the fix |
+| `visudo -cf`, `install -m 440 … /etc/sudoers.d/`, `tee … .service`, `systemctl enable`, `daemon-reload` | the July bootstrap, `deploy/setup.sh` |
+| `cat`, `nano scratch_diagnose_queenbee.py` | a human, once |
+
+**Nothing at runtime.** No service running as `steam` has used root for anything but
+those palworld commands, across the entire history of both services on this host.
+A `grep` for `sudo` across `palsave-api` finds hits only inside its `deploy/setup.sh`;
+the application never shells out to root.
+
+So the blanket grant exists to bootstrap itself — `setup.sh` needed root to install
+the sudoers file that grants root, so it was given root to grant itself root, and the
+shortcut outlived the bootstrap by two months. The July timestamps on the two drop-ins
+are minutes apart: one grants a single command, the other grants everything.
+
+`/etc/sudoers.d/palsave-api-self-restart` is dead too. It exists for `setup.sh:107`'s
+`systemctl restart palsave-api`, the CI-deploy path — and that runner was deleted on
+2026-09-28. The command appears **zero** times in the journal.
+
+#### Why this cannot be done before slice 2
+
+`palsave-api`'s unit is still hand-managed, so `setup.sh` is still the only thing that
+installs it. Removing `steam-nopasswd` means that script can no longer be run as
+`steam` — and it cannot simply be run as `byron` instead, because it derives its
+sudoers lines from `$USER` and would write grants for the wrong account.
+
+Once the reconciler owns `palsave-api`'s unit and grants, nothing on this host needs
+`setup.sh`, and both drop-ins get declared absent — the same move that retired
+`/etc/sudoers.d/swee-palworld-restart` in slice 1c. Declared absent rather than
+deleted once, because deleting an example from a source repo does nothing to a host
+that already has the file installed.
+
+#### What `steam` should end up with
+
+Nothing, most likely. The game server is a systemd unit that needs no privilege of its
+own; `swee` holds the four commands it needs under its own identity. If that proves
+wrong, the grant is written narrow and declared, not restored as a blanket.
+
+Also worth correcting while there: `steam-nopasswd` is mode `0640` where every other
+drop-in on the host is `0440`, and `steam` is a member of `adm` and `sudo` as well as
+`palworld`.
 
 ## Migration and verification
 
@@ -468,6 +537,15 @@ that decision rather than reopening it.
 - **`2026-09-25-managed-services-design.md`** describes `palsave-api` as deployed
   by hand, which is true, but does not record that it shares the `steam` identity
   with two other programs.
+- **This document's own superseded predecessor**, and the reasoning that produced
+  it, recorded that `steam`'s membership of the `sudo` group "grants nothing"
+  because `passwd -S steam` returns `L`. That is true of the **group** — `%sudo
+  ALL=(ALL:ALL) ALL` needs a password the account cannot supply — and it answered
+  the wrong question. Nobody looked in `/etc/sudoers.d/`, where
+  `steam-nopasswd` grants `steam ALL=(ALL) NOPASSWD: ALL`, and `NOPASSWD` makes a
+  locked password irrelevant. The correction was published as a correction, which
+  made it read as settled: the shape to recognise is a narrow check whose negative
+  result gets generalised into a broad conclusion. See slice 2 above.
 
 ## What this does not do
 
