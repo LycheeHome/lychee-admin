@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/../lychee-ops/.idea/lychee-ops.iml" filepath="$PROJECT_DIR$/../lychee-ops/.idea/lychee-ops.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/lyly-admin.iml" filepath="$PROJECT_DIR$/.idea/lyly-admin.iml" />
     </modules>
   </component>
