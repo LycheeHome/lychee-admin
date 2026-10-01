@@ -338,7 +338,19 @@ git add roles/palsave_api_host roles/palsave_api_app playbook.yml tests/
 git commit -m "feat: bring palsave-api's unit and deployment under the reconciler"
 ```
 
-### Operator: Phase B verification, before Phase C
+### Operator: Phase B — capture the live unit BEFORE merging
+
+Phase B is the phase that first replaces `/etc/systemd/system/palsave-api.service`, and `ansible.builtin.template` has no inverse. Phase C has a step 0 for exactly this reason; Phase B needs one too, and it is more urgent here: the rendered unit's comment header differs from the one `setup.sh` installed, so the template is **certain** to report `changed` on the first tick, which means the restart handler is **certain** to fire.
+
+```bash
+sudo systemctl cat palsave-api | sudo tee /root/palsave-api.service.pre-reconciler
+```
+
+Then read it against the rendered body before merging. The directives were verified to match `palsave-api`'s own `deploy/palsave-api.service`, which is what installed the live file — but not against the live file itself. A hand-edit on the host (an added `Environment=`, an `EnvironmentFile=`, a `Group=`) would be dropped silently and would surface only at that restart.
+
+`palsave_api_host` is the **last** host role, so a failed restart there skips all three app roles together and repeats every five minutes.
+
+### Operator: Phase B verification, after merging, before Phase C
 
 Merge, let a tick land, then — **this is the precondition the whole design rests on**:
 
@@ -351,7 +363,9 @@ sudo -u swee cat "$NEWEST/Level.sav" > /dev/null && echo "a palworld member CAN 
 
 Note the `sudo ls -d` wraps the glob in a root-run command. A bare `sudo ls -d /path/*/` expands the glob in the *invoking* shell, which cannot traverse `0700` directories, matches nothing, and passes the literal through — which reads as "the directory is empty". That mistake was made twice while designing this slice.
 
-Also check: `sudo cat /var/lib/palsave-api/deploy-status.json` reports `deployed`, and `systemctl show palsave-api -p WorkingDirectory` is **still** the old directory, because Phase B does not move anything.
+Also check: `sudo cat /var/lib/palsave-api/deploy-status.json` reports `deployed` — **not `failed`, and not `blocked`**. A `failed` here means the health check could not reach the service, which is the shape a wrong `palsave_api_port` produces; a `blocked` naming the retry cap means it has already failed three times and will not retry until `/home/steam/palsave-api/.failed-tag` is removed.
+
+And `systemctl show palsave-api -p User,WorkingDirectory` should be **unchanged** — `steam` and the old directory — because Phase B does not move anything. If either has changed, something from Phase C leaked into Phase B.
 
 ---
 
@@ -435,6 +449,8 @@ WorkingDirectory={{ palsave_api_state_dir }}
 ...
 Environment=PALSAVE_API_OOZ_LIB_PATH={{ palsave_api_ooz_lib }}
 ```
+
+**And `palsave_api_port: 8787` becomes `8788` here**, in `group_vars`, for the same reason. The service listens on `8787` until step 7 of the migration seds its `.env` — verified on the host, where `127.0.0.1:8787` answers `200` and nothing is bound to `8788`. Leaving `8788` live in Phase B points `palsave_api_app`'s health check at a port nothing listens on, so every tick fails it, `.deployed-tag` is never written, three alerts fire, and the pin wedges at the retry cap. Worse, `.failed-tag` then rides step 4's `rsync` into `/opt/palsave-api` and blocks Phase C's first tick too, with nothing here telling you to remove it.
 
 Why Phase B could not do this, recorded because it was tried and would have been serious: `/var/lib/palsave-api` did not exist when Phase B was written, and systemd cannot start a unit whose `WorkingDirectory` is missing — so the restart handler fails, a failed handler fails the host, and every role after `palsave_api_host` is skipped, **including the app role that creates that directory**. It does not self-heal; it repeats every five minutes with palsave-api down and the other two services no longer deploying.
 
