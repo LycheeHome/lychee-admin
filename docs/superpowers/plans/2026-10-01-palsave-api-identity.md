@@ -27,6 +27,8 @@ Five failure modes the spec implies that no task's tests would otherwise exercis
 
 1. **`palsave-api` reads an empty directory and reports healthy.** It polls; an empty directory and an unreadable one are indistinguishable from a `200` on `/events/new-pals`. Every verification row but one can pass while the service sees nothing. Pinned to the Phase B precondition and the Phase C matrix's palfeed row.
 2. **The snapshot archive or `state.json` is lost in the move**, so the watcher restarts from zero and re-announces catches swee already posted. Pinned to Phase C steps 4 and 7 — the copy, and the ownership assertion that must come *after* the last copy rather than before the first — and to the matrix rows that read both back.
+
+   This is no longer hypothetical. An earlier draft had Phase B point `WorkingDirectory` at `palsave_api_state_dir` while the service still ran from `palsave_api_dir`, which would have produced exactly this: the watcher starting from zero in an empty directory, swee re-announcing the whole rotation window, and step 4 then copying a stale `state.json` over what it had written since. It would also have failed the restart outright, because that directory did not exist — see Task 6 Step 2. **Moving `WorkingDirectory` is moving the state**, and the two belong in one commit.
 3. **`libooz.so` is not where the new config says**, so Oodle saves fail while zlib ones keep working — a partial failure that looks like nothing at all. Pinned to Task 1's test and the Phase C matrix.
 4. **The permission chain is declared but the service still cannot read**, because a link was missed or the GUID is wrong. Pinned to Task 4 and the Phase B precondition, which tests it with `swee` as a stand-in before anything depends on it.
 5. **A new world GUID appears** and the declaration covers nothing. No test can catch this; it is recorded in the spec and in Task 4's comment so it is recognisable.
@@ -368,12 +370,13 @@ Run by hand. `palsave-api` is down for the duration; the game server is not touc
    ```
    `palworld` only. No `adm` — it reads no journals.
 2. **Stop it.** `sudo systemctl stop palsave-api`
-3. **Create the directories.**
+3. **Create `/opt/palsave-api`; take ownership of `/var/lib/palsave-api`.**
    ```
    sudo mkdir -p /opt/palsave-api /var/lib/palsave-api/lib
-   sudo chown palsave-api:palsave-api /opt/palsave-api /var/lib/palsave-api /var/lib/palsave-api/lib
+   sudo chown -R palsave-api:palsave-api /opt/palsave-api /var/lib/palsave-api
    sudo chmod 0750 /opt/palsave-api /var/lib/palsave-api
    ```
+   **`/var/lib/palsave-api` already exists by this point**, created in Phase B as a side effect: `palsave_api_app_status_file` is `{{ palsave_api_state_dir }}/deploy-status.json`, so the app role has been declaring that directory since the pin landed — as `steam:steam 0750`, because that is what the variables said then. The `chown` here is what hands it over, and the next tick's app role re-declares it under the new values. Only `lib/` is genuinely new.
 4. **Move code and state separately.**
    ```
    sudo rsync -a --exclude='.venv' --exclude='snapshots' --exclude='state.json' \
@@ -416,23 +419,42 @@ Run by hand. `palsave-api` is down for the duration; the game server is not touc
 
 **Files:**
 - Modify: `lychee-ops/group_vars/all.yml`
+- Modify: `lychee-ops/roles/palsave_api_host/templates/palsave-api.service.j2` — this task changes the template, not only the variables. See Step 2.
 - Modify: `lychee-ops/tests/test_swee_decide.yml`
 
-- [ ] **Step 1: Flip the three variables**
+- [ ] **Step 1: Flip the identity variables**
 
-`palsave_api_user: palsave-api`, `palsave_api_group: palsave-api`, `palsave_api_dir: /opt/palsave-api`. Rewrite the comment above them — it currently explains that the service still runs as `steam` from its home directory, which goes false the moment this lands.
+`palsave_api_user: palsave-api`, `palsave_api_group: palsave-api`, `palsave_api_dir: /opt/palsave-api`. Rewrite the comment above them — it explains that the service still runs as `steam` from its home directory, which goes false the moment this lands.
 
-- [ ] **Step 2: The render test's expected literal moves**
+- [ ] **Step 2: Change the unit template — two lines Phase B deliberately left alone**
 
-The whole-body compare fails until it does. That is the assertion working; update both in the same commit.
+Phase B declared the unit **the service already had**, so the template still reads `WorkingDirectory={{ palsave_api_dir }}` and carries no `Environment=` line. Both change here, in the same commit as the state move, and **they cannot be separated from it**:
 
-- [ ] **Step 3: Run the suite and commit**
+```
+WorkingDirectory={{ palsave_api_state_dir }}
+...
+Environment=PALSAVE_API_OOZ_LIB_PATH={{ palsave_api_ooz_lib }}
+```
+
+Why Phase B could not do this, recorded because it was tried and would have been serious: `/var/lib/palsave-api` did not exist when Phase B was written, and systemd cannot start a unit whose `WorkingDirectory` is missing — so the restart handler fails, a failed handler fails the host, and every role after `palsave_api_host` is skipped, **including the app role that creates that directory**. It does not self-heal; it repeats every five minutes with palsave-api down and the other two services no longer deploying.
+
+And even with the directory present it would have been wrong. `ARCHIVE_DIR` and `STATE_PATH` are relative, so moving `WorkingDirectory` moves the watcher's position: it restarts from zero, swee re-announces every catch in the rotation window, and step 4's copy then puts the old `state.json` back over whatever it wrote in between.
+
+The `Environment=` line waits for the same reason — until the library is at `palsave_api_ooz_lib`, `decompress.py`'s own repo-relative default is the only path that finds it.
+
+- [ ] **Step 3: The render test's expected literal moves, for both changes**
+
+The whole-body compare fails until it does — that is the assertion working. Update the template and the literal in the same commit.
+
+**Do not regenerate the literal from the template.** Doing so makes the two agree by construction and the assertion cannot catch an error in the edit. If you do regenerate it, say so and re-prove the assertion bites afterwards by deleting a line and watching it fail — the proof is what makes it trustworthy, not the green suite. (This happened during Phase B's fix; the proof is why it is still trusted.)
+
+- [ ] **Step 4: Run the suite and commit**
 
 Run: `./tests/run.sh`
 Expected: green.
 
 ```bash
-git add group_vars/all.yml tests/
+git add group_vars/all.yml roles/palsave_api_host/templates/ tests/
 git commit -m "feat: palsave-api runs as itself"
 ```
 
