@@ -95,9 +95,10 @@ Expected: FAIL on the second test — the path is currently computed from `__fil
 
 ```python
 # Absolute by configuration, repo-relative by default. The deployed service
-# keeps this outside the install directory (/var/lib/palsave-api/lib), because
-# the reconciler force-fetches over the checkout on every pin bump and would
-# otherwise delete a native artifact that nothing rebuilds. Read from the
+# keeps this outside the install directory (/var/lib/palsave-api/lib), so its
+# survival is a property of the layout rather than of which deploy module is
+# in use: today's force-fetch leaves gitignored files alone (probed), but an
+# rsync-style sync or a later clean: true would take it. Read from the
 # environment rather than from config.py deliberately: this module is
 # self-contained by design, and config.py requires PALSAVE_API_BACKUP_DIR at
 # import, which would make every decompression test depend on an env var it
@@ -203,10 +204,14 @@ palsave_api_dir: /home/steam/palsave-api   # becomes /opt/palsave-api in phase C
 # in the rotation must not be inside it.
 palsave_api_state_dir: /var/lib/palsave-api
 
-# Outside the install directory for the same reason, and one the layout makes
-# structural rather than procedural: ooz/bin/libooz.so is built on the host and
-# is not in git, so a force-fetch over the checkout would delete a native
-# artifact nothing rebuilds.
+# Outside the install directory, and the reason is narrower than it first
+# looks. ooz/bin/libooz.so is built on the host and is not in git — but
+# ansible.builtin.git's force: true only resets TRACKED files; it never runs
+# git clean, so today's fetch would leave it. Probed against tests/.venv, not
+# inferred: a gitignored file and directory both survived a force-fetch to a
+# different tag while the tracked file changed. What the split actually buys
+# is independence from the deploy mechanism — an rsync-style sync, or this
+# task gaining clean: true, would take it, and nothing rebuilds it.
 palsave_api_ooz_lib: "{{ palsave_api_state_dir }}/lib/libooz.so"
 
 # Moved off 8787, which lyly-admin also binds (on the LAN interface rather than
