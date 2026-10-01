@@ -365,6 +365,13 @@ every step.
 
 ### 2 — `palsave-api`, and retiring `steam`'s blanket root
 
+> **Superseded by `2026-10-01-palsave-api-identity-design.md`**, which carries the full
+> design. What follows is the sketch that document was written from, kept because its
+> framing of the problem is still right. Two things it gets wrong, both corrected there:
+> `palworld` membership alone does **not** grant read on the saves today — five
+> directories between `Saved` and the backup rotation are `0700 steam:steam` — and the
+> blanket-root removal is blocked by more than the hand-managed unit.
+
 The same treatment, inheriting the pattern. `palsave-api`'s own needs are narrower:
 read on saves, no wrapper, no game-config write. This is where the managed-services
 spec's container-service work begins, and the layout will already be in place.
