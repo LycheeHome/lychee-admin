@@ -553,10 +553,12 @@ git commit -m "fix: /update ran steamcmd against a live server"
 
 Not a task — two commits and a wait, in this order:
 
-1. **Merge the swee PR.** `fix:` is releasable, so release-please opens a release PR on its own. Merge that too; it tags `v2.12.0`.
-2. **Bump the pin** in `lychee-ops` `group_vars/all.yml`: `swee_version: v2.12.0`. Merge.
-3. **Watch one tick.** `sudo cat /var/lib/swee/deploy-status.json`. Expect `result: deployed` and `deployed_tag: v2.12.0`. Note that `/var/lib/swee` **already exists** — `swee_app_status_file` (`roles/swee_app/defaults/main.yml:15`) has always written there, created by `Ensure the swee status directory exists`. Phase 3 does not create that directory; it changes its ownership and adds the five state files beside the status file already in it.
-4. **Exercise `/update` in Discord, while swee still runs as `steam`.** This is the whole reason for the ordering. It proves the wrapper, the grants and the code change all work *before* identity is added as a variable. If `/update` is broken here, it is broken for a reason that has nothing to do with the migration, and that is worth knowing separately.
+1. **Merge the swee PR.** `fix:` is releasable, so release-please opens a release PR on its own. Merge that too.
+
+   **Read the tag it cut; do not predict it.** An earlier draft of this plan said `v2.12.0`, and that was wrong: every commit in this phase is `fix:`, `refactor:`, `test:` or `docs:` with no `feat:`, and release-please maps `fix:` to a **patch** bump — so from `v2.11.3` it cuts `v2.11.4`. Squash-merging means the PR *title* becomes the commit subject, so the title's conventional-commit prefix is what decides this. Do not retitle to `feat:` to force a minor version; this is a bug fix and the version should say so.
+2. **Bump the pin** in `lychee-ops` `group_vars/all.yml` to whatever tag step 1 actually produced: `swee_version: v2.11.4`. Merge. A pin naming a tag that does not exist is caught — slice 1a's gate reports an unresolvable pin and blocks rather than killing the play — but it costs a cycle to notice.
+3. **Watch one tick.** `sudo cat /var/lib/swee/deploy-status.json`. Expect `result: deployed` and `deployed_tag` matching the tag from step 1. Note that `/var/lib/swee` **already exists** — `swee_app_status_file` (`roles/swee_app/defaults/main.yml:15`) has always written there, created by `Ensure the swee status directory exists`. Phase 3 does not create that directory; it changes its ownership and adds the five state files beside the status file already in it.
+4. **Exercise `/update` in Discord, while swee still runs as `steam`.** The preflight added in Task 5 means a missing grant now aborts immediately with the grant named, before any broadcast — so a failure here is diagnostic rather than a 60-second wait followed by a mystery. This is the whole reason for the ordering. It proves the wrapper, the grants and the code change all work *before* identity is added as a variable. If `/update` is broken here, it is broken for a reason that has nothing to do with the migration, and that is worth knowing separately.
 
 ---
 
