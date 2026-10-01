@@ -392,6 +392,12 @@ git commit -m "refactor: drop the config the wrapper made dead"
 
 **Follow the pattern already in the repo.** `swee/restart.py:27-32` runs `sudo -n -l <cmd>` as a preflight and returns a clear error when the grant is missing. `server_update.py` has no equivalent, which is half of why the bug was invisible. Mirror `restart.py`; do not invent a second shape.
 
+**To be precise about where**, because this was ambiguous enough to be read the other way during execution: the preflight belongs **inside `update_palworld()`**, at the top, before the warning broadcast. It does *not* belong in `restart.py`'s `check_palworld_service()`, whose only caller is `main.py:57` — `if not check_palworld_service(): raise SystemExit(1)` — so adding `/update`-only grants there would take the whole bot down (relay, stats, `/restart`, `/config`) over a capability none of them use.
+
+Without a preflight in the flow, a missing grant is still *safe* — sudo exits non-zero, the stop's return-code check fires, and the abort holds — but the bot broadcasts the update warning to Discord, announces the restart in-game, sleeps `RAM_RESTART_WARNING_SEC`, and saves the world before discovering it was never permitted to stop anything. Phase 4 removes `steam` from the grant and uses `/update` as the verification, so that is exactly the path this lands on.
+
+Use `asyncio.create_subprocess_exec` rather than `restart.py`'s `subprocess.run`: that one runs at startup in a sync context, while this one would block the event loop. And name the specific missing grant — "sudo not configured" sends someone to the wrong file; "no NOPASSWD grant for `systemctl stop palworld-palchuds`" sends them to the right one.
+
 - [ ] **Step 1: Write the failing tests**
 
 Create `tests/test_server_update.py`:
@@ -488,7 +494,8 @@ In `swee/server_update.py`, replace the stop block and the steamcmd block:
             embed.add_field(
                 name="Status",
                 value=f"Could not stop {PALWORLD_SERVICE_NAME} (exit {stop_rc}). "
-                      "The server was left running and nothing was updated.",
+                      f"Nothing was updated and the server was not restarted — "
+                      f"check `systemctl status {PALWORLD_SERVICE_NAME}`.",
                 inline=False,
             )
             return embed
@@ -521,7 +528,7 @@ and check the start too, since the existing code discards that return code as we
             log.error("server update: start failed with rc=%s", start_rc)
 ```
 
-A failed start is not fatal here — the liveness poll below already catches a server that does not come back, and reports "Update timed out". Logging it turns a 120-second mystery into one line.
+A failed start is not fatal here — the liveness poll below already catches a server that does not come back, and reports "Update timed out". Logging it turns a 120-second mystery into one line. Make the later "Server was still restarted with the existing install" field conditional on `start_rc == 0` while you are here: once the return code is captured, printing that claim unconditionally is stating something the code now knows may be false.
 
 Update the import at line 8 to drop `PALWORLD_INSTALL_DIR` and `STEAMCMD_PATH` and add `SWEE_UPDATE_WRAPPER`.
 
