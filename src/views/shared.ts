@@ -99,6 +99,11 @@ export function icon(name: keyof typeof ICONS): string {
  * number carries the verdict, and a cutoff would be an invented policy.
  * Returns null for anything unparseable so callers omit the fact rather than
  * print NaN. `now` is a parameter so the output is testable.
+ *
+ * Known limit: systemd renders timestamps in the host's local zone, and V8
+ * parses only some zone abbreviations ("UTC", "PDT" yes; "CEST" no, giving
+ * null and a silently omitted fact). lychee emits UTC, so this does not bite;
+ * a host in another zone would need the timestamps requested differently.
  */
 export function formatAge(when: Date | string | null | undefined, now: Date): string | null {
   if (when === null || when === undefined) return null;

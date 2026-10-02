@@ -87,6 +87,16 @@ test("an entry with an unknown group is dropped, not rendered in a bad group", (
   assert.deepEqual(parseInventory(raw).entries, []);
 });
 
+test("an entry whose unit is not a plausible unit name is dropped", () => {
+  for (const unit of ["--help.service", "-x.service", "a b.service", "swee", "a.service;x", "../x.service"]) {
+    const raw = JSON.stringify({
+      generated: "x",
+      services: [{ name: "a", unit, group: "service", reconciled: false }],
+    });
+    assert.deepEqual(parseInventory(raw).entries, [], unit);
+  }
+});
+
 test("a missing inventory file degrades to unavailable rather than throwing", () => {
   const throwing = fsReturning(() => {
     const err = new Error("ENOENT: no such file or directory") as NodeJS.ErrnoException;

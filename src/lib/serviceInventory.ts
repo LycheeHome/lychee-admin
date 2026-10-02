@@ -62,11 +62,16 @@ function knownString(value: unknown): string | undefined {
   return typeof value === "string" && value !== "" ? value : undefined;
 }
 
+/** A systemd unit name: restricted characters, a known suffix, and so never a
+ *  leading "-" that systemctl would read as an option. Defensive only (execFile,
+ *  no shell, no sudo, root-owned source), but it costs one regex. */
+const UNIT_NAME = /^[A-Za-z0-9:_.@][A-Za-z0-9:_.@-]*\.(service|timer|socket|target|mount|path)$/;
+
 function toEntry(raw: Record<string, unknown>): InventoryEntry | null {
   const name = typeof raw.name === "string" ? raw.name : "";
   const unit = typeof raw.unit === "string" ? raw.unit : "";
   const group = typeof raw.group === "string" ? raw.group : "";
-  if (!name || !unit || !GROUPS.includes(group)) return null;
+  if (!name || !UNIT_NAME.test(unit) || !GROUPS.includes(group)) return null;
 
   const entry: InventoryEntry = {
     name,

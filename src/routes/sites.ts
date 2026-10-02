@@ -18,6 +18,7 @@ import {
 import { buildSitePreview } from "../lib/sitePreview";
 import { renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "../views/html";
 import type { SiteStatus } from "../lib/siteDisplay";
+import type { UnitState } from "../lib/unitState";
 import type { Site } from "../lib/caddyfile";
 import type { Deps } from "../deps";
 
@@ -133,7 +134,19 @@ export function createSitesRouter(deps: Deps): Router {
         return;
       }
 
+      // The tunnel and Caddy hops' live state: one read for both units, run
+      // alongside the per-site check below. A failed read degrades to {} (both
+      // hops render `unknown`) rather than taking the page down.
+      const unitStatesRead = (async (): Promise<Record<string, UnitState>> => {
+        try {
+          return await deps.commands.readUnitStates(["caddy.service", "cloudflared-sites.service"]);
+        } catch {
+          return {};
+        }
+      })();
+
       if (site.type === "static") {
+        const unitStates = await unitStatesRead;
         res.send(
           renderSiteDetail(site, {
             sitesRoot: config.sitesRoot,
@@ -141,6 +154,7 @@ export function createSitesRouter(deps: Deps): Router {
             tunnelId,
             tunnelConfigPath: config.tunnelConfigPath,
             caddyfilePath: config.caddyfilePath,
+            unitStates,
             sites,
             created,
           }),
@@ -153,9 +167,13 @@ export function createSitesRouter(deps: Deps): Router {
       // port number) — treat it as simply "not responding" rather than
       // letting an invalid value reach net.connect inside checkPortOpen.
       const port = Number(site.target);
-      const status: SiteStatus = site.framework
-        ? { kind: "container", ...(await deps.commands.checkContainerStatus(hostname)) }
-        : { kind: "tcp", responding: port >= 1 && port <= 65535 ? await checkPortOpen(port) : false };
+      const [status, unitStates] = await Promise.all([
+        (async (): Promise<SiteStatus> =>
+          site.framework
+            ? { kind: "container", ...(await deps.commands.checkContainerStatus(hostname)) }
+            : { kind: "tcp", responding: port >= 1 && port <= 65535 ? await checkPortOpen(port) : false })(),
+        unitStatesRead,
+      ]);
       // site.healthcheckPath is unvalidated on this read path (only POST /sites validates it);
       // safe here only because scaffold.dockerfile is discarded below and never rendered.
       const scaffold = site.framework
@@ -174,6 +192,7 @@ export function createSitesRouter(deps: Deps): Router {
           caddyfilePath: config.caddyfilePath,
           status,
           scaffold: scaffoldCommands,
+          unitStates,
           sites,
           created,
         }),

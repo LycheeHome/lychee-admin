@@ -12,8 +12,20 @@ export interface ServiceBoard {
   /** The reconciler timer's schedule. One timer, so one schedule on the board
    *  rather than a field every row would carry and only one could fill. */
   schedule: TimerSchedule;
+  /** The unit that owns `schedule`, decided once here so the route that reads
+   *  the schedule and the row that shows it cannot disagree. Null: none declared. */
+  timerUnit: string | null;
   generated: string | null;
   inventoryAvailable: boolean;
+}
+
+/**
+ * The reconciler's timer, found in the declared set rather than named in code:
+ * the inventory is the declared set precisely so a new service needs no app
+ * release. No such entry means null, never a guessed unit name.
+ */
+export function findTimerUnit(inv: ServiceInventory): string | null {
+  return inv.entries.find((e) => e.group === "reconciler" && e.unit.endsWith(".timer"))?.unit ?? null;
 }
 
 /** Fixed display order: what deploys things, what runs, what carries traffic. */
@@ -44,5 +56,5 @@ export function buildBoard(
       }),
   })).filter((g) => g.rows.length > 0);
 
-  return { groups, schedule, generated: inv.generated, inventoryAvailable: inv.available };
+  return { groups, schedule, timerUnit: findTimerUnit(inv), generated: inv.generated, inventoryAvailable: inv.available };
 }
