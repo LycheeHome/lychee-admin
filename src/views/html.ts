@@ -6,6 +6,8 @@ import {
   type SiteStatus,
 } from "../lib/siteDisplay";
 import { ADD_STEPS } from "../lib/stepReport";
+import type { BoardRow, ServiceBoard } from "../lib/serviceBoard";
+import type { ServiceGroup } from "../lib/serviceInventory";
 import { layout, type Nav } from "./shell";
 import {
   escapeHtml,
@@ -23,8 +25,13 @@ import {
   CARD,
   CARD_LABEL,
   CARD_LABEL_BASE,
+  GROUP_LABEL,
   TONE_PILL,
   TONE_TEXT,
+  SERVICE_ROW,
+  SERVICE_NAME,
+  SERVICE_DETAIL,
+  formatAge,
 } from "./shared";
 
 /**
@@ -756,5 +763,102 @@ export function renderSiteNotFound(hostname: string): string {
     </div>
     `,
     { nav: {} },
+  );
+}
+
+const GROUP_LABELS: Record<ServiceGroup, string> = {
+  reconciler: "Reconciler",
+  service: "Services",
+  infrastructure: "Infrastructure",
+};
+
+/**
+ * A unit's status through the same describeStatus() the site pages use, so the
+ * services board cannot grow a second vocabulary. A unit has no container
+ * state; the five words it can produce are a subset of the container ones,
+ * and `starting` is the one that needs mapping (a health check still running).
+ */
+function unitLabels(status: BoardRow["status"]) {
+  if (status === "starting") return describeStatus({ kind: "container", state: "running", health: "starting" });
+  return describeStatus({ kind: "container", state: status });
+}
+
+function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date): string {
+  const labels = unitLabels(row.status);
+
+  const facts: string[] = [];
+  if (row.version) facts.push(row.version);
+  if (row.result) facts.push(row.result);
+  if (row.failedAttempts) facts.push(`${row.failedAttempts} ${row.failedAttempts === 1 ? "attempt" : "attempts"}`);
+  const changed = formatAge(row.since, now);
+  if (changed) facts.push(`changed ${changed}`);
+
+  // The reconciler's one timer carries the schedule, as the board does.
+  if (row.group === "reconciler" && row.unit.endsWith(".timer")) {
+    // Only a future time is a "next run". A timer that has just fired or not
+    // yet computed its next elapse is normal, and a past "next" would render
+    // as a negative interval, so it says nothing.
+    const upcoming = board.schedule.next && new Date(board.schedule.next).getTime() > now.getTime();
+    const next = upcoming ? formatAge(board.schedule.next, now) : null;
+    const last = formatAge(board.schedule.last, now);
+    if (next) facts.push(`next run ${next}`);
+    if (last) facts.push(`last run ${last}`);
+  }
+
+  return `
+      <li class="${SERVICE_ROW}" data-service="${escapeHtml(row.name)}">
+        <div class="pt-px"><span class="${TONE_PILL[labels.tone]}"><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span></div>
+        <div class="flex flex-col gap-0.5 min-w-0">
+          <p class="${SERVICE_NAME}">${escapeHtml(row.name)}</p>
+          ${facts.length > 0 ? `<p class="${SERVICE_DETAIL}">${facts.map(escapeHtml).join(" · ")}</p>` : ""}
+          ${
+            // In full, on its own row: the retry-cap string carries the recovery
+            // command, and a clamped string would hide the one thing to do.
+            row.gate ? `<p class="${SERVICE_DETAIL} text-stone-300" data-gate>${escapeHtml(row.gate)}</p>` : ""
+          }
+        </div>
+      </li>`;
+}
+
+/**
+ * What else runs on the host. Read-only: nothing here acts, so nothing here is
+ * a link or a button. `now` is a parameter so ages are testable.
+ */
+export function renderServicesPage(board: ServiceBoard, now: Date = new Date()): string {
+  const written = formatAge(board.generated, now);
+  const freshness = board.inventoryAvailable
+    ? written
+      ? `Inventory written ${written}`
+      : "Inventory write time unknown"
+    : "";
+
+  const groups = board.groups
+    .map(
+      (g) => `
+    <section aria-labelledby="group-${g.group}">
+      <h3 id="group-${g.group}" class="${GROUP_LABEL}">${GROUP_LABELS[g.group]}</h3>
+      <ul class="list-none m-0 p-0 flex flex-col">${g.rows.map((r) => renderServiceRow(r, board, now)).join("")}
+      </ul>
+    </section>`,
+    )
+    .join("");
+
+  const unavailable = `
+    <p id="inventory-unavailable" class="m-0 max-w-[62ch] text-[0.9rem] leading-relaxed text-stone-300 border border-stone-700 rounded-md px-4 py-3">
+      The service inventory could not be read, so there is no list of what should be running and nothing to check live state against. It is published by the reconciler on each tick; if it has never run, or the file was removed, this page stays empty.
+    </p>`;
+
+  return layout(
+    "Services",
+    `
+    <div class="${FRAME_WIDTH} flex flex-col gap-8">
+      <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Services</h2>
+        ${freshness ? `<p class="m-0 text-[0.8rem] text-stone-400" data-inventory-age>${escapeHtml(freshness)}</p>` : ""}
+      </div>
+      ${board.inventoryAvailable ? groups : unavailable}
+    </div>
+    `,
+    { nav: { page: "services" } },
   );
 }

@@ -5,7 +5,6 @@ import type { Server } from "node:http";
 import bcrypt from "bcrypt";
 import type { Deps } from "../deps";
 import type { SystemCommands } from "../lib/systemCommands";
-import type { ServiceBoard } from "../lib/serviceBoard";
 
 const PASSWORD = "test-password";
 process.env.ADMIN_USERNAME = "tester";
@@ -62,8 +61,9 @@ async function serve(
   };
 }
 
-async function board(res: Response): Promise<ServiceBoard> {
-  return JSON.parse(await res.text()) as ServiceBoard;
+/** The status word of each rendered row, in page order. */
+function pills(html: string): string[] {
+  return [...html.matchAll(/&#9679;<\/span> ([a-z ]+)<\/span>/g)].map((m) => m[1]);
 }
 
 describe("GET /services", () => {
@@ -96,17 +96,17 @@ describe("GET /services", () => {
       },
       readTimerSchedule: (t) => {
         timers.push(t);
-        return Promise.resolve({ next: new Date("2026-10-02T05:02:56Z"), last: null });
+        return Promise.resolve({ next: new Date(Date.now() + 180_000), last: null });
       },
     });
     const res = await s.get("/services");
     assert.equal(res.status, 200);
-    const b = await board(res);
+    const html = await res.text();
     assert.equal(stateCalls, 1);
     assert.deepEqual(requested, ["lyly-reconcile.timer", "lyly-reconcile.service", "swee.service"]);
     assert.deepEqual(timers, ["lyly-reconcile.timer"]);
-    assert.equal(b.schedule.next, "2026-10-02T05:02:56.000Z");
-    assert.equal(b.groups[1].rows[0].status, "running");
+    assert.match(html, /next run in 3 minutes/);
+    assert.deepEqual(pills(html).slice(-1), ["running"]);
   });
 
   test("a reconciler entry that is not a timer is not mistaken for one", async () => {
@@ -117,9 +117,9 @@ describe("GET /services", () => {
         return Promise.resolve({ next: null, last: null });
       },
     });
-    const b = await board(await s.get("/services"));
+    const html = await (await s.get("/services")).text();
     assert.deepEqual(timers, []);
-    assert.deepEqual(b.schedule, { next: null, last: null });
+    assert.ok(!html.includes("next run"));
   });
 
   test("a timer in another group is not the reconciler's timer", async () => {
@@ -136,9 +136,9 @@ describe("GET /services", () => {
     const s = await start(null, {});
     const res = await s.get("/services");
     assert.equal(res.status, 200);
-    const b = await board(res);
-    assert.equal(b.inventoryAvailable, false);
-    assert.deepEqual(b.groups, []);
+    const html = await res.text();
+    assert.ok(html.includes("inventory-unavailable"));
+    assert.deepEqual(pills(html), []);
   });
 
   test("unreadable systemctl degrades every row to unknown", async () => {
@@ -147,8 +147,7 @@ describe("GET /services", () => {
     });
     const res = await s.get("/services");
     assert.equal(res.status, 200);
-    const b = await board(res);
-    const statuses = b.groups.flatMap((g) => g.rows.map((r) => r.status));
+    const statuses = pills(await res.text());
     assert.equal(statuses.length, 3);
     assert.ok(statuses.every((st) => st === "unknown"));
   });
@@ -160,9 +159,9 @@ describe("GET /services", () => {
     });
     const res = await s.get("/services");
     assert.equal(res.status, 200);
-    const b = await board(res);
-    assert.deepEqual(b.schedule, { next: null, last: null });
-    assert.equal(b.groups[1].rows[0].status, "running");
+    const html = await res.text();
+    assert.ok(!html.includes("next run"));
+    assert.deepEqual(pills(html).slice(-1), ["running"]);
   });
 
   test("the two reads run concurrently", async () => {

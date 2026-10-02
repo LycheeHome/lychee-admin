@@ -2,8 +2,8 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { withoutHeader } from "../dev/testHelpers";
-import { renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
-import { BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, TYPE_PILL_PROXY } from "./shared";
+import { renderServicesPage, renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
+import { formatAge, TONE_PILL, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, TYPE_PILL_PROXY } from "./shared";
 import { ADD_STEPS } from "../lib/stepReport";
 
 const STATIC_SITE: Site = { hostname: "blog.lyly.dev", type: "static", target: "/var/www/blog.lyly.dev" };
@@ -1430,5 +1430,147 @@ describe("the add-site preview panel", () => {
     assert.ok(branch);
     assert.match(branch[0], /border-l-2/);
     assert.match(branch[0], /border-l-rose-800/);
+  });
+});
+
+describe("renderServicesPage", () => {
+  const NO_SCHEDULE = { next: null, last: null };
+  const NOW = new Date("2026-10-02T05:00:00Z");
+
+  test("an unavailable inventory renders an explanation, not an empty page", () => {
+    const html = renderServicesPage({ groups: [], schedule: NO_SCHEDULE, generated: null, inventoryAvailable: false }, NOW);
+    assert.ok(html.includes("inventory"));
+    assert.ok(!html.includes("undefined"));
+    assert.ok(!html.includes("NaN"));
+  });
+
+  test("a row with no deploy state renders no deploy fields rather than blanks", () => {
+    const html = renderServicesPage(
+      {
+        inventoryAvailable: true,
+        schedule: NO_SCHEDULE,
+        generated: "2026-10-02T04:58:02Z",
+        groups: [{ group: "service", rows: [
+          { name: "palworld", unit: "palworld-palchuds.service", group: "service",
+            reconciled: false, status: "running", since: null },
+        ] }],
+      },
+      NOW,
+    );
+    assert.ok(html.includes("palworld"));
+    assert.ok(html.includes("Inventory written 2 minutes ago"));
+    assert.ok(!html.includes("undefined"));
+    assert.ok(!html.includes("NaN"));
+    assert.ok(!html.includes("data-gate"));
+    const row = html.slice(html.indexOf('data-service="palworld"'), html.indexOf("</li>"));
+    assert.ok(row.includes("palworld"));
+    assert.ok(!row.includes(" · "));
+    assert.ok(!row.includes("<p class=\"font-mono text-[0.8rem]"));
+  });
+
+  test("a timer whose next run is in the past says nothing about the next run", () => {
+    const html = renderServicesPage(
+      {
+        inventoryAvailable: true,
+        schedule: { next: new Date("2026-10-02T04:59:00Z"), last: new Date("2026-10-02T04:58:00Z") },
+        generated: "2026-10-02T04:58:02Z",
+        groups: [{ group: "reconciler", rows: [
+          { name: "lyly-reconcile-timer", unit: "lyly-reconcile.timer", group: "reconciler",
+            reconciled: false, status: "running", since: null },
+        ] }],
+      },
+      NOW,
+    );
+    assert.ok(!html.includes("next run"));
+    assert.ok(html.includes("last run 2 minutes ago"));
+  });
+
+  test("an unknown unit at the retry cap shows a neutral pill and the full gate string", () => {
+    const gate = "v0.2.0 failed 3 times; not retrying (promote another tag, or rm /opt/palsave-api/.failed-tag)";
+    const html = renderServicesPage(
+      {
+        inventoryAvailable: true,
+        schedule: NO_SCHEDULE,
+        generated: "2026-10-02T04:58:02Z",
+        groups: [{ group: "service", rows: [
+          { name: "palsave-api", unit: "palsave-api.service", group: "service", reconciled: true,
+            version: "v0.2.0", result: "blocked", failedAttempts: 3, gate, status: "unknown", since: null },
+        ] }],
+      },
+      NOW,
+    );
+    assert.ok(html.includes("v0.2.0 · blocked · 3 attempts"));
+    assert.ok(html.includes(gate));
+    assert.ok(html.includes(TONE_PILL.neutral));
+    assert.ok(!html.includes(TONE_PILL.bad));
+  });
+
+  function pillFor(status: "running" | "starting" | "exited" | "restarting" | "unknown"): string {
+    return renderServicesPage(
+      {
+        inventoryAvailable: true,
+        schedule: NO_SCHEDULE,
+        generated: "2026-10-02T04:58:02Z",
+        groups: [{ group: "service", rows: [
+          { name: "x", unit: "x.service", group: "service", reconciled: false, status, since: null },
+        ] }],
+      },
+      NOW,
+    );
+  }
+
+  test("the Three-Tone Status Rule holds at the view: exited and restarting are Scorch, starting and unknown are neutral", () => {
+    for (const status of ["exited", "restarting"] as const) {
+      const html = pillFor(status);
+      assert.ok(html.includes(`${TONE_PILL.bad}"><span aria-hidden="true">&#9679;</span> ${status}`), status);
+    }
+    for (const status of ["starting", "unknown"] as const) {
+      const html = pillFor(status);
+      assert.ok(html.includes(`${TONE_PILL.neutral}"><span aria-hidden="true">&#9679;</span> ${status}`), status);
+      assert.ok(!html.includes(TONE_PILL.bad), status);
+    }
+    assert.ok(pillFor("running").includes(`${TONE_PILL.ok}"><span aria-hidden="true">&#9679;</span> running`));
+  });
+
+  test("the services header item is current on the services page", () => {
+    const html = pillFor("running");
+    assert.match(html, /href="\/services"[^>]*aria-current="page"/);
+    assert.doesNotMatch(html, /href="\/"[^>]*aria-current="page"/);
+  });
+});
+
+describe("formatAge", () => {
+  const now = new Date("2026-10-02T05:00:00Z");
+  const at = (secondsFromNow: number) => new Date(now.getTime() + secondsFromNow * 1000);
+
+  test("under five seconds either way is just now", () => {
+    assert.equal(formatAge(at(-4), now), "just now");
+    assert.equal(formatAge(at(4), now), "just now");
+    assert.equal(formatAge(at(-5), now), "5 seconds ago");
+  });
+
+  test("cuts over from seconds to minutes to hours to days", () => {
+    assert.equal(formatAge(at(-59), now), "59 seconds ago");
+    assert.equal(formatAge(at(-60), now), "1 minute ago");
+    assert.equal(formatAge(at(-120), now), "2 minutes ago");
+    assert.equal(formatAge(at(-3599), now), "60 minutes ago");
+    assert.equal(formatAge(at(-3600), now), "1 hour ago");
+    assert.equal(formatAge(at(-47 * 3600), now), "47 hours ago");
+    assert.equal(formatAge(at(-48 * 3600), now), "2 days ago");
+  });
+
+  test("past reads ago and future reads in", () => {
+    assert.equal(formatAge(at(-180), now), "3 minutes ago");
+    assert.equal(formatAge(at(180), now), "in 3 minutes");
+  });
+
+  test("accepts a systemd weekday-prefixed timestamp", () => {
+    assert.equal(formatAge("Fri 2026-10-02 04:57:38 UTC", now), "2 minutes ago");
+  });
+
+  test("anything unparseable is null, not NaN", () => {
+    assert.equal(formatAge(null, now), null);
+    assert.equal(formatAge(undefined, now), null);
+    assert.equal(formatAge("not a date", now), null);
   });
 });

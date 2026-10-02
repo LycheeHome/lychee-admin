@@ -37,6 +37,24 @@ export const TONE_PILL: Record<StatusTone, string> = {
   neutral: `${STATUS_PILL_BASE} text-stone-300 bg-stone-700`,
 };
 
+/**
+ * One row of the services board: a fixed status column, then the unit.
+ *
+ * The status column is LEFT-aligned in a fixed width, which is the deliberate
+ * departure from the site list, where pills sit at the right edge. Site-list
+ * rows are a single line, so a right-aligned pill sits against a clean edge.
+ * These rows are two or three lines of ragged content, and a right-aligned
+ * pill would float against nothing. A left column is what lets the eye run
+ * down the page reading status alone, which is the whole argument for this
+ * layout. Stacked below `sm`, where there is no width to align across.
+ */
+export const SERVICE_ROW =
+  "grid grid-cols-1 sm:grid-cols-[9.5rem_minmax(0,1fr)] gap-x-4 gap-y-1.5 items-start py-4 border-b border-stone-700 last:border-b-0";
+/** The unit name: a machine fact, so mono, at Chalk because it is the value that matters. */
+export const SERVICE_NAME = "font-mono text-base leading-6 text-stone-50 break-words m-0";
+/** Detail and gate lines: Smoke (the dim-text floor), mono, wrapping rather than truncating. */
+export const SERVICE_DETAIL = "font-mono text-[0.8rem] leading-relaxed text-stone-400 break-words m-0";
+
 export const CARD = "bg-stone-800 border border-stone-700 rounded-[10px] p-5";
 /**
  * The size, weight, and tracking every card label shares. Split out because
@@ -46,6 +64,14 @@ export const CARD = "bg-stone-800 border border-stone-700 rounded-[10px] p-5";
  */
 export const CARD_LABEL_BASE = "font-mono text-[0.75rem] font-medium uppercase tracking-[0.1em]";
 export const CARD_LABEL = `${CARD_LABEL_BASE} text-stone-300 m-0 mb-3`;
+/**
+ * A group heading on the services board. Built from CARD_LABEL_BASE rather
+ * than CARD_LABEL for the reason that split exists: CARD_LABEL carries the
+ * margin of a card, these headings are in no card, and appending an override
+ * is unreliable because Tailwind resolves competing utilities by stylesheet
+ * order, not attribute order.
+ */
+export const GROUP_LABEL = `${CARD_LABEL_BASE} text-stone-300 m-0 mb-1`;
 
 export const TONE_TEXT: Record<StatusTone, string> = {
   ok: "text-green-300",
@@ -65,4 +91,32 @@ export const ICONS = {
 
 export function icon(name: keyof typeof ICONS): string {
   return `<svg class="w-[1em] h-[1em] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+}
+
+/**
+ * A moment as an age, never a raw timestamp: "2 minutes ago", "in 3 minutes".
+ * Deliberately has no staleness threshold and no change of appearance — the
+ * number carries the verdict, and a cutoff would be an invented policy.
+ * Returns null for anything unparseable so callers omit the fact rather than
+ * print NaN. `now` is a parameter so the output is testable.
+ */
+export function formatAge(when: Date | string | null | undefined, now: Date): string | null {
+  if (when === null || when === undefined) return null;
+  // systemd timestamps lead with a weekday ("Sat 2026-09-26 11:00:00 UTC"),
+  // which Date.parse does not promise to accept.
+  const text = typeof when === "string" ? when.replace(/^[A-Za-z]{3}\s+/, "") : when;
+  const ms = (text instanceof Date ? text : new Date(text)).getTime();
+  if (!Number.isFinite(ms)) return null;
+
+  const delta = ms - now.getTime();
+  const seconds = Math.round(Math.abs(delta) / 1000);
+  if (seconds < 5) return "just now";
+
+  const plural = (n: number, unit: string): string => `${n} ${unit}${n === 1 ? "" : "s"}`;
+  let span: string;
+  if (seconds < 60) span = plural(seconds, "second");
+  else if (seconds < 3600) span = plural(Math.round(seconds / 60), "minute");
+  else if (seconds < 48 * 3600) span = plural(Math.round(seconds / 3600), "hour");
+  else span = plural(Math.round(seconds / 86400), "day");
+  return delta < 0 ? `${span} ago` : `in ${span}`;
 }

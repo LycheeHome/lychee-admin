@@ -2,6 +2,7 @@ import express from "express";
 import type { Deps } from "../deps";
 import { readInventory } from "../lib/serviceInventory";
 import { buildBoard } from "../lib/serviceBoard";
+import { renderServicesPage } from "../views/html";
 import type { TimerSchedule } from "../lib/unitState";
 
 const NO_SCHEDULE: TimerSchedule = { next: null, last: null };
@@ -24,9 +25,7 @@ export function createServicesRouter(deps: Deps): express.Router {
     ]);
     const board = buildBoard(inventory, states, schedule);
 
-    // Placeholder rendering. The next task replaces this with the real page,
-    // designed through impeccable; this exists so the route is testable alone.
-    res.type("text/plain").send(JSON.stringify(board, null, 2));
+    res.type("html").send(renderServicesPage(board));
   });
 
   return router;

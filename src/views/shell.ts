@@ -2,7 +2,7 @@ import { escapeHtml, DETAIL_WIDTH, FOCUS_RING } from "./shared";
 
 export interface Nav {
   /** Which header item is current. Absent on a site detail page. */
-  page?: "sites" | "new";
+  page?: "sites" | "new" | "services";
 }
 
 export interface Banner {
@@ -30,6 +30,10 @@ function headerItem(href: string, label: string, current: boolean): string {
  * depending on where you stand, it is a control you have to read the URL to
  * understand. Per-site movement lives on the detail page's breadcrumb.
  *
+ * Order is a judgment call, not a rule: "sites" and "services" are both
+ * "what exists here" pages, so they sit adjacent and the parallel reads;
+ * "add site" is the only action and goes last.
+ *
  * "add site" is here as well as on the list page's primary button. Same label
  * in both places, quiet here and ember there: this one navigates, that one
  * acts, and with zero sites that button is the entire call to action.
@@ -42,6 +46,7 @@ function renderHeader(nav: Nav): string {
     </h1>
     <nav class="flex items-center gap-1" aria-label="Sections">
       ${headerItem("/", "sites", nav.page === "sites")}
+      ${headerItem("/services", "services", nav.page === "services")}
       ${headerItem("/sites/new", "add site", nav.page === "new")}
     </nav>
   </header>`;

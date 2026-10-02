@@ -84,7 +84,6 @@ export const SEEDED_INVENTORY = JSON.stringify(
     generated: new Date().toISOString(),
     services: [
       { name: "lyly-reconcile-timer", unit: "lyly-reconcile.timer", group: "reconciler", reconciled: false },
-      { name: "lyly-reconcile", unit: "lyly-reconcile.service", group: "reconciler", reconciled: false },
       { name: "lyly-admin", unit: "lyly-admin.service", group: "service", reconciled: true,
         version: "a428e84", commit: "a428e842a101eb4da22ca29469297d71d0eda150",
         result: "skipped", gate: "ok", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
@@ -116,7 +115,6 @@ export const SEEDED_INVENTORY = JSON.stringify(
  */
 export const seededUnitStates: Record<string, UnitState> = {
   "lyly-reconcile.timer": { status: "running", since: "Thu 2026-09-26 11:00:00 UTC" },
-  "lyly-reconcile.service": { status: "exited", since: "Fri 2026-10-02 04:57:56 UTC" },
   "lyly-admin.service": { status: "running", since: "Sat 2026-09-26 11:02:00 UTC" },
   "swee.service": { status: "running", since: "Fri 2026-10-02 02:47:38 UTC" },
   "palworld-palchuds.service": { status: "running", since: "Thu 2026-10-01 06:54:00 UTC" },
