@@ -4,8 +4,12 @@ import {
   describeStatus,
   splitHostnameForDisplay,
   type SiteStatus,
+  type StatusTone,
 } from "../lib/siteDisplay";
+import type { UnitState } from "../lib/unitState";
 import { ADD_STEPS } from "../lib/stepReport";
+import type { BoardRow, ServiceBoard } from "../lib/serviceBoard";
+import type { ServiceGroup } from "../lib/serviceInventory";
 import { layout, type Nav } from "./shell";
 import {
   escapeHtml,
@@ -23,8 +27,13 @@ import {
   CARD,
   CARD_LABEL,
   CARD_LABEL_BASE,
+  GROUP_LABEL,
   TONE_PILL,
   TONE_TEXT,
+  SERVICE_ROW,
+  SERVICE_NAME,
+  SERVICE_DETAIL,
+  formatAge,
 } from "./shared";
 
 /**
@@ -317,6 +326,13 @@ interface Hop {
    * in the accessible name.
    */
   subDot?: boolean;
+  /**
+   * Live state, on its own line directly under the value — the row the last
+   * hop's status sub-line occupies, so statuses line up across the chain.
+   * Same treatment as that sub-line (dot, canonical word, TONE_TEXT) so one
+   * vocabulary has one look. Only hops something actually checks may set this.
+   */
+  status?: { text: string; tone: StatusTone };
 }
 
 const HOP_LABEL =
@@ -335,6 +351,7 @@ function renderHop(hop: Hop): string {
   return `<div class="min-w-0">
             <p class="${HOP_LABEL}">${escapeHtml(hop.label)}</p>
             <p class="${HOP_VALUE}">${escapeHtml(hop.value)}</p>
+            ${hop.status ? `<p class="font-mono text-[0.72rem] ${TONE_TEXT[hop.status.tone]} m-0" data-hop-status><span aria-hidden="true">●</span> ${escapeHtml(hop.status.text)}</p>` : ""}
             ${hop.sub ? `<p class="font-mono text-[0.72rem] ${hop.subClass ?? "text-stone-400"} m-0 break-all">${hop.subDot ? `<span aria-hidden="true">●</span> ` : ""}${escapeHtml(hop.sub)}</p>` : ""}
           </div>`;
 }
@@ -347,9 +364,16 @@ function renderHop(hop: Hop): string {
  * tunnel name ("lychee-sites") lives only in documentation, never in config,
  * so this shows the tunnel ID and the service name instead of asserting it.
  *
- * Hops 1-3 carry no live state: nothing here verifies them. Hop 1's sub-line
- * says "manual step", which stays true forever rather than going stale the
- * moment a DNS record is created.
+ * Hops 2-4 carry live state; hop 1 does not and must not. Hops 2 (the tunnel)
+ * and 3 (Caddy) read their systemd unit's state, passed in by the route; hop 4
+ * reports the site itself. Hop 1 is Cloudflare DNS, which this app never
+ * touches (Tier 1 scope), so nothing here can check it and any indicator would
+ * be invented. Its sub-line says "manual step", which stays true forever
+ * rather than going stale the moment a DNS record is created.
+ *
+ * A unit missing from `unitStates` (a failed or empty read) renders `unknown`,
+ * which is neutral: a status we failed to read is not evidence of an outage.
+ * With `unitStates` absent altogether, no status renders at all.
  */
 function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
   const filesPath = computeFilesPath(site, opts.sitesRoot);
@@ -374,6 +398,15 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
           ...(labels ? { sub: labels.hop, subClass: TONE_TEXT[labels.tone], subDot: true } : {}),
         };
 
+  const unitStatus = (unit: string): Hop["status"] | undefined => {
+    if (!opts.unitStates) return undefined;
+    const labels = unitLabels(opts.unitStates[unit]?.status ?? "unknown");
+    // The pill word, not the hop word: a unit has no container health, and the
+    // hop wording ("running · health check starting", "can't check") describes
+    // containers. The pill word is the canonical vocabulary itself.
+    return { text: labels.pill, tone: labels.tone };
+  };
+
   const hops: Hop[] = [
     { label: "Cloudflare DNS", value: site.hostname, sub: "manual step" },
     {
@@ -385,8 +418,14 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
       // It survives in full in the DNS command, which is where it is needed.
       value: "cloudflared-sites",
       sub: path.posix.dirname(opts.tunnelConfigPath),
+      status: unitStatus("cloudflared-sites.service"),
     },
-    { label: "Caddy", value: ":80", sub: path.posix.dirname(opts.caddyfilePath) },
+    {
+      label: "Caddy",
+      value: ":80",
+      sub: path.posix.dirname(opts.caddyfilePath),
+      status: unitStatus("caddy.service"),
+    },
     lastHop,
   ];
 
@@ -552,6 +591,8 @@ export interface SiteDetailOptions {
   tunnelConfigPath: string;
   caddyfilePath: string;
   status?: SiteStatus;
+  /** Live unit states for the tunnel and Caddy hops, keyed by unit name. */
+  unitStates?: Record<string, UnitState>;
   scaffold?: { buildCommand: string; runCommand: string; deployWorkflow: string };
   /** Every managed site, for the breadcrumb's hostname switcher. */
   sites: Site[];
@@ -756,5 +797,102 @@ export function renderSiteNotFound(hostname: string): string {
     </div>
     `,
     { nav: {} },
+  );
+}
+
+const GROUP_LABELS: Record<ServiceGroup, string> = {
+  reconciler: "Reconciler",
+  service: "Services",
+  infrastructure: "Infrastructure",
+};
+
+/**
+ * A unit's status through the same describeStatus() the site pages use, so the
+ * services board cannot grow a second vocabulary. A unit has no container
+ * state; the five words it can produce are a subset of the container ones,
+ * and `starting` is the one that needs mapping (a health check still running).
+ */
+function unitLabels(status: BoardRow["status"]) {
+  if (status === "starting") return describeStatus({ kind: "container", state: "running", health: "starting" });
+  return describeStatus({ kind: "container", state: status });
+}
+
+function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date): string {
+  const labels = unitLabels(row.status);
+
+  const facts: string[] = [];
+  if (row.version) facts.push(row.version);
+  if (row.result) facts.push(row.result);
+  if (row.failedAttempts) facts.push(`${row.failedAttempts} ${row.failedAttempts === 1 ? "attempt" : "attempts"}`);
+  const changed = formatAge(row.since, now);
+  if (changed) facts.push(`changed ${changed}`);
+
+  // The reconciler's one timer carries the schedule, as the board does.
+  if (row.unit === board.timerUnit) {
+    // Only a future time is a "next run". A timer that has just fired or not
+    // yet computed its next elapse is normal, and a past "next" would render
+    // as a negative interval, so it says nothing.
+    const upcoming = board.schedule.next && new Date(board.schedule.next).getTime() > now.getTime();
+    const next = upcoming ? formatAge(board.schedule.next, now) : null;
+    const last = formatAge(board.schedule.last, now);
+    if (next) facts.push(`next run ${next}`);
+    if (last) facts.push(`last run ${last}`);
+  }
+
+  return `
+      <li class="${SERVICE_ROW}" data-service="${escapeHtml(row.name)}">
+        <div class="pt-px"><span class="${TONE_PILL[labels.tone]}"><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span></div>
+        <div class="flex flex-col gap-0.5 min-w-0">
+          <p class="${SERVICE_NAME}">${escapeHtml(row.name)}</p>
+          ${facts.length > 0 ? `<p class="${SERVICE_DETAIL}">${facts.map(escapeHtml).join(" · ")}</p>` : ""}
+          ${
+            // In full, on its own row: the retry-cap string carries the recovery
+            // command, and a clamped string would hide the one thing to do.
+            row.gate ? `<p class="${SERVICE_DETAIL} text-stone-300" data-gate>${escapeHtml(row.gate)}</p>` : ""
+          }
+        </div>
+      </li>`;
+}
+
+/**
+ * What else runs on the host. Read-only: nothing here acts, so nothing here is
+ * a link or a button. `now` is a parameter so ages are testable.
+ */
+export function renderServicesPage(board: ServiceBoard, now: Date = new Date()): string {
+  const written = formatAge(board.generated, now);
+  const freshness = board.inventoryAvailable
+    ? written
+      ? `Inventory written ${written}`
+      : "Inventory write time unknown"
+    : "";
+
+  const groups = board.groups
+    .map(
+      (g) => `
+    <section aria-labelledby="group-${g.group}">
+      <h3 id="group-${g.group}" class="${GROUP_LABEL}">${GROUP_LABELS[g.group]}</h3>
+      <ul class="list-none m-0 p-0 flex flex-col">${g.rows.map((r) => renderServiceRow(r, board, now)).join("")}
+      </ul>
+    </section>`,
+    )
+    .join("");
+
+  const unavailable = `
+    <p id="inventory-unavailable" class="m-0 max-w-[62ch] text-[0.9rem] leading-relaxed text-stone-300 border border-stone-700 rounded-md px-4 py-3">
+      There are no services to show: the inventory could not be read, or it declares none this page recognises. Without it there is no list of what should be running and nothing to check live state against. It is published by the reconciler on each tick; if it has never run, or the file was removed, this page stays empty.
+    </p>`;
+
+  return layout(
+    "Services",
+    `
+    <div class="${FRAME_WIDTH} flex flex-col gap-8">
+      <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Services</h2>
+        ${freshness ? `<p class="m-0 text-[0.8rem] text-stone-400" data-inventory-age>${escapeHtml(freshness)}</p>` : ""}
+      </div>
+      ${board.inventoryAvailable && board.groups.length > 0 ? groups : unavailable}
+    </div>
+    `,
+    { nav: { page: "services" } },
   );
 }

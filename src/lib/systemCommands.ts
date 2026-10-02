@@ -1,6 +1,13 @@
 import { execFile as execFileCb, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { parseComposePsOutput, type ContainerStatus } from "./containerStatus";
+import {
+  parseTimerSchedule,
+  parseUnitShowOutput,
+  UNIT_SHOW_PROPERTIES,
+  type TimerSchedule,
+  type UnitState,
+} from "./unitState";
 
 const execFile = promisify(execFileCb);
 
@@ -16,10 +23,11 @@ export class CommandError extends Error {
 }
 
 /**
- * How long the container-status read may take before it is abandoned. Only the
- * status read gets a ceiling, and deliberately so: it is the one call here that
- * is read-only, unattended, and rendered on page load, so a wedged Docker
- * daemon would otherwise hold a page request open with no limit.
+ * How long a status read may take before it is abandoned. Only the reads get a
+ * ceiling (the container status, the unit states and the timer schedule), and
+ * deliberately so: they are read-only, unattended, and rendered on page load,
+ * so a wedged Docker daemon or systemd would otherwise hold a page request
+ * open with no limit.
  *
  * The mutating commands stay unbounded on purpose. `systemctl restart
  * cloudflared-sites` legitimately takes over ten seconds — its unit sets
@@ -30,9 +38,13 @@ export class CommandError extends Error {
 const STATUS_READ_TIMEOUT_MS = 2000;
 
 /**
- * Runs a single privileged command via execFile (never a shell), so arguments
- * can't be reinterpreted by a shell. Every command here must have a matching
- * narrowly-scoped entry in the sudoers file — see lychee-ops' sudoers.example.
+ * Runs a single command via execFile (never a shell), so arguments can't be
+ * reinterpreted by a shell. Every command run through `sudo` must have a
+ * matching narrowly-scoped entry in the sudoers file — see lychee-ops'
+ * sudoers.example. The unprivileged reads (`systemctl show`, `systemctl
+ * list-timers`) run without sudo and deliberately have NO entry there: they
+ * are world-readable, which is why the services page needs no new grant.
+ * Do not add one.
  *
  * `timeoutMs` is opt-in per call rather than a default, for the reason above.
  * When it fires, execFile sends SIGTERM and rejects, which the caller sees as
@@ -64,6 +76,8 @@ export interface SystemCommands {
   createSiteDirectory(hostname: string): Promise<{ stdout: string; stderr: string }>;
   writeManagedConfig(targetPath: string, content: string): Promise<void>;
   checkContainerStatus(hostname: string): Promise<ContainerStatus>;
+  readUnitStates(units: string[]): Promise<Record<string, UnitState>>;
+  readTimerSchedule(timer: string): Promise<TimerSchedule>;
 }
 
 export const realSystemCommands: SystemCommands = {
@@ -146,6 +160,54 @@ export const realSystemCommands: SystemCommands = {
       return parseComposePsOutput(stdout);
     } catch {
       return { state: "unknown" };
+    }
+  },
+
+  /**
+   * One invocation for every unit, not one per unit: this runs on every render
+   * of the services page, and the hostname dropdown already establishes that
+   * per-row status checks are the thing to avoid.
+   *
+   * No sudo. `systemctl show` is world-readable; see unitState.ts for why this
+   * is not `systemctl status`. Degrades to {} on any failure (missing binary,
+   * timeout, garbage), so a page renders deploy state with neutral liveness
+   * rather than erroring.
+   */
+  async readUnitStates(units) {
+    if (units.length === 0) return {};
+    try {
+      const { stdout } = await run(
+        "/usr/bin/systemctl",
+        ["show", ...units, "-p", UNIT_SHOW_PROPERTIES.join(",")],
+        { timeoutMs: STATUS_READ_TIMEOUT_MS },
+      );
+      return parseUnitShowOutput(stdout);
+    } catch {
+      return {};
+    }
+  },
+
+  /**
+   * The reconciler timer's last and next firing. `list-timers`, not `show`:
+   * the timer is monotonic, so `show` leaves NextElapseUSecRealtime empty.
+   * No sudo. A non-timer, a missing unit, a timeout or garbage all degrade to
+   * no schedule; liveness comes from readUnitStates and is unaffected.
+   *
+   * list-timers omits inactive timers unless given --all, so a stopped timer
+   * also yields no schedule, not even `last`. That is acceptable (liveness
+   * shows it as exited) and is not a bug to fix with --all, which would list
+   * every timer on the host for one field.
+   */
+  async readTimerSchedule(timer) {
+    try {
+      const { stdout } = await run(
+        "/usr/bin/systemctl",
+        ["list-timers", timer, "--no-pager", "--output=json"],
+        { timeoutMs: STATUS_READ_TIMEOUT_MS },
+      );
+      return parseTimerSchedule(stdout);
+    } catch {
+      return { next: null, last: null };
     }
   },
 };

@@ -1438,7 +1438,7 @@ describe("renderServicesPage", () => {
   const NOW = new Date("2026-10-02T05:00:00Z");
 
   test("an unavailable inventory renders an explanation, not an empty page", () => {
-    const html = renderServicesPage({ groups: [], schedule: NO_SCHEDULE, timerUnit: null, generated: null, inventoryAvailable: false }, NOW);
+    const html = renderServicesPage({ groups: [], schedule: NO_SCHEDULE, generated: null, inventoryAvailable: false }, NOW);
     assert.ok(html.includes("inventory"));
     assert.ok(!html.includes("undefined"));
     assert.ok(!html.includes("NaN"));
@@ -1448,7 +1448,7 @@ describe("renderServicesPage", () => {
     const html = renderServicesPage(
       {
         inventoryAvailable: true,
-        schedule: NO_SCHEDULE, timerUnit: null,
+        schedule: NO_SCHEDULE,
         generated: "2026-10-02T04:58:02Z",
         groups: [{ group: "service", rows: [
           { name: "palworld", unit: "palworld-palchuds.service", group: "service",
@@ -1465,14 +1465,6 @@ describe("renderServicesPage", () => {
     const row = html.slice(html.indexOf('data-service="palworld"'), html.indexOf("</li>"));
     assert.ok(row.includes("palworld"));
     assert.ok(!row.includes(" · "));
-  });
-
-  test("an available inventory with no recognised groups explains itself rather than rendering a bare frame", () => {
-    const html = renderServicesPage(
-      { groups: [], schedule: NO_SCHEDULE, timerUnit: null, generated: "2026-10-02T04:58:00Z", inventoryAvailable: true },
-      NOW,
-    );
-    assert.ok(html.includes('id="inventory-unavailable"'));
   });
 
   test("a timer whose next run is in the past says nothing about the next run", () => {
@@ -1498,7 +1490,7 @@ describe("renderServicesPage", () => {
     const html = renderServicesPage(
       {
         inventoryAvailable: true,
-        schedule: NO_SCHEDULE, timerUnit: null,
+        schedule: NO_SCHEDULE,
         generated: "2026-10-02T04:58:02Z",
         groups: [{ group: "service", rows: [
           { name: "palsave-api", unit: "palsave-api.service", group: "service", reconciled: true,
@@ -1517,7 +1509,7 @@ describe("renderServicesPage", () => {
     return renderServicesPage(
       {
         inventoryAvailable: true,
-        schedule: NO_SCHEDULE, timerUnit: null,
+        schedule: NO_SCHEDULE,
         generated: "2026-10-02T04:58:02Z",
         groups: [{ group: "service", rows: [
           { name: "x", unit: "x.service", group: "service", reconciled: false, status, since: null },

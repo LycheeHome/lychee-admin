@@ -2,6 +2,7 @@ import path from "node:path";
 import { config } from "../config";
 import type { FileSystem } from "../lib/fileSystem";
 import type { SystemCommands } from "../lib/systemCommands";
+import { SEEDED_TIMER_SCHEDULE, seededUnitStates } from "./seed";
 
 /**
  * Collapses both separators to "/" so that a path built with path.posix.join
@@ -110,6 +111,13 @@ export function createFakes(overrides: Partial<SystemCommands> = {}): {
     },
 
     checkContainerStatus: () => Promise.resolve({ state: "running", health: "healthy" }),
+    readUnitStates: (units) =>
+      Promise.resolve(
+        Object.fromEntries(
+          units.flatMap((u) => (u in seededUnitStates ? [[u, seededUnitStates[u]]] : [])),
+        ),
+      ),
+    readTimerSchedule: () => Promise.resolve(SEEDED_TIMER_SCHEDULE),
   };
 
   return { fs, commands: { ...commands, ...overrides } };
