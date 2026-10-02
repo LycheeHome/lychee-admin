@@ -110,6 +110,9 @@ export function createFakes(overrides: Partial<SystemCommands> = {}): {
     },
 
     checkContainerStatus: () => Promise.resolve({ state: "running", health: "healthy" }),
+    // Stub; the seed-backed version replaces this.
+    readUnitStates: () => Promise.resolve({}),
+    readTimerSchedule: () => Promise.resolve({ next: null, last: null }),
   };
 
   return { fs, commands: { ...commands, ...overrides } };
