@@ -79,11 +79,22 @@ claim.
   about to write in a panel beside the form, fed by `POST /sites/preview` — a
   read-only endpoint that calls the same writers the submit does, so the two
   cannot disagree, remove (`POST /sites/:hostname/delete`), and a second,
-  always-separate file deletion (`POST /sites/:hostname/delete-files`). A
-  global header band (wordmark plus `sites` and `add site`) fronts every page;
-  a site's detail page also carries a hostname dropdown on its breadcrumb for
-  moving to another site without a round trip through the list. The list's
-  cards carry a status pill for reverse-proxy sites.
+  always-separate file deletion (`POST /sites/:hostname/delete-files`), and a
+  read-only services board (`GET /services`). A global header band (wordmark
+  plus `sites`, `services` and `add site`) fronts every page; a site's detail
+  page also carries a hostname dropdown on its breadcrumb for moving to another
+  site without a round trip through the list. The list's cards carry a status
+  pill for reverse-proxy sites.
+- **The services board reads; it does not manage.** It shows every long-lived
+  process on the host that has no hostname of its own — the reconciler, the
+  three services it deploys, the game server, Caddy and the sites tunnel — by
+  joining a world-readable inventory the reconciler publishes each tick to live
+  `systemctl show` state. It gains the app no privilege: no sudo scope, no group
+  membership, no wrapper, no write path, and nothing on the page acts. Site
+  containers stay on the site pages, because a container that serves one
+  hostname already has a home. This is the one surface that can show a deploy
+  wedged at its retry cap, a state that otherwise only appears in a file on the
+  host.
 - **Development happens off-host**, on macOS, via `npm run dev:mock` against
   in-memory fakes (`src/dev/`) with seeded sites covering every parser
   branch. Sudoers scope, wrapper-script validation, real `caddy validate`,

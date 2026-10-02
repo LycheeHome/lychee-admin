@@ -327,6 +327,16 @@ appears without a status word, because marking a diff addition is not a
 site-state verdict for this rule to govern. `not deployed` and `unknown` share Smoke and
 stay unambiguous.
 
+**The Pill-Needs-an-Edge Rule.** A status pill aligns to an edge the eye can
+follow down the page. A single-line row has a clean right edge, so the pill is
+right-aligned there — the site list. A multi-line row does not: its content is
+ragged, and a right-aligned pill floats against nothing. So a multi-line row
+puts the pill first, in a fixed-width left column, where the pills' left edges
+line up and state can be read down the page without reading a name — the
+services board. Same component and the same vocabulary either way; only the
+placement moves, and the row's shape decides it, never habit or symmetry with
+the other page.
+
 **The Dim-Text Rule.** Dim text is Smoke, not Smoke Deep. Smoke Deep carries
 readable text in exactly one role — the `.lyly.dev` suffix on a Headline,
 which at 27px is WCAG large text and clears the 3:1 that applies there. At any
@@ -659,7 +669,9 @@ exceptions to it.
   decorative `●` that is `aria-hidden` so it never joins the accessible name,
   fully round, and colored by tone only: Clear on Clear Deep, Scorch on Scorch
   Deep, or Smoke Light on Hairline. `shrink-0`, because a status must never
-  compress to fit a long hostname.
+  compress to fit a long hostname. **Placement belongs to the row, not to the
+  pill** — right-aligned in a single-line row, first in a fixed-width left
+  column in a multi-line one. See The Pill-Needs-an-Edge Rule.
 
 ### Navigation
 
@@ -668,13 +680,15 @@ Two tiers, each scoped to what it navigates.
 **The header band** is a 1080px centred band with no background and no bottom
 rule, aligned to the same container as the content below it: the
 `lyly.admin` wordmark as a home link at Display 1.5rem, then flat items —
-`sites` and `add site` — at 0.85rem mono, Smoke going Chalk on hover.
+`sites`, `services` and `add site` — at 0.85rem mono, Smoke going Chalk on
+hover. The two destinations sit adjacent and the single action goes last; that
+ordering is a judgement rather than a rule, and is recorded in `shell.ts`.
 `aria-current="page"` is both the accessibility signal and the
 styling hook (the arbitrary `aria-[current=page]:` variant, since Tailwind ships
 no built-in one): Chalk text on a Hairline fill with a 2px Ember Edge left rule
 — deliberately not the `proxy` pill's Ember fill, so a nav item and a type pill
 never look alike. A header item's destination never changes with location, so
-`/sites/:hostname` marks neither item current; the breadcrumb carries the
+`/sites/:hostname` marks no item current; the breadcrumb carries the
 location instead.
 
 **The breadcrumb's hostname dropdown**, on the detail page only: a `<details>`
@@ -742,13 +756,38 @@ sub-line (Smoke by default, tone-colored when it carries live state).
 Separators are Hairline Strong arrows that flip from `→` to `↓` below `sm`, and
 are `aria-hidden`.
 
-Only the last hop is ever live. The first three carry derived values — a
-hostname, a service name over its config directory — and hop one's sub-line
-reads `manual step`, permanently, rather than a DNS status that would go stale
-the moment a record is created. When the last hop is in a `bad` tone, the
+Hops two to four carry live state; hop one never does and never may. The tunnel
+and Caddy hops read their own systemd unit — one unprivileged `systemctl show`
+for both, run concurrently with the per-site check and degrading to a neutral
+`unknown` if it fails — and the last hop reports the site itself. Hop one is
+Cloudflare DNS, which this app does not touch at all (Tier 1 scope), so its
+sub-line reads `manual step` permanently: an indicator there would be invented
+health rather than a reading, and would go stale the moment a record is
+created. When the last hop is in a `bad` tone, the
 remediation appears *inside this card*, directly beneath the chain, as a command
 block — never as a numbered step that appears and disappears with container
 state.
+
+### Service Row
+
+The row shape of the services board (`GET /services`), and the one place a
+status pill leads. A fixed-width left column holds the pill; the right column
+holds the unit's name on one line and its facts beneath, as prose rather than
+columns — `v0.2.0 · blocked · 3 attempts`, then the reconciler's own gate string
+on its own line, in full.
+
+Prose and not a table, deliberately: half the rows have no deploy state at all
+and never will, because the game server, Caddy and the tunnel are not things the
+reconciler deploys. A table of those rows is mostly empty cells arguing it
+should have been a list, and the longest and most important content — the gate
+string naming a recovery command — breaks a row grid wherever it lands.
+
+Rows group under uppercase Micro-labels (reconciler, services, infrastructure)
+with no card around them: the groups are a reading order, not three independent
+objects, and nothing on this page is actionable. Age is always rendered as an
+age and never as a timestamp, with no threshold at which it changes appearance —
+"written 3 hours ago" reads as wrong on its own, and a cutover would be a number
+nobody has watched long enough to choose.
 
 ### Flash Banner
 
