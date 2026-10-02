@@ -198,7 +198,7 @@ service later is a reconciler change and no app change at all.
       "unit": "swee.service",
       "reconciled": true,
       "version": "v2.11.4",
-      "commit": "af22c56",
+      "commit": "af22c5683fcb100f8d27038fd2b71e744e46427a",
       "result": "skipped",
       "gate": "pin unchanged (v2.11.4)",
       "last_run": "2026-10-02T04:58:02Z",
@@ -222,6 +222,19 @@ model a service uses — the producer resolves it.
 **`reconciled: false` is a state, not a missing field.** `palworld` is declared
 by `lychee-ops` but not deployed by it. The page says "running, and nothing
 deploys this" rather than rendering blanks.
+
+It does conflate two cases, deliberately: a service nothing deploys, and a
+service that has a deploy pipeline but has never completed one, whose status
+file does not exist yet. Both render identically. The second is transient — it
+resolves on the first successful tick — and distinguishing them would mean the
+inventory asserting intent it cannot observe. Worth knowing so the page's copy
+does not claim "nothing deploys this" as fact for a service in its first hour.
+
+**`version` and `commit` are absent, never placeholders.** `swee_app` resolves
+an uninstalled tag to the literal string `'none'`, so the producer must map that
+to an absent key rather than passing it through — otherwise the page renders
+`none` as a version. A value whose default is a legal value cannot carry
+"unknown"; absence has to.
 
 **`generated` is load-bearing, not metadata.** If the reconciler dies the
 inventory freezes, and `CLAUDE.md` already warns that a dead reconciler looks
@@ -255,10 +268,21 @@ than red. systemd's states map onto it; they do not replace it.
   supposed to exist.
 - **Running, not declared** — drift. `palworld` is the legitimate instance
   (`reconciled: false`); anything else is a finding.
-- **Retry cap engaged** — `result: failed` with `failed_attempts: 3`.
-  `CLAUDE.md` documents this as the state that looks like success: the play
-  succeeds, the notifications stop, the service stays down. It has no UI
+- **Deploy failing** — `result: failed`, with `failed_attempts` counting up.
+  The service is down and the reconciler is still retrying. Alerts are firing.
+- **Retry cap engaged** — **`result: blocked`**, with the `gate` string naming
+  the cap. This is the state `CLAUDE.md` documents as looking like success: the
+  play succeeds, the notifications stop, the service stays down. It has no UI
   anywhere today and should appear loudest here.
+
+  An earlier draft of this spec said the cap shows as `result: failed` with
+  `failed_attempts: 3`. That is wrong, and wrong for all three services — every
+  app role has a "Report a blocked deploy" task, so `failed` is the *pre*-cap
+  state during the three retrying ticks and `blocked` is the cap engaging.
+  Recorded rather than silently corrected, because the two states are easy to
+  conflate and the distinction is the whole point: one is loud and recovering,
+  the other is quiet and stuck. `failed_attempts` disambiguates a `blocked` that
+  is a CI gate from a `blocked` that is the retry cap.
 - **Blocked by the gate** — `result: blocked`, with the `gate` string naming
   why. Currently visible only by reading a file over SSH.
 

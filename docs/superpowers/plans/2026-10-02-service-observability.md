@@ -1050,13 +1050,21 @@ export const SEEDED_INVENTORY = JSON.stringify({
     { name: "swee", unit: "swee.service", group: "service", reconciled: true,
       version: "v2.11.4", commit: "af22c5683fcb100f8d27038fd2b71e744e46427a",
       result: "skipped", gate: "pin unchanged (v2.11.4)", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
-    // result: failed with the retry cap engaged. CLAUDE.md calls this the state
-    // that looks like success — the play succeeds, the alerts stop, the service
-    // stays down — and it has no UI anywhere today. Seeded so the page's
-    // loudest case is visible in dev mode rather than only in an incident.
+    // The retry cap engaged. Note the result is "blocked", not "failed":
+    // failed is the pre-cap state while the reconciler is still retrying and
+    // alerts are firing; blocked is the cap, where the play succeeds, the
+    // notifications stop and the service stays down. CLAUDE.md calls that the
+    // state that looks like success, and it has no UI anywhere today. Seeded
+    // so the page's loudest case is visible in dev mode, not only in an
+    // incident. failed_attempts is what separates this blocked from a
+    // CI-gate blocked.
     { name: "palsave-api", unit: "palsave-api.service", group: "service", reconciled: true,
       version: "v0.2.0", commit: "9fbb23a8348ea8ef93b81f01c93e811e980bcb09",
-      result: "failed", gate: "health check returned: connection refused",
+      result: "blocked",
+      // Verbatim from roles/palsave_api_app/tasks/decide_gate.yml:118-120 —
+      // the real string, not a paraphrase. Its length and the embedded
+      // recovery command are what the page has to lay out.
+      gate: "v0.2.0 failed 3 times; not retrying (promote another tag, or rm /opt/palsave-api/.failed-tag)",
       last_run: "2026-10-02T04:58:02Z", failed_attempts: 3 },
     { name: "palworld", unit: "palworld-palchuds.service", group: "service", reconciled: false },
     { name: "caddy", unit: "caddy.service", group: "infrastructure", reconciled: false },
