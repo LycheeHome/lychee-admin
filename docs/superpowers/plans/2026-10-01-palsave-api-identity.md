@@ -26,7 +26,7 @@
 Five failure modes the spec implies that no task's tests would otherwise exercise, most likely first.
 
 1. **`palsave-api` reads an empty directory and reports healthy.** It polls; an empty directory and an unreadable one are indistinguishable from a `200` on `/events/new-pals`. Every verification row but one can pass while the service sees nothing. Pinned to the Phase B precondition and the Phase C matrix's palfeed row.
-2. **The snapshot archive or `state.json` is lost in the move**, so the watcher restarts from zero and re-announces catches swee already posted. Pinned to Phase C steps 4 and 7 — the copy, and the ownership assertion that must come *after* the last copy rather than before the first — and to the matrix rows that read both back.
+2. **The snapshot archive or `state.json` is lost in the move**, so the watcher restarts from zero and re-announces catches swee already posted. Pinned to Phase C steps 4 and 6 — the copy, and the ownership assertion that must come *after* the last copy rather than before the first — and to the matrix rows that read both back.
 
    This is no longer hypothetical. An earlier draft had Phase B point `WorkingDirectory` at `palsave_api_state_dir` while the service still ran from `palsave_api_dir`, which would have produced exactly this: the watcher starting from zero in an empty directory, swee re-announcing the whole rotation window, and step 4 then copying a stale `state.json` over what it had written since. It would also have failed the restart outright, because that directory did not exist — see Task 6 Step 2. **Moving `WorkingDirectory` is moving the state**, and the two belong in one commit.
 3. **`libooz.so` is not where the new config says**, so Oodle saves fail while zlib ones keep working — a partial failure that looks like nothing at all. Pinned to Task 1's test and the Phase C matrix.
@@ -378,16 +378,31 @@ And `systemctl show palsave-api -p User,WorkingDirectory` should be **unchanged*
 
 Run by hand. `palsave-api` is down for the duration; the game server is not touched.
 
-0. **Copy the unit aside.** `sudo cp /etc/systemd/system/palsave-api.service /root/palsave-api.service.pre-identity`
-   `ansible.builtin.template` has no inverse, so the rollback has nothing to restore from without this.
+**This runbook has been executed once, and three of its steps were in the wrong order.** They are corrected below, and what went wrong is recorded after the steps — the ordering constraints are not obvious, and two of the three fail silently.
+
+0. **Stop the reconciler, then copy the unit aside.**
+   ```
+   sudo systemctl stop lyly-reconcile.timer
+   sudo cp /etc/systemd/system/palsave-api.service /root/palsave-api.service.pre-identity
+   ```
+   The timer stops **first**, before anything else. `ansible-pull` runs every five minutes and re-declares ownership from whatever is on `main` — which, until step 9 merges, still says `steam`. A tick landing mid-migration silently reverts the `chown` in step 6. The copy is because `ansible.builtin.template` has no inverse, so the rollback has nothing to restore from without it.
+
+   Two reads worth doing here, while the service is still up and a bad answer costs nothing:
+   ```
+   sudo /home/steam/palsave-api/.venv/bin/python --version   # must match:
+   python3 --version                                          # step 7 rebuilds with this one
+   sudo ls -l /home/steam/palsave-api/ooz/bin/libooz.so       # step 5 needs this to exist
+   ```
+   If the Python versions differ, pin step 7 to the known-good interpreter rather than letting an identity migration quietly carry a runtime upgrade — otherwise anything the new interpreter breaks gets blamed on the move. If `libooz.so` is missing, rebuild it now, not at step 5.
 1. **Create the user.**
    ```
-   sudo useradd --system --user-group --shell /usr/sbin/nologin \
-                --home-dir /opt/palsave-api --no-create-home palsave-api
+   sudo useradd --system --user-group --shell /usr/sbin/nologin --home-dir /opt/palsave-api --no-create-home palsave-api
    sudo usermod -aG palworld palsave-api
    id palsave-api
    ```
-   `palworld` only. No `adm` — it reads no journals.
+   `palworld` only. No `adm` — it reads no journals. One line, not a backslash continuation: the wrapped form mangles on paste.
+
+   Check `id` before going further. The service is still up, so a missing `palworld` membership costs nothing to fix here — and if it is wrong, the end state is a service that starts, answers `200`, and reads a save directory it cannot see.
 2. **Stop it.** `sudo systemctl stop palsave-api`
 3. **Create `/opt/palsave-api`; take ownership of `/var/lib/palsave-api`.**
    ```
@@ -396,10 +411,11 @@ Run by hand. `palsave-api` is down for the duration; the game server is not touc
    sudo chmod 0750 /opt/palsave-api /var/lib/palsave-api
    ```
    **`/var/lib/palsave-api` already exists by this point**, created in Phase B as a side effect: `palsave_api_app_status_file` is `{{ palsave_api_state_dir }}/deploy-status.json`, so the app role has been declaring that directory since the pin landed — as `steam:steam 0750`, because that is what the variables said then. The `chown` here is what hands it over, and the next tick's app role re-declares it under the new values. Only `lib/` is genuinely new.
+
+   This `chown` does not survive step 4. Step 6 is what makes it stick; this one exists so the directories are not root-owned in between.
 4. **Move code and state separately.**
    ```
-   sudo rsync -a --exclude='.venv' --exclude='snapshots' --exclude='state.json' \
-     /home/steam/palsave-api/ /opt/palsave-api/
+   sudo rsync -a --exclude='.venv' --exclude='snapshots' --exclude='state.json' /home/steam/palsave-api/ /opt/palsave-api/
    sudo cp -a /home/steam/palsave-api/snapshots /var/lib/palsave-api/
    sudo cp /home/steam/palsave-api/state.json /var/lib/palsave-api/
    ```
@@ -409,30 +425,52 @@ Run by hand. `palsave-api` is down for the duration; the game server is not touc
    sudo cp /home/steam/palsave-api/ooz/bin/libooz.so /var/lib/palsave-api/lib/
    ```
    If it is absent, rebuild it before continuing — `decompress.py`'s `_get_ooz_lib()` error message carries the exact command. Without it, Oodle saves fail while zlib ones keep working, which looks like nothing being wrong.
-6. **Rebuild the venv.** It cannot be moved; `python3 -m venv` bakes absolute paths into its scripts.
+6. **Fix ownership. After the last copy, before anything writes as the service account.**
+   ```
+   sudo chown -R palsave-api:palsave-api /opt/palsave-api /var/lib/palsave-api
+   sudo chmod 0750 /opt/palsave-api /var/lib/palsave-api
+   ```
+   `rsync -a` run as root preserves source ownership, and with a trailing-slash source it applies the source directory's owner **and mode** to the destination directory itself — so step 4 reverts step 3 entirely, handing `/opt/palsave-api` back to `steam`. The `chmod` is here too for that reason, not only the `chown`.
+
+   This has to precede step 7, not follow it: creating a venv **is** a write as `palsave-api`, so it fails against a `steam`-owned directory. Nothing after this step runs as root into these trees, so one assertion here is enough.
+7. **Rebuild the venv.** It cannot be moved; `python3 -m venv` bakes absolute paths into its scripts.
    ```
    sudo -u palsave-api python3 -m venv /opt/palsave-api/.venv
    sudo -u palsave-api /opt/palsave-api/.venv/bin/pip install -q -r /opt/palsave-api/requirements.txt
    ```
-7. **Fix ownership, then the `.env`.** Ownership is asserted **after** the last copy, not before the first — `rsync -a` run as root preserves source ownership and will undo an earlier `chown`.
+   A pip warning about disabling its cache is expected and harmless: `sudo -u` may leave `HOME` pointing at the invoking user's home, which `palsave-api` cannot write. The reconciler avoids it with `PIP_CACHE_DIR`; a one-off hand run does not need to.
+8. **Set the port in the `.env`.**
    ```
-   sudo chown -R palsave-api:palsave-api /opt/palsave-api /var/lib/palsave-api
    sudo chmod 0600 /opt/palsave-api/.env
    sudo sed -i 's/^PALSAVE_API_PORT=.*/PALSAVE_API_PORT=8788/' /opt/palsave-api/.env
-   grep -q '^PALSAVE_API_PORT=' /opt/palsave-api/.env || echo 'PALSAVE_API_PORT=8788' | sudo tee -a /opt/palsave-api/.env
+   sudo grep -n '^PALSAVE_API_PORT=' /opt/palsave-api/.env
    ```
-8. **Merge the Phase C `lychee-ops` PR** (Task 6), then apply:
+   The last line prints the result rather than testing it. Exactly one `PALSAVE_API_PORT=8788` is correct; nothing means the key was absent and needs appending; two means something went wrong.
+
+   Deliberately **not** `grep -q … || echo … | sudo tee -a`. That `grep` runs as the invoking user against a file this step just made `0600 palsave-api`, so it cannot distinguish "key absent" from "cannot read" from "file does not exist" — and appends a duplicate on any of the three. Looking at the line beats a conditional that cannot tell its own failure modes apart.
+9. **Merge the Phase C `lychee-ops` PR** (Task 6), then apply:
    ```
-   sudo systemctl stop lyly-reconcile.timer
-   sudo flock /run/lyly-reconcile.lock ansible-pull -U git@github.com:LycheeHome/lychee-ops.git \
-     -d /var/lib/lychee-ops/ops -i inventory.yml --checkout main playbook.yml
+   sudo flock /run/lyly-reconcile.lock ansible-pull -U git@github.com:LycheeHome/lychee-ops.git -d /var/lib/lychee-ops/ops -i inventory.yml --checkout main playbook.yml
    ```
-   Blocking `flock`, not `-n -E 0`: the timer's invocation uses the latter so ticks do not pile up, but for a hand run it exits 0 silently on a contended lock and reports a no-op as success.
-9. **Point swee at the new port and restart it.**
-   ```
-   sudo sed -i 's#^PALFEED_SERVICE_URL=.*#PALFEED_SERVICE_URL=http://127.0.0.1:8788#' /opt/swee/.env
-   sudo systemctl restart swee
-   ```
+   The timer is already stopped, from step 0. Blocking `flock`, not `-n -E 0`: the timer's invocation uses the latter so ticks do not pile up, but for a hand run it exits 0 silently on a contended lock and reports a no-op as success.
+10. **Point swee at the new port, restart it, and restart the reconciler.**
+    ```
+    sudo sed -i 's#^PALFEED_SERVICE_URL=.*#PALFEED_SERVICE_URL=http://127.0.0.1:8788#' /opt/swee/.env
+    sudo systemctl restart swee
+    sudo systemctl start lyly-reconcile.timer
+    systemctl is-active lyly-reconcile.timer
+    ```
+    **The timer restart is not optional and nothing else does it.** Step 9's play has an "Enable the reconcile timer" task which may restart it as a side effect — that is luck, not design, and leaving it to chance means a run where it does not fire leaves reconciliation dead for *all three* services, with deploys silently not happening. `systemctl status` on a stopped timer does not look like an incident. Confirm it is `active`.
+
+### What went wrong when this was run
+
+Recorded because two of the three failed silently, and the third's warning was already written into the step that caused it.
+
+- **The venv was created before ownership was asserted**, and failed with `Permission denied: '/opt/palsave-api/.venv'`. The old step 7 carried the correct warning — "ownership is asserted after the last copy, not before the first" — and then scheduled the remedy one step *after* the first thing that needed it. Diagnosing the hazard is not the same as sequencing the fix.
+- **The reconcile timer was left running**, and a tick at 02:19:50 re-declared `/var/lib/palsave-api` as `steam:steam` between two steps. The old runbook stopped it at step 8. The revert looks like operator error rather than a competing writer, because nothing announces the tick; it is visible only by correlating `systemctl show lyly-reconcile.service -p ExecMainStartTimestamp` against the directory's mtime.
+- **Nothing restarted the timer.** The old step 8 stopped it, step 9 did not start it, and neither did anything after. It survived only because step 9's play happened to re-enable it.
+
+The general shape, which outlives this runbook: an ordering constraint that is *documented* is not thereby *satisfied*, and a step that turns something off owns turning it back on.
 
 ### Task 6: Switch the declared identity
 
@@ -455,7 +493,7 @@ WorkingDirectory={{ palsave_api_state_dir }}
 Environment=PALSAVE_API_OOZ_LIB_PATH={{ palsave_api_ooz_lib }}
 ```
 
-**And `palsave_api_port: 8787` becomes `8788` here**, in `group_vars`, for the same reason. The service listens on `8787` until step 7 of the migration seds its `.env` — verified on the host, where `127.0.0.1:8787` answers `200` and nothing is bound to `8788`. Leaving `8788` live in Phase B points `palsave_api_app`'s health check at a port nothing listens on, so every tick fails it, `.deployed-tag` is never written, three alerts fire, and the pin wedges at the retry cap. Worse, `.failed-tag` then rides step 4's `rsync` into `/opt/palsave-api` and blocks Phase C's first tick too, with nothing here telling you to remove it.
+**And `palsave_api_port: 8787` becomes `8788` here**, in `group_vars`, for the same reason. The service listens on `8787` until step 8 of the migration seds its `.env` — verified on the host, where `127.0.0.1:8787` answers `200` and nothing is bound to `8788`. Leaving `8788` live in Phase B points `palsave_api_app`'s health check at a port nothing listens on, so every tick fails it, `.deployed-tag` is never written, three alerts fire, and the pin wedges at the retry cap. Worse, `.failed-tag` then rides step 4's `rsync` into `/opt/palsave-api` and blocks Phase C's first tick too, with nothing here telling you to remove it.
 
 Why Phase B could not do this, recorded because it was tried and would have been serious: `/var/lib/palsave-api` did not exist when Phase B was written, and systemd cannot start a unit whose `WorkingDirectory` is missing — so the restart handler fails, a failed handler fails the host, and every role after `palsave_api_host` is skipped, **including the app role that creates that directory**. It does not self-heal; it repeats every five minutes with palsave-api down and the other two services no longer deploying.
 
