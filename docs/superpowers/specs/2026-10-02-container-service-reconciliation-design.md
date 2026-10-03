@@ -353,48 +353,59 @@ deliberate action, on the same precedent as the two-request site removal.
 The reconciler races hand-migrations, so the timer is stopped before step 3 and
 restarted after step 5 — not at the end.
 
-## Open question: where `PALSAVE_API_BACKUP_DIR` comes from today
+## Where `PALSAVE_API_BACKUP_DIR` comes from — answered
 
-`config.py` reads it with `os.environ[...]`, which raises on a missing key, and
-the service is demonstrably running — `state.json` and `snapshots/` are both
-written continuously. Yet **nothing in `lychee-ops` sets it**, and a privileged
-read of the host has now narrowed it further rather than answering it:
+`/opt/palsave-api/.env`, mode `600`, owned by `palsave-api`, gitignored and
+hand-placed. `load_dotenv()` with no arguments walks up from the calling
+module's directory rather than the working directory, so `config.py` finds it
+beside the deployed code, not in the state directory — which is why there is no
+`.env` under `/var/lib/palsave-api/` and why the unit sets only
+`PALSAVE_API_OOZ_LIB_PATH`.
 
-- `/var/lib/palsave-api/` holds `deploy-status.json`, `lib/`, `snapshots/` and
-  `state.json`, and **no `.env`**.
-- `systemctl show palsave-api -p Environment` returns exactly one variable,
-  `PALSAVE_API_OOZ_LIB_PATH`. There is no `EnvironmentFile=`.
+**This is a recorded decision, not drift.** `group_vars/all.yml:76` places
+`/opt/palsave-api` and its `.env` in the same by-hand category as
+`/opt/lyly-admin` (Decision 7): the reconciler declares the steady state once a
+migration has run, and does not bootstrap its own config.
 
-So the remaining candidate is `/opt/palsave-api/.env`. `load_dotenv()` called
-with no arguments does **not** read the working directory — it walks up from the
-directory of the module that called it, which is the deployed code directory,
-not the state directory. That read is still outstanding and needs the operator:
-`sudo ls -la /opt/palsave-api/`.
+The container retires that file anyway, and cheaply, because **neither value in
+it is a secret**:
 
-**It must be answered before implementation**, because it decides whether the
-cut-over inherits a configuration source or replaces one — and if the answer is
-a hand-placed `.env` excluded from the deploy rsync, then the backup path is
-undeclared host state that would be silently lost on a host rebuild.
+- The port is already declared — `palsave_api_port: 8788`, whose comment notes
+  it must match "whatever the service is actually listening on" because the
+  health check reads the same variable.
+- The backup path is already *derivable* from declared variables.
+  `palworld_install_dir` is `{{ palworld_root }}/{{ palworld_instance }}`,
+  `palworld_world_guid` is pinned, and `palworld_host/tasks/main.yml:121-122`
+  already walks the `Pal/Saved/SaveGames/0/<guid>/backup` chain to set its
+  ownership and setgid modes.
 
-Either way the container improves the situation: the path moves into the
-rendered compose file, declared by `lychee-ops` as the mount vocabulary's
-`palworld_backup_dir`, and stops being host state nothing records. That variable
-does not exist yet either — `group_vars/all.yml` declares `palworld_group` but
-no backup directory — so this slice introduces it.
+So this slice does not introduce new knowledge about the host — it composes
+`palworld_backup_dir` from facts `lychee-ops` already declares, and moves two
+values out of a hand-placed file into the rendered compose. That is a real
+reduction in undeclared state, achieved without needing the secrets mechanism
+this slice defers.
 
 ## `libooz.so` is host state today, and that is the clearest case for the image
 
 `PALSAVE_API_OOZ_LIB_PATH=/var/lib/palsave-api/lib/libooz.so`. The native
-library lives in the **state** directory, placed by hand during the 2026-10-01
-migration, declared by nothing. It is in the same category as the uid and the
-backup path: a thing the host happens to have, which a rebuild would not
-reproduce.
+library lives in the **state** directory rather than beside the code, and that
+placement is deliberate and well documented: `group_vars/all.yml:222-242`
+records that the original justification — a force-fetch would delete it — was
+*probed and disproved* (`ansible.builtin.git` with `force: true` never calls
+`git clean`), and then keeps the split for a sounder reason, that state living
+outside the directory the reconciler rewrites is safe under a deploy mechanism
+other than the current one.
 
-Baking it into the image is therefore not merely a reproducibility nicety — it
-converts the single least-reproducible part of this service into a build
-artifact, and it is the strongest standalone argument for containerising
-`palsave-api` at all. It is also the most likely thing to fail first, since the
-image's libc must match what the library was built against.
+That reasoning is correct and should not be reopened. What a container changes
+is the premise underneath it: **the image is the deploy mechanism**, immutable
+and rebuilt rather than synced in place, so there is no directory being
+rewritten for the library to need protecting from.
+
+Baking it in converts the least-reproducible part of this service into a build
+artifact and dissolves the layout question entirely, which is the strongest
+standalone argument for containerising `palsave-api` at all. It is also the most
+likely thing to fail first, since the image's libc must match what the library
+was built against.
 
 A consequence for the compose rendering: `PALSAVE_API_OOZ_LIB_PATH` becomes an
 in-image path, and `/var/lib/palsave-api/lib/` stops being read at all. It is
@@ -412,6 +423,44 @@ fails loudly, unlike the `group_add` case.
 
 `state.json` is ~4.4 MB and rewritten continuously, so the named volume is
 carrying real working state, not a marker file.
+
+## The empty-directory failure mode, and why it needs a positive check
+
+`palsave-api` polls a directory. **An empty one looks like a quiet one**, so
+every way of pointing it at the wrong place produces the same symptom: a healthy
+container, a responsive API, and no snapshots — indistinguishable from a server
+nobody is playing on. `group_vars/all.yml:258-262` already records one cause.
+Containerising adds two more, and they converge:
+
+1. **A new world GUID.** A new world creates a fresh `0700` directory the
+   declarations do not cover. Already documented; `palworld_world_guid` is
+   pinned precisely because of it.
+2. **A missing `group_add`.** The container reads the saves through the
+   supplementary `palworld` group; `user:` alone drops it. The mount is `ro`, so
+   the directory simply appears unreadable.
+3. **A bind-mount source that does not exist.** Docker **creates a missing bind
+   source as an empty directory owned by root** rather than refusing to start.
+   A typo in `palworld_backup_dir`, or a GUID that has moved, therefore yields a
+   silently empty `/saves` and a container that comes up clean.
+
+Cause 3 is new with this slice and is the most dangerous, because it converts a
+configuration error into a successful start. It is also the reason the mount
+vocabulary resolves paths **root-side**: a declaration cannot introduce one.
+
+**Required mitigations:**
+
+- The reconciler validates that every resolved mount source **exists, is a
+  directory, and is readable by the target uid/gid** *before* rendering, and
+  fails the tick loudly when it is not. Never let Docker create it.
+- The container's `group_add` is supplied by the vocabulary entry, not by each
+  service, so it cannot be forgotten per service.
+- Cut-over verification is a **positive read**, not liveness — see success
+  criteria. "The API answered" proves nothing here.
+
+The good news is that the access chain this depends on is itself declared:
+`palworld_host` reconciles group ownership and setgid modes along
+`Pal/Saved/SaveGames/0/<guid>/backup`, so the group the container joins is
+maintained rather than incidental.
 
 ## Risks
 
@@ -440,6 +489,13 @@ carrying real working state, not a marker file.
 
 - `palsave-api` serves on `127.0.0.1:8788` from a container, with `state.json`
   and `snapshots/` persisting in a named volume across a restart.
+- **A positive read of the save directory**, not merely a live endpoint: the
+  container lists a non-zero number of backup files it can actually open, and
+  writes a new snapshot derived from one. A healthy container that sees an empty
+  directory is the expected symptom of three separate defects, so liveness is
+  not evidence of success.
+- The reconciler refuses to start a service whose mount source is missing,
+  rather than letting Docker create it empty.
 - Its `/services` row reports live container state in the canonical vocabulary,
   with a version derived from the image tag.
 - A declaration naming an unknown field, a non-allowlisted image, a floating
