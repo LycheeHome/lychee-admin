@@ -98,7 +98,10 @@ export const SEEDED_INVENTORY = JSON.stringify(
         // recovery command are what the page has to lay out.
         gate: "v0.2.0 failed 3 times; not retrying (promote another tag, or rm /opt/palsave-api/.failed-tag)",
         last_run: "2026-10-02T04:58:02Z", failed_attempts: 3 },
-      { name: "palworld", unit: "palworld-palchuds.service", group: "service", reconciled: false },
+      // Named for the instance, not the game — the producer derives both from
+      // palworld_service, because a second Palworld server would be a second
+      // unit and a row reading "palworld" would not say which.
+      { name: "palworld-palchuds", unit: "palworld-palchuds.service", group: "service", reconciled: false },
       { name: "caddy", unit: "caddy.service", group: "infrastructure", reconciled: false },
       { name: "cloudflared-sites", unit: "cloudflared-sites.service", group: "infrastructure", reconciled: false },
     ],
