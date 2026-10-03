@@ -476,3 +476,59 @@ sudo systemctl start lyly-reconcile.timer
 - [ ] **Step 8: Leave the old installation in place**
 
 `/opt/palsave-api`, its venv and `/var/lib/palsave-api` are **not** deleted. That is what makes rollback a revert of the two commits rather than a rebuild. Purging them is a separate, later, deliberate action.
+
+---
+
+# Cut-over watchlist
+
+Produced by the whole-branch review, after all seven tasks were implemented and
+reviewed. **Nothing below can be proved by a test** — these are the properties
+that exist only on the host. Ordered.
+
+1. **Confirm the image tag exists** in `ghcr.io/lycheehome/palsave-api` *before*
+   `lychee-services` gains a remote. Nothing downstream can detect a fictional
+   tag: the validator requires an explicit tag and cannot know it is imaginary.
+2. Place `/root/.docker/config.json` (`read:packages`) and
+   `/root/.ssh/id_lychee_services` plus its `Host` alias block. Confirm **as
+   root** that `docker pull <the exact tag>` succeeds. This is the host's first
+   private GHCR package, and nothing in the repo creates that credential.
+3. **Stop `lyly-reconcile.timer` first** — step 0, not step 8. The reconciler
+   races hand migrations.
+4. Run the play by hand with the declaration at `state: stopped`, then **read
+   the rendered compose file with your eyes**: `user: "992:979"`;
+   `group_add: ["1004"]` quoted and **not** `["None"]`; the mount ending
+   `/backup/world:/saves:ro` (world, not backup); `working_dir: /state`;
+   `read_only: true`; `cap_drop: [ALL]`; and **no `/app/ooz` anywhere** in
+   `environment`.
+5. Confirm both `getent` assertions ran and passed — the only host-only logic in
+   `main.yml` besides the fetch. `id palsave-api` must still report
+   `uid=992 gid=979 groups=979,1004(palworld)`.
+6. **Verify the mount is readable as the container's credentials.** The
+   reconciler checks the leaf only, so an unreadable *ancestor* still hides a
+   readable leaf: `sudo -u palsave-api ls <backup/world>` must list timestamp
+   folders, each containing a readable `Level.sav`.
+7. **Flip the declaration to `running` and let a tick apply it BEFORE restarting
+   the timer.** Order matters: hand-starting the container while the declaration
+   still reads `stopped` means the first tick after the timer returns stops it
+   again, which presents as "the container died on its own".
+8. **Positive read, extended past the spec's.** Not "a snapshot was written" —
+   that passes even when Oodle decompression is broken, because the archive is
+   written before the parse. Require: no `failed to load/parse` lines in
+   `docker compose logs`, **and** `/events/new-pals` non-empty after two backup
+   rotations.
+9. Watch logs a few minutes for `read_only: true` fallout. Nothing writes
+   outside `/state` and `PYTHONDONTWRITEBYTECODE=1` is baked in, but a
+   dependency wanting a cache would crash-loop here and it is untested.
+10. Only then flip the inventory entry. Check `/services` shows a live container
+    row with the image tag as its version — and if `lyly-admin` has not
+    redeployed yet, check the old board too: the row must be **absent**, not grey.
+11. Watch `journalctl -u lyly-reconcile.service` across three ticks for `ok` with
+    no `changed`. A permanently-`changed` task is how an idempotence bug hides,
+    and only the host can confirm the `changed_when` words.
+12. Record the real volume name from `docker volume ls` — expect
+    `palsave-api_palsave-api_state`, since Compose prefixes the project. Know it
+    before you need to back it up.
+
+**Do not tidy `/opt/palsave-api`, its venv, or `/var/lib/palsave-api`.** The
+revert path depends on them; that is what makes rollback a revert of two commits
+rather than a rebuild.
