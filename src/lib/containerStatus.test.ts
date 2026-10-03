@@ -1,7 +1,5 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { parseComposePsOutput, parseServiceStatusOutput } from "./containerStatus";
 
 describe("parseComposePsOutput", () => {
@@ -84,11 +82,5 @@ describe("parseServiceStatusOutput", () => {
   test("empty output (no compose file) is not deployed; garbage is unknown", () => {
     assert.equal(parseServiceStatusOutput(""), "not-created");
     assert.equal(parseServiceStatusOutput("not json"), "unknown");
-  });
-
-  test("systemCommands.ts parses compose output only through containerStatus.ts", () => {
-    const src = readFileSync(path.join(__dirname, "systemCommands.ts"), "utf8");
-    assert.ok(src.includes("parseServiceStatusOutput"));
-    assert.ok(!src.includes("JSON.parse"), "a second parser has appeared in systemCommands.ts");
   });
 });

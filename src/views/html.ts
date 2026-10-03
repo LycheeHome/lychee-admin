@@ -400,7 +400,7 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
 
   const unitStatus = (unit: string): Hop["status"] | undefined => {
     if (!opts.unitStates) return undefined;
-    const labels = unitLabels(opts.unitStates[unit]?.status ?? "unknown");
+    const labels = rowLabels(opts.unitStates[unit]?.status ?? "unknown");
     // The pill word, not the hop word: a unit has no container health, and the
     // hop wording ("running · health check starting", "can't check") describes
     // containers. The pill word is the canonical vocabulary itself.
@@ -803,19 +803,22 @@ const GROUP_LABELS: Record<ServiceGroup, string> = {
 };
 
 /**
- * A unit's status through the same describeStatus() the site pages use, so the
- * services board cannot grow a second vocabulary. A unit has no container
- * state; the five words it can produce are a subset of the container ones,
- * and `starting` is the one that needs mapping (a health check still running).
+ * A board row's status through the same describeStatus() the site pages use,
+ * so the services board cannot grow a second vocabulary. Rows are units and
+ * containers alike, which is why this takes ServiceStatus rather than
+ * UnitStatus: the two words a unit can never produce, `unhealthy` and
+ * `paused`, are exactly the ones a container row needs. `starting` and
+ * `unhealthy` are the pair that have to be mapped back onto a container's
+ * state/health shape, since describeStatus() reads them from there.
  */
-function unitLabels(status: BoardRow["status"]) {
+function rowLabels(status: BoardRow["status"]) {
   if (status === "starting") return describeStatus({ kind: "container", state: "running", health: "starting" });
   if (status === "unhealthy") return describeStatus({ kind: "container", state: "running", health: "unhealthy" });
   return describeStatus({ kind: "container", state: status });
 }
 
 function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date): string {
-  const labels = unitLabels(row.status);
+  const labels = rowLabels(row.status);
 
   const facts: string[] = [];
   if (row.version) facts.push(row.version);
