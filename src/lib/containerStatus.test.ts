@@ -1,6 +1,8 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { parseComposePsOutput } from "./containerStatus";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { parseComposePsOutput, parseServiceStatusOutput } from "./containerStatus";
 
 describe("parseComposePsOutput", () => {
   test("treats empty output as a container that was never created", () => {
@@ -59,5 +61,34 @@ describe("parseComposePsOutput", () => {
       state: "running",
       health: undefined,
     });
+  });
+});
+
+// Review Focus 4: the service path reuses the one compose parser rather than
+// growing a second that must be kept correct against compose versions.
+describe("parseServiceStatusOutput", () => {
+  const one = (state: string, health = "") => JSON.stringify({ State: state, Health: health });
+
+  test("absorbs both compose output shapes through parseComposePsOutput", () => {
+    assert.equal(parseServiceStatusOutput(`[${one("running", "healthy")}]`), "running");
+    assert.equal(parseServiceStatusOutput(`${one("running", "healthy")}\n`), "running");
+  });
+
+  test("keeps the states that must not be flattened", () => {
+    assert.equal(parseServiceStatusOutput(one("running", "unhealthy")), "unhealthy");
+    assert.equal(parseServiceStatusOutput(one("running", "starting")), "starting");
+    assert.equal(parseServiceStatusOutput(one("paused")), "paused");
+    assert.equal(parseServiceStatusOutput(one("exited")), "exited");
+  });
+
+  test("empty output (no compose file) is not deployed; garbage is unknown", () => {
+    assert.equal(parseServiceStatusOutput(""), "not-created");
+    assert.equal(parseServiceStatusOutput("not json"), "unknown");
+  });
+
+  test("systemCommands.ts parses compose output only through containerStatus.ts", () => {
+    const src = readFileSync(path.join(__dirname, "systemCommands.ts"), "utf8");
+    assert.ok(src.includes("parseServiceStatusOutput"));
+    assert.ok(!src.includes("JSON.parse"), "a second parser has appeared in systemCommands.ts");
   });
 });

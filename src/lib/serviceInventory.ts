@@ -16,9 +16,8 @@ export type ServiceGroup = "reconciler" | "service" | "infrastructure";
 
 const GROUPS: readonly string[] = ["reconciler", "service", "infrastructure"];
 
-export interface InventoryEntry {
+interface InventoryEntryBase {
   name: string;
-  unit: string;
   group: ServiceGroup;
   /** False for anything nothing deploys — palworld, Caddy, the tunnel. A
    *  state worth showing, not a missing value. */
@@ -33,6 +32,27 @@ export interface InventoryEntry {
   lastRun?: string;
   failedAttempts?: number;
 }
+
+/** A systemd unit, read with `systemctl show`. */
+export interface UnitEntry extends InventoryEntryBase {
+  kind: "unit";
+  unit: string;
+}
+
+/** A compose project, read through the sudo-pinned service-status wrapper.
+ *  `container` is the compose project name, which is also the wrapper's
+ *  argument and the key of the board's container-state map. */
+export interface ContainerEntry extends InventoryEntryBase {
+  kind: "container";
+  container: string;
+}
+
+/**
+ * A union rather than optional `unit`/`container` fields, so the compiler names
+ * every site that reads `.unit` without narrowing. Optional fields would have
+ * let each of those sites compile and render `undefined` for a container.
+ */
+export type InventoryEntry = UnitEntry | ContainerEntry;
 
 export interface ServiceInventory {
   /** ISO timestamp of the tick that wrote the file, or null when unavailable.
@@ -67,18 +87,37 @@ function knownString(value: unknown): string | undefined {
  *  no shell, no sudo, root-owned source), but it costs one regex. */
 const UNIT_NAME = /^[A-Za-z0-9:_.@][A-Za-z0-9:_.@-]*\.(service|timer|socket|target|mount|path)$/;
 
+/** A compose project name, matching what lyly-admin-service-status accepts:
+ *  [a-z0-9-], no leading "-", at most 63 characters. Validated here as well as
+ *  in the wrapper so a malformed name is dropped rather than passed to sudo. */
+const CONTAINER_NAME = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
 function toEntry(raw: Record<string, unknown>): InventoryEntry | null {
   const name = typeof raw.name === "string" ? raw.name : "";
-  const unit = typeof raw.unit === "string" ? raw.unit : "";
   const group = typeof raw.group === "string" ? raw.group : "";
-  if (!name || !UNIT_NAME.test(unit) || !GROUPS.includes(group)) return null;
+  if (!name || !GROUPS.includes(group)) return null;
 
-  const entry: InventoryEntry = {
-    name,
-    unit,
-    group: group as ServiceGroup,
-    reconciled: raw.reconciled === true,
-  };
+  // A missing kind is a unit, not an error: this app deploys independently of
+  // lychee-ops, so it will meet inventories published before `kind` existed,
+  // and treating those as unrecognised would empty the board of every service.
+  // The reverse skew (an old app, a new inventory) needs no code: the old
+  // parser requires a `unit` matching UNIT_NAME, which container entries lack,
+  // so it drops them without throwing.
+  const kind = raw.kind === undefined ? "unit" : raw.kind;
+  const base = { name, group: group as ServiceGroup, reconciled: raw.reconciled === true };
+
+  let entry: InventoryEntry;
+  if (kind === "unit") {
+    const unit = typeof raw.unit === "string" ? raw.unit : "";
+    if (!UNIT_NAME.test(unit)) return null;
+    entry = { ...base, kind: "unit", unit };
+  } else if (kind === "container") {
+    const container = typeof raw.container === "string" ? raw.container : "";
+    if (!CONTAINER_NAME.test(container)) return null;
+    entry = { ...base, kind: "container", container };
+  } else {
+    return null;
+  }
   if (!entry.reconciled) return entry;
 
   const version = knownString(raw.version);

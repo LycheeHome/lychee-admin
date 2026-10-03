@@ -810,6 +810,7 @@ const GROUP_LABELS: Record<ServiceGroup, string> = {
  */
 function unitLabels(status: BoardRow["status"]) {
   if (status === "starting") return describeStatus({ kind: "container", state: "running", health: "starting" });
+  if (status === "unhealthy") return describeStatus({ kind: "container", state: "running", health: "unhealthy" });
   return describeStatus({ kind: "container", state: status });
 }
 
@@ -824,7 +825,7 @@ function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date): string
   if (changed) facts.push(`changed ${changed}`);
 
   // The reconciler's one timer carries the schedule, as the board does.
-  if (row.unit === board.timerUnit) {
+  if (row.kind === "unit" && row.unit === board.timerUnit) {
     // Only a future time is a "next run". A timer that has just fired or not
     // yet computed its next elapse is normal, and a past "next" would render
     // as a negative interval, so it says nothing.

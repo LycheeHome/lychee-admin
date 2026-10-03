@@ -1,17 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildBoard } from "./serviceBoard";
+import { buildBoard, findTimerUnit } from "./serviceBoard";
 import type { ServiceInventory } from "./serviceInventory";
-import type { TimerSchedule, UnitState } from "./unitState";
+import type { TimerSchedule, UnitState, UnitStatus } from "./unitState";
 
 const inv: ServiceInventory = {
   generated: "2026-10-02T04:58:02Z",
   available: true,
   entries: [
-    { name: "lyly-reconcile-timer", unit: "lyly-reconcile.timer", group: "reconciler", reconciled: false },
-    { name: "lyly-reconcile", unit: "lyly-reconcile.service", group: "reconciler", reconciled: false },
-    { name: "swee", unit: "swee.service", group: "service", reconciled: true, version: "v2.11.4" },
-    { name: "caddy", unit: "caddy.service", group: "infrastructure", reconciled: false },
+    { name: "lyly-reconcile-timer", kind: "unit", unit: "lyly-reconcile.timer", group: "reconciler", reconciled: false },
+    { name: "lyly-reconcile", kind: "unit", unit: "lyly-reconcile.service", group: "reconciler", reconciled: false },
+    { name: "swee", kind: "unit", unit: "swee.service", group: "service", reconciled: true, version: "v2.11.4" },
+    { name: "caddy", kind: "unit", unit: "caddy.service", group: "infrastructure", reconciled: false },
   ],
 };
 
@@ -78,4 +78,51 @@ test("an unavailable inventory still yields a board, with no rows", () => {
   assert.equal(board.inventoryAvailable, false);
   assert.deepEqual(board.groups, []);
   assert.equal(board.generated, null);
+});
+
+const container = (
+  name: string,
+  group: "service" | "reconciler" = "service",
+  extra: Record<string, unknown> = {},
+): ServiceInventory["entries"][number] =>
+  ({ name, kind: "container", container: name, group, reconciled: false, ...extra }) as ServiceInventory["entries"][number];
+
+test("a container row with no live state reads unknown, not exited", () => {
+  const board = buildBoard({ ...inv, entries: [container("palsave-api")] }, {}, none, {});
+  const row = board.groups[0].rows[0];
+  assert.equal(row.status, "unknown");
+  assert.equal(row.since, null);
+});
+
+test("a container row reads its own state, keyed by project name, with since null", () => {
+  const board = buildBoard(
+    { ...inv, entries: [container("palsave-api"), container("other")] },
+    // A unit state under the same key must not leak into a container row.
+    { "palsave-api": { status: "running", since: "Fri 2026-10-02 02:47:38 UTC" } },
+    none,
+    { "palsave-api": "unhealthy", other: "not-created" },
+  );
+  const [a, b] = board.groups[0].rows;
+  assert.equal(a.status, "unhealthy");
+  assert.equal(a.since, null);
+  assert.equal(b.status, "not-created");
+});
+
+test("findTimerUnit ignores container entries", () => {
+  const onlyContainer: ServiceInventory = { ...inv, entries: [container("lyly-reconcile", "reconciler")] };
+  assert.equal(findTimerUnit(onlyContainer), null);
+  // A container listed ahead of the timer must not hide it or throw on .unit.
+  const both: ServiceInventory = { ...inv, entries: [container("lyly-reconcile", "reconciler"), inv.entries[0]] };
+  assert.equal(findTimerUnit(both), "lyly-reconcile.timer");
+});
+
+test("the board renders unit and container rows in the same groups", () => {
+  const mixed: ServiceInventory = { ...inv, entries: [inv.entries[2], container("palsave-api")] };
+  const statuses: Record<string, UnitStatus> = { "palsave-api": "running" };
+  const board = buildBoard(mixed, states, none, statuses);
+  assert.deepEqual(board.groups.map((g) => g.group), ["service"]);
+  assert.deepEqual(board.groups[0].rows.map((r) => [r.name, r.status]), [
+    ["swee", "running"],
+    ["palsave-api", "running"],
+  ]);
 });

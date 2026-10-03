@@ -1425,7 +1425,7 @@ describe("renderServicesPage", () => {
         schedule: NO_SCHEDULE, timerUnit: null,
         generated: "2026-10-02T04:58:02Z",
         groups: [{ group: "service", rows: [
-          { name: "palworld", unit: "palworld-palchuds.service", group: "service",
+          { name: "palworld", kind: "unit", unit: "palworld-palchuds.service", group: "service",
             reconciled: false, status: "running", since: null },
         ] }],
       },
@@ -1457,7 +1457,7 @@ describe("renderServicesPage", () => {
         timerUnit: "lyly-reconcile.timer",
         generated: "2026-10-02T04:58:02Z",
         groups: [{ group: "reconciler", rows: [
-          { name: "lyly-reconcile-timer", unit: "lyly-reconcile.timer", group: "reconciler",
+          { name: "lyly-reconcile-timer", kind: "unit", unit: "lyly-reconcile.timer", group: "reconciler",
             reconciled: false, status: "running", since: null },
         ] }],
       },
@@ -1475,7 +1475,7 @@ describe("renderServicesPage", () => {
         schedule: NO_SCHEDULE, timerUnit: null,
         generated: "2026-10-02T04:58:02Z",
         groups: [{ group: "service", rows: [
-          { name: "palsave-api", unit: "palsave-api.service", group: "service", reconciled: true,
+          { name: "palsave-api", kind: "unit", unit: "palsave-api.service", group: "service", reconciled: true,
             version: "v0.2.0", result: "blocked", failedAttempts: 3, gate, status: "unknown", since: null },
         ] }],
       },
@@ -1494,7 +1494,7 @@ describe("renderServicesPage", () => {
         schedule: NO_SCHEDULE, timerUnit: null,
         generated: "2026-10-02T04:58:02Z",
         groups: [{ group: "service", rows: [
-          { name: "x", unit: "x.service", group: "service", reconciled: false, status, since: null },
+          { name: "x", kind: "unit", unit: "x.service", group: "service", reconciled: false, status, since: null },
         ] }],
       },
       NOW,
