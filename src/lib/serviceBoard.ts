@@ -1,8 +1,8 @@
 import type { InventoryEntry, ServiceGroup, ServiceInventory } from "./serviceInventory";
-import type { TimerSchedule, UnitState, UnitStatus } from "./unitState";
+import type { ServiceStatus, TimerSchedule, UnitState } from "./unitState";
 
 export type BoardRow = InventoryEntry & {
-  status: UnitStatus;
+  status: ServiceStatus;
   /** When the current state began; see UnitState.since. Always null for a
    *  container: compose reports elapsed text, not a timestamp. */
   since: string | null;
@@ -50,7 +50,7 @@ export function buildBoard(
   inv: ServiceInventory,
   states: Record<string, UnitState>,
   schedule: TimerSchedule,
-  containerStates: Record<string, UnitStatus> = {},
+  containerStates: Record<string, ServiceStatus> = {},
 ): ServiceBoard {
   const groups = GROUP_ORDER.map((group) => ({
     group,

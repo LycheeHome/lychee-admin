@@ -1,4 +1,4 @@
-import type { UnitStatus } from "./unitState";
+import type { ServiceStatus } from "./unitState";
 
 export type ContainerState = "not-created" | "running" | "exited" | "restarting" | "paused" | "unknown";
 export type ContainerHealth = "healthy" | "unhealthy" | "starting";
@@ -58,12 +58,12 @@ export function parseComposePsOutput(raw: string): ContainerStatus {
 }
 
 /**
- * A container's state as a board-row status. Deliberately UnitStatus and not
+ * A container's state as a board-row status. Deliberately ServiceStatus (a status, no `since`) and not
  * UnitState: `docker compose ps` reports elapsed text ("Up 2 hours"), not a
  * timestamp, and synthesising one from that would be a fabrication. The row's
  * `since` stays null.
  */
-export function toRowStatus(status: ContainerStatus): UnitStatus {
+export function toRowStatus(status: ContainerStatus): ServiceStatus {
   if (status.state === "running") {
     if (status.health === "unhealthy") return "unhealthy";
     if (status.health === "starting") return "starting";
@@ -73,6 +73,6 @@ export function toRowStatus(status: ContainerStatus): UnitStatus {
 }
 
 /** Wrapper output to a row status, through the one compose parser. */
-export function parseServiceStatusOutput(raw: string): UnitStatus {
+export function parseServiceStatusOutput(raw: string): ServiceStatus {
   return toRowStatus(parseComposePsOutput(raw));
 }

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildBoard, findTimerUnit } from "./serviceBoard";
 import type { ServiceInventory } from "./serviceInventory";
-import type { TimerSchedule, UnitState, UnitStatus } from "./unitState";
+import type { ServiceStatus, TimerSchedule, UnitState } from "./unitState";
 
 const inv: ServiceInventory = {
   generated: "2026-10-02T04:58:02Z",
@@ -118,7 +118,7 @@ test("findTimerUnit ignores container entries", () => {
 
 test("the board renders unit and container rows in the same groups", () => {
   const mixed: ServiceInventory = { ...inv, entries: [inv.entries[2], container("palsave-api")] };
-  const statuses: Record<string, UnitStatus> = { "palsave-api": "running" };
+  const statuses: Record<string, ServiceStatus> = { "palsave-api": "running" };
   const board = buildBoard(mixed, states, none, statuses);
   assert.deepEqual(board.groups.map((g) => g.group), ["service"]);
   assert.deepEqual(board.groups[0].rows.map((r) => [r.name, r.status]), [

@@ -7,7 +7,7 @@ import {
   UNIT_SHOW_PROPERTIES,
   type TimerSchedule,
   type UnitState,
-  type UnitStatus,
+  type ServiceStatus,
 } from "./unitState";
 
 const execFile = promisify(execFileCb);
@@ -78,7 +78,7 @@ export interface SystemCommands {
   writeManagedConfig(targetPath: string, content: string): Promise<void>;
   checkContainerStatus(hostname: string): Promise<ContainerStatus>;
   readUnitStates(units: string[]): Promise<Record<string, UnitState>>;
-  readServiceStatus(project: string): Promise<UnitStatus>;
+  readServiceStatus(project: string): Promise<ServiceStatus>;
   readTimerSchedule(timer: string): Promise<TimerSchedule>;
 }
 
