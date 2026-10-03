@@ -355,28 +355,63 @@ restarted after step 5 — not at the end.
 
 ## Open question: where `PALSAVE_API_BACKUP_DIR` comes from today
 
-`config.py` reads it with `os.environ[...]`, which raises on a missing key, so
-it is certainly set somewhere — but **nothing in `lychee-ops` sets it**. It is
-not in `group_vars`, any role, or the unit template, which carries only
-`PALSAVE_API_OOZ_LIB_PATH` and `WorkingDirectory`. Most likely a hand-placed
-`.env` in the state directory, which `load_dotenv()` would read from the working
-directory, but that was not confirmed: the state directory is unreadable to the
-unprivileged account, and `sudo` over a non-interactive SSH session cannot
-authenticate, so both attempts returned results that *read* as "absent" while
-actually meaning "could not check". That distinction has bitten this project
-repeatedly and the claim is therefore left open rather than guessed.
+`config.py` reads it with `os.environ[...]`, which raises on a missing key, and
+the service is demonstrably running — `state.json` and `snapshots/` are both
+written continuously. Yet **nothing in `lychee-ops` sets it**, and a privileged
+read of the host has now narrowed it further rather than answering it:
 
-**This must be answered before implementation**, because it decides whether the
-cut-over inherits a configuration source or replaces one. It is a single
-privileged read on the host — `sudo ls -la /var/lib/palsave-api/` and
-`sudo systemctl show palsave-api -p Environment` — and it needs the operator,
-not the agent.
+- `/var/lib/palsave-api/` holds `deploy-status.json`, `lib/`, `snapshots/` and
+  `state.json`, and **no `.env`**.
+- `systemctl show palsave-api -p Environment` returns exactly one variable,
+  `PALSAVE_API_OOZ_LIB_PATH`. There is no `EnvironmentFile=`.
 
-Either way the container improves the situation: the backup path moves into the
+So the remaining candidate is `/opt/palsave-api/.env`. `load_dotenv()` called
+with no arguments does **not** read the working directory — it walks up from the
+directory of the module that called it, which is the deployed code directory,
+not the state directory. That read is still outstanding and needs the operator:
+`sudo ls -la /opt/palsave-api/`.
+
+**It must be answered before implementation**, because it decides whether the
+cut-over inherits a configuration source or replaces one — and if the answer is
+a hand-placed `.env` excluded from the deploy rsync, then the backup path is
+undeclared host state that would be silently lost on a host rebuild.
+
+Either way the container improves the situation: the path moves into the
 rendered compose file, declared by `lychee-ops` as the mount vocabulary's
 `palworld_backup_dir`, and stops being host state nothing records. That variable
 does not exist yet either — `group_vars/all.yml` declares `palworld_group` but
 no backup directory — so this slice introduces it.
+
+## `libooz.so` is host state today, and that is the clearest case for the image
+
+`PALSAVE_API_OOZ_LIB_PATH=/var/lib/palsave-api/lib/libooz.so`. The native
+library lives in the **state** directory, placed by hand during the 2026-10-01
+migration, declared by nothing. It is in the same category as the uid and the
+backup path: a thing the host happens to have, which a rebuild would not
+reproduce.
+
+Baking it into the image is therefore not merely a reproducibility nicety — it
+converts the single least-reproducible part of this service into a build
+artifact, and it is the strongest standalone argument for containerising
+`palsave-api` at all. It is also the most likely thing to fail first, since the
+image's libc must match what the library was built against.
+
+A consequence for the compose rendering: `PALSAVE_API_OOZ_LIB_PATH` becomes an
+in-image path, and `/var/lib/palsave-api/lib/` stops being read at all. It is
+preserved rather than deleted at cut-over, like the rest of the state directory,
+so that a revert is a revert.
+
+## The state directory's mode constrains the container's uid
+
+`/var/lib/palsave-api/` is `drwxr-x---  palsave-api palsave-api` — mode 750,
+with no group access beyond its own primary group. Nothing outside uid 992 can
+read it, which is why the unprivileged checks above failed. If the container's
+state volume is seeded from or replaces this directory, the container's uid must
+match exactly; a mismatched uid gets `EACCES` on its own state, which at least
+fails loudly, unlike the `group_add` case.
+
+`state.json` is ~4.4 MB and rewritten continuously, so the named volume is
+carrying real working state, not a marker file.
 
 ## Risks
 
