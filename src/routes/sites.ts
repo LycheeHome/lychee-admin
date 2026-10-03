@@ -177,10 +177,10 @@ export function createSitesRouter(deps: Deps): Router {
       // site.healthcheckPath is unvalidated on this read path (only POST /sites validates it);
       // safe here only because scaffold.dockerfile is discarded below and never rendered.
       const scaffold = site.framework
-        ? getFrameworkScaffold(site.framework, site.target, hostname, config.sitesRoot, site.healthcheckPath ?? "/")
+        ? getFrameworkScaffold(site.framework, site.target, site.healthcheckPath ?? "/")
         : null;
       const scaffoldCommands = scaffold
-        ? { buildCommand: scaffold.buildCommand, runCommand: scaffold.runCommand, deployWorkflow: scaffold.deployWorkflow }
+        ? { buildCommand: scaffold.buildCommand, runCommand: scaffold.runCommand }
         : undefined;
 
       res.send(
@@ -259,7 +259,7 @@ export function createSitesRouter(deps: Deps): Router {
         });
       } else if (framework) {
         await report.run("files", async () => {
-          const files = getScaffoldFiles(framework, port, hostname, config.sitesRoot, healthcheckPath ?? "/");
+          const files = getScaffoldFiles(framework, port, healthcheckPath ?? "/");
           if (!files) return;
           await deps.commands.createSiteDirectory(hostname);
           for (const file of files) deps.fs.writeFile(path.join(sitePath, file.name), file.content);

@@ -70,9 +70,10 @@ claim.
 - **Outside the app, by design**: creating the Cloudflare DNS record
   (dashboard or `cloudflared tunnel route dns <tunnel-id> <hostname>`), and
   running whatever listens on a reverse-proxy port. For Next.js-scaffolded
-  sites, the container is started by the operator or by the generated GitHub
-  Actions workflow — this app never invokes Docker to start, stop, or rebuild
-  anything.
+  sites, the operator starts the container themselves with
+  `docker compose up -d --build` — this app never invokes Docker to start,
+  stop, or rebuild anything, and no longer generates a CI workflow that
+  implies otherwise.
 - **Surfaces today**: the site list (`GET /`), a site's detail page
   (`GET /sites/:hostname`), add-site as its own page (`GET /sites/new`,
   `POST /sites`), which shows the exact Caddyfile block and tunnel route it is
@@ -107,9 +108,9 @@ claim.
 - **Site kinds**: static (Caddy serves `/var/www/<hostname>/`) and reverse
   proxy (Caddy forwards to `localhost:<port>`). A reverse-proxy site may
   optionally pick a framework — currently only Next.js — which generates a
-  Dockerfile / `docker-compose.yml` / `.dockerignore` scaffold plus a
-  deploy workflow, and records the choice as a comment inside the Caddyfile
-  block so it survives restarts.
+  Dockerfile / `docker-compose.yml` / `.dockerignore` scaffold — and nothing
+  else; deploying stays the operator's step — and records the choice as a
+  comment inside the Caddyfile block so it survives restarts.
 - **Canonical status vocabulary**, shared by the header pill and the last
   hop of the request path: `running`, `unhealthy`, `starting`, `exited`,
   `restarting`, `paused`, `not deployed`, `unknown`, and

@@ -528,7 +528,6 @@ describe("renderSiteDetail manual steps", () => {
 const SCAFFOLD = {
   buildCommand: "npm run build",
   runCommand: "npm start",
-  deployWorkflow: "name: Deploy app.lyly.dev\non:\n  push:\n    branches: [main]\n",
 };
 
 /**
@@ -564,73 +563,48 @@ describe("renderSiteDetail deploy", () => {
     assert.match(html, />Deploy<\/h3>/);
   });
 
-  test("the workflow block is its natural height, with no nested vertical scroll", () => {
-    const html = withoutHeader(
-      renderSiteDetail(NEXT_SITE, {
-        ...OPTS,
-        status: { kind: "container", state: "running", health: "healthy" },
-        scaffold: SCAFFOLD,
-      }),
-    );
-    // Anchored to the Deploy card itself, not the whole page: the breadcrumb's
-    // hostname switcher is a legitimate <details> with its own scrollable
-    // dropdown elsewhere on this page, and a page-wide assertion would trip on
-    // that unrelated control instead of testing what this card does.
-    //
-    // Same two-step split as the test above: the doesNotMatch calls below
-    // pass trivially on an empty string, so the anchor is checked explicitly
-    // before trusting a negative result against the slice.
-    const [, afterDeployHeading] = html.split("Deploy</h3>");
-    assert.ok(afterDeployHeading, "expected a Deploy card to anchor to");
-    const card = afterDeployHeading.split("</section>")[0];
-    // No max-height and no vertical overflow inside the card: a scrollbar
-    // inside a page you are already scrolling is worse than a tall block, and
-    // this is a file you may want to read rather than only copy.
-    assert.doesNotMatch(card, /max-h-/);
-    assert.doesNotMatch(card, /overflow-y-auto|overflow-auto/);
-    // Long lines still scroll sideways, which preformatted content needs.
-    assert.match(card, /id="github-workflow-yaml"[^>]*\boverflow-x-auto\b/);
-  });
-
-  test("only the workflow is copyable; build and run are data, not instructions", () => {
+  test("only the compose command is copyable; build and run are data, not instructions", () => {
     const html = renderSiteDetail(NEXT_SITE, {
       ...OPTS,
       status: { kind: "container", state: "running", health: "healthy" },
       scaffold: SCAFFOLD,
     });
-    assert.match(html, /data-copy-target="github-workflow-yaml"/);
+    assert.match(html, /data-copy-target="cmd-compose"/);
     // buildCommand and runCommand describe what the Dockerfile bakes in and
-    // the workflow triggers. A copy button on them reads as "run these", which
-    // is both wrong and the reverse of the actual order.
+    // that compose run triggers. A copy button on them reads as "run these",
+    // which is both wrong and the reverse of the actual order.
     assert.match(html, /npm run build/);
     assert.match(html, /npm start/);
     assert.doesNotMatch(html, /cmd-build|cmd-run/);
     assert.match(html, /not commands to run yourself/);
   });
 
-  test("deploy offers the by-hand alternative for anyone not using Actions", () => {
+  test("deploy states the one command you run yourself", () => {
     const html = renderSiteDetail(NEXT_SITE, {
       ...OPTS,
       status: { kind: "container", state: "running", health: "healthy" },
       scaffold: SCAFFOLD,
     });
     const card = html.split(">Deploy</h3>")[1];
-    assert.match(card, /Not using GitHub Actions\?/);
+    // It was an aside behind "Not using GitHub Actions?" while a workflow led
+    // the card. The workflow never worked off lychee, so this is the whole
+    // instruction now and must not read as a fallback.
+    assert.doesNotMatch(card, /Not using GitHub Actions\?/);
     assert.match(card, /id="cmd-compose"/);
     assert.match(card, /docker compose up -d --build/);
   });
 
-  test("the workflow comes before what the image does, not after", () => {
+  test("the command comes before what the image does, not after", () => {
     const html = renderSiteDetail(NEXT_SITE, {
       ...OPTS,
       status: { kind: "container", state: "running", health: "healthy" },
       scaffold: SCAFFOLD,
     });
-    // Ordering carried the wrong implication: commands first read as "do these,
-    // then paste the workflow", when the workflow is what causes them to run.
+    // Ordering carried the wrong implication: the baked-in commands first read
+    // as "do these, then deploy", when the compose run is what causes them.
     assert.ok(
-      html.indexOf("github-workflow-yaml") < html.indexOf("npm run build"),
-      "the workflow must precede the baked-in commands",
+      html.indexOf("cmd-compose") < html.indexOf("npm run build"),
+      "the compose command must precede the baked-in commands",
     );
   });
 
@@ -642,15 +616,15 @@ describe("renderSiteDetail deploy", () => {
         scaffold: SCAFFOLD,
       }),
     );
-    // The single-line boxes and the multi-line workflow block position their
-    // buttons differently vertically — centred vs top-pinned — but the
-    // horizontal inset has to agree or the buttons visibly step in and out.
-    // They drifted once (right-1.5 vs right-2) and 2px was noticeable.
+    // The DNS command and the compose command each carry one. They drifted
+    // once (right-1.5 vs right-2) and 2px was noticeable. This was 3 while the
+    // card led with a multi-line workflow block, whose button pinned to the
+    // top rather than centring; that block is gone, the inset rule is not.
     // Scoped past the header, whose own markup carries no absolutely
     // positioned elements today but is stripped anyway for the same reason
     // as the tests above.
     const insets = [...html.matchAll(/class="[^"]*\babsolute\b[^"]*?(right-[^\s"]+)/g)].map((m) => m[1]);
-    assert.ok(insets.length >= 3, `expected 3+ positioned copy buttons, saw ${insets.length}`);
+    assert.ok(insets.length >= 2, `expected 2+ positioned copy buttons, saw ${insets.length}`);
     assert.equal(
       new Set(insets).size,
       1,
@@ -661,7 +635,7 @@ describe("renderSiteDetail deploy", () => {
   test("a site with no scaffold gets no Deploy section at all", () => {
     const html = renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: true } });
     assert.doesNotMatch(html, />Deploy<\/h3>/);
-    assert.doesNotMatch(html, /cmd-build|cmd-run|github-workflow-yaml/);
+    assert.doesNotMatch(html, /cmd-build|cmd-run|cmd-compose/);
   });
 
   test("copy buttons are distinguishable by name", () => {
