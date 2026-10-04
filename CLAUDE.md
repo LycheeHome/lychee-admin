@@ -143,7 +143,39 @@ The `lyly-admin` user and the `webdeploy` group also predate all of this and are
 - **A tick that loses the `flock` exits 0 with no output**, which is indistinguishable in `systemctl status` from a clean reconcile. The real liveness signal is the status file's `last_run`, which a skipped tick does not touch. The blind spot is bounded rather than permanent: `TimeoutStartSec=900` SIGKILLs a genuinely stuck run, and that exit does trip `OnFailure=`, so at most about three ticks can quietly no-op before the problem announces itself.
 - **After three failed health checks for the same commit, the retry cap engages, the play *succeeds*, and the notifications stop** — while the service is still down. Three alerts and then silence is the designed behaviour, not a bug. Recovery is `sudo rm /opt/lyly-admin/.failed-sha` (remove it; do not truncate or hand-edit it), not a fourth alert. The bootstrap procedure, the by-hand `ansible-pull` invocation and the rest of the recovery notes live in `lychee-ops`' own README — leave them there rather than copying them here, for the same reason the sidecar's rule bodies are derived rather than duplicated. Note also that `installed_commit` means "the last commit that passed a health check", not "what is on disk": after a failed deploy the new code is already installed and running while that field still names the old SHA.
 
-**Branch protection is now possible, and should be turned on.** The paragraph here used to say it was impossible, and that was true: `LycheeHome` is on GitHub Free, and a private repo there gets neither branch protection nor rulesets — both APIs return 403. What changed is that going public is now the plan rather than an unaffordable trade, precisely because removing the self-hosted runner removed the reason not to; branch protection is free on public repositories. Until it is configured, `main` accepts direct pushes and a red PR can be merged. What is genuinely gone is `needs: test` — there is no deploy job left for it to gate, so nothing inside GitHub stops a red `main` from being the deploy target. The protection moved rather than vanished: the reconciler refuses to install a commit whose `test` job is not green, so a red `main` leaves `lychee` serving the last healthy build, which is the same guarantee reached by another route. The difference is where you find out. A blocked deploy shows up in the status file's `gate` string, not on the pull request.
+**Branch protection is on, and `main` is gated on `test`.** The ruleset
+(`lyly-admin`, id 24148404, enforcement `active`) requires a pull request,
+blocks deletion and non-fast-forward pushes, and requires the status check
+named `test`. Approvals are set to zero, which is right for a single operator:
+the gate is CI, not a second pair of eyes.
+
+This paragraph has been wrong twice, in opposite directions, and the second
+error is the instructive one. It first said protection was impossible. It then
+said it was *possible but not yet configured*, and explained that going public
+was what bought it — "`LycheeHome` is on GitHub Free, and a private repo there
+gets neither branch protection nor rulesets — both APIs return 403". **The org
+is on the Team plan, not Free.** Private repos here take rulesets and always
+did: `lychee-ops` is private and has carried an active `main` ruleset since
+2026-09-28. So the trade this file recorded — publish the repo in order to
+afford protection — never existed, and it was cited as a reason for publishing.
+Publishing `lyly-admin` was still right, because it removed the self-hosted
+runner's exposure; it just did not buy what this paragraph claimed it bought.
+Both errors came from reasoning about a billing plan nobody had checked, which
+is one `gh api orgs/LycheeHome` away.
+
+**The job name `test` now has two consumers, not one.** The reconciler's deploy
+gate matches a job named exactly `test`, and so does this ruleset's required
+status check. Renaming it, or adding a `name:` override that replaces the name
+the API reports, now blocks every merge *and* silently stops every deploy. The
+merge failure is loud and the deploy failure is not, so the first symptom is a
+blocked PR and the second is a status file reading `job test concluded:
+missing`.
+
+What this does not change is where a *blocked deploy* surfaces. The reconciler
+still refuses to install a commit whose `test` job is not green, independently
+of GitHub, so a red commit leaves `lychee` serving the last healthy build by two
+mechanisms rather than one. A blocked deploy still shows up in the status file's
+`gate` string, not on the pull request.
 
 One consequence of that gate follows from its construction and has not been observed yet, so it is recorded here to be recognisable rather than as something seen: CI runs share a per-ref concurrency group with `cancel-in-progress`, so two merges to `main` in quick succession cancel the first run, and a `cancelled` conclusion blocks that SHA — "every completed run must be green" makes no exception for a run that never finished. In practice the next tick has already moved to the newer commit, so the blocked SHA is simply never the target. The symptom to recognise is a commit that looks green in the UI and reports blocked here.
 
