@@ -1,12 +1,13 @@
 import { execFile as execFileCb, spawn } from "node:child_process";
 import { promisify } from "node:util";
-import { parseComposePsOutput, type ContainerStatus } from "./containerStatus";
+import { parseComposePsOutput, parseServiceStatusOutput, type ContainerStatus } from "./containerStatus";
 import {
   parseTimerSchedule,
   parseUnitShowOutput,
   UNIT_SHOW_PROPERTIES,
   type TimerSchedule,
   type UnitState,
+  type ServiceStatus,
 } from "./unitState";
 
 const execFile = promisify(execFileCb);
@@ -77,6 +78,7 @@ export interface SystemCommands {
   writeManagedConfig(targetPath: string, content: string): Promise<void>;
   checkContainerStatus(hostname: string): Promise<ContainerStatus>;
   readUnitStates(units: string[]): Promise<Record<string, UnitState>>;
+  readServiceStatus(project: string): Promise<ServiceStatus>;
   readTimerSchedule(timer: string): Promise<TimerSchedule>;
 }
 
@@ -184,6 +186,29 @@ export const realSystemCommands: SystemCommands = {
       return parseUnitShowOutput(stdout);
     } catch {
       return {};
+    }
+  },
+
+  /**
+   * One declared container service's state, via lychee-ops'
+   * lyly-admin-service-status (sudo-pinned: docker is not world-usable). Empty
+   * output means no compose file there, which the shared parser reads as
+   * not-created. Output goes through containerStatus.ts like the site path
+   * does; a second parser would be a second thing to keep correct against
+   * compose versions. Degrades to "unknown" on any failure, never throws: the
+   * services page must not error, and an unreadable state is not evidence of
+   * a stopped container.
+   */
+  async readServiceStatus(project) {
+    try {
+      const { stdout } = await run(
+        "sudo",
+        ["/usr/local/sbin/lyly-admin-service-status", project],
+        { timeoutMs: STATUS_READ_TIMEOUT_MS },
+      );
+      return parseServiceStatusOutput(stdout);
+    } catch {
+      return "unknown";
     }
   },
 

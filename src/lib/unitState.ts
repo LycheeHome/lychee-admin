@@ -8,9 +8,17 @@
  * `sudo -u lyly-admin systemctl is-active <four units>` answered without sudo.
  */
 
-/** A subset of the app's canonical status vocabulary — the values a systemd
- *  unit can produce. `starting` and `unknown` are neutral, not red. */
+/** What a systemd unit can be: a subset of the board's vocabulary (see
+ *  ServiceStatus). `starting` and `unknown` are neutral, not red. */
 export type UnitStatus = "running" | "starting" | "exited" | "restarting" | "unknown";
+
+/**
+ * The board's full status vocabulary: a unit's five states plus three only a
+ * container has. An unhealthy container is running, so collapsing it into
+ * UnitStatus would paint it green. Kept separate so nobody reads UnitStatus
+ * and concludes parseUnitShowOutput might return "unhealthy".
+ */
+export type ServiceStatus = UnitStatus | "unhealthy" | "paused" | "not-created";
 
 export interface UnitState {
   status: UnitStatus;

@@ -1,11 +1,12 @@
 import type { InventoryEntry, ServiceGroup, ServiceInventory } from "./serviceInventory";
-import type { TimerSchedule, UnitState, UnitStatus } from "./unitState";
+import type { ServiceStatus, TimerSchedule, UnitState } from "./unitState";
 
-export interface BoardRow extends InventoryEntry {
-  status: UnitStatus;
-  /** When the current state began; see UnitState.since. */
+export type BoardRow = InventoryEntry & {
+  status: ServiceStatus;
+  /** When the current state began; see UnitState.since. Always null for a
+   *  container: compose reports elapsed text, not a timestamp. */
   since: string | null;
-}
+};
 
 export interface ServiceBoard {
   groups: Array<{ group: ServiceGroup; rows: BoardRow[] }>;
@@ -25,7 +26,10 @@ export interface ServiceBoard {
  * release. No such entry means null, never a guessed unit name.
  */
 export function findTimerUnit(inv: ServiceInventory): string | null {
-  return inv.entries.find((e) => e.group === "reconciler" && e.unit.endsWith(".timer"))?.unit ?? null;
+  for (const e of inv.entries) {
+    if (e.kind === "unit" && e.group === "reconciler" && e.unit.endsWith(".timer")) return e.unit;
+  }
+  return null;
 }
 
 /** Fixed display order: what deploys things, what runs, what carries traffic. */
@@ -37,20 +41,25 @@ const GROUP_ORDER: readonly ServiceGroup[] = ["reconciler", "service", "infrastr
  * simply has no row — drift the page cannot show, which is why the inventory is
  * the declared set rather than a scrape.
  *
- * A declared unit with no live state reads `unknown` (neutral) rather than
- * `exited`, because the absence means the query failed, not that the service
- * stopped.
+ * A declared unit or container with no live state reads `unknown` (neutral)
+ * rather than `exited`, because the absence means the query failed, not that
+ * the service stopped. Containers are looked up by compose project name and
+ * never carry `since`.
  */
 export function buildBoard(
   inv: ServiceInventory,
   states: Record<string, UnitState>,
   schedule: TimerSchedule,
+  containerStates: Record<string, ServiceStatus> = {},
 ): ServiceBoard {
   const groups = GROUP_ORDER.map((group) => ({
     group,
     rows: inv.entries
       .filter((e) => e.group === group)
       .map((e): BoardRow => {
+        if (e.kind === "container") {
+          return { ...e, status: containerStates[e.container] ?? "unknown", since: null };
+        }
         const live = states[e.unit];
         return { ...e, status: live?.status ?? "unknown", since: live?.since ?? null };
       }),

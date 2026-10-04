@@ -3,7 +3,7 @@ import type { Deps } from "../deps";
 import { readInventory } from "../lib/serviceInventory";
 import { buildBoard, findTimerUnit } from "../lib/serviceBoard";
 import { renderServicesPage } from "../views/html";
-import type { TimerSchedule } from "../lib/unitState";
+import type { ServiceStatus, TimerSchedule } from "../lib/unitState";
 
 // A function, not a shared constant: it lands on board.schedule, and a shared
 // mutable object is the shape readInventory's unavailable() exists to avoid.
@@ -21,11 +21,20 @@ export function createServicesRouter(deps: Deps): express.Router {
       const timer = findTimerUnit(inventory);
 
       // Each read degrades independently; the page must render without either.
-      const [states, schedule] = await Promise.all([
-        deps.commands.readUnitStates(inventory.entries.map((e) => e.unit)).catch(() => ({})),
+      const units = inventory.entries.flatMap((e) => (e.kind === "unit" ? [e.unit] : []));
+      const projects = inventory.entries.flatMap((e) => (e.kind === "container" ? [e.container] : []));
+      const [states, schedule, statuses] = await Promise.all([
+        deps.commands.readUnitStates(units).catch(() => ({})),
         timer ? deps.commands.readTimerSchedule(timer).catch(noSchedule) : noSchedule(),
+        // One wrapper call per project, concurrently; each degrades alone.
+        Promise.all(
+          projects.map(async (p): Promise<[string, ServiceStatus]> => [
+            p,
+            await deps.commands.readServiceStatus(p).catch((): ServiceStatus => "unknown"),
+          ]),
+        ),
       ]);
-      const board = buildBoard(inventory, states, schedule);
+      const board = buildBoard(inventory, states, schedule, Object.fromEntries(statuses));
 
       res.type("html").send(renderServicesPage(board));
     } catch (error) {

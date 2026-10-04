@@ -117,6 +117,8 @@ export function createFakes(overrides: Partial<SystemCommands> = {}): {
           units.flatMap((u) => (u in seededUnitStates ? [[u, seededUnitStates[u]]] : [])),
         ),
       ),
+    // No seeded container services: "unknown" is the honest neutral answer.
+    readServiceStatus: () => Promise.resolve("unknown"),
     readTimerSchedule: () => Promise.resolve(SEEDED_TIMER_SCHEDULE),
   };
 

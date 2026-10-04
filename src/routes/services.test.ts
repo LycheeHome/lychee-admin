@@ -182,4 +182,73 @@ describe("GET /services", () => {
     assert.equal(res.status, 200);
     assert.ok(scheduleStarted);
   });
+
+  const CONTAINER = {
+    name: "palsave-api", kind: "container", container: "palsave-api", group: "service", reconciled: true, version: "0.3.0",
+  };
+
+  test("container rows render beside unit rows, and are not asked of systemctl", async () => {
+    let requested: string[] = [];
+    const projects: string[] = [];
+    const s = await start(inventory([SWEE, CONTAINER]), {
+      readUnitStates: (units) => {
+        requested = units;
+        return Promise.resolve({ "swee.service": { status: "running", since: null } });
+      },
+      readServiceStatus: (p) => {
+        projects.push(p);
+        return Promise.resolve("unhealthy");
+      },
+    });
+    const html = await (await s.get("/services")).text();
+    assert.deepEqual(requested, ["swee.service"]);
+    assert.deepEqual(projects, ["palsave-api"]);
+    assert.deepEqual(pills(html), ["running", "unhealthy"]);
+  });
+
+  test("a failed container status read degrades to unknown, not a 500", async () => {
+    const s = await start(inventory([SWEE, CONTAINER]), {
+      readUnitStates: () => Promise.resolve({ "swee.service": { status: "running", since: null } }),
+      readServiceStatus: () => Promise.reject(new Error("docker not found")),
+    });
+    const res = await s.get("/services");
+    assert.equal(res.status, 200);
+    assert.deepEqual(pills(await res.text()), ["running", "unknown"]);
+  });
+
+  test("an unknown container renders neutral, not as a failure", async () => {
+    const s = await start(inventory([CONTAINER]), {
+      readServiceStatus: () => Promise.resolve("unknown"),
+    });
+    const html = await (await s.get("/services")).text();
+    const { TONE_PILL } = await import("../views/shared");
+    assert.ok(html.includes(TONE_PILL.neutral));
+    assert.ok(!html.includes(TONE_PILL.bad));
+  });
+
+  test("an inventory with no kind still renders its units", async () => {
+    const s = await start(inventory([SWEE]), {
+      readUnitStates: () => Promise.resolve({ "swee.service": { status: "running", since: null } }),
+    });
+    assert.deepEqual(pills(await (await s.get("/services")).text()), ["running"]);
+  });
+
+  test("container reads run concurrently with each other", async () => {
+    const release: Array<() => void> = [];
+    let started = 0;
+    const s = await start(
+      inventory([CONTAINER, { ...CONTAINER, name: "b", container: "b" }]),
+      {
+        readServiceStatus: () =>
+          new Promise((resolve) => {
+            started++;
+            release.push(() => resolve("running"));
+            if (started === 2) release.forEach((r) => r());
+          }),
+      },
+    );
+    const res = await s.get("/services");
+    assert.equal(res.status, 200);
+    assert.equal(started, 2);
+  });
 });

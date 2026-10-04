@@ -102,6 +102,10 @@ export const SEEDED_INVENTORY = JSON.stringify(
       // palworld_service, because a second Palworld server would be a second
       // unit and a row reading "palworld" would not say which.
       { name: "palworld-palchuds", unit: "palworld-palchuds.service", group: "service", reconciled: false },
+      // A container with no status file yet: reconciled false, no version. Dev
+      // fakes answer "unknown" for every container, so this is the neutral,
+      // not-red row, which is the case a container row must get right.
+      { name: "lyly-docs", kind: "container", container: "lyly-docs", group: "service", reconciled: false },
       { name: "caddy", unit: "caddy.service", group: "infrastructure", reconciled: false },
       { name: "cloudflared-sites", unit: "cloudflared-sites.service", group: "infrastructure", reconciled: false },
     ],

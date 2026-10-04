@@ -7,7 +7,7 @@ const VALID = JSON.stringify({
   generated: "2026-10-02T04:58:02Z",
   services: [
     {
-      name: "swee", unit: "swee.service", group: "service", reconciled: true,
+      name: "swee", kind: "unit", unit: "swee.service", group: "service", reconciled: true,
       version: "v2.11.4", commit: "af22c56d1e0b4c7a9f3e5d2b8a6c4e1f0d9b7a35", result: "skipped",
       gate: "pin unchanged (v2.11.4)", last_run: "2026-10-02T04:58:02Z",
       failed_attempts: 0,
@@ -30,7 +30,7 @@ test("parses a well-formed inventory and renames snake_case to camelCase", () =>
   assert.equal(inv.generated, "2026-10-02T04:58:02Z");
   assert.equal(inv.entries.length, 2);
   assert.deepEqual(inv.entries[0], {
-    name: "swee", unit: "swee.service", group: "service", reconciled: true,
+    name: "swee", kind: "unit", unit: "swee.service", group: "service", reconciled: true,
     version: "v2.11.4", commit: "af22c56d1e0b4c7a9f3e5d2b8a6c4e1f0d9b7a35", result: "skipped",
     gate: "pin unchanged (v2.11.4)", lastRun: "2026-10-02T04:58:02Z",
     failedAttempts: 0,
@@ -51,7 +51,7 @@ test("empty strings from a never-installed service parse as not known", () => {
     generated: "2026-10-02T04:58:02Z",
     services: [
       {
-        name: "swee", unit: "swee.service", group: "service", reconciled: true,
+        name: "swee", kind: "unit", unit: "swee.service", group: "service", reconciled: true,
         version: "", commit: "", result: "unknown", gate: "", last_run: "",
         failed_attempts: 0,
       },
@@ -116,7 +116,7 @@ test("readInventory reads the documented path", () => {
   assert.equal(seen, "/var/lib/lychee-inventory/services.json");
 });
 
-const GOOD = { name: "swee", unit: "swee.service", group: "service", reconciled: false };
+const GOOD = { name: "swee", kind: "unit", unit: "swee.service", group: "service", reconciled: false };
 
 test("a null or string entry is skipped without dropping its neighbours", () => {
   const raw = JSON.stringify({
@@ -132,7 +132,7 @@ test("an unreconciled entry's stray deploy fields are ignored", () => {
     services: [{ ...GOOD, version: "v1", commit: "abc", result: "deployed", failed_attempts: 2 }],
   });
   assert.deepEqual(parseInventory(raw).entries[0], {
-    name: "swee", unit: "swee.service", group: "service", reconciled: false,
+    name: "swee", kind: "unit", unit: "swee.service", group: "service", reconciled: false,
   });
 });
 
@@ -146,7 +146,82 @@ test("a missing or non-string name drops the entry", () => {
 
 test("mutating one unavailable result cannot affect the next", () => {
   parseInventory("nope").entries.push({
-    name: "x", unit: "x", group: "service", reconciled: false,
+    name: "x", kind: "unit", unit: "x", group: "service", reconciled: false,
   });
   assert.deepEqual(parseInventory("nope").entries, []);
+});
+
+function inventoryOf(...services: unknown[]): string {
+  return JSON.stringify({ generated: "2026-10-02T04:58:02Z", services });
+}
+
+test("an entry with kind container parses and keeps its project name", () => {
+  const inv = parseInventory(
+    inventoryOf({
+      name: "palsave-api", kind: "container", container: "palsave-api", group: "service",
+      reconciled: true, version: "0.3.0",
+    }),
+  );
+  assert.deepEqual(inv.entries, [
+    { name: "palsave-api", kind: "container", container: "palsave-api", group: "service", reconciled: true, version: "0.3.0" },
+  ]);
+  assert.ok(!("unit" in inv.entries[0]));
+});
+
+test("an entry with kind unit is unchanged", () => {
+  const inv = parseInventory(
+    inventoryOf({ name: "swee", kind: "unit", unit: "swee.service", group: "service", reconciled: false }),
+  );
+  assert.deepEqual(inv.entries, [
+    { name: "swee", kind: "unit", unit: "swee.service", group: "service", reconciled: false },
+  ]);
+});
+
+// Review Focus 1: a new app meeting an inventory published before `kind`
+// existed. The two repos deploy independently, so this is a real state.
+test("an entry with no kind is read as a unit", () => {
+  const inv = parseInventory(
+    inventoryOf({ name: "swee", unit: "swee.service", group: "service", reconciled: true, version: "v1" }),
+  );
+  assert.equal(inv.entries.length, 1);
+  assert.equal(inv.entries[0].kind, "unit");
+  assert.equal(inv.entries[0].kind === "unit" && inv.entries[0].unit, "swee.service");
+  assert.equal(inv.entries[0].version, "v1");
+});
+
+test("an entry with kind container but no container field is dropped", () => {
+  const inv = parseInventory(
+    inventoryOf(
+      // The unit field of a container entry is not a fallback for its name.
+      { name: "a", kind: "container", unit: "a.service", group: "service", reconciled: true },
+      { name: "b", kind: "container", group: "service", reconciled: true },
+      { name: "keep", kind: "unit", unit: "keep.service", group: "service", reconciled: false },
+    ),
+  );
+  assert.deepEqual(inv.entries.map((e) => e.name), ["keep"]);
+});
+
+test("a container project name outside the wrapper's charset is dropped", () => {
+  for (const bad of ["-x", "X", "a.b", "a b", "a/b", "", "a".repeat(64)]) {
+    const inv = parseInventory(
+      inventoryOf({ name: "n", kind: "container", container: bad, group: "service", reconciled: true }),
+    );
+    assert.deepEqual(inv.entries, [], `accepted ${JSON.stringify(bad)}`);
+  }
+});
+
+test("an unrecognised kind is dropped, not thrown on, and not read as a unit", () => {
+  const inv = parseInventory(
+    inventoryOf({ name: "x", kind: "vm", unit: "x.service", group: "service", reconciled: false }),
+  );
+  assert.deepEqual(inv.entries, []);
+  assert.equal(inv.available, true);
+});
+
+test("the unit-name pattern is not applied to a container's project name", () => {
+  // "palsave-api" has no .service suffix; it must parse as a container.
+  const inv = parseInventory(
+    inventoryOf({ name: "p", kind: "container", container: "palsave-api", group: "service", reconciled: false }),
+  );
+  assert.equal(inv.entries.length, 1);
 });
