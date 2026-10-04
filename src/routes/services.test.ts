@@ -195,7 +195,7 @@ describe("GET /services", () => {
         requested = units;
         return Promise.resolve({ "swee.service": { status: "running", since: null } });
       },
-      readServiceStatus: (p) => {
+      readResourceStatus: (p) => {
         projects.push(p);
         return Promise.resolve("unhealthy");
       },
@@ -209,7 +209,7 @@ describe("GET /services", () => {
   test("a failed container status read degrades to unknown, not a 500", async () => {
     const s = await start(inventory([SWEE, CONTAINER]), {
       readUnitStates: () => Promise.resolve({ "swee.service": { status: "running", since: null } }),
-      readServiceStatus: () => Promise.reject(new Error("docker not found")),
+      readResourceStatus: () => Promise.reject(new Error("docker not found")),
     });
     const res = await s.get("/services");
     assert.equal(res.status, 200);
@@ -218,7 +218,7 @@ describe("GET /services", () => {
 
   test("an unknown container renders neutral, not as a failure", async () => {
     const s = await start(inventory([CONTAINER]), {
-      readServiceStatus: () => Promise.resolve("unknown"),
+      readResourceStatus: () => Promise.resolve("unknown"),
     });
     const html = await (await s.get("/services")).text();
     const { TONE_PILL } = await import("../views/shared");
@@ -239,7 +239,7 @@ describe("GET /services", () => {
     const s = await start(
       inventory([CONTAINER, { ...CONTAINER, name: "b", container: "b" }]),
       {
-        readServiceStatus: () =>
+        readResourceStatus: () =>
           new Promise((resolve) => {
             started++;
             release.push(() => resolve("running"));
