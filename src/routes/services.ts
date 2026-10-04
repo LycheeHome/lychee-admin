@@ -30,7 +30,7 @@ export function createServicesRouter(deps: Deps): express.Router {
         Promise.all(
           projects.map(async (p): Promise<[string, ServiceStatus]> => [
             p,
-            await deps.commands.readServiceStatus(p).catch((): ServiceStatus => "unknown"),
+            await deps.commands.readResourceStatus(p).catch((): ServiceStatus => "unknown"),
           ]),
         ),
       ]);
