@@ -1,11 +1,4 @@
 {
-  "enabledPlugins": {
-    "frontend-design@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true,
-    "playwright@claude-plugins-official": true,
-    "impeccable@impeccable": true
-  },
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -18,5 +11,12 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "impeccable@impeccable": true,
+    "superpowers@anthropic-plugin-directory": true
   }
 }
