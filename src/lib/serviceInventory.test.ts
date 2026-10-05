@@ -238,11 +238,13 @@ test("an empty target or available normalises to undefined", () => {
   // Pins the consumer's tolerance for every wire shape, including "" for
   // available, which the producer is not known to send. Not a claim that the
   // producer was run.
-  for (const raw of [{ target: "", available: "" }, { target: "" }, { available: "" }]) {
-    const [e] = parseInventory(inventoryOf({ ...RECONCILED, ...raw })).entries;
-    assert.ok(!("target" in e) || e.target === undefined);
-    assert.ok(!("available" in e) || e.available === undefined);
+  for (const field of ["target", "available"] as const) {
+    const [e] = parseInventory(inventoryOf({ ...RECONCILED, [field]: "" })).entries;
+    assert.equal(e[field], undefined);
   }
+  const [both] = parseInventory(inventoryOf({ ...RECONCILED, target: "", available: "" })).entries;
+  assert.equal(both.target, undefined);
+  assert.equal(both.available, undefined);
   const [e] = parseInventory(inventoryOf({ ...RECONCILED, target: "", available: "v2" })).entries;
   assert.equal(e.target, undefined);
   assert.equal(e.available, "v2");
@@ -267,6 +269,25 @@ test('the word "none" is never shown as a version', () => {
   // A declaration rejected because of its image once surfaced as a pinned
   // version that was a word; the board rendered `none` as if it were a tag.
   const [e] = parseInventory(inventoryOf({ ...RECONCILED, target: "none", available: "none" })).entries;
+  assert.equal(e.target, undefined);
+  assert.equal(e.available, undefined);
+});
+
+test('the word "none" is never shown as the installed version either', () => {
+  // version comes from installed_tag through the same 'none' -> '' mapping as
+  // target_tag, so it is the same sentinel path and the field read most.
+  const [e] = parseInventory(inventoryOf({ ...RECONCILED, version: "none" })).entries;
+  assert.equal(e.version, undefined);
+});
+
+test("deploy fields on an unreconciled entry are ignored", () => {
+  // The producer emits none of these on an unreconciled row; if it ever did,
+  // dropping them is the safe direction, and the reconciled gate is what
+  // enforces it.
+  const [e] = parseInventory(
+    inventoryOf({ ...RECONCILED, reconciled: false, target: "v1", available: "v2" }),
+  ).entries;
+  assert.equal(e.reconciled, false);
   assert.equal(e.target, undefined);
   assert.equal(e.available, undefined);
 });

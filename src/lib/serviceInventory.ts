@@ -88,8 +88,8 @@ function knownString(value: unknown): string | undefined {
   return typeof value === "string" && value !== "" ? value : undefined;
 }
 
-/** A version-shaped field. Beyond "" it refuses the word "none": a version
- *  that is not a version is not shown. This is the consumer's own invariant,
+/** A version-shaped field (version, target, available). Beyond "" it refuses
+ *  the word "none": a version that is not a version is not shown. This is the consumer's own invariant,
  *  kept whatever the producer emits, because a declaration rejected for its
  *  image once surfaced as a pinned version reading `none` on the board. */
 function knownVersion(value: unknown): string | undefined {
@@ -135,7 +135,10 @@ function toEntry(raw: Record<string, unknown>): InventoryEntry | null {
   }
   if (!entry.reconciled) return entry;
 
-  const version = knownString(raw.version);
+  const version = knownVersion(raw.version);
+  // knownString, not knownVersion, and not by oversight: a short SHA reading
+  // "none" looks broken on sight, so a regression there reports itself, whereas
+  // a version reading "none" looks like a tag and nobody questions it.
   const commit = knownString(raw.commit);
   const gate = knownString(raw.gate);
   const lastRun = knownString(raw.last_run);
