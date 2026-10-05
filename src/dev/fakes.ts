@@ -120,6 +120,7 @@ export function createFakes(overrides: Partial<SystemCommands> = {}): {
     // No seeded container services: "unknown" is the honest neutral answer.
     readResourceStatus: () => Promise.resolve("unknown"),
     readTimerSchedule: () => Promise.resolve(SEEDED_TIMER_SCHEDULE),
+    writeDeclarationTag: () => Promise.resolve({ ok: true }),
   };
 
   return { fs, commands: { ...commands, ...overrides } };

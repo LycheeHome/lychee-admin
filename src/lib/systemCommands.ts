@@ -1,5 +1,6 @@
 import { execFile as execFileCb, spawn } from "node:child_process";
 import { promisify } from "node:util";
+import { writeDeclarationTag, type WriteResult } from "./declarationWriter";
 import { parseComposePsOutput, parseServiceStatusOutput, type ContainerStatus } from "./containerStatus";
 import {
   parseTimerSchedule,
@@ -55,10 +56,14 @@ const STATUS_READ_TIMEOUT_MS = 2000;
 async function run(
   command: string,
   args: string[],
-  { timeoutMs }: { timeoutMs?: number } = {},
+  { timeoutMs, cwd, env }: { timeoutMs?: number; cwd?: string; env?: NodeJS.ProcessEnv } = {},
 ): Promise<{ stdout: string; stderr: string }> {
   try {
-    return await execFile(command, args, timeoutMs === undefined ? {} : { timeout: timeoutMs });
+    return await execFile(command, args, {
+      ...(timeoutMs === undefined ? {} : { timeout: timeoutMs }),
+      ...(cwd === undefined ? {} : { cwd }),
+      ...(env === undefined ? {} : { env }),
+    });
   } catch (error) {
     const err = error as { stdout?: string; stderr?: string; message: string };
     throw new CommandError(err.message, err.stdout ?? "", err.stderr ?? "");
@@ -80,6 +85,7 @@ export interface SystemCommands {
   readUnitStates(units: string[]): Promise<Record<string, UnitState>>;
   readResourceStatus(project: string): Promise<ServiceStatus>;
   readTimerSchedule(timer: string): Promise<TimerSchedule>;
+  writeDeclarationTag(name: string, tag: string): Promise<WriteResult>;
 }
 
 export const realSystemCommands: SystemCommands = {
@@ -234,5 +240,16 @@ export const realSystemCommands: SystemCommands = {
     } catch {
       return { next: null, last: null };
     }
+  },
+
+  /**
+   * The app's one write capability: change a version tag in a declaration in
+   * lychee-resources, which the reconciler then applies. No sudo. The app
+   * writes a request and never the thing that acts on it; see declarationWriter.ts.
+   */
+  writeDeclarationTag(name, tag) {
+    return writeDeclarationTag(name, tag, {
+      git: (args, options) => run("git", args, options),
+    });
   },
 };
