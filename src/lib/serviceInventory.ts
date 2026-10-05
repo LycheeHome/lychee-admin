@@ -89,9 +89,10 @@ function knownString(value: unknown): string | undefined {
 }
 
 /** A version-shaped field (version, target, available). Beyond "" it refuses
- *  the word "none": a version that is not a version is not shown. This is the consumer's own invariant,
- *  kept whatever the producer emits, because a declaration rejected for its
- *  image once surfaced as a pinned version reading `none` on the board. */
+ *  the word "none": a version that is not a version is not shown. This is the
+ *  consumer's own invariant, kept whatever the producer emits, because a
+ *  declaration rejected for its image once surfaced as a pinned version
+ *  reading `none` on the board. */
 function knownVersion(value: unknown): string | undefined {
   const v = knownString(value);
   return v === "none" ? undefined : v;
