@@ -106,6 +106,12 @@ export const SEEDED_INVENTORY = JSON.stringify(
       // fakes answer "unknown" for every container, so this is the neutral,
       // not-red row, which is the case a container row must get right.
       { name: "lyly-docs", kind: "container", container: "lyly-docs", group: "service", reconciled: false },
+      // Installed behind what the registry offers, so the board shows an
+      // upgradeable row and not only settled ones.
+      { name: "lyly-notes", kind: "container", container: "lyly-notes", group: "service", reconciled: true,
+        version: "v1.4.0", target: "v1.4.0", available: "v1.5.0",
+        commit: "3c1d9e07b5a24f6e8d0a1b2c3d4e5f6071829304",
+        result: "skipped", gate: "pin unchanged (v1.4.0)", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
       { name: "caddy", unit: "caddy.service", group: "infrastructure", reconciled: false },
       { name: "cloudflared-sites", unit: "cloudflared-sites.service", group: "infrastructure", reconciled: false },
     ],

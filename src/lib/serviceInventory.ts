@@ -31,6 +31,12 @@ interface InventoryEntryBase {
   gate?: string;
   lastRun?: string;
   failedAttempts?: number;
+  /** What the declaration pins, as opposed to `version`, which is what is
+   *  installed; the two differ while a deploy is pending or has failed. */
+  target?: string;
+  /** The newest tag the registry offers. Absent means no upgrade is on offer,
+   *  not that anything is wrong. */
+  available?: string;
 }
 
 /** A systemd unit, read with `systemctl show`. */
@@ -82,6 +88,15 @@ function knownString(value: unknown): string | undefined {
   return typeof value === "string" && value !== "" ? value : undefined;
 }
 
+/** A version-shaped field. Beyond "" it refuses the word "none": a version
+ *  that is not a version is not shown. This is the consumer's own invariant,
+ *  kept whatever the producer emits, because a declaration rejected for its
+ *  image once surfaced as a pinned version reading `none` on the board. */
+function knownVersion(value: unknown): string | undefined {
+  const v = knownString(value);
+  return v === "none" ? undefined : v;
+}
+
 /** A systemd unit name: restricted characters, a known suffix, and so never a
  *  leading "-" that systemctl would read as an option. Defensive only (execFile,
  *  no shell, no sudo, root-owned source), but it costs one regex. */
@@ -124,6 +139,10 @@ function toEntry(raw: Record<string, unknown>): InventoryEntry | null {
   const commit = knownString(raw.commit);
   const gate = knownString(raw.gate);
   const lastRun = knownString(raw.last_run);
+  const target = knownVersion(raw.target);
+  const available = knownVersion(raw.available);
+  if (target !== undefined) entry.target = target;
+  if (available !== undefined) entry.available = available;
   if (version !== undefined) entry.version = version;
   if (commit !== undefined) entry.commit = commit;
   if (gate !== undefined) entry.gate = gate;

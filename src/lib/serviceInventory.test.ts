@@ -225,3 +225,48 @@ test("the unit-name pattern is not applied to a container's project name", () =>
   );
   assert.equal(inv.entries.length, 1);
 });
+
+const RECONCILED = { name: "swee", kind: "unit", unit: "swee.service", group: "service", reconciled: true };
+
+test("target and available are parsed when present", () => {
+  const [e] = parseInventory(inventoryOf({ ...RECONCILED, version: "v1", target: "v1", available: "v2" })).entries;
+  assert.equal(e.target, "v1");
+  assert.equal(e.available, "v2");
+});
+
+test("an empty target or available normalises to undefined", () => {
+  // Pins the consumer's tolerance for every wire shape, including "" for
+  // available, which the producer is not known to send. Not a claim that the
+  // producer was run.
+  for (const raw of [{ target: "", available: "" }, { target: "" }, { available: "" }]) {
+    const [e] = parseInventory(inventoryOf({ ...RECONCILED, ...raw })).entries;
+    assert.ok(!("target" in e) || e.target === undefined);
+    assert.ok(!("available" in e) || e.available === undefined);
+  }
+  const [e] = parseInventory(inventoryOf({ ...RECONCILED, target: "", available: "v2" })).entries;
+  assert.equal(e.target, undefined);
+  assert.equal(e.available, "v2");
+});
+
+test("an entry with neither still parses", () => {
+  const [e] = parseInventory(inventoryOf({ ...RECONCILED, version: "v1" })).entries;
+  assert.equal(e.version, "v1");
+  assert.equal(e.target, undefined);
+  assert.equal(e.available, undefined);
+});
+
+test("target and available parse on container entries too", () => {
+  const [e] = parseInventory(
+    inventoryOf({ name: "x", kind: "container", container: "x", group: "service", reconciled: true, target: "v1", available: "v2" }),
+  ).entries;
+  assert.equal(e.target, "v1");
+  assert.equal(e.available, "v2");
+});
+
+test('the word "none" is never shown as a version', () => {
+  // A declaration rejected because of its image once surfaced as a pinned
+  // version that was a word; the board rendered `none` as if it were a tag.
+  const [e] = parseInventory(inventoryOf({ ...RECONCILED, target: "none", available: "none" })).entries;
+  assert.equal(e.target, undefined);
+  assert.equal(e.available, undefined);
+});
