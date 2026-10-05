@@ -15,11 +15,11 @@ state: stopped
 let root: string;
 let clone: string;
 let key: string;
-let calls: { args: string[]; cwd: string }[];
+let calls: { args: string[]; cwd: string; sshCommand?: string }[];
 
 function fakeGit(opts: { failOn?: string; unhealthy?: boolean } = {}): GitRunner {
-  return async (args, { cwd }) => {
-    calls.push({ args, cwd });
+  return async (args, { cwd, env }) => {
+    calls.push({ args, cwd, sshCommand: env.GIT_SSH_COMMAND });
     const verb = args.includes("commit") ? "commit" : args[0];
     if (opts.failOn === verb) throw Object.assign(new Error("git failed"), { stderr: "! [rejected] (fetch first)" });
     if (verb === "rev-parse" && opts.unhealthy) throw new Error("not a git repository");
@@ -115,6 +115,25 @@ describe("writeDeclarationTag", () => {
     assert.ok(calls.length > 0);
     for (const { cwd, args } of calls) {
       assert.equal(cwd, clone, `git ${args.join(" ")} ran in ${cwd}`);
+    }
+  });
+
+  test("ssh is told its key, its known_hosts and how to treat a new host, without relying on $HOME", async () => {
+    seedClone();
+    await writeDeclarationTag("palsave-api", "sha-new", { git: fakeGit(), clonePath: clone, keyPath: key });
+    assert.ok(calls.length > 0);
+    for (const { args, sshCommand } of calls) {
+      assert.ok(sshCommand, `git ${args.join(" ")} got no GIT_SSH_COMMAND`);
+      assert.ok(sshCommand.includes(`-i ${key}`), `missing -i key: ${sshCommand}`);
+      assert.ok(sshCommand.includes("-o IdentitiesOnly=yes"), `missing IdentitiesOnly: ${sshCommand}`);
+      assert.ok(
+        sshCommand.includes("-o UserKnownHostsFile=/etc/lyly-admin/known_hosts"),
+        `missing UserKnownHostsFile: ${sshCommand}`,
+      );
+      assert.ok(
+        sshCommand.includes("-o StrictHostKeyChecking=accept-new"),
+        `missing StrictHostKeyChecking=accept-new: ${sshCommand}`,
+      );
     }
   });
 });

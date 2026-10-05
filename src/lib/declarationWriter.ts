@@ -10,6 +10,13 @@ export type GitRunner = (
 
 export const RESOURCES_CLONE = "/var/lib/lyly-admin/lychee-resources";
 export const RESOURCES_KEY = "/etc/lyly-admin/id_lychee_resources";
+// Not ~/.ssh/known_hosts, which is where ssh would look and where a reader will
+// want to put it: lyly-admin was created without a home directory, so $HOME is
+// not something to depend on. Without a known_hosts file ssh's default
+// StrictHostKeyChecking=ask fails non-interactively with "Host key verification
+// failed", which reads like a network or auth fault. /etc/lyly-admin is 0700 and
+// owned by the app user, so the file can be written there regardless of $HOME.
+export const RESOURCES_KNOWN_HOSTS = "/etc/lyly-admin/known_hosts";
 const RESOURCES_REMOTE = "git@github.com:LycheeHome/lychee-resources.git";
 
 // A tag this app writes must be a tag. This is the app's own invariant, not a
@@ -63,9 +70,17 @@ export async function writeDeclarationTag(
   // IdentitiesOnly is load-bearing: root's ssh config has a github.com block,
   // and without it another valid deploy key is offered and GitHub answers
   // "Repository not found", which reads as a missing repo, not a wrong key.
+  // accept-new rather than "yes": it trusts the key on first contact and pins it
+  // after, so a later change is still a hard failure. It matches the
+  // reconciler's own fetch of this same remote (accept_newhostkey).
   const env = {
     ...process.env,
-    GIT_SSH_COMMAND: `ssh -i ${keyPath} -o IdentitiesOnly=yes`,
+    GIT_SSH_COMMAND: [
+      `ssh -i ${keyPath}`,
+      "-o IdentitiesOnly=yes",
+      `-o UserKnownHostsFile=${RESOURCES_KNOWN_HOSTS}`,
+      "-o StrictHostKeyChecking=accept-new",
+    ].join(" "),
   };
   const inClone = (args: string[]) => git(args, { cwd: clonePath, env });
 
