@@ -137,9 +137,10 @@ function toEntry(raw: Record<string, unknown>): InventoryEntry | null {
   if (!entry.reconciled) return entry;
 
   const version = knownVersion(raw.version);
-  // knownString, not knownVersion, and not by oversight: a short SHA reading
-  // "none" looks broken on sight, so a regression there reports itself, whereas
-  // a version reading "none" looks like a tag and nobody questions it.
+  // knownString, not knownVersion, and not by oversight: `commit` is rendered
+  // nowhere, so the "none reads as a tag" hazard that knownVersion guards does
+  // not apply to it, and the producer already maps its own "none". If it is
+  // ever rendered, move it to knownVersion.
   const commit = knownString(raw.commit);
   const gate = knownString(raw.gate);
   const lastRun = knownString(raw.last_run);

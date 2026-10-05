@@ -1518,14 +1518,25 @@ describe("renderServicesPage", () => {
   });
 
   test("applying is neutral, never red", () => {
-    const html = offerBoard({ version: "v0.2.0", target: "v0.3.0" });
+    const html = offerBoard({ version: "v0.2.0", target: "v0.3.0", result: "deployed" });
     assert.ok(html.includes(`${TONE_PILL.neutral}"><span aria-hidden="true">&#9679;</span> applying`));
     assert.ok(!html.includes(TONE_PILL.bad));
   });
 
   test("applying does not hide a live failure", () => {
-    const html = offerBoard({ version: "v0.2.0", target: "v0.3.0", status: "exited" });
+    const html = offerBoard({ version: "v0.2.0", target: "v0.3.0", result: "deployed", status: "exited" });
     assert.deepEqual(pills(html), ["exited"]);
+  });
+
+  test("a blocked row with a moved pin does not read applying", () => {
+    const html = offerBoard({ version: "v0.2.0", target: "v0.3.0", result: "blocked", gate: "job test concluded: failure" });
+    assert.deepEqual(pills(html), ["running"]);
+    assert.ok(!html.includes("applying"));
+  });
+
+  test("a failed row or one with no result and a moved pin does not read applying", () => {
+    assert.deepEqual(pills(offerBoard({ version: "v0.2.0", target: "v0.3.0", result: "failed" })), ["running"]);
+    assert.deepEqual(pills(offerBoard({ version: "v0.2.0", target: "v0.3.0" })), ["running"]);
   });
 
   test("an available newer than version offers Deploy", () => {

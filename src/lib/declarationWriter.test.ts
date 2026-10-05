@@ -131,8 +131,8 @@ describe("writeDeclarationTag", () => {
         `missing UserKnownHostsFile: ${sshCommand}`,
       );
       assert.ok(
-        sshCommand.includes("-o StrictHostKeyChecking=accept-new"),
-        `missing StrictHostKeyChecking=accept-new: ${sshCommand}`,
+        sshCommand.includes("-o StrictHostKeyChecking=yes"),
+        `missing StrictHostKeyChecking=yes: ${sshCommand}`,
       );
     }
   });

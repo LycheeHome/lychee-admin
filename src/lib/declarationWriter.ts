@@ -70,16 +70,18 @@ export async function writeDeclarationTag(
   // IdentitiesOnly is load-bearing: root's ssh config has a github.com block,
   // and without it another valid deploy key is offered and GitHub answers
   // "Repository not found", which reads as a missing repo, not a wrong key.
-  // accept-new rather than "yes": it trusts the key on first contact and pins it
-  // after, so a later change is still a hard failure. It matches the
-  // reconciler's own fetch of this same remote (accept_newhostkey).
+  // StrictHostKeyChecking=yes: GitHub's host keys are declared in lychee-ops
+  // (/etc/lyly-admin/known_hosts), so there is no first-contact window to
+  // accommodate and an unknown or changed host key is a real anomaly that must
+  // fail. accept-new would not have pinned anything here anyway: the service
+  // cannot write that directory, so ssh could never record a key it learned.
   const env = {
     ...process.env,
     GIT_SSH_COMMAND: [
       `ssh -i ${keyPath}`,
       "-o IdentitiesOnly=yes",
       `-o UserKnownHostsFile=${RESOURCES_KNOWN_HOSTS}`,
-      "-o StrictHostKeyChecking=accept-new",
+      "-o StrictHostKeyChecking=yes",
     ].join(" "),
   };
   const inClone = (args: string[]) => git(args, { cwd: clonePath, env });

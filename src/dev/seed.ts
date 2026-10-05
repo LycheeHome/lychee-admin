@@ -88,8 +88,11 @@ export const SEEDED_INVENTORY = JSON.stringify(
         version: "a428e84", commit: "a428e842a101eb4da22ca29469297d71d0eda150",
         result: "skipped", gate: "ok", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
       { name: "swee", unit: "swee.service", group: "service", reconciled: true,
-        version: "v2.11.4", commit: "af22c5683fcb100f8d27038fd2b71e744e46427a",
-        result: "skipped", gate: "pin unchanged (v2.11.4)", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
+        version: "v2.11.4", target: "v2.12.0", commit: "af22c5683fcb100f8d27038fd2b71e744e46427a",
+        // Pin moved, build blocked: must NOT read "applying", because nothing
+        // is going to apply it. Neither the suite nor dev mode showed this
+        // case before it was seeded.
+        result: "blocked", gate: "job test concluded: failure for v2.12.0", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
       { name: "palsave-api", unit: "palsave-api.service", group: "service", reconciled: true,
         version: "v0.2.0", commit: "9fbb23a8348ea8ef93b81f01c93e811e980bcb09",
         result: "blocked",

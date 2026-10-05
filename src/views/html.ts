@@ -820,11 +820,18 @@ function rowLabels(status: BoardRow["status"]) {
 
 function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date): string {
   // `target` is what the reconciler has been asked to run; `version` is what
-  // it last confirmed running. They differ for the few minutes between a
-  // declaration landing and the next tick installing it. That is normal
-  // operation, so it is neutral, and only while the live state is not already
-  // red: "applying" must never hide a container that is actually failing.
-  const applying = Boolean(row.version && row.target && row.target !== row.version);
+  // it last confirmed running. "Applying" means the reconciler last ran
+  // cleanly (`deployed` or `skipped`) and the pin has since moved, so the next
+  // tick will install it. A moved pin on a `blocked` or `failed` row is NOT
+  // applying: the retry cap, an unresolvable pin and a red CI gate all leave
+  // target != version indefinitely while the old build keeps running, and
+  // calling that "applying" would promise progress that is never coming.
+  // An allowlist, not a denylist, because `result` can also be absent or
+  // `unknown`, and those must not read as applying either. Neutral, and only
+  // while the live state is not already red: "applying" must never hide a
+  // container that is actually failing.
+  const settled = row.result === "deployed" || row.result === "skipped";
+  const applying = settled && Boolean(row.version && row.target && row.target !== row.version);
   const live = rowLabels(row.status);
   const labels = applying && live.tone !== "bad" ? { ...live, pill: "applying", tone: "neutral" as const } : live;
 
