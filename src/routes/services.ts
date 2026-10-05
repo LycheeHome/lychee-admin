@@ -42,5 +42,36 @@ export function createServicesRouter(deps: Deps): express.Router {
     }
   });
 
+  // One resource, one tag. The tag is read from the inventory here and never
+  // from the request, so the only value this can write is one the reconciler
+  // itself published as available; a hand-crafted POST cannot name another.
+  router.post("/services/:name/deploy", async (req, res) => {
+    const { name } = req.params;
+    const { logAction } = deps.logger;
+    try {
+      const entry = readInventory(deps.fs).entries.find((e) => e.name === name);
+      if (!entry) {
+        res.status(404).json({ ok: false, reason: `No declared service named ${name}.` });
+        return;
+      }
+      if (!entry.available || entry.available === entry.version) {
+        res.status(409).json({ ok: false, reason: `${name} has no newer version on offer.` });
+        return;
+      }
+      // Never throws by contract; the catch below is for the contract failing.
+      const result = await deps.commands.writeDeclarationTag(name, entry.available);
+      if (!result.ok) {
+        logAction({ action: "deploy-service-failed", hostname: name, detail: `${entry.available}: ${result.reason}` });
+        res.status(502).json({ ok: false, reason: result.reason });
+        return;
+      }
+      logAction({ action: "deploy-service", hostname: name, detail: entry.available });
+      res.json({ ok: true, tag: entry.available });
+    } catch (error) {
+      logAction({ action: "deploy-service-failed", hostname: name, detail: String(error) });
+      res.status(502).json({ ok: false, reason: `Could not request the deploy: ${String(error)}` });
+    }
+  });
+
   return router;
 }

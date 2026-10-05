@@ -13,7 +13,10 @@ export interface AuditEntry {
     | "remove-site-rolled-back"
     | "remove-site-rollback-failed"
     | "delete-site-files"
-    | "delete-site-files-failed";
+    | "delete-site-files-failed"
+    | "deploy-service"
+    | "deploy-service-failed";
+  /** The site's hostname, or for a service action the declaration's name. */
   hostname: string;
   detail?: string;
 }

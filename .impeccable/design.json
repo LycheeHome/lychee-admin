@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-27T18:03:14Z",
+  "generatedAt": "2026-10-05T09:04:10Z",
   "title": "Design System: lyly-admin",
   "extensions": {
     "colorMeta": {
@@ -195,7 +195,7 @@
       {
         "name": "scrim",
         "value": "rgba(0,0,0,0.6)",
-        "purpose": "Dialog ::backdrop. How a modal separates from the page \u2014 not a drop shadow."
+        "purpose": "Dialog ::backdrop. How a modal separates from the page — not a drop shadow."
       }
     ],
     "motion": [
@@ -222,7 +222,7 @@
       {
         "name": "press",
         "value": "translateY(1px) on :active",
-        "purpose": "Button press feedback \u2014 a 1px downward shift while the button is held. Gated behind motion-safe."
+        "purpose": "Button press feedback — a 1px downward shift while the button is held. Gated behind motion-safe."
       }
     ],
     "breakpoints": [
@@ -264,7 +264,7 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "One per view, for its single forward action \u2014 Add site, Visit.",
+      "description": "One per view, for its single forward action — Add site, Visit.",
       "html": "<button class=\"ds-btn-primary\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg>Add site</button>",
       "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; background: oklch(71.2% 0.194 13.428); color: oklch(21.6% 0.006 56.043); border: none; border-radius: 6px; height: 40px; padding: 0 16px; cursor: pointer; transition: background 150ms; } .ds-btn-primary svg { width: 1em; height: 1em; flex-shrink: 0; } .ds-btn-primary:hover { background: oklch(81% 0.117 11.638); } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-btn-primary:disabled { background: oklch(71.2% 0.194 13.428 / 0.4); color: oklch(55.3% 0.013 58.071); cursor: not-allowed; } .ds-btn-primary:disabled:hover { background: oklch(71.2% 0.194 13.428 / 0.4); }"
     },
@@ -280,9 +280,17 @@
       "name": "Danger Button",
       "kind": "button",
       "refersTo": "button-danger",
-      "description": "Destructive action. Outlined Scorch, one size down from primary \u2014 never the largest control on screen.",
+      "description": "Destructive action. Outlined Scorch, one size down from primary — never the largest control on screen.",
       "html": "<button class=\"ds-btn-danger\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18\"/><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6\"/><path d=\"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/><line x1=\"10\" x2=\"10\" y1=\"11\" y2=\"17\"/><line x1=\"14\" x2=\"14\" y1=\"11\" y2=\"17\"/></svg>Remove site</button>",
       "css": ".ds-btn-danger { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.8rem; font-weight: 600; background: transparent; color: oklch(80.8% 0.114 19.571); border: 1px solid oklch(44.4% 0.177 26.899); border-radius: 6px; height: 32px; padding: 0 12px; cursor: pointer; transition: background 150ms, color 150ms; } .ds-btn-danger svg { width: 1em; height: 1em; flex-shrink: 0; } .ds-btn-danger:hover { background: oklch(39.6% 0.141 25.723); color: oklch(98.5% 0.001 106.423); } .ds-btn-danger:active { transform: translateY(1px); } .ds-btn-danger:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-btn-danger:disabled { color: oklch(55.3% 0.013 58.071); border-color: oklch(37.4% 0.01 67.558); cursor: not-allowed; } .ds-btn-danger:disabled:hover { background: transparent; color: oklch(55.3% 0.013 58.071); }"
+    },
+    {
+      "name": "Offer Button",
+      "kind": "button",
+      "refersTo": "button-offer",
+      "description": "The one action on a service row: deploy the newer published version. Danger's geometry in the Ember family, because it is an in-row control but not a destructive one.",
+      "html": "<button class=\"ds-btn-offer\">Deploy v1.5.0</button>",
+      "css": ".ds-btn-offer { font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-weight: 600; font-size: 0.8rem; background: transparent; color: oklch(81% 0.117 11.638); border: 1px solid oklch(45.5% 0.188 13.697); border-radius: 6px; min-height: 32px; padding: 6px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: color 150ms, background-color 150ms; } .ds-btn-offer:hover { background: oklch(27.1% 0.105 12.094); color: oklch(86.9% 0.005 56.366); } .ds-btn-offer:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-btn-offer:active { transform: translateY(1px); } .ds-btn-offer:disabled { cursor: not-allowed; color: oklch(55.3% 0.013 58.071); border-color: oklch(37.4% 0.01 67.558); background: transparent; }"
     },
     {
       "name": "Text Field",
@@ -304,7 +312,7 @@
       "name": "Site Row",
       "kind": "card",
       "refersTo": "site-row",
-      "description": "One row per site, the whole row a link. Display-face hostname with the shared domain suffix dimmed, its address beneath in Data. The type pill and \u2014 for reverse-proxy sites \u2014 a status pill sit right, the status inside a reserved 9rem column so both pill columns line up down the page even when a static row has no status to show. Hover fills the row with Hearth Lift, bleeding 12px past the text.",
+      "description": "One row per site, the whole row a link. Display-face hostname with the shared domain suffix dimmed, its address beneath in Data. The type pill and — for reverse-proxy sites — a status pill sit right, the status inside a reserved 9rem column so both pill columns line up down the page even when a static row has no status to show. Hover fills the row with Hearth Lift, bleeding 12px past the text.",
       "html": "<a class=\"ds-site-row\" href=\"#\"><span class=\"ds-site-row__main\"><span class=\"ds-site-row__host\">app<span class=\"ds-site-row__host-dim\">.lyly.dev</span></span><span class=\"ds-site-row__target\">localhost:3000 &middot; Next.js</span></span><span class=\"ds-site-row__side\"><span class=\"ds-pill-proxy\">proxy</span><span class=\"ds-site-row__status-slot\"><span class=\"ds-site-row__status\">&#9679; running</span></span></span></a>",
       "css": ".ds-site-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 12px; margin: 0 -12px; border-radius: 6px; border-bottom: 1px solid oklch(37.4% 0.01 67.558); text-decoration: none; transition: background-color 150ms; } .ds-site-row:last-child { border-bottom: none; } .ds-site-row:hover { background: oklch(26.8% 0.007 34.298); } .ds-site-row:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-site-row__main { display: flex; flex-direction: column; gap: 6px; min-width: 0; } .ds-site-row__host { font-family: 'Poetsen One', ui-sans-serif, system-ui, sans-serif; font-size: 1rem; line-height: 1.625; color: oklch(98.5% 0.001 106.423); word-break: break-word; } .ds-site-row__host-dim { color: oklch(70.9% 0.01 56.259); } .ds-site-row__target { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.8rem; line-height: 1.5; color: oklch(70.9% 0.01 56.259); word-break: break-all; } .ds-site-row__side { display: flex; align-items: center; gap: 12px; flex-shrink: 0; } .ds-site-row__status-slot { display: flex; justify-content: flex-end; min-width: 9rem; } .ds-pill-proxy { flex-shrink: 0; font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: oklch(81% 0.117 11.638); background: oklch(27.1% 0.105 12.094); border: 1px solid transparent; border-radius: 9999px; padding: 4px 10px; } .ds-site-row__status { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.06em; border-radius: 9999px; padding: 4px 10px; color: oklch(0.871 0.15 154.449); background: oklch(0.266 0.065 152.934 / 0.6); }"
     },
@@ -312,13 +320,13 @@
       "name": "Service Row",
       "kind": "card",
       "refersTo": "service-row",
-      "description": "The row shape of the services board, and the one place a status pill leads. A fixed-width left column holds the pill; the right column holds the unit's name on one line and its facts beneath, as prose rather than columns, with the reconciler's gate string on its own line in full. Prose and not a table because half the rows have no deploy state and never will, and the longest content breaks a row grid. Rows group under uppercase Micro-labels with no card around them: the groups are a reading order, not three independent objects, and nothing on this page is actionable. Age always renders as an age, never a timestamp, with no threshold."
+      "description": "The row shape of the services board, and the one place a status pill leads. A fixed-width left column holds the pill; the right column holds the unit's name on one line and its facts beneath, as prose rather than columns, with the reconciler's gate string on its own line in full. Prose and not a table because half the rows have no deploy state and never will, and the longest content breaks a row grid. Rows group under uppercase Micro-labels with no card around them: the groups are a reading order, not three independent objects. Age always renders as an age, never a timestamp, with no threshold."
     },
     {
       "name": "Empty State",
       "kind": "card",
       "refersTo": "empty-state",
-      "description": "Replaces the row list when there are no sites, and takes the section header's Add-site button with it \u2014 Ember spent twice on one destination makes neither the obvious one. The heading is Nunito, not mono: it is a sentence, not a machine fact.",
+      "description": "Replaces the row list when there are no sites, and takes the section header's Add-site button with it — Ember spent twice on one destination makes neither the obvious one. The heading is Nunito, not mono: it is a sentence, not a machine fact.",
       "html": "<div class=\"ds-empty\"><h3 class=\"ds-empty__title\">No sites yet</h3><p class=\"ds-empty__body\">A site is one <code class=\"ds-empty__code\">*.lyly.dev</code> subdomain wired through Caddy and the sites tunnel &mdash; either a folder of static files, or a reverse proxy to a local port.</p><a class=\"ds-empty__cta\" href=\"#\">Add your first site</a></div>",
       "css": ".ds-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px; background: oklch(26.8% 0.007 34.298); border: 1px solid oklch(37.4% 0.01 67.558); border-radius: 10px; padding: 24px; } .ds-empty__title { font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 1rem; font-weight: 600; color: oklch(98.5% 0.001 106.423); margin: 0; } .ds-empty__body { font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.8rem; color: oklch(70.9% 0.01 56.259); margin: 0; max-width: 46ch; } .ds-empty__code { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.72rem; color: oklch(86.9% 0.005 56.366); background: oklch(21.6% 0.006 56.043); border-radius: 4px; padding: 1px 4px; } .ds-empty__cta { font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-weight: 600; font-size: 0.875rem; background: oklch(71.2% 0.194 13.428); color: oklch(21.6% 0.006 56.043); border-radius: 6px; padding: 10px 16px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }"
     },
@@ -373,30 +381,30 @@
   ],
   "narrative": {
     "northStar": "The Warm Terminal",
-    "overview": "A console you would choose to sit in. Nearly every fact on screen is set in DM Mono \u2014 hostnames, ports, paths, commands, service names, status words, even the section labels \u2014 because nearly every fact came from a machine and will be pasted back into one. Nunito carries only the sentences a person wrote. The ground is Hearth, a warm near-black with a trace of brown in it, never #000: this is a room with a lamp in it, not a void. Against that, exactly one chromatic voice \u2014 Ember \u2014 marks everything you can act on.\n\nThe density is deliberate and generous at once. There is one operator, one desktop viewport, and no competition for their attention, so nothing is folded, capped, truncated, or hidden behind a disclosure widget; a generated workflow file renders at its full height because it is a file you might read, not a blob you might copy. But the page is not a wall either \u2014 cards are tonal steps, not boxes with lines around them, and the vertical rhythm is loose enough that the four sections of a site's page read as four separate answers to four separate questions.\n\nComponents are tactile and confident: fuller padding than a dense admin panel would use, visible state changes on hover and focus, and an accent that is not shy about appearing on the things you press. Depth stays flat at rest and lifts only in response to state. Two directions are confirmed rejections: the generic dark SaaS dashboard (violet gradients, glassmorphism, KPI tiles and sparklines for metrics this app does not have) and terminal cosplay (scanlines, ASCII borders, green-on-black, faux boot logs). Mono type here is precision, not costume.",
+    "overview": "A console you would choose to sit in. Nearly every fact on screen is set in DM Mono — hostnames, ports, paths, commands, service names, status words, even the section labels — because nearly every fact came from a machine and will be pasted back into one. Nunito carries only the sentences a person wrote. The ground is Hearth, a warm near-black with a trace of brown in it, never #000: this is a room with a lamp in it, not a void. Against that, exactly one chromatic voice — Ember — marks everything you can act on.\n\nThe density is deliberate and generous at once. There is one operator, one desktop viewport, and no competition for their attention, so nothing is folded, capped, truncated, or hidden behind a disclosure widget; a generated workflow file renders at its full height because it is a file you might read, not a blob you might copy. But the page is not a wall either — cards are tonal steps, not boxes with lines around them, and the vertical rhythm is loose enough that the four sections of a site's page read as four separate answers to four separate questions.\n\nComponents are tactile and confident: fuller padding than a dense admin panel would use, visible state changes on hover and focus, and an accent that is not shy about appearing on the things you press. Depth stays flat at rest and lifts only in response to state. Two directions are confirmed rejections: the generic dark SaaS dashboard (violet gradients, glassmorphism, KPI tiles and sparklines for metrics this app does not have) and terminal cosplay (scanlines, ASCII borders, green-on-black, faux boot logs). Mono type here is precision, not costume.",
     "keyCharacteristics": [
-      "Warm near-black ground; no pure black, no pure white \u2014 Chalk, not #fff.",
+      "Warm near-black ground; no pure black, no pure white — Chalk, not #fff.",
       "One accent, Ember, reserved for what is interactive.",
       "Mono for machine facts, sans for human sentences; the split is absolute.",
       "Flat tonal layering at rest; shadow only as a response to state or float.",
       "Uppercase letterspaced micro-labels as the structural device.",
-      "Nothing folded, capped, or truncated \u2014 one operator, one wide viewport.",
+      "Nothing folded, capped, or truncated — one operator, one wide viewport.",
       "Poetsen One as a signature, twice, small."
     ],
     "rules": [
       {
         "name": "The Ember Is Interactive Rule",
-        "body": "Ember and its family mark what you can act on \u2014 buttons, focus rings, the checked option, step numerals, a card's hover edge \u2014 plus the one label that means \"something else runs here\" (the proxy pill). It never colors a heading, a body sentence, or a value you can only read. On any given screen it covers well under 10% of the pixels, and that rarity is what makes a primary button unmissable.",
+        "body": "Ember and its family mark what you can act on — buttons, focus rings, the checked option, step numerals, a card's hover edge — plus the one label that means \"something else runs here\" (the proxy pill). It never colors a heading, a body sentence, or a value you can only read. On any given screen it covers well under 10% of the pixels, and that rarity is what makes a primary button unmissable.",
         "section": "colors"
       },
       {
         "name": "The Three-Tone Status Rule",
-        "body": "Site state resolves to exactly three tones: Clear, Scorch, or Smoke. starting, unknown and not deployed are Smoke, never Scorch \u2014 a container still running its first health check is not broken, a status we failed to read is not evidence that anything is down, and a container that was never created (or was deliberately taken down) has not crashed. Scorch is reserved for something that tried and failed, so that red keeps meaning \"this needs you now\": a site that has simply never been deployed must not look like one that died. Never invent a fourth tone, and never let a tone marking site state appear without the canonical status word beside it \u2014 that second clause is what makes the first safe, because the word carries which state it is while the tone carries only how bad it is. The what-gets-written panel's Clear-marked added lines are the one place Clear appears without a status word, because marking a diff addition is not a site-state verdict for this rule to govern. not deployed and unknown share Smoke and stay unambiguous.",
+        "body": "Site state resolves to exactly three tones: Clear, Scorch, or Smoke. starting, unknown and not deployed are Smoke, never Scorch — a container still running its first health check is not broken, a status we failed to read is not evidence that anything is down, and a container that was never created (or was deliberately taken down) has not crashed. Scorch is reserved for something that tried and failed, so that red keeps meaning \"this needs you now\": a site that has simply never been deployed must not look like one that died. Never invent a fourth tone, and never let a tone marking site state appear without the canonical status word beside it — that second clause is what makes the first safe, because the word carries which state it is while the tone carries only how bad it is. The what-gets-written panel's Clear-marked added lines are the one place Clear appears without a status word, because marking a diff addition is not a site-state verdict for this rule to govern. not deployed and unknown share Smoke and stay unambiguous.",
         "section": "colors"
       },
       {
         "name": "The Pill-Needs-an-Edge Rule",
-        "body": "A status pill aligns to an edge the eye can follow down the page. A single-line row has a clean right edge, so the pill is right-aligned there \u2014 the site list. A multi-line row does not: its content is ragged, and a right-aligned pill floats against nothing. So a multi-line row puts the pill first, in a fixed-width left column, where the pills' left edges line up and state can be read down the page without reading a name \u2014 the services board. Same component and the same vocabulary either way; only the placement moves, and the row's shape decides it, never habit or symmetry with the other page."
+        "body": "A status pill aligns to an edge the eye can follow down the page. A single-line row has a clean right edge, so the pill is right-aligned there — the site list. A multi-line row does not: its content is ragged, and a right-aligned pill floats against nothing. So a multi-line row puts the pill first, in a fixed-width left column, where the pills' left edges line up and state can be read down the page without reading a name — the services board. Same component and the same vocabulary either way; only the placement moves, and the row's shape decides it, never habit or symmetry with the other page."
       },
       {
         "name": "The Scorch-Is-Not-Ember Rule",
@@ -405,22 +413,22 @@
       },
       {
         "name": "The Dim-Text Rule",
-        "body": "Dim text is Smoke, not Smoke Deep. Smoke Deep carries readable text in exactly one role \u2014 the .lyly.dev suffix on a Headline, which at 27px is WCAG large text and clears the 3:1 that applies there. At any smaller size it fails the 4.5:1 that applies instead (3.16:1 on a card), so every label, key, caption, and hop sub-line takes Smoke. When a new dim role appears, the question is not \"how dim can this be\" but \"does it clear 4.5:1 on both Hearth and Hearth Lift.\" Two things are deliberately outside that test, because neither is text you read to learn something. The breadcrumb's / is decorative punctuation between two links, and is marked aria-hidden to say so. And a disabled control's label takes Smoke Deep on purpose: WCAG 1.4.3 exempts text that is part of an inactive user interface component, and dimness past the readable floor is precisely the signal that the control is not yours to press right now. That exemption is not a license to dim anything inconvenient \u2014 it applies only while the control is genuinely disabled, and it is why a disabled control must never keep a hover fill underneath it (measured at 2.09:1 the one time it did, which is unreadable rather than merely dim).",
+        "body": "Dim text is Smoke, not Smoke Deep. Smoke Deep carries readable text in exactly one role — the .lyly.dev suffix on a Headline, which at 27px is WCAG large text and clears the 3:1 that applies there. At any smaller size it fails the 4.5:1 that applies instead (3.16:1 on a card), so every label, key, caption, and hop sub-line takes Smoke. When a new dim role appears, the question is not \"how dim can this be\" but \"does it clear 4.5:1 on both Hearth and Hearth Lift.\" Two things are deliberately outside that test, because neither is text you read to learn something. The breadcrumb's / is decorative punctuation between two links, and is marked aria-hidden to say so. And a disabled control's label takes Smoke Deep on purpose: WCAG 1.4.3 exempts text that is part of an inactive user interface component, and dimness past the readable floor is precisely the signal that the control is not yours to press right now. That exemption is not a license to dim anything inconvenient — it applies only while the control is genuinely disabled, and it is why a disabled control must never keep a hover fill underneath it (measured at 2.09:1 the one time it did, which is unreadable rather than merely dim).",
         "section": "colors"
       },
       {
         "name": "The Mono-Carries-Facts Rule",
-        "body": "If a machine produced it or will consume it \u2014 hostname, port, path, command, service name, status word, framework name \u2014 it is DM Mono. If a person wrote it as a sentence, it is Nunito. There is no third case, and no sentence sets a path in Nunito.",
+        "body": "If a machine produced it or will consume it — hostname, port, path, command, service name, status word, framework name — it is DM Mono. If a person wrote it as a sentence, it is Nunito. There is no third case, and no sentence sets a path in Nunito.",
         "section": "typography"
       },
       {
         "name": "The Signature-Twice Rule",
-        "body": "Poetsen One appears in exactly two places: the wordmark and a list row's hostname. It is never a page heading, never above 1.5rem, never body copy, and never used for emphasis. The family also ships a single weight \u2014 do not request 600 and let the browser synthesize it.",
+        "body": "Poetsen One appears in exactly two places: the wordmark and a list row's hostname. It is never a page heading, never above 1.5rem, never body copy, and never used for emphasis. The family also ships a single weight — do not request 600 and let the browser synthesize it.",
         "section": "typography"
       },
       {
         "name": "The Uppercase-Is-Structural Rule",
-        "body": "Uppercase with letterspacing marks structure, never emphasis inside prose. Tracking widens as size shrinks (0.85rem/0.08em \u2192 0.75rem/0.1em \u2192 0.6875rem/0.09em) so the smallest labels stay readable. Emphasis inside a sentence uses Chalk against Smoke, or <strong>, not caps.",
+        "body": "Uppercase with letterspacing marks structure, never emphasis inside prose. Tracking widens as size shrinks (0.85rem/0.08em → 0.75rem/0.1em → 0.6875rem/0.09em) so the smallest labels stay readable. Emphasis inside a sentence uses Chalk against Smoke, or <strong>, not caps.",
         "section": "typography"
       },
       {
@@ -430,12 +438,12 @@
       },
       {
         "name": "The Frame-And-Column Rule",
-        "body": "1080px is the page frame \u2014 the header band, the shell's <main>, and any page holding two kinds of content that belong side by side. 760px is a reading column, applied *inside* that frame by a page holding one. No width ever lengthens a line of prose past ~70ch: on the add-site page the frame buys a second column and the form column is 656px, narrower than the 760 it replaced. The site list fills the frame because its rows need the width to align a reserved status column; the detail page caps at 760 because everything on it is a sentence to read or a command to copy and it has nothing to put beside them. The system holds exactly two numbers and never a third.",
+        "body": "1080px is the page frame — the header band, the shell's <main>, and any page holding two kinds of content that belong side by side. 760px is a reading column, applied *inside* that frame by a page holding one. No width ever lengthens a line of prose past ~70ch: on the add-site page the frame buys a second column and the form column is 656px, narrower than the 760 it replaced. The site list fills the frame because its rows need the width to align a reserved status column; the detail page caps at 760 because everything on it is a sentence to read or a command to copy and it has nothing to put beside them. The system holds exactly two numbers and never a third.",
         "section": "layout"
       },
       {
         "name": "The Flat-At-Rest Rule",
-        "body": "A surface sitting in the document is flat: tone plus a Hairline, no shadow. Shadow means one of two things \u2014 this element floats above the page, or you are touching it right now. It never means \"this card is important.\"",
+        "body": "A surface sitting in the document is flat: tone plus a Hairline, no shadow. Shadow means one of two things — this element floats above the page, or you are touching it right now. It never means \"this card is important.\"",
         "section": "elevation"
       },
       {
@@ -445,17 +453,17 @@
       },
       {
         "name": "The Radius-Says-Size Rule",
-        "body": "10px contains, 6px is controlled, 4px is inline, round states one word. A new component takes the step matching its role \u2014 never a value between steps, and never a large radius to look friendlier.",
+        "body": "10px contains, 6px is controlled, 4px is inline, round states one word. A new component takes the step matching its role — never a value between steps, and never a large radius to look friendlier.",
         "section": "shapes"
       },
       {
         "name": "The Coupled-Inset Rule",
-        "body": "Every copy button in the app is one size (16px icon \u2192 26px button) at one inset (6px), pinned center-right in a single-line block and top-right in a multi-line one. The code block's 10px vertical padding and 44px right padding are chosen against those numbers to balance the gap and keep the button off the text. Change any one of the four and recompute the others.",
+        "body": "Every copy button in the app is one size (16px icon → 26px button) at one inset (6px), pinned center-right in a single-line block and top-right in a multi-line one. The code block's 10px vertical padding and 44px right padding are chosen against those numbers to balance the gap and keep the button off the text. Change any one of the four and recompute the others.",
         "section": "components"
       },
       {
         "name": "The Icon-Says-Direction Rule",
-        "body": "In a button that pairs an icon with a text label, the icon's position states which way the action goes \u2014 not decoration. A leading icon names the action's category \u2014 plus for \"this creates something\", trash for \"this destroys something\". A trailing icon means the action leaves the app, which is why \"Visit\" carries external-link on the right and nothing else does. No icon means the surface you are already on has stated the action: the add-site page's submit button is a bare \"Add site\" because the heading above it already reads \"Add a site\", and a plus there would say it twice. A button never carries an icon on both sides, and a purely decorative icon is not a fourth option. An icon-only control \u2014 the copy button \u2014 and a label-only control with nothing to add, like Cancel, sit outside this rule's domain rather than counting as exceptions to it.",
+        "body": "In a button that pairs an icon with a text label, the icon's position states which way the action goes — not decoration. A leading icon names the action's category — plus for \"this creates something\", trash for \"this destroys something\". A trailing icon means the action leaves the app, which is why \"Visit\" carries external-link on the right and nothing else does. No icon means the surface you are already on has stated the action: the add-site page's submit button is a bare \"Add site\" because the heading above it already reads \"Add a site\", and a plus there would say it twice. A button never carries an icon on both sides, and a purely decorative icon is not a fourth option. An icon-only control — the copy button — and a label-only control with nothing to add, like Cancel, sit outside this rule's domain rather than counting as exceptions to it.",
         "section": "shapes"
       }
     ],
@@ -463,22 +471,22 @@
       "Do set every machine fact in DM Mono and every human sentence in Nunito. A path in Nunito is a bug.",
       "Do reserve Ember for what the operator can act on, and keep it under ~10% of any screen.",
       "Do give starting and unknown the neutral Smoke tone. They are not failures.",
-      "Do show a status word with every tone that marks site state \u2014 the dot and the tone are never the whole message. The what-gets-written panel's Clear-marked added lines are the one exception, because a diff addition is not a site-state verdict.",
+      "Do show a status word with every tone that marks site state — the dot and the tone are never the whole message. The what-gets-written panel's Clear-marked added lines are the one exception, because a diff addition is not a site-state verdict.",
       "Do let long hostnames, paths, and commands break or scroll (break-all, or overflow-x auto plus nowrap for one-liners).",
       "Do put remediation beside the hop that reported the problem, not in a numbered step list.",
       "Do check a dim tone against both grounds before using it on text: 4.5:1 on Hearth and Hearth Lift below 24px, 3:1 at or above it.",
       "Do keep the shared focus ring: 2px Ember, 2px offset, :focus-visible.",
       "Do gate every transition and the dialog entrance behind motion-safe.",
       "Do state a destructive flow's steps in execution order, and say outright that a failed step stops the rest.",
-      "Do keep the copy-button fallback that selects text when navigator.clipboard is unavailable \u2014 over plain HTTP it always is."
+      "Do keep the copy-button fallback that selects text when navigator.clipboard is unavailable — over plain HTTP it always is."
     ],
     "donts": [
       "Don't fold, cap, truncate, or add an inner scrollbar to content the operator might read. One operator, one wide viewport.",
       "Don't use Poetsen One anywhere except the wordmark and a list row's hostname, and never above 1.5rem or at a weight it doesn't ship.",
-      "Don't fill a destructive button with Ember or make it the largest control on screen \u2014 Scorch outline, one size down.",
+      "Don't fill a destructive button with Ember or make it the largest control on screen — Scorch outline, one size down.",
       "Don't introduce a second accent hue, a gradient, or a chart. This app has no metrics to visualize.",
       "Don't add a shadow to a card, a pill, or anything else sitting in normal document flow.",
-      "Don't put a status color on prose, a heading, or a background behind a sentence \u2014 status colors belong to pills, sub-lines, and error surfaces.",
+      "Don't put a status color on prose, a heading, or a background behind a sentence — status colors belong to pills, sub-lines, and error surfaces.",
       "Don't use uppercase for emphasis inside a sentence; it marks structure only.",
       "Don't show a live-looking indicator for something nothing checks. Hops 1-3 carry derived values and manual step, not invented health.",
       "Don't auto-dismiss a banner that carries an unfinished manual action.",

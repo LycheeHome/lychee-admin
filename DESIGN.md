@@ -120,6 +120,15 @@ components:
   button-danger-hover:
     backgroundColor: "{colors.scorch-rule}"
     textColor: "{colors.chalk}"
+  button-offer:
+    backgroundColor: "transparent"
+    textColor: "{colors.ember-light}"
+    rounded: "{rounded.control}"
+    padding: "6px 12px"
+    minHeight: "32px"
+  button-offer-hover:
+    backgroundColor: "{colors.ember-deep}"
+    textColor: "{colors.ember-light}"
   input:
     backgroundColor: "{colors.hearth}"
     textColor: "{colors.chalk}"
@@ -594,6 +603,16 @@ exceptions to it.
   smaller (0.8rem, 6px vertical and 12px horizontal padding over a 32px minimum
   height) — a destructive action is never the largest button on screen. Hover
   fills Scorch Rule with Chalk text.
+- **Offer:** Danger's exact geometry — transparent fill, 1px outline, 32px
+  minimum height, 6px by 12px padding — in the Ember family rather than Scorch.
+  The split is forced by two rules acting together: The Ember Is Interactive Rule
+  makes the row's one action ember, and The Scorch-Is-Not-Ember Rule reserves red
+  for danger. Deploying a newer version is not destructive, so wearing the danger
+  colour would have said the wrong thing at a glance; borrowing its size says the
+  right one, because both are in-row controls subordinate to the row they sit in.
+  Hover fills to Ember Deep and lifts the label a step; disabled drops to Smoke
+  Deep on a Hairline outline, because the control disables itself while its
+  request is in flight and must stop reading as actionable.
 - **Disabled:** Smoke Deep text and `cursor: not-allowed`, with the danger
   button — the only outlined button left in the system — dropping its outline
   to Hairline, and the secondary's fill dissolving to transparent while the
@@ -784,10 +803,40 @@ string naming a recovery command — breaks a row grid wherever it lands.
 
 Rows group under uppercase Micro-labels (reconciler, services, infrastructure)
 with no card around them: the groups are a reading order, not three independent
-objects, and nothing on this page is actionable. Age is always rendered as an
-age and never as a timestamp, with no threshold at which it changes appearance —
-"written 3 hours ago" reads as wrong on its own, and a cutover would be a number
-nobody has watched long enough to choose.
+objects. Age is always rendered as an age and never as a timestamp, with no
+threshold at which it changes appearance — "written 3 hours ago" reads as wrong
+on its own, and a cutover would be a number nobody has watched long enough to
+choose.
+
+This section used to end that first sentence with "and nothing on this page is
+actionable". That stopped being true when the row gained the offer line below,
+and it is recorded rather than quietly deleted because it is the shape this file
+fails in: a sentence that was accurate when written, describing an absence, and
+nothing breaks when the absence ends.
+
+**The offer line.** When a service's declaration can be moved to a newer
+published version, the row grows one line beneath its facts — the available
+version in Ember, then an Offer button naming that exact version. It is a line
+and not a column: a third grid column would be reserved on all ten rows to serve
+the two that can ever carry an action, and eight of them would hold an empty
+cell on a board whose whole job is a five-second glance. A row with nothing to
+offer is byte-identical to one from before the feature existed.
+
+Where both appear, the gate line comes first and the offer second. A blocked
+service's gate string carries its own recovery instruction — on this host it
+reads `not retrying (promote another tag, or rm …/.failed-tag)` — so the gate
+explains why and the offer is the thing you would do about it. Explanation, then
+action.
+
+**Applying is a state of the pill, not a colour.** While a declaration pins a
+version the host has not installed yet, the pill reads `applying` in the neutral
+tone and the facts line states both versions as one fact, `v0.2.0 → v0.3.0`,
+rather than two. Neutral and never Scorch, under The Three-Tone Status Rule: the
+reconciler runs every five minutes, so a pending deploy is ordinary operation,
+and a board that paints it as failure cries wolf on every deploy. The pill only
+says `applying` when the last reconcile actually succeeded; a blocked or failed
+row keeps its real state, because a pin that moved and then stopped is not in
+flight, and it would otherwise read as applying forever.
 
 ### Flash Banner
 
