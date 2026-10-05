@@ -104,6 +104,14 @@ loose end from that change, not work for this slice — the spec names the
 variable the code actually uses so an implementer reading both does not have to
 guess which is real.
 
+The key is **required**: an entry without `allowed_resources` grants nothing, and
+the rejection names both the alias and the missing key. Fail-closed is the
+deliberate choice, and what it governs is not today's vocabulary but the next
+alias someone adds — forgetting the key while adding a path to something
+sensitive would, under the opposite default, silently grant every resource
+access to it. Rejecting loudly costs one commit; the other direction costs
+whatever that alias points at, discovered never.
+
 The validator rejects a declaration naming an alias it is not entitled to, with
 the field named in the rejection as every other rejection already is. This
 closes the one real exfiltration path a write credential opens: a compromised UI

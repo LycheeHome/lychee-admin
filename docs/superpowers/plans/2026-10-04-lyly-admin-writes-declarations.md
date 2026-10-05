@@ -31,7 +31,7 @@ Input classes the spec implies but no happy path exercises. Each has its test pl
 2. **GHCR unreachable or refusing.** Rate limit, expired credential, network. `available` must degrade to absent and leave the row readable — not break the inventory for every other service. *(Task 3)*
 3. **A tag that vanished between discovery and Deploy.** The app offers `0.4.0`, it is deleted, the click writes a pin to nothing. The write succeeds and the *apply* fails; the board must show that rather than claiming success. *(Task 7)*
 4. **The app writes a declaration the validator rejects.** Entirely possible — the app does not run the validator. The rejection must reach the page with its field named, not vanish into a failed tick. *(Task 7)*
-5. **`allowed_resources` absent from an alias.** An existing vocabulary entry with no such key must keep working rather than silently denying every resource. Fail-open on *this* field is correct; fail-closed would take `palsave-api` down on deploy. *(Task 1)*
+5. **`allowed_resources` absent from an alias.** An entry without the key must reject **every** resource, with the message naming the alias and the missing key. Fail-closed: a new alias is how a sensitive path gets added, and forgetting the key there would otherwise be a silent widening on exactly the careless path. *(Task 1)*
 
 ---
 
@@ -45,7 +45,9 @@ Input classes the spec implies but no happy path exercises. Each has its test pl
 - Test: `tests/test_validate_declarations.py`
 
 **Interfaces:**
-- Produces: a vocabulary entry may carry `allowed_resources: [<pattern>, …]`. A pattern is either an exact name or a `*`-prefixed suffix match (`"*.lyly.dev"`). An entry **without** the key permits any resource.
+- Produces: a vocabulary entry carries `allowed_resources: [<pattern>, …]`. A pattern is either an exact name or a `*`-prefixed suffix match (`"*.lyly.dev"`). An entry **without** the key rejects every resource — see Step 1.
+
+**Fail-closed, deliberately, and this was reversed during review.** The first draft had an absent key permit anyone, justified by a window that does not exist: `mounts.yml` and `validate_declarations.py` ship in the same commit and are installed by the same role in the same tick, so the validator never enforces against a vocabulary that lacks the keys. What the default actually governs is the *next* alias someone adds. Forgetting the key under fail-open silently grants every resource access to whatever that alias points at; under fail-closed it rejects loudly and is fixed in one commit. Everything else in this design chose loud over silent for the same reason — `mandatory()` on identities, unknown-field rejection, the no-verdict gate.
 - `validate()`'s error for a violation uses `field: "mounts"` and names the alias in the message.
 
 - [ ] **Step 1: Write the failing tests**
@@ -55,10 +57,10 @@ def test_rejects_an_alias_the_resource_is_not_entitled_to()   # field == "mounts
 def test_allows_an_exactly_named_resource()                   # palsave-api + palworld_saves
 def test_allows_a_suffix_pattern()                            # blog.lyly.dev + site_files
 def test_rejects_a_suffix_pattern_that_does_not_match()       # evil.example.com + site_files
-def test_an_alias_without_allowed_resources_permits_anyone()  # Review Focus 5
+def test_an_alias_without_allowed_resources_rejects_everyone()  # Review Focus 5
 ```
 
-`test_an_alias_without_allowed_resources_permits_anyone` is the fail-open case and matters most: the live `palworld_saves` entry has no such key until Step 3, and a fail-closed default would stop `palsave-api` reconciling the moment this ships.
+`test_an_alias_without_allowed_resources_rejects_everyone` asserts the rejection names **both** the alias and the missing key, so the fix is obvious from the error rather than requiring someone to read the validator. It is the case most likely to be hit by a future change rather than by this one — Step 3 gives both existing aliases their key, so nothing in the current vocabulary exercises it.
 
 - [ ] **Step 2: Run them to verify they fail**
 
@@ -67,7 +69,7 @@ Expected: FAIL — no entitlement check exists.
 
 - [ ] **Step 3: Add `allowed_resources` to both vocabulary entries**
 
-`palworld_saves` gets `[palsave-api]`; `site_files` gets `["*.lyly.dev"]`. Record in the comment that an absent key permits anyone, and why that direction was chosen.
+`palworld_saves` gets `[palsave-api]`; `site_files` gets `["*.lyly.dev"]`. Record in the comment that the key is **required** — an entry without one grants nothing — and that this is deliberate because a new alias is how a sensitive path gets added.
 
 - [ ] **Step 4: Implement the check in `_check_one`**
 
