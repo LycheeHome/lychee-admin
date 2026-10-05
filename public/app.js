@@ -754,3 +754,28 @@ if (siteSwitcher) {
     if (!siteSwitcher.contains(event.relatedTarget)) close();
   });
 }
+
+// The services board's Deploy control. The server decides the tag from the
+// inventory, so only the name is sent. Success states what happens next in
+// the reconciler's terms (it is asked, not done), and the button stays
+// disabled: a second click would be a second request for the same change.
+document.querySelectorAll("[data-deploy]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const name = button.dataset.deploy;
+    const tag = button.dataset.deployTag;
+    button.disabled = true;
+    showBanner(`Requesting ${tag} for ${name}…`, "info");
+    try {
+      const response = await fetch(`/services/${encodeURIComponent(name)}/deploy`, { method: "POST" });
+      const body = await response.json().catch(() => ({}));
+      if (response.ok && body.ok) {
+        showBanner(`Requested ${tag} for ${name}. The reconciler applies it on its next run.`, "success");
+        return;
+      }
+      showBanner(body.reason ?? `Could not request ${tag} for ${name} (HTTP ${response.status}).`, "error");
+    } catch {
+      showBanner(`Could not reach the server to request ${tag} for ${name}.`, "error");
+    }
+    button.disabled = false;
+  });
+});

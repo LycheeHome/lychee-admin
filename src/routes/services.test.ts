@@ -252,3 +252,59 @@ describe("GET /services", () => {
     assert.equal(started, 2);
   });
 });
+
+describe("POST /services/:name/deploy", () => {
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  after(async () => {
+    await current?.close();
+  });
+  const NOTES = { name: "notes", kind: "container", container: "notes", group: "service", reconciled: true,
+    version: "v1.4.0", target: "v1.4.0", available: "v1.5.0" };
+
+  async function post(inv: unknown[], overrides: Partial<SystemCommands>, name = "notes") {
+    await current?.close();
+    current = await serve(inventory(inv), overrides);
+    return fetch(`${current.base}/services/${name}/deploy`, { method: "POST", headers: { Authorization: AUTH } });
+  }
+
+  test("requires authentication", async () => {
+    current = await serve(inventory([NOTES]), {});
+    const res = await fetch(`${current.base}/services/notes/deploy`, { method: "POST" });
+    assert.equal(res.status, 401);
+  });
+
+  test("writes the inventory's available tag, never one from the request", async () => {
+    const writes: Array<[string, string]> = [];
+    const res = await post([NOTES], { writeDeclarationTag: (n, t) => (writes.push([n, t]), Promise.resolve({ ok: true })) });
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { ok: true, tag: "v1.5.0" });
+    assert.deepEqual(writes, [["notes", "v1.5.0"]]);
+  });
+
+  test("a write failure renders the reason, not a 500", async () => {
+    const res = await post([NOTES], { writeDeclarationTag: () => Promise.resolve({ ok: false, reason: "push rejected" }) });
+    assert.equal(res.status, 502);
+    assert.deepEqual(await res.json(), { ok: false, reason: "push rejected" });
+  });
+
+  test("Deploy for a tag that no longer exists reports the apply failure", async () => {
+    const reason = "No declaration named notes.yml in lychee-resources.";
+    const res = await post([NOTES], { writeDeclarationTag: () => Promise.resolve({ ok: false, reason }) });
+    assert.equal(((await res.json()) as { reason: string }).reason, reason);
+  });
+
+  test("a writer that throws despite its contract still answers with a reason", async () => {
+    const res = await post([NOTES], { writeDeclarationTag: () => Promise.reject(new Error("boom")) });
+    assert.equal(res.status, 502);
+    assert.match(((await res.json()) as { reason: string }).reason, /boom/);
+  });
+
+  test("an unknown service, or one with nothing on offer, writes nothing", async () => {
+    let writes = 0;
+    const overrides = { writeDeclarationTag: () => (writes++, Promise.resolve({ ok: true as const })) };
+    assert.equal((await post([NOTES], overrides, "ghost")).status, 404);
+    assert.equal((await post([{ ...NOTES, available: undefined }], overrides)).status, 409);
+    assert.equal((await post([{ ...NOTES, available: "v1.4.0" }], overrides)).status, 409);
+    assert.equal(writes, 0);
+  });
+});

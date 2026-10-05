@@ -30,6 +30,7 @@ import {
   GROUP_LABEL,
   TONE_PILL,
   TONE_TEXT,
+  BUTTON_OFFER,
   SERVICE_ROW,
   SERVICE_NAME,
   SERVICE_DETAIL,
@@ -818,10 +819,26 @@ function rowLabels(status: BoardRow["status"]) {
 }
 
 function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date): string {
-  const labels = rowLabels(row.status);
+  // `target` is what the reconciler has been asked to run; `version` is what
+  // it last confirmed running. They differ for the few minutes between a
+  // declaration landing and the next tick installing it. That is normal
+  // operation, so it is neutral, and only while the live state is not already
+  // red: "applying" must never hide a container that is actually failing.
+  const applying = Boolean(row.version && row.target && row.target !== row.version);
+  const live = rowLabels(row.status);
+  const labels = applying && live.tone !== "bad" ? { ...live, pill: "applying", tone: "neutral" as const } : live;
+
+  // An offer only when nothing is in flight or broken: a second request on top
+  // of an unapplied one would race the first, and a failed deploy needs its
+  // gate read before anything is pushed after it. `blocked` still offers: the
+  // gate line above it says why, and the offer is the way out.
+  const offer =
+    row.available && row.available !== row.version && !applying && row.result !== "failed" ? row.available : null;
 
   const facts: string[] = [];
-  if (row.version) facts.push(row.version);
+  // One fact with an arrow, not two: version and target are a single change.
+  if (applying) facts.push(`${row.version} \u2192 ${row.target}`);
+  else if (row.version) facts.push(row.version);
   if (row.result) facts.push(row.result);
   if (row.failedAttempts) facts.push(`${row.failedAttempts} ${row.failedAttempts === 1 ? "attempt" : "attempts"}`);
   const changed = formatAge(row.since, now);
@@ -850,13 +867,25 @@ function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date): string
             // command, and a clamped string would hide the one thing to do.
             row.gate ? `<p class="${SERVICE_DETAIL} text-stone-300" data-gate>${escapeHtml(row.gate)}</p>` : ""
           }
+          ${
+            // Last, after the gate: a blocked service's gate string carries the
+            // recovery instruction, so explanation comes first and the thing to
+            // do about it second. Its own line so a row with nothing to offer
+            // is exactly the row it was before this existed.
+            offer
+              ? `<p class="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-offer>
+            <span class="font-mono text-[0.8rem] text-rose-300">${escapeHtml(offer)} available</span>
+            <button type="button" class="${BUTTON_OFFER}" data-deploy="${escapeHtml(row.name)}" data-deploy-tag="${escapeHtml(offer)}">Deploy ${escapeHtml(offer)}</button>
+          </p>`
+              : ""
+          }
         </div>
       </li>`;
 }
 
 /**
- * What else runs on the host. Read-only: nothing here acts, so nothing here is
- * a link or a button. `now` is a parameter so ages are testable.
+ * What else runs on the host. Read-only except for one control: a row with a
+ * newer tag on offer carries a Deploy button. `now` is a parameter so ages are testable.
  */
 export function renderServicesPage(board: ServiceBoard, now: Date = new Date()): string {
   const written = formatAge(board.generated, now);

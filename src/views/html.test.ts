@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { withoutHeader } from "../dev/testHelpers";
 import { renderServicesPage, renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
-import { formatAge, TONE_PILL, TONE_TEXT, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, TYPE_PILL_PROXY } from "./shared";
+import { formatAge, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, TYPE_PILL_PROXY } from "./shared";
 import { ADD_STEPS } from "../lib/stepReport";
 
 const STATIC_SITE: Site = { hostname: "blog.lyly.dev", type: "static", target: "/var/www/blog.lyly.dev" };
@@ -1485,6 +1485,72 @@ describe("renderServicesPage", () => {
     assert.ok(html.includes(gate));
     assert.ok(html.includes(TONE_PILL.neutral));
     assert.ok(!html.includes(TONE_PILL.bad));
+  });
+
+  /** The status word of each rendered row, in page order. */
+  const pills = (html: string): string[] => [...html.matchAll(/&#9679;<\/span> ([a-z ]+)<\/span>/g)].map((m) => m[1]);
+
+  function offerBoard(extra: Record<string, unknown>) {
+    return renderServicesPage(
+      {
+        inventoryAvailable: true,
+        schedule: NO_SCHEDULE, timerUnit: null,
+        generated: "2026-10-02T04:58:02Z",
+        groups: [{ group: "service", rows: [
+          { name: "notes", kind: "container", container: "notes", group: "service", reconciled: true,
+            status: "running", since: null, ...extra } as never,
+        ] }],
+      },
+      NOW,
+    );
+  }
+
+  test("target equal to version renders as running", () => {
+    const html = offerBoard({ version: "v1.4.0", target: "v1.4.0" });
+    assert.deepEqual(pills(html), ["running"]);
+    assert.ok(!html.includes("\u2192"));
+  });
+
+  test("target different from version renders as applying, showing both as one fact", () => {
+    const html = offerBoard({ version: "v0.2.0", target: "v0.3.0", result: "deployed" });
+    assert.deepEqual(pills(html), ["applying"]);
+    assert.ok(html.includes("v0.2.0 \u2192 v0.3.0 · deployed"));
+  });
+
+  test("applying is neutral, never red", () => {
+    const html = offerBoard({ version: "v0.2.0", target: "v0.3.0" });
+    assert.ok(html.includes(`${TONE_PILL.neutral}"><span aria-hidden="true">&#9679;</span> applying`));
+    assert.ok(!html.includes(TONE_PILL.bad));
+  });
+
+  test("applying does not hide a live failure", () => {
+    const html = offerBoard({ version: "v0.2.0", target: "v0.3.0", status: "exited" });
+    assert.deepEqual(pills(html), ["exited"]);
+  });
+
+  test("an available newer than version offers Deploy", () => {
+    const html = offerBoard({ version: "v1.4.0", target: "v1.4.0", available: "v1.5.0" });
+    assert.ok(html.includes("data-offer"));
+    assert.ok(html.includes("v1.5.0 available"));
+    assert.ok(html.includes('data-deploy="notes"'));
+    assert.ok(html.includes(BUTTON_OFFER));
+    assert.ok(!html.includes(BUTTON_DANGER));
+  });
+
+  test("no available, or available equal to version, offers nothing", () => {
+    assert.ok(!offerBoard({ version: "v1.4.0" }).includes("data-deploy"));
+    assert.ok(!offerBoard({ version: "v1.4.0", available: "v1.4.0" }).includes("data-deploy"));
+  });
+
+  test("a failed result shows the failed step, not a Deploy button", () => {
+    const html = offerBoard({ version: "v1.4.0", available: "v1.5.0", result: "failed", gate: "health check failed after install" });
+    assert.ok(html.includes("health check failed after install"));
+    assert.ok(!html.includes("data-deploy"));
+  });
+
+  test("a blocked row puts the offer after the gate", () => {
+    const html = offerBoard({ version: "v1.4.0", available: "v1.5.0", result: "blocked", gate: "not retrying" });
+    assert.ok(html.indexOf("data-gate") < html.indexOf("data-offer"));
   });
 
   function pillFor(status: "running" | "starting" | "exited" | "restarting" | "unknown"): string {
