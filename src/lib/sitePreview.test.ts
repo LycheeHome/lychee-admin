@@ -143,7 +143,7 @@ describe("buildSitePreview — Next.js reverse proxy", () => {
   test("lists the scaffold files, and the files step runs again", () => {
     assert.deepEqual(preview.files, {
       path: "/var/www/docs.lyly.dev",
-      creates: ["Dockerfile", "docker-compose.yml", ".dockerignore"],
+      creates: ["Dockerfile", ".dockerignore", ".github/workflows/release.yml"],
     });
     assert.deepEqual(preview.steps.filter((step) => !step.willRun), []);
   });

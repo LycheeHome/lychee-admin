@@ -325,7 +325,7 @@ describe("POST /sites — reverse proxy", () => {
     const siteDir = path.join(SITES_ROOT, "app.lyly.dev");
     assert.equal(fakeFs.hasDir(siteDir), true);
     assert.match(fakeFs.readFile(path.join(siteDir, "Dockerfile")), /HEALTHCHECK .*\/api\/health/);
-    assert.match(fakeFs.readFile(path.join(siteDir, "docker-compose.yml")), /127\.0\.0\.1:3000:3000/);
+    assert.match(fakeFs.readFile(path.join(siteDir, ".github/workflows/release.yml")), /packages: write/);
     assert.ok(fakeFs.hasFile(path.join(siteDir, ".dockerignore")));
   });
 

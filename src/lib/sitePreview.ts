@@ -78,7 +78,7 @@ export function buildSitePreview(
   const tunnelDiff = diffInserted(existing.tunnelContent, tunnelAfter);
 
   const scaffold = input.framework
-    ? getScaffoldFiles(input.framework, input.port, input.healthcheckPath ?? "/")
+    ? getScaffoldFiles(input.framework, input.healthcheckPath ?? "/")
     : null;
 
   // Mirrors the add handler's three cases exactly: a static site gets a

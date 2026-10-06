@@ -177,7 +177,7 @@ export function createSitesRouter(deps: Deps): Router {
       // site.healthcheckPath is unvalidated on this read path (only POST /sites validates it);
       // safe here only because scaffold.dockerfile is discarded below and never rendered.
       const scaffold = site.framework
-        ? getFrameworkScaffold(site.framework, site.target, site.healthcheckPath ?? "/")
+        ? getFrameworkScaffold(site.framework, site.healthcheckPath ?? "/")
         : null;
       const scaffoldCommands = scaffold
         ? { buildCommand: scaffold.buildCommand, runCommand: scaffold.runCommand }
@@ -259,10 +259,15 @@ export function createSitesRouter(deps: Deps): Router {
         });
       } else if (framework) {
         await report.run("files", async () => {
-          const files = getScaffoldFiles(framework, port, healthcheckPath ?? "/");
+          const files = getScaffoldFiles(framework, healthcheckPath ?? "/");
           if (!files) return;
           await deps.commands.createSiteDirectory(hostname);
-          for (const file of files) deps.fs.writeFile(path.join(sitePath, file.name), file.content);
+          for (const file of files) {
+            const target = path.join(sitePath, file.name);
+            // The workflow lives in a nested directory the site dir lacks.
+            deps.fs.mkdir(path.dirname(target));
+            deps.fs.writeFile(target, file.content);
+          }
         });
       } else {
         // A plain reverse-proxy site has no directory to create. This is not
