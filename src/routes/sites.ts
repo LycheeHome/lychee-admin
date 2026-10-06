@@ -576,6 +576,51 @@ export function createSitesRouter(deps: Deps): Router {
   });
 
   /**
+   * Points an attached site's tagless declaration at a different repository:
+   * the fix for a typo at Attach, which otherwise leaves the site awaiting an
+   * image that will never exist. The resource name comes from the hostname and
+   * nothing but `repo` is read from the request.
+   *
+   * 409 when the declaration already carries a tag — the writer decides that
+   * after its own pull, so a page that loaded before a Deploy cannot slip a
+   * change past it. Every other refusal is a 502 with the writer's reason, as
+   * for Attach.
+   */
+  sitesRouter.post("/sites/:hostname/repository", async (req, res) => {
+    const hostname = req.params.hostname.toLowerCase();
+    try {
+      const site = caddyfile
+        .parseSites(deps.fs.readFile(config.caddyfilePath))
+        .find((s) => s.hostname === hostname && isManagedHostname(s.hostname, config.domain));
+      const name = site ? resourceNameFor(hostname, config.domain) : null;
+      if (!site || site.type !== "reverse-proxy" || site.framework !== "nextjs" || !name) {
+        res.status(404).json({ ok: false, reason: `No Next.js site named ${hostname} to change.` });
+        return;
+      }
+
+      const repo = normalizeRepo(String(req.body?.repo ?? ""));
+      if (!repo.ok) {
+        res.status(400).json({ ok: false, reason: repo.reason });
+        return;
+      }
+
+      // Never throws by contract; the catch below is for the contract failing.
+      const result = await deps.commands.changeSiteRepository(name, repo.repo);
+      if (!result.ok) {
+        logAction({ action: "change-repository-failed", hostname, detail: `${name} ${repo.repo}: ${result.reason}` });
+        res.status(result.code === "tagged" ? 409 : 502).json({ ok: false, reason: result.reason });
+        return;
+      }
+      logAction({ action: "change-repository", hostname, detail: `${name} image=${IMAGE_PREFIX}${repo.repo}` });
+      res.json({ ok: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logAction({ action: "change-repository-failed", hostname, detail: message });
+      res.status(502).json({ ok: false, reason: `Could not change the repository: ${message}` });
+    }
+  });
+
+  /**
    * Retires a site's container declaration by setting it to `state: absent`,
    * which is what has the reconciler take the container down. Always its own
    * request, sent by the client only after /delete succeeded — never part of

@@ -176,6 +176,24 @@ export function createFakes(
       declarations.set(name, { ...decl, state });
       return Promise.resolve({ ok: true });
     },
+    // Mirrors the refusals a caller branches on: missing, retired, tagged (with
+    // its code, so the route's 409 is reachable in dev).
+    changeSiteRepository: (name, repo) => {
+      const decl = declarations.get(name);
+      if (!decl) return Promise.resolve({ ok: false, reason: `No declaration named ${name}.yml in lychee-resources.` });
+      if (decl.state === "absent") {
+        return Promise.resolve({ ok: false, reason: `${name}.yml is retired (state: absent); its repository can't be changed.` });
+      }
+      if (/:[^:/]*$/.test(decl.image)) {
+        return Promise.resolve({
+          ok: false,
+          code: "tagged",
+          reason: `${name}.yml already has a tag: deployed images can't change repository; remove the site instead.`,
+        });
+      }
+      declarations.set(name, { ...decl, image: `ghcr.io/lycheehome/${repo.trim().toLowerCase()}` });
+      return Promise.resolve({ ok: true });
+    },
     readDeclarations: () => Promise.resolve([...declarations.values()].map((d) => ({ ...d }))),
     // The fake clone is always readable and has no remote to pull from.
     refreshDeclarations: () => Promise.resolve(),

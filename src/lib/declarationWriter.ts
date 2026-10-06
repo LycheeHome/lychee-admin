@@ -2,7 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { normalizeRepo, parseDeclaration, claimedPorts, SITE_SUFFIX, type DeclarationSummary } from "./siteResource";
 
-export type WriteResult = { ok: true } | { ok: false; reason: string };
+/**
+ * `code: "tagged"` marks the one refusal a caller must tell apart from a failed
+ * write: changeSiteRepository on a declaration that already carries a tag. It
+ * is decided after the pull, so it is the remote's answer, not the page's.
+ */
+export type WriteResult = { ok: true } | { ok: false; reason: string; code?: "tagged" };
 
 export type GitRunner = (
   args: string[],
@@ -36,6 +41,11 @@ const IMAGE_LINE_RE = /^(\s*image:\s*["']?[^\s"'#]*:)([^:\s"'#]+)(.*)$/;
 // `:<tag>` inside any closing quote; the registry is pinned to ghcr.io and the
 // repository is carried over untouched, so this path cannot change either one.
 const TAGLESS_IMAGE_LINE_RE = /^(\s*image:\s*["']?ghcr\.io\/[^\s"'#:]+)(["']?)(.*)$/;
+
+// A tagless image under the one org this app writes, split so that only the
+// repository (group 2) is replaced: the prefix, any closing quote and anything
+// after it — a trailing comment — are carried over byte for byte.
+const SITE_TAGLESS_IMAGE_RE = /^(\s*image:\s*["']?ghcr\.io\/lycheehome\/)([^\s"'#:/]+)(["']?)(.*)$/;
 
 // A site's resource name: a DNS-label-shaped site label plus SITE_SUFFIX,
 // capped at 63 like every resource name. Narrower than NAME_RE on purpose:
@@ -340,6 +350,67 @@ export async function setDeclarationState(name: string, state: "absent", opts: W
     }
     fs.writeFileSync(target, updated);
     return { file, message: `${name}: set state to ${state}` };
+  });
+}
+
+/**
+ * Points a site's tagless declaration at a different repository, for the one
+ * mistake that otherwise strands a site: a typo at Attach, which leaves it
+ * awaiting an image that will never exist. Only the repository part of the one
+ * `image:` line is rewritten, as text, so comments and every other line
+ * survive; the registry stays ghcr.io/lycheehome.
+ *
+ * Tagless only, checked after the pull. A tag means Deploy has run and the
+ * reconciler may be running that image, so changing the repository under it
+ * would swap one app for another under the same name and port; that is Remove
+ * and Attach, not an edit. Refused with `code: "tagged"`.
+ *
+ * Never throws and never forces (see withClone).
+ */
+export async function changeSiteRepository(name: string, repo: string, opts: WriterOptions): Promise<WriteResult> {
+  if (!isSiteName(name)) {
+    return { ok: false, reason: `"${name}" is not a valid site resource name.` };
+  }
+  const normalized = normalizeRepo(repo);
+  if (!normalized.ok) return normalized;
+  const image = `${IMAGE_PREFIX}${normalized.repo}`;
+
+  return withClone(opts, (clonePath) => {
+    const file = `${name}.yml`;
+    const target = path.join(clonePath, file);
+    if (!fs.existsSync(target)) {
+      return { ok: false, reason: `No declaration named ${file} in lychee-resources.` };
+    }
+    const original = fs.readFileSync(target, "utf8");
+    if (parseDeclaration(name, original)?.state === "absent") {
+      return { ok: false, reason: `${file} is retired (state: absent); its repository can't be changed.` };
+    }
+    const lines = original.split("\n");
+    if (lines.some((line) => IMAGE_LINE_RE.test(line))) {
+      return {
+        ok: false,
+        code: "tagged",
+        reason: `${file} already has a tag: deployed images can't change repository; remove the site instead.`,
+      };
+    }
+    const hits = lines.flatMap((line, i) => (/^\s*image:/.test(line) ? [i] : []));
+    if (hits.length !== 1 || !SITE_TAGLESS_IMAGE_RE.test(lines[hits[0]])) {
+      return {
+        ok: false,
+        reason: `${file} needs exactly one tagless ${IMAGE_PREFIX}<repo> image line; it has ${hits.length} image lines.`,
+      };
+    }
+    const index = hits[0];
+    lines[index] = lines[index].replace(
+      SITE_TAGLESS_IMAGE_RE,
+      (_m, head: string, _old: string, quote: string, rest: string) => `${head}${normalized.repo}${quote}${rest}`,
+    );
+    const updated = lines.join("\n");
+    if (updated === original) {
+      return { ok: true };
+    }
+    fs.writeFileSync(target, updated);
+    return { file, message: `${name}: change repository to ${image}` };
   });
 }
 

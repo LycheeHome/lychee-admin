@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import { load } from "js-yaml";
 import {
+  changeSiteRepository,
   createSiteDeclaration,
   readDeclarations,
   refreshDeclarations,
@@ -474,6 +475,100 @@ describe("setDeclarationState", () => {
     const result = await setDeclarationState("test-lyly-dev", "absent", { git: fakeGit({ failOn: "push" }), clonePath: clone, keyPath: key });
     assert.equal(result.ok, false);
     assert.deepEqual(resets().map((c) => c.args), [["reset", "--hard", "@{upstream}"]]);
+  });
+});
+
+describe("changeSiteRepository", () => {
+  const opts = (git = fakeGit()) => ({ git, clonePath: clone, keyPath: key });
+  const read = () => fs.readFileSync(path.join(clone, "test-lyly-dev.yml"), "utf8");
+
+  test("rewrites only the repository of a tagless image, keeping every comment and other line", async () => {
+    seedClone({ "test-lyly-dev.yml": SITE_TAGLESS });
+    const result = await changeSiteRepository("test-lyly-dev", "Test-App", opts());
+    assert.deepEqual(result, { ok: true });
+    assert.equal(read(), SITE_TAGLESS.replace("ghcr.io/lycheehome/test-site ", "ghcr.io/lycheehome/test-app "));
+    assert.equal(commitMessage(), "test-lyly-dev: change repository to ghcr.io/lycheehome/test-app");
+    assert.ok(calls.some((c) => c.args[0] === "push"));
+  });
+
+  test("keeps the quotes of a quoted tagless image", async () => {
+    seedClone({ "test-lyly-dev.yml": SITE_TAGLESS.replace("ghcr.io/lycheehome/test-site", `'ghcr.io/lycheehome/test-site'`) });
+    const result = await changeSiteRepository("test-lyly-dev", "test-app", opts());
+    assert.deepEqual(result, { ok: true });
+    assert.match(read(), /^image: 'ghcr\.io\/lycheehome\/test-app' {3}# tag written by Deploy$/m);
+  });
+
+  test("refuses a tagged declaration, saying a deployed image can't change repository", async () => {
+    const tagged = SITE_TAGLESS.replace("test-site ", "test-site:0.1.0 ");
+    seedClone({ "test-lyly-dev.yml": tagged });
+    const result = await changeSiteRepository("test-lyly-dev", "test-app", opts());
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.match(result.reason, /deployed images can't change repository; remove the site instead/);
+      assert.equal(result.code, "tagged");
+    }
+    assert.equal(read(), tagged);
+    assert.equal(commits().length, 0);
+  });
+
+  test("refuses a retired declaration", async () => {
+    seedClone({ "test-lyly-dev.yml": SITE_TAGLESS.replace("state: running", "state: absent") });
+    const result = await changeSiteRepository("test-lyly-dev", "test-app", opts());
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.match(result.reason, /absent/);
+    assert.equal(commits().length, 0);
+  });
+
+  test("refuses a missing declaration", async () => {
+    seedClone();
+    const result = await changeSiteRepository("test-lyly-dev", "test-app", opts());
+    assert.equal(result.ok, false);
+    assert.equal(commits().length, 0);
+  });
+
+  test("refuses a name that is not a site name, before touching git", async () => {
+    const result = await changeSiteRepository("palsave-api", "test-app", opts());
+    assert.equal(result.ok, false);
+    assert.equal(calls.length, 0);
+  });
+
+  test("refuses a repository that fails normalizeRepo, before touching git", async () => {
+    for (const repo of ["", "LycheeHome/test-app", "test app", "test--app", "ghcr.io/lycheehome/x"]) {
+      const result = await changeSiteRepository("test-lyly-dev", repo, opts());
+      assert.equal(result.ok, false, repo);
+    }
+    assert.equal(calls.length, 0);
+  });
+
+  test("refuses a tagless image outside ghcr.io/lycheehome", async () => {
+    seedClone({ "test-lyly-dev.yml": SITE_TAGLESS.replace("ghcr.io/lycheehome/test-site", "ghcr.io/someone/test-site") });
+    const result = await changeSiteRepository("test-lyly-dev", "test-app", opts());
+    assert.equal(result.ok, false);
+    assert.equal(commits().length, 0);
+  });
+
+  test("refuses two tagless image lines", async () => {
+    seedClone({ "test-lyly-dev.yml": `${SITE_TAGLESS}image: ghcr.io/lycheehome/other\n` });
+    const result = await changeSiteRepository("test-lyly-dev", "test-app", opts());
+    assert.equal(result.ok, false);
+    assert.equal(commits().length, 0);
+  });
+
+  test("the same repository is ok without committing", async () => {
+    seedClone({ "test-lyly-dev.yml": SITE_TAGLESS });
+    const result = await changeSiteRepository("test-lyly-dev", "test-site", opts());
+    assert.deepEqual(result, { ok: true });
+    assert.equal(commits().length, 0);
+    assert.ok(!calls.some((c) => c.args[0] === "push"));
+  });
+
+  test("a rejected push resets to the upstream and is reported", async () => {
+    seedClone({ "test-lyly-dev.yml": SITE_TAGLESS });
+    const result = await changeSiteRepository("test-lyly-dev", "test-app", opts(fakeGit({ failOn: "push" })));
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.match(result.reason, /rejected/);
+    assert.deepEqual(resets().map((c) => c.args), [["reset", "--hard", "@{upstream}"]]);
+    assert.equal(read(), SITE_TAGLESS);
   });
 });
 

@@ -19,7 +19,9 @@ export interface AuditEntry {
     | "attach-site"
     | "attach-site-failed"
     | "detach-site"
-    | "detach-site-failed";
+    | "detach-site-failed"
+    | "change-repository"
+    | "change-repository-failed";
   /** The site's hostname, or for a service action the declaration's name. */
   hostname: string;
   detail?: string;
