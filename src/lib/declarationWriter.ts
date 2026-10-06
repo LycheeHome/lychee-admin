@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { normalizeRepo, parseDeclaration, claimedPorts, SITE_SUFFIX, type DeclarationSummary } from "./siteResource";
 
 export type WriteResult = { ok: true } | { ok: false; reason: string };
 
@@ -30,11 +31,42 @@ const NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
 // capability and is deliberately unreachable from here.
 const IMAGE_LINE_RE = /^(\s*image:\s*["']?[^\s"'#]*:)([^:\s"'#]+)(.*)$/;
 
+// A site declaration is created tagless and gets its first tag from Deploy.
+// Group 1 cannot contain a colon, so a tagless line is completed by appending
+// `:<tag>` inside any closing quote; the registry is pinned to ghcr.io and the
+// repository is carried over untouched, so this path cannot change either one.
+const TAGLESS_IMAGE_LINE_RE = /^(\s*image:\s*["']?ghcr\.io\/[^\s"'#:]+)(["']?)(.*)$/;
+
+// A site's resource name: a DNS-label-shaped site label plus SITE_SUFFIX,
+// capped at 63 like every resource name. Narrower than NAME_RE on purpose:
+// creating and retiring are reachable only for sites, never for a declaration
+// such as palsave-api that this app did not write.
+const SITE_NAME_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?-lyly-dev$/;
+const MAX_NAME_LENGTH = 63;
+
+// One `state:` line with a bare or quoted word and an optional comment. The
+// value is the only thing replaced, so the comment survives.
+const STATE_LINE_RE = /^(\s*state:[ \t]*)(["']?[A-Za-z_-]*["']?)([ \t]*(?:#.*)?)$/;
+
+const IMAGE_PREFIX = "ghcr.io/lycheehome/";
+
+// Below 1024 is refused here because the reconciler's validator refuses it,
+// and one rejected declaration freezes every resource on the host for that tick.
+const MIN_SITE_PORT = 1024;
+const MAX_PORT = 65535;
+
 export interface WriterOptions {
   git: GitRunner;
   clonePath?: string;
   keyPath?: string;
 }
+
+function isSiteName(name: string): boolean {
+  return name.length <= MAX_NAME_LENGTH && SITE_NAME_RE.test(name);
+}
+
+/** What a write callback hands back: the file it changed and the commit message. */
+type Change = { file: string; message: string };
 
 function describe(error: unknown): string {
   const err = error as { stderr?: string; message?: string };
@@ -43,26 +75,20 @@ function describe(error: unknown): string {
 }
 
 /**
- * Rewrites the tag of one declaration's `image:` line and pushes it. The file
- * is edited as text, not parsed and re-dumped: the declarations carry long
- * comments recording why they are the way they are, and a YAML round-trip would
- * drop every one of them with nothing failing.
+ * Every write's shared half: a usable clone, freshly pulled; then, if `edit`
+ * changed a file, add/commit/push. `edit` runs after the pull, so any check it
+ * makes is against the remote's current state, and it returns either the file
+ * it changed with a commit message, or a WriteResult that ends the write with
+ * nothing committed (`{ ok: true }` for "already so").
  *
  * Never throws and never forces. A rejected push is an ordinary outcome and is
  * reported; retrying or force-pushing would turn a bounded request-writer into
  * something that can overwrite history.
  */
-export async function writeDeclarationTag(
-  name: string,
-  tag: string,
+async function withClone(
   { git, clonePath = RESOURCES_CLONE, keyPath = RESOURCES_KEY }: WriterOptions,
+  edit: (clonePath: string) => Promise<Change | WriteResult> | Change | WriteResult,
 ): Promise<WriteResult> {
-  if (!TAG_RE.test(tag)) {
-    return { ok: false, reason: `"${tag}" is not a valid image tag.` };
-  }
-  if (!NAME_RE.test(name)) {
-    return { ok: false, reason: `"${name}" is not a valid declaration name.` };
-  }
   if (!fs.existsSync(keyPath)) {
     return { ok: false, reason: `Deploy key not found at ${keyPath}.` };
   }
@@ -105,31 +131,22 @@ export async function writeDeclarationTag(
       await inClone(["pull", "--ff-only"]);
     }
 
-    const file = `${name}.yml`;
-    const target = path.join(clonePath, file);
-    if (!fs.existsSync(target)) {
-      return { ok: false, reason: `No declaration named ${file} in lychee-resources.` };
-    }
-    const original = fs.readFileSync(target, "utf8");
-    const lines = original.split("\n");
-    const hits = lines.flatMap((line, i) => (IMAGE_LINE_RE.test(line) ? [i] : []));
-    if (hits.length !== 1) {
-      return { ok: false, reason: `${file} has ${hits.length} image lines with a tag; expected exactly one.` };
-    }
-    const index = hits[0];
-    lines[index] = lines[index].replace(IMAGE_LINE_RE, (_m, head: string, _old: string, rest: string) => `${head}${tag}${rest}`);
-    const updated = lines.join("\n");
-    if (updated === original) {
-      return { ok: true };
-    }
-    fs.writeFileSync(target, updated);
+    const change = await edit(clonePath);
+    if ("ok" in change) return change;
 
-    await inClone(["add", "--", file]);
-    await inClone([
-      "-c", "user.name=lyly-admin",
-      "-c", "user.email=lyly-admin@lychee.local",
-      "commit", "-m", `${name}: set image tag to ${tag}`,
-    ]);
+    try {
+      await inClone(["add", "--", change.file]);
+      await inClone([
+        "-c", "user.name=lyly-admin",
+        "-c", "user.email=lyly-admin@lychee.local",
+        "commit", "-m", change.message,
+      ]);
+    } catch (error) {
+      // Same recovery as a rejected push: the edited file must not linger in
+      // the clone, or the next pull or create trips over it.
+      await inClone(["reset", "--hard", "@{upstream}"]).catch(() => undefined);
+      return { ok: false, reason: describe(error) };
+    }
     try {
       await inClone(["push", "origin", "HEAD"]);
     } catch (error) {
@@ -142,4 +159,174 @@ export async function writeDeclarationTag(
   } catch (error) {
     return { ok: false, reason: describe(error) };
   }
+}
+
+/**
+ * Rewrites the tag of one declaration's `image:` line and pushes it, or, for a
+ * site created tagless, completes the line with its first tag. The file is
+ * edited as text, not parsed and re-dumped: the declarations carry long
+ * comments recording why they are the way they are, and a YAML round-trip
+ * would drop every one of them with nothing failing.
+ *
+ * Never throws and never forces (see withClone).
+ */
+export async function writeDeclarationTag(name: string, tag: string, opts: WriterOptions): Promise<WriteResult> {
+  if (!TAG_RE.test(tag)) {
+    return { ok: false, reason: `"${tag}" is not a valid image tag.` };
+  }
+  if (!NAME_RE.test(name)) {
+    return { ok: false, reason: `"${name}" is not a valid declaration name.` };
+  }
+  return withClone(opts, (clonePath) => {
+    const file = `${name}.yml`;
+    const target = path.join(clonePath, file);
+    if (!fs.existsSync(target)) {
+      return { ok: false, reason: `No declaration named ${file} in lychee-resources.` };
+    }
+    const original = fs.readFileSync(target, "utf8");
+    const lines = original.split("\n");
+    // A tagged line is matched first; a line is tagless only if it is not
+    // tagged and nothing follows the repository but a quote, space or comment.
+    const kind = (line: string): "tagged" | "tagless" | null => {
+      if (IMAGE_LINE_RE.test(line)) return "tagged";
+      const m = TAGLESS_IMAGE_LINE_RE.exec(line);
+      return m && !m[3].startsWith(":") ? "tagless" : null;
+    };
+    const hits = lines.flatMap((line, i) => (kind(line) ? [i] : []));
+    if (hits.length !== 1) {
+      return { ok: false, reason: `${file} has ${hits.length} image lines; expected exactly one.` };
+    }
+    const index = hits[0];
+    lines[index] =
+      kind(lines[index]) === "tagged"
+        ? lines[index].replace(IMAGE_LINE_RE, (_m, head: string, _old: string, rest: string) => `${head}${tag}${rest}`)
+        : lines[index].replace(
+            TAGLESS_IMAGE_LINE_RE,
+            (_m, head: string, quote: string, rest: string) => `${head}:${tag}${quote}${rest}`,
+          );
+    const updated = lines.join("\n");
+    if (updated === original) {
+      return { ok: true };
+    }
+    fs.writeFileSync(target, updated);
+    return { file, message: `${name}: set image tag to ${tag}` };
+  });
+}
+
+/**
+ * Writes a new site declaration: exactly name, a tagless image, state running,
+ * port and a loopback bind. No other field is ever written. Refuses, after the
+ * pull and before writing, when the file exists or any declaration (of any
+ * state) already claims the port.
+ */
+export async function createSiteDeclaration(
+  name: string,
+  repo: string,
+  port: number,
+  opts: WriterOptions,
+): Promise<WriteResult> {
+  if (!isSiteName(name)) {
+    return { ok: false, reason: `"${name}" is not a valid site resource name.` };
+  }
+  const normalized = normalizeRepo(repo);
+  if (!normalized.ok) return normalized;
+  if (!Number.isInteger(port) || port > MAX_PORT) {
+    return { ok: false, reason: `${port} is not a valid port (${MIN_SITE_PORT}–${MAX_PORT}).` };
+  }
+  if (port < MIN_SITE_PORT) {
+    return { ok: false, reason: `Sites may not use privileged ports; ${port} is below ${MIN_SITE_PORT}.` };
+  }
+  const image = `${IMAGE_PREFIX}${normalized.repo}`;
+  const hostname = `${name.slice(0, -SITE_SUFFIX.length)}.lyly.dev`;
+
+  return withClone(opts, (clonePath) => {
+    const file = `${name}.yml`;
+    const target = path.join(clonePath, file);
+    if (fs.existsSync(target)) {
+      const existing = parseDeclaration(name, fs.readFileSync(target, "utf8"));
+      if (existing?.state === "absent") {
+        return {
+          ok: false,
+          reason: `${file} already exists with state: absent; prune it from lychee-resources before attaching ${hostname} again.`,
+        };
+      }
+      return { ok: false, reason: `A declaration named ${file} already exists in lychee-resources.` };
+    }
+    const claimant = claimedPorts(readDeclarations(clonePath)).get(port);
+    if (claimant !== undefined) {
+      return { ok: false, reason: `Port ${port} is already claimed by ${claimant}.` };
+    }
+    fs.writeFileSync(
+      target,
+      [
+        `# Written by lyly-admin for ${hostname}.`,
+        "# The image stays tagless until the first Deploy writes a tag.",
+        `name: ${name}`,
+        `image: ${image}`,
+        "state: running",
+        `port: ${port}`,
+        "bind: 127.0.0.1",
+        "",
+      ].join("\n"),
+    );
+    return { file, message: `${name}: attach ${image}` };
+  });
+}
+
+/**
+ * Retires a site declaration by rewriting its one `state:` line to `absent`,
+ * as text, so the line's comment survives. Refuses unless there is exactly one
+ * such line. Site names only.
+ */
+export async function setDeclarationState(name: string, state: "absent", opts: WriterOptions): Promise<WriteResult> {
+  if (state !== "absent") {
+    return { ok: false, reason: `"${String(state)}" is not a state this app writes.` };
+  }
+  if (!isSiteName(name)) {
+    return { ok: false, reason: `"${name}" is not a valid site resource name.` };
+  }
+  return withClone(opts, (clonePath) => {
+    const file = `${name}.yml`;
+    const target = path.join(clonePath, file);
+    if (!fs.existsSync(target)) {
+      return { ok: false, reason: `No declaration named ${file} in lychee-resources.` };
+    }
+    const original = fs.readFileSync(target, "utf8");
+    const lines = original.split("\n");
+    const hits = lines.flatMap((line, i) => (/^\s*state:/.test(line) ? [i] : []));
+    if (hits.length !== 1 || !STATE_LINE_RE.test(lines[hits[0]])) {
+      return { ok: false, reason: `${file} has ${hits.length} state lines; expected exactly one.` };
+    }
+    const index = hits[0];
+    lines[index] = lines[index].replace(STATE_LINE_RE, (_m, head: string, _old: string, rest: string) => `${head}${state}${rest}`);
+    const updated = lines.join("\n");
+    if (updated === original) {
+      return { ok: true };
+    }
+    fs.writeFileSync(target, updated);
+    return { file, message: `${name}: set state to ${state}` };
+  });
+}
+
+/**
+ * Every declaration in the local clone, as last pulled. No git: this is a
+ * read for display and is as fresh as the last write or clone. `[]` when the
+ * clone is absent or unreadable; unparseable files are skipped. Never throws.
+ */
+export function readDeclarations(clonePath: string = RESOURCES_CLONE): DeclarationSummary[] {
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(clonePath);
+  } catch {
+    return [];
+  }
+  return entries.flatMap((entry) => {
+    if (!entry.endsWith(".yml")) return [];
+    try {
+      const summary = parseDeclaration(entry.slice(0, -".yml".length), fs.readFileSync(path.join(clonePath, entry), "utf8"));
+      return summary ? [summary] : [];
+    } catch {
+      return [];
+    }
+  });
 }

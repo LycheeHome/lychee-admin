@@ -1,6 +1,7 @@
 import path from "node:path";
 import { config } from "../config";
 import type { FileSystem } from "../lib/fileSystem";
+import type { DeclarationSummary } from "../lib/siteResource";
 import type { SystemCommands } from "../lib/systemCommands";
 import { SEEDED_TIMER_SCHEDULE, seededUnitStates } from "./seed";
 
@@ -90,6 +91,10 @@ export function createFakes(overrides: Partial<SystemCommands> = {}): {
   commands: SystemCommands;
 } {
   const fs = createInMemoryFileSystem();
+  // Stands in for the lychee-resources clone, so attach/remove round-trip in
+  // dev and in route tests. Mirrors the real writer's refusals that matter to
+  // a caller (existing name, claimed port), not its validation.
+  const declarations = new Map<string, DeclarationSummary>();
 
   const commands: SystemCommands = {
     validateCaddyfile: (caddyfilePath) =>
@@ -118,9 +123,42 @@ export function createFakes(overrides: Partial<SystemCommands> = {}): {
         ),
       ),
     // No seeded container services: "unknown" is the honest neutral answer.
+    checkResourceContainerStatus: () => Promise.resolve({ state: "unknown" }),
     readResourceStatus: () => Promise.resolve("unknown"),
     readTimerSchedule: () => Promise.resolve(SEEDED_TIMER_SCHEDULE),
-    writeDeclarationTag: () => Promise.resolve({ ok: true }),
+    writeDeclarationTag: (name, tag) => {
+      const decl = declarations.get(name);
+      if (decl) {
+        const base = decl.image.replace(/:[^:/]*$/, "");
+        declarations.set(name, { ...decl, image: `${base}:${tag}` });
+      }
+      return Promise.resolve({ ok: true });
+    },
+    createSiteDeclaration: (name, repo, port) => {
+      const existing = declarations.get(name);
+      if (existing) {
+        return Promise.resolve({
+          ok: false,
+          reason:
+            existing.state === "absent"
+              ? `${name}.yml already exists with state: absent; prune it from lychee-resources first.`
+              : `A declaration named ${name}.yml already exists in lychee-resources.`,
+        });
+      }
+      const claimant = [...declarations.values()].find((d) => d.port === port);
+      if (claimant) {
+        return Promise.resolve({ ok: false, reason: `Port ${port} is already claimed by ${claimant.name}.` });
+      }
+      declarations.set(name, { name, port, state: "running", image: `ghcr.io/lycheehome/${repo.trim().toLowerCase()}` });
+      return Promise.resolve({ ok: true });
+    },
+    setDeclarationState: (name, state) => {
+      const decl = declarations.get(name);
+      if (!decl) return Promise.resolve({ ok: false, reason: `No declaration named ${name}.yml in lychee-resources.` });
+      declarations.set(name, { ...decl, state });
+      return Promise.resolve({ ok: true });
+    },
+    readDeclarations: () => Promise.resolve([...declarations.values()].map((d) => ({ ...d }))),
   };
 
   return { fs, commands: { ...commands, ...overrides } };
