@@ -66,34 +66,46 @@ claim.
 - **Never exposed through the Cloudflare Tunnel.** Express binds loopback or
   the LAN interface only. This is a hard constraint, not a default.
 - **Managed surface**: Caddy site blocks, the sites tunnel's ingress rules,
-  `/var/www/<hostname>/`, and service reloads/restarts. Nothing else.
+  `/var/www/<hostname>/` for static sites, service reloads/restarts, and —
+  for a Next.js site — its declaration in `LycheeHome/lychee-resources`:
+  created tagless by Attach, given a tag by Deploy, set `state: absent` by
+  Remove. Those are requests, committed and pushed; the reconciler on
+  `lychee` acts on them on its next tick. Nothing else.
 - **Outside the app, by design**: creating the Cloudflare DNS record
-  (dashboard or `cloudflared tunnel route dns <tunnel-id> <hostname>`), and
-  running whatever listens on a reverse-proxy port. For Next.js-scaffolded
-  sites, the operator starts the container themselves with
-  `docker compose up -d --build` — this app never invokes Docker to start,
-  stop, or rebuild anything, and no longer generates a CI workflow that
-  implies otherwise.
+  (dashboard or `cloudflared tunnel route dns <tunnel-id> <hostname>`);
+  running whatever listens on a plain reverse-proxy port; and, for a Next.js
+  site, its repository, its first tag and the image build, which happen in
+  GitHub on GitHub's runners. The container itself is the reconciler's to
+  pull, start and stop. This app **never invokes Docker** — it writes the
+  request and the reconciler acts — and reads a container's state only
+  through a sudo-pinned status wrapper. Pruning a retired declaration is also
+  outside it: Remove retires, it never deletes the file.
 - **Surfaces today**: the site list (`GET /`), a site's detail page
   (`GET /sites/:hostname`), add-site as its own page (`GET /sites/new`,
   `POST /sites`), which shows the exact Caddyfile block and tunnel route it is
   about to write in a panel beside the form, fed by `POST /sites/preview` — a
   read-only endpoint that calls the same writers the submit does, so the two
-  cannot disagree, remove (`POST /sites/:hostname/delete`), and a second,
-  always-separate file deletion (`POST /sites/:hostname/delete-files`), and a
-  read-only services board (`GET /services`). A global header band (wordmark
+  cannot disagree, remove (`POST /sites/:hostname/delete`), then — each
+  always its own request, sent only after the one before succeeded —
+  retiring an attached site's declaration (`POST /sites/:hostname/detach`)
+  and deleting its files (`POST /sites/:hostname/delete-files`); attaching a
+  Next.js site to its repository (`POST /sites/:hostname/attach`); and a
+  services board (`GET /services`) whose one action, Deploy a newer tag
+  (`POST /services/:name/deploy`), is reused on a site's own page. A global header band (wordmark
   plus `sites`, `services` and `add site`) fronts every page; a site's detail
   page also carries a hostname dropdown on its breadcrumb for moving to another
   site without a round trip through the list. The list's cards carry a status
   pill for reverse-proxy sites.
-- **The services board reads; it does not manage.** It shows every long-lived
-  process on the host that has no hostname of its own — the reconciler, the
-  three services it deploys, the game server, Caddy and the sites tunnel — by
-  joining a world-readable inventory the reconciler publishes each tick to live
-  `systemctl show` state. It gains the app no privilege: no sudo scope, no group
-  membership, no wrapper, no write path, and nothing on the page acts. Site
-  containers stay on the site pages, because a container that serves one
-  hostname already has a home. This is the one surface that can show a deploy
+- **The services board reads, and requests one thing.** It shows every
+  declared long-lived process on the host — the reconciler, the services it
+  deploys, the game server, Caddy and the sites tunnel — by joining a
+  world-readable inventory the reconciler publishes each tick to live state.
+  Its one action is Deploy: writing a newer tag the reconciler itself
+  published as available into that resource's declaration, never a tag named
+  by the request. Attached sites appear there too, because the reconciler
+  publishes them like any other resource, but their home is still the site's
+  own page, which carries the same offer line and the same Deploy control so
+  the two can never disagree about what is on offer. This is the one surface that can show a deploy
   wedged at its retry cap, a state that otherwise only appears in a file on the
   host.
 - **Development happens off-host**, on macOS, via `npm run dev:mock` against
@@ -107,17 +119,19 @@ claim.
 
 - **Site kinds**: static (Caddy serves `/var/www/<hostname>/`) and reverse
   proxy (Caddy forwards to `localhost:<port>`). A reverse-proxy site may
-  optionally pick a framework — currently only Next.js — which generates a
-  Dockerfile / `docker-compose.yml` / `.dockerignore` scaffold — and nothing
-  else; deploying stays the operator's step — and records the choice as a
-  comment inside the Caddyfile block so it survives restarts.
+  optionally pick a framework — currently only Next.js — which makes it a
+  container resource: the site's page shows a `Dockerfile`, `.dockerignore`
+  and GitHub-hosted release workflow to commit to the site's own repository,
+  and the choice is recorded as a comment inside the Caddyfile block so it
+  survives restarts. Nothing is written to the host for it.
 - **Canonical status vocabulary**, shared by the header pill and the last
   hop of the request path: `running`, `unhealthy`, `starting`, `exited`,
-  `restarting`, `paused`, `not deployed`, `unknown`, and
-  `responding` / `not responding` for plain proxies. `starting` and
-  `unknown` are neutral — not failures.
+  `restarting`, `paused`, `not deployed`, `awaiting image`, `unknown`, and
+  `responding` / `not responding` for plain proxies. `starting`,
+  `awaiting image` and `unknown` are neutral — not failures.
 - **Terminology that must stay stable**: managed hostname; static vs
-  reverse-proxy site; framework scaffold; healthcheck path; hop; *the sites
+  reverse-proxy site; framework scaffold; healthcheck path; hop; attach /
+  attached; site resource (`<label>-lyly-dev`); declaration; awaiting image; *the sites
   tunnel* (`cloudflared-sites`) as distinct from the SSH tunnel this app must
   never touch.
 - **Hostnames are validated as `*.lyly.dev`.** Reverse-proxy ports are
@@ -132,8 +146,10 @@ claim.
   invitations, no multi-tenancy — and nothing should be designed as if there
   were.
 - **Open, confirmed as likely-later, not settled**: (1) creating the
-  Cloudflare DNS record inside the app, and (2) container/deploy control for
-  scaffolded sites — start, restart, logs. Both are manual today. Future
+  Cloudflare DNS record inside the app, and (2) container control beyond
+  deploying a tag — restart, logs in the page. DNS is manual today; deploying
+  a Next.js site is a request to the reconciler, and its logs are a copyable
+  `docker compose -p <name> logs` command. Future
   design should leave room for them rather than treating the manual DNS
   reminder or read-only container status as permanent furniture.
 
