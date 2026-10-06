@@ -22,29 +22,82 @@ state: stopped
 let root: string;
 let clone: string;
 let key: string;
-let calls: { args: string[]; cwd: string; sshCommand?: string }[];
+let calls: { args: string[]; cwd: string; sshCommand?: string; id?: string }[];
+
+// A small model of the remote and the clone, so status, reset and untracked
+// files behave as they do in real git: `upstream` is the remote's tree, `head`
+// is the clone's last commit, and the clone's working tree is the directory.
+let upstream: Map<string, string>;
+let head: Map<string, string>;
+let staged: Set<string>;
+
+function workingTree(cwd: string): Map<string, string> {
+  if (!fs.existsSync(cwd)) return new Map();
+  return new Map(
+    fs
+      .readdirSync(cwd)
+      .filter((f) => f !== ".git")
+      .map((f) => [f, fs.readFileSync(path.join(cwd, f), "utf8")]),
+  );
+}
+
+function checkout(cwd: string, tree: Map<string, string>) {
+  for (const file of workingTree(cwd).keys()) {
+    if (head.has(file) || staged.has(file)) fs.rmSync(path.join(cwd, file));
+  }
+  for (const [file, content] of tree) fs.writeFileSync(path.join(cwd, file), content);
+  head = new Map(tree);
+  staged = new Set();
+}
 
 function fakeGit(
-  opts: { failOn?: string; unhealthy?: boolean; onPull?: (cwd: string) => void } = {},
+  opts: {
+    failOn?: string;
+    unhealthy?: boolean;
+    pullAdds?: Record<string, string>;
+    id?: string;
+    yieldEachCall?: boolean;
+  } = {},
 ): GitRunner {
   return async (args, { cwd, env }) => {
-    calls.push({ args, cwd, sshCommand: env.GIT_SSH_COMMAND });
+    calls.push({ args, cwd, sshCommand: env.GIT_SSH_COMMAND, id: opts.id });
+    if (opts.yieldEachCall) await new Promise((resolve) => setTimeout(resolve, 1));
     const verb = args.includes("commit") ? "commit" : args[0];
     if (opts.failOn === verb) throw Object.assign(new Error("git failed"), { stderr: "! [rejected] (fetch first)" });
     if (verb === "rev-parse" && opts.unhealthy) throw new Error("not a git repository");
-    if (verb === "pull") opts.onPull?.(cwd);
+    if (verb === "status") {
+      const tree = workingTree(cwd);
+      const dirty = [...new Set([...tree.keys(), ...head.keys()])].filter((f) => tree.get(f) !== head.get(f));
+      return { stdout: dirty.map((f) => `${head.has(f) ? " M" : "??"} ${f}\n`).join(""), stderr: "" };
+    }
+    if (verb === "pull") {
+      for (const [file, content] of Object.entries(opts.pullAdds ?? {})) upstream.set(file, content);
+      checkout(cwd, upstream);
+    }
     if (verb === "clone") {
       fs.mkdirSync(path.join(cwd, ".git"), { recursive: true });
-      fs.writeFileSync(path.join(cwd, "palsave-api.yml"), DECLARATION);
+      head = new Map();
+      staged = new Set();
+      checkout(cwd, upstream);
     }
+    if (verb === "add") staged.add(args[args.length - 1]);
+    if (verb === "commit") {
+      const tree = workingTree(cwd);
+      for (const file of staged) head.set(file, tree.get(file) ?? "");
+      staged = new Set();
+    }
+    if (verb === "push") upstream = new Map(head);
+    if (verb === "reset") checkout(cwd, upstream);
     return { stdout: "", stderr: "" };
   };
 }
 
 function seedClone(extra: Record<string, string> = {}) {
   fs.mkdirSync(path.join(clone, ".git"), { recursive: true });
-  fs.writeFileSync(path.join(clone, "palsave-api.yml"), DECLARATION);
-  for (const [file, content] of Object.entries(extra)) fs.writeFileSync(path.join(clone, file), content);
+  upstream = new Map([["palsave-api.yml", DECLARATION], ...Object.entries(extra)]);
+  head = new Map(upstream);
+  staged = new Set();
+  for (const [file, content] of upstream) fs.writeFileSync(path.join(clone, file), content);
 }
 
 const SITE_TAGLESS = `# Written by lyly-admin for test.lyly.dev.
@@ -68,6 +121,9 @@ beforeEach(() => {
   key = path.join(root, "key");
   fs.writeFileSync(key, "k");
   calls = [];
+  upstream = new Map([["palsave-api.yml", DECLARATION]]);
+  head = new Map();
+  staged = new Set();
 });
 afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
 
@@ -230,9 +286,7 @@ describe("createSiteDeclaration", () => {
 
   test("checks for conflicts after a fresh pull, not against a stale clone", async () => {
     seedClone();
-    const git = fakeGit({
-      onPull: (cwd) => fs.writeFileSync(path.join(cwd, "test-lyly-dev.yml"), SITE_TAGLESS),
-    });
+    const git = fakeGit({ pullAdds: { "test-lyly-dev.yml": SITE_TAGLESS } });
     const result = await createSiteDeclaration("test-lyly-dev", "test-site", 4000, { git, clonePath: clone, keyPath: key });
     assert.equal(result.ok, false);
     assert.ok(calls.some((c) => c.args[0] === "pull"));
@@ -424,5 +478,118 @@ describe("readDeclarations", () => {
 
   test("returns [] when the clone does not exist", () => {
     assert.deepEqual(readDeclarations(path.join(root, "missing")), []);
+  });
+});
+
+describe("a dirty or locked clone", () => {
+  const opts = (git: GitRunner) => ({ git, clonePath: clone, keyPath: key });
+
+  test("a failed add leaves no phantom declaration: the next operation re-clones and never pushes it", async () => {
+    seedClone();
+    const failed = await createSiteDeclaration("test-lyly-dev", "test-site", 3000, opts(fakeGit({ failOn: "add" })));
+    assert.equal(failed.ok, false);
+
+    calls = [];
+    const retag = await writeDeclarationTag("palsave-api", "sha-new", opts(fakeGit()));
+    assert.deepEqual(retag, { ok: true });
+    assert.ok(calls.some((c) => c.args[0] === "clone"), "dirty clone was not re-cloned");
+    assert.equal(fs.existsSync(path.join(clone, "test-lyly-dev.yml")), false);
+    assert.equal(upstream.has("test-lyly-dev.yml"), false);
+    assert.deepEqual(readDeclarations(clone).map((d) => d.name), ["palsave-api"]);
+  });
+
+  test("after a failed add, the phantom cannot be pushed by a later state write", async () => {
+    seedClone();
+    await createSiteDeclaration("test-lyly-dev", "test-site", 3000, opts(fakeGit({ failOn: "add" })));
+    const result = await setDeclarationState("test-lyly-dev", "absent", opts(fakeGit()));
+    assert.equal(result.ok, false);
+    assert.equal(calls.filter((c) => c.args[0] === "push").length, 0);
+    assert.equal(upstream.has("test-lyly-dev.yml"), false);
+  });
+
+  test("after a failed add, the same create succeeds instead of refusing as 'exists'", async () => {
+    seedClone();
+    await createSiteDeclaration("test-lyly-dev", "test-site", 3000, opts(fakeGit({ failOn: "add" })));
+    const result = await createSiteDeclaration("test-lyly-dev", "test-site", 3000, opts(fakeGit()));
+    assert.deepEqual(result, { ok: true });
+    assert.equal(upstream.has("test-lyly-dev.yml"), true);
+  });
+
+  test("a failed commit resets to the upstream, leaving a clean clone", async () => {
+    seedClone();
+    const result = await createSiteDeclaration("test-lyly-dev", "test-site", 3000, opts(fakeGit({ failOn: "commit" })));
+    assert.equal(result.ok, false);
+    assert.deepEqual(resets().map((c) => c.args), [["reset", "--hard", "@{upstream}"]]);
+    assert.equal(fs.existsSync(path.join(clone, "test-lyly-dev.yml")), false);
+
+    calls = [];
+    await writeDeclarationTag("palsave-api", "sha-new", opts(fakeGit()));
+    assert.equal(calls.some((c) => c.args[0] === "clone"), false, "a clean clone should be pulled, not re-cloned");
+  });
+
+  test("a pre-existing index.lock triggers a re-clone", async () => {
+    seedClone();
+    fs.writeFileSync(path.join(clone, ".git", "index.lock"), "");
+    const result = await writeDeclarationTag("palsave-api", "sha-new", opts(fakeGit()));
+    assert.deepEqual(result, { ok: true });
+    assert.ok(calls.some((c) => c.args[0] === "clone"));
+    assert.equal(fs.existsSync(path.join(clone, ".git", "index.lock")), false);
+  });
+
+  test("a modified tracked file triggers a re-clone", async () => {
+    seedClone();
+    fs.writeFileSync(path.join(clone, "palsave-api.yml"), "edited by hand\n");
+    const result = await writeDeclarationTag("palsave-api", "sha-new", opts(fakeGit()));
+    assert.deepEqual(result, { ok: true });
+    assert.ok(calls.some((c) => c.args[0] === "clone"));
+  });
+
+  test("a clean clone is pulled, not re-cloned", async () => {
+    seedClone();
+    await writeDeclarationTag("palsave-api", "sha-new", opts(fakeGit()));
+    assert.equal(calls.some((c) => c.args[0] === "clone"), false);
+    assert.ok(calls.some((c) => c.args[0] === "pull"));
+  });
+});
+
+describe("concurrent writes", () => {
+  test("two concurrent writes run their git sequences without interleaving", async () => {
+    seedClone({ "test-lyly-dev.yml": SITE_TAGLESS });
+    const [a, b] = await Promise.all([
+      writeDeclarationTag("palsave-api", "sha-new", { git: fakeGit({ id: "A", yieldEachCall: true }), clonePath: clone, keyPath: key }),
+      setDeclarationState("test-lyly-dev", "absent", { git: fakeGit({ id: "B", yieldEachCall: true }), clonePath: clone, keyPath: key }),
+    ]);
+    assert.deepEqual(a, { ok: true });
+    assert.deepEqual(b, { ok: true });
+    const ids = calls.map((c) => c.id);
+    const switches = ids.filter((id, i) => i > 0 && id !== ids[i - 1]).length;
+    assert.equal(switches, 1, `interleaved: ${ids.join("")}`);
+    assert.equal(calls.filter((c) => c.args[0] === "push").length, 2);
+  });
+
+  test("a failed write does not block the next one", async () => {
+    seedClone();
+    const [a, b] = await Promise.all([
+      writeDeclarationTag("palsave-api", "sha-new", { git: fakeGit({ failOn: "pull" }), clonePath: clone, keyPath: key }),
+      writeDeclarationTag("palsave-api", "sha-newer", { git: fakeGit(), clonePath: clone, keyPath: key }),
+    ]);
+    assert.equal(a.ok, false);
+    assert.deepEqual(b, { ok: true });
+  });
+});
+
+describe("setDeclarationState with an empty value", () => {
+  test("an empty state: line is refused", async () => {
+    seedClone({ "test-lyly-dev.yml": SITE_TAGLESS.replace("state: running   # flipped by Remove", "state:   # flipped by Remove") });
+    const result = await setDeclarationState("test-lyly-dev", "absent", { git: fakeGit(), clonePath: clone, keyPath: key });
+    assert.equal(result.ok, false);
+    assert.equal(commits().length, 0);
+  });
+
+  test("a bare empty state: line is refused", async () => {
+    seedClone({ "test-lyly-dev.yml": SITE_TAGLESS.replace("state: running   # flipped by Remove", "state:") });
+    const result = await setDeclarationState("test-lyly-dev", "absent", { git: fakeGit(), clonePath: clone, keyPath: key });
+    assert.equal(result.ok, false);
+    assert.equal(commits().length, 0);
   });
 });

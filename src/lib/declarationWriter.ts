@@ -46,7 +46,7 @@ const MAX_NAME_LENGTH = 63;
 
 // One `state:` line with a bare or quoted word and an optional comment. The
 // value is the only thing replaced, so the comment survives.
-const STATE_LINE_RE = /^(\s*state:[ \t]*)(["']?[A-Za-z_-]*["']?)([ \t]*(?:#.*)?)$/;
+const STATE_LINE_RE = /^(\s*state:[ \t]*)(["']?[A-Za-z_-]+["']?)([ \t]*(?:#.*)?)$/;
 
 const IMAGE_PREFIX = "ghcr.io/lycheehome/";
 
@@ -74,6 +74,13 @@ function describe(error: unknown): string {
   return detail.split("\n").slice(0, 4).join(" ").slice(0, 400);
 }
 
+// Every write in this process takes its turn on the one clone. Without this,
+// a double-click or a Deploy during an Attach could pull, edit and reset
+// underneath each other. In-process only: this app is a single process.
+let cloneQueue: Promise<unknown> = Promise.resolve();
+
+type Edit = (clonePath: string) => Promise<Change | WriteResult> | Change | WriteResult;
+
 /**
  * Every write's shared half: a usable clone, freshly pulled; then, if `edit`
  * changed a file, add/commit/push. `edit` runs after the pull, so any check it
@@ -84,10 +91,18 @@ function describe(error: unknown): string {
  * Never throws and never forces. A rejected push is an ordinary outcome and is
  * reported; retrying or force-pushing would turn a bounded request-writer into
  * something that can overwrite history.
+ *
+ * Runs after any earlier write in this process has finished (see cloneQueue).
  */
-async function withClone(
+function withClone(opts: WriterOptions, edit: Edit): Promise<WriteResult> {
+  const turn = cloneQueue.then(() => withCloneUnqueued(opts, edit));
+  cloneQueue = turn.catch(() => undefined);
+  return turn;
+}
+
+async function withCloneUnqueued(
   { git, clonePath = RESOURCES_CLONE, keyPath = RESOURCES_KEY }: WriterOptions,
-  edit: (clonePath: string) => Promise<Change | WriteResult> | Change | WriteResult,
+  edit: Edit,
 ): Promise<WriteResult> {
   if (!fs.existsSync(keyPath)) {
     return { ok: false, reason: `Deploy key not found at ${keyPath}.` };
@@ -113,11 +128,18 @@ async function withClone(
   const inClone = (args: string[]) => git(args, { cwd: clonePath, env });
 
   try {
+    // Healthy means readable AND clean. A clone left dirty by a failed write
+    // (an untracked file from a failed add survives reset --hard) would
+    // otherwise show a phantom declaration, claim its port, and be pushed whole
+    // by the next write that runs `git add` on that name, skipping the port
+    // check. A stale index.lock would wedge every later write. Both are cured
+    // the same way as an unreadable clone: throw it away.
     let healthy = false;
-    if (fs.existsSync(path.join(clonePath, ".git"))) {
+    if (fs.existsSync(path.join(clonePath, ".git")) && !fs.existsSync(path.join(clonePath, ".git", "index.lock"))) {
       try {
         await inClone(["rev-parse", "--git-dir"]);
-        healthy = true;
+        const { stdout } = await inClone(["status", "--porcelain"]);
+        healthy = stdout.trim() === "";
       } catch {
         healthy = false;
       }
