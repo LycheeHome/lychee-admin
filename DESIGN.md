@@ -922,6 +922,22 @@ writes and refuses with the same prune reason, so pressing Attach is the
 check. Attached, the step's body becomes the image and declaration file in
 mono, so the step shows what was written rather than that something was.
 
+**The change-repository control** joins that body only once the reconciler has
+run and found no tag, while the declaration is still tagless: a Body sentence
+saying no image was found at the mono image path, then naming both causes
+without picking one — push `v0.1.0` if it has not been, change the name if it
+is wrong — because a typo and an unpushed tag look identical from here. Below
+it, the attach control's own shape (the same label, the same affixed field,
+prefilled with the current repository) with a **secondary** `Change repository`
+button, not a primary: correcting a request is not the step's forward action,
+and Visit stays the page's one Ember fill. Its caption names the file it
+rewrites and that it works only while there is no tag; its error is the same
+form-level surface. Step four does not repeat the explanation and says only
+that nothing is offered until an image exists. Before the reconciler's first
+run there is nothing to explain and no control; once a tag is found, written
+or deployed there is no control either, because the writer refuses to repoint
+a tagged declaration.
+
 **The failure line** replaces "requested" when the reconciler tried a deploy
 and failed: a Body sentence naming the tag it tried, the step that failed as
 the reconciler recorded it — mono, in Smoke Light, the gate line's own
