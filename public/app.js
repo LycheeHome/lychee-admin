@@ -779,3 +779,61 @@ document.querySelectorAll("[data-deploy]").forEach((button) => {
     button.disabled = false;
   });
 });
+
+// A Next.js site's Attach control. The server takes the port from the site's
+// own Caddyfile block, so only the repository name is sent. Success reloads the
+// page rather than patching it: the attached state (awaiting image, the
+// resource and image rows) is server-rendered, and a reload is also what shows
+// it after the reconciler's next run.
+document.querySelectorAll("form[data-attach]").forEach((attachForm) => {
+  const hostname = attachForm.dataset.attach;
+  const repoInput = attachForm.querySelector('input[name="repo"]');
+  const submit = attachForm.querySelector('button[type="submit"]');
+  const error = attachForm.querySelector("#attach-error");
+  let inFlight = false;
+
+  function showError(message) {
+    if (!error) return;
+    // Unhide before writing, as #add-site-error does: a role="alert" region
+    // inside display:none announces nothing.
+    error.classList.remove("hidden");
+    error.textContent = message;
+  }
+
+  attachForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (inFlight || submit?.disabled) return;
+    const repo = String(repoInput?.value ?? "").trim();
+    if (!repo) {
+      showError("Enter the repository's name.");
+      repoInput?.focus();
+      return;
+    }
+
+    inFlight = true;
+    error?.classList.add("hidden");
+    if (submit) submit.disabled = true;
+    showBanner(`Attaching ${repo} to ${hostname}…`, "info");
+    try {
+      const response = await fetch(`/sites/${encodeURIComponent(hostname)}/attach`, {
+        method: "POST",
+        body: new URLSearchParams({ repo }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (response.ok && body.ok) {
+        // inFlight stays true: the page is about to be replaced, and a second
+        // submit before it is would only be refused as an existing declaration.
+        // The path alone, so a ?created=1 notice from add-site is not replayed.
+        window.location.href = window.location.pathname;
+        return;
+      }
+      hideBanner();
+      showError(body.reason ?? `Could not attach ${repo} (HTTP ${response.status}).`);
+    } catch {
+      hideBanner();
+      showError(`Could not reach the server to attach ${repo}.`);
+    }
+    inFlight = false;
+    if (submit) submit.disabled = false;
+  });
+});

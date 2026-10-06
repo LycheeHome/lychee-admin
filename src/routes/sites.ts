@@ -4,8 +4,9 @@ import { config } from "../config";
 import * as caddyfile from "../lib/caddyfile";
 import * as tunnelConfig from "../lib/tunnelConfig";
 import { CommandError } from "../lib/systemCommands";
-import { claimedPorts } from "../lib/siteResource";
-import { getFrameworkScaffold } from "../lib/frameworkScaffold";
+import { claimedPorts, normalizeRepo, resourceNameFor, type DeclarationSummary } from "../lib/siteResource";
+import { getFrameworkScaffold, getScaffoldFiles } from "../lib/frameworkScaffold";
+import { readInventory, type InventoryEntry } from "../lib/serviceInventory";
 import { checkPortOpen } from "../lib/portStatus";
 import { ADD_STEPS, REMOVE_STEPS, createStepReport } from "../lib/stepReport";
 import {
@@ -17,7 +18,13 @@ import {
   type SiteEnv,
 } from "../lib/siteValidation";
 import { buildSitePreview } from "../lib/sitePreview";
-import { renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "../views/html";
+import {
+  renderAddSite,
+  renderSiteDetail,
+  renderSiteList,
+  renderSiteNotFound,
+  type SiteResourceView,
+} from "../views/html";
 import type { SiteStatus } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
 import type { Site } from "../lib/caddyfile";
@@ -51,6 +58,78 @@ function computePortOwners(sites: Site[]): Record<string, string> {
   return portOwners;
 }
 
+const IMAGE_PREFIX = "ghcr.io/lycheehome/";
+
+/** `ghcr.io/lycheehome/<repo>[:tag]` -> `<repo>`; null for any other image. */
+function repoFromImage(image: string): string | null {
+  if (!image.startsWith(IMAGE_PREFIX)) return null;
+  const rest = image.slice(IMAGE_PREFIX.length).replace(/:[^:/]*$/, "");
+  return rest && !rest.includes("/") ? rest : null;
+}
+
+/** What the reconciler side knows, read once per request and shared across sites. */
+interface ResourceSources {
+  declarations: DeclarationSummary[];
+  entries: InventoryEntry[];
+}
+
+async function readResourceSources(deps: Deps): Promise<ResourceSources> {
+  // Both reads degrade: an unreadable clone is no declarations, a missing
+  // inventory no entries. Neither is a reason to fail a page.
+  const declarations = await deps.commands.readDeclarations().catch((): DeclarationSummary[] => []);
+  return { declarations, entries: readInventory(deps.fs).entries };
+}
+
+interface NextjsState {
+  status: SiteStatus;
+  resource?: SiteResourceView;
+  detached: boolean;
+}
+
+const NOT_DEPLOYED: SiteStatus = { kind: "container", state: "not-created" };
+
+/**
+ * A Next.js site's state, decided from its declaration and its inventory entry.
+ *
+ * Attached means a declaration that is not `absent`, or — when the clone could
+ * not be read — an inventory entry. The declaration wins whenever it exists,
+ * because the inventory has no notion of `absent`: a retired declaration must
+ * never read as awaiting, whatever the reconciler last published.
+ *
+ * A declaration with no inventory entry is the reconciler not having ticked
+ * since the attach. That is still attached (awaiting image), so reloading the
+ * page after attaching never offers Attach a second time.
+ *
+ * Only an installed version means a container exists to ask about; before that
+ * the site is awaiting its first image, and the reconciler has taken no
+ * compose action. The legacy /var/www container is never consulted.
+ */
+async function resolveNextjsSite(site: Site, sources: ResourceSources, deps: Deps): Promise<NextjsState> {
+  const name = resourceNameFor(site.hostname, config.domain);
+  if (!name) return { status: NOT_DEPLOYED, detached: false };
+
+  const declaration = sources.declarations.find((d) => d.name === name);
+  const entry = sources.entries.find((e) => e.kind === "container" && e.name === name);
+  if (declaration?.state === "absent") return { status: NOT_DEPLOYED, detached: true };
+  if (!declaration && !entry) return { status: NOT_DEPLOYED, detached: false };
+
+  const resource: SiteResourceView = {
+    name,
+    repo: declaration ? repoFromImage(declaration.image) : null,
+    ...(entry?.available !== undefined ? { available: entry.available } : {}),
+    ...(entry?.version !== undefined ? { version: entry.version } : {}),
+    ...(entry?.result !== undefined ? { result: entry.result } : {}),
+    ...(entry?.target !== undefined ? { target: entry.target } : {}),
+    ...(entry?.gate !== undefined ? { gate: entry.gate } : {}),
+  };
+  if (!resource.version) return { status: { kind: "awaiting-image" }, resource, detached: false };
+
+  const container = await deps.commands
+    .checkResourceContainerStatus(name)
+    .catch(() => ({ state: "unknown" as const }));
+  return { status: { kind: "container", ...container }, resource, detached: false };
+}
+
 /**
  * Status for the list page. Reverse-proxy sites only: static sites have no
  * check today and gain none here. Concurrent, so the page costs the slowest
@@ -58,12 +137,15 @@ function computePortOwners(sites: Site[]): Record<string, string> {
  * checkContainerStatus carries its own timeout and checkPortOpen a 500ms one.
  */
 async function computeStatuses(sites: Site[], deps: Deps): Promise<Record<string, SiteStatus>> {
+  const proxies = sites.filter((site) => site.type === "reverse-proxy");
+  const sources = proxies.some((site) => site.framework) ? await readResourceSources(deps) : null;
   const entries = await Promise.all(
-    sites
-      .filter((site) => site.type === "reverse-proxy")
+    proxies
       .map(async (site): Promise<[string, SiteStatus]> => {
-        if (site.framework) {
-          return [site.hostname, { kind: "container", ...(await deps.commands.checkContainerStatus(site.hostname)) }];
+        // The same resolution as the detail page, so the list's pill and the
+        // site's own page can never describe one site two ways.
+        if (site.framework && sources) {
+          return [site.hostname, (await resolveNextjsSite(site, sources, deps)).status];
         }
         const port = Number(site.target);
         return [site.hostname, { kind: "tcp", responding: port >= 1 && port <= 65535 ? await checkPortOpen(port) : false }];
@@ -179,21 +261,28 @@ export function createSitesRouter(deps: Deps): Router {
       // port number) — treat it as simply "not responding" rather than
       // letting an invalid value reach net.connect inside checkPortOpen.
       const port = Number(site.target);
-      const [status, unitStates] = await Promise.all([
-        (async (): Promise<SiteStatus> =>
+      const [nextjs, unitStates] = await Promise.all([
+        (async (): Promise<NextjsState> =>
           site.framework
-            ? { kind: "container", ...(await deps.commands.checkContainerStatus(hostname)) }
-            : { kind: "tcp", responding: port >= 1 && port <= 65535 ? await checkPortOpen(port) : false })(),
+            ? resolveNextjsSite(site, await readResourceSources(deps), deps)
+            : {
+                status: { kind: "tcp", responding: port >= 1 && port <= 65535 ? await checkPortOpen(port) : false },
+                detached: false,
+              })(),
         unitStatesRead,
       ]);
-      // site.healthcheckPath is unvalidated on this read path (only POST /sites validates it);
-      // safe here only because scaffold.dockerfile is discarded below and never rendered.
+      // site.healthcheckPath is unvalidated on this read path (only POST /sites
+      // validates it), and the Dockerfile it lands in is rendered for copying.
+      // That is HTML-safe because every file is escaped at render; the
+      // Caddyfile it comes from is root-owned and written only through add-site.
       const scaffold = site.framework
         ? getFrameworkScaffold(site.framework, site.healthcheckPath ?? "/")
         : null;
       const scaffoldCommands = scaffold
         ? { buildCommand: scaffold.buildCommand, runCommand: scaffold.runCommand }
         : undefined;
+      const scaffoldFiles = site.framework ? getScaffoldFiles(site.framework, site.healthcheckPath ?? "/") : null;
+      const filesPath = caddyfile.computeFilesPath(site, config.sitesRoot);
 
       res.send(
         renderSiteDetail(site, {
@@ -202,8 +291,12 @@ export function createSitesRouter(deps: Deps): Router {
           tunnelId,
           tunnelConfigPath: config.tunnelConfigPath,
           caddyfilePath: config.caddyfilePath,
-          status,
+          status: nextjs.status,
           scaffold: scaffoldCommands,
+          ...(scaffoldFiles ? { scaffoldFiles } : {}),
+          ...(nextjs.resource ? { resource: nextjs.resource } : {}),
+          detached: nextjs.detached,
+          filesExist: filesPath !== null && deps.fs.exists(filesPath),
           unitStates,
           sites,
           created,
@@ -390,6 +483,55 @@ export function createSitesRouter(deps: Deps): Router {
       res.json({ ready: true, preview: buildSitePreview(input, { caddyfileContent, tunnelContent }, SITE_ENV) });
     } catch (error) {
       res.json({ ready: false, error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  /**
+   * Attaches a Next.js site to its repository by writing a tagless
+   * declaration to lychee-resources. The port is the site's own, read from its
+   * Caddyfile block — never from the request, so the declaration can only
+   * claim the port Caddy already proxies this hostname to. The writer refuses
+   * an existing file (naming the prune when it is retired), a claimed port and
+   * a port below 1024; the ports this app reserves for itself it cannot know
+   * about, so they are refused here.
+   */
+  sitesRouter.post("/sites/:hostname/attach", async (req, res) => {
+    const hostname = req.params.hostname.toLowerCase();
+    try {
+      const site = caddyfile
+        .parseSites(deps.fs.readFile(config.caddyfilePath))
+        .find((s) => s.hostname === hostname && isManagedHostname(s.hostname, config.domain));
+      const name = site ? resourceNameFor(hostname, config.domain) : null;
+      if (!site || site.type !== "reverse-proxy" || site.framework !== "nextjs" || !name) {
+        res.status(404).json({ ok: false, reason: `No Next.js site named ${hostname} to attach.` });
+        return;
+      }
+
+      const repo = normalizeRepo(String(req.body?.repo ?? ""));
+      if (!repo.ok) {
+        res.status(400).json({ ok: false, reason: repo.reason });
+        return;
+      }
+
+      const port = Number(site.target);
+      if (SITE_ENV.reservedPorts.includes(port)) {
+        res.status(400).json({ ok: false, reason: `Port ${port} is reserved and cannot be declared.` });
+        return;
+      }
+
+      // Never throws by contract; the catch below is for the contract failing.
+      const result = await deps.commands.createSiteDeclaration(name, repo.repo, port);
+      if (!result.ok) {
+        logAction({ action: "attach-site-failed", hostname, detail: `${name} ${repo.repo}: ${result.reason}` });
+        res.status(502).json({ ok: false, reason: result.reason });
+        return;
+      }
+      logAction({ action: "attach-site", hostname, detail: `${name} image=${IMAGE_PREFIX}${repo.repo} port=${port}` });
+      res.json({ ok: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logAction({ action: "attach-site-failed", hostname, detail: message });
+      res.status(502).json({ ok: false, reason: `Could not attach the repository: ${message}` });
     }
   });
 

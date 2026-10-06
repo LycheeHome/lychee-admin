@@ -3,6 +3,14 @@ import assert from "node:assert/strict";
 import { describeStatus, splitHostnameForDisplay } from "./siteDisplay";
 
 describe("describeStatus", () => {
+  test("a site awaiting its first image is neutral, not a failure", () => {
+    assert.deepEqual(describeStatus({ kind: "awaiting-image" }), {
+      pill: "awaiting image",
+      hop: "awaiting first image",
+      tone: "neutral",
+    });
+  });
+
   test("a healthy running container is ok, and says so on both lines", () => {
     assert.deepEqual(describeStatus({ kind: "container", state: "running", health: "healthy" }), {
       pill: "running",

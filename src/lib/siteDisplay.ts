@@ -11,7 +11,10 @@ import type { ContainerHealth, ContainerState } from "./containerStatus";
  */
 export type SiteStatus =
   | { kind: "tcp"; responding: boolean }
-  | { kind: "container"; state: ContainerState; health?: ContainerHealth };
+  | { kind: "container"; state: ContainerState; health?: ContainerHealth }
+  /** Attached to a repository, no tag deployed yet: there is no container to
+   *  ask, because the reconciler takes no compose action for a tagless image. */
+  | { kind: "awaiting-image" };
 
 export type StatusTone = "ok" | "bad" | "neutral";
 
@@ -35,8 +38,15 @@ export interface StatusLabels {
  * bad tone is reserved for something that tried and failed, so that red keeps
  * meaning "this needs you now". The status word still says the site is not
  * serving; only the alarm is withdrawn.
+ *
+ * "awaiting image" is neutral for the same reason: a repository attached
+ * before its first tag is pushed, or before the reconciler has looked, is the
+ * expected state between two steps, not a fault.
  */
 export function describeStatus(status: SiteStatus): StatusLabels {
+  if (status.kind === "awaiting-image") {
+    return { pill: "awaiting image", hop: "awaiting first image", tone: "neutral" };
+  }
   if (status.kind === "tcp") {
     return status.responding
       ? { pill: "responding", hop: "responding", tone: "ok" }
