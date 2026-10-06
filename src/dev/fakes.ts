@@ -1,9 +1,10 @@
 import path from "node:path";
 import { config } from "../config";
+import { toRowStatus } from "../lib/containerStatus";
 import type { FileSystem } from "../lib/fileSystem";
 import type { DeclarationSummary } from "../lib/siteResource";
 import type { SystemCommands } from "../lib/systemCommands";
-import { SEEDED_TIMER_SCHEDULE, seededUnitStates } from "./seed";
+import { SEEDED_TIMER_SCHEDULE, seededResourceContainers, seededUnitStates } from "./seed";
 
 /**
  * Collapses both separators to "/" so that a path built with path.posix.join
@@ -89,8 +90,15 @@ export function createInMemoryFileSystem(): FileSystem & {
  * `overrides` lets a test replace one or more commands (e.g. to make
  * `restartCloudflared` reject) without having to reimplement the rest —
  * a minimal fault seam for exercising failure-branch behavior.
+ *
+ * `declarations` pre-populates the fake lychee-resources clone. Only the dev
+ * server passes it (SEEDED_DECLARATIONS); tests start from an empty clone so
+ * that no seeded port claim or name can change what they assert.
  */
-export function createFakes(overrides: Partial<SystemCommands> = {}): {
+export function createFakes(
+  overrides: Partial<SystemCommands> = {},
+  seed: { declarations?: DeclarationSummary[] } = {},
+): {
   fs: ReturnType<typeof createInMemoryFileSystem>;
   commands: SystemCommands;
 } {
@@ -98,7 +106,9 @@ export function createFakes(overrides: Partial<SystemCommands> = {}): {
   // Stands in for the lychee-resources clone, so attach/remove round-trip in
   // dev and in route tests. Mirrors the real writer's refusals that matter to
   // a caller (existing name, claimed port), not its validation.
-  const declarations = new Map<string, DeclarationSummary>();
+  const declarations = new Map<string, DeclarationSummary>(
+    (seed.declarations ?? []).map((d) => [d.name, { ...d }]),
+  );
 
   const commands: SystemCommands = {
     validateCaddyfile: (caddyfilePath) =>
@@ -126,9 +136,13 @@ export function createFakes(overrides: Partial<SystemCommands> = {}): {
           units.flatMap((u) => (u in seededUnitStates ? [[u, seededUnitStates[u]]] : [])),
         ),
       ),
-    // No seeded container services: "unknown" is the honest neutral answer.
-    checkResourceContainerStatus: () => Promise.resolve({ state: "unknown" }),
-    readResourceStatus: () => Promise.resolve("unknown"),
+    // Only seeded containers have state; for every other one "unknown" is the
+    // honest neutral answer. The board and a site's page read the same map, so
+    // dev mode can never show one container two ways.
+    checkResourceContainerStatus: (project) =>
+      Promise.resolve(seededResourceContainers[project] ?? { state: "unknown" }),
+    readResourceStatus: (project) =>
+      Promise.resolve(project in seededResourceContainers ? toRowStatus(seededResourceContainers[project]) : "unknown"),
     readTimerSchedule: () => Promise.resolve(SEEDED_TIMER_SCHEDULE),
     writeDeclarationTag: (name, tag) => {
       const decl = declarations.get(name);

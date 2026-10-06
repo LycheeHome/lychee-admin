@@ -1,20 +1,32 @@
 import path from "node:path";
 import { config } from "../config";
+import type { ContainerStatus } from "../lib/containerStatus";
 import type { FileSystem } from "../lib/fileSystem";
 import { INVENTORY_PATH } from "../lib/serviceInventory";
+import type { DeclarationSummary } from "../lib/siteResource";
 import type { TimerSchedule, UnitState } from "../lib/unitState";
 
 /**
  * Covers every branch parseSites has: the apex domain, a static subdomain, a
- * plain reverse proxy, a Next.js site carrying both marker comments, a
+ * plain reverse proxy, Next.js sites carrying both marker comments, a
  * Next.js site carrying only the framework comment (the pre-healthcheck
  * legacy shape — sites created before the healthcheck-path field existed),
  * and one deliberately unmanaged block. lychee.local must never appear in
  * the site list — it is the live check that isManagedHostname still filters.
  *
- * Ports 4000, 3000, and 3001 leave 8787 (lyly-admin itself) and 2019
+ * The three Next.js sites are the three states a site's "From a repository"
+ * card has, so dev mode shows each without anyone attaching or deploying:
+ * legacy.lyly.dev is unattached (the full runbook and the Attach control),
+ * preview.lyly.dev is attached and awaiting its first image (0.1.0 on offer),
+ * app.lyly.dev is attached and running 0.2.0 with 0.3.0 on offer. Their
+ * declarations are SEEDED_DECLARATIONS below; their inventory entries are in
+ * SEEDED_INVENTORY.
+ *
+ * Ports 4000, 3001, 3100 and 3200 leave 8787 (lyly-admin itself) and 2019
  * (Caddy's admin API) free, so the reserved-port rejection can be triggered
- * from the UI.
+ * from the UI. 3000 is free too, so adding a Next.js site on the obvious port
+ * works; 3100 and 3200 are claimed by declarations, so add-site's
+ * declared-port refusal can be triggered on either.
  */
 export const SEED_CADDYFILE = `{
 \tauto_https off
@@ -37,7 +49,13 @@ http://api.lyly.dev {
 http://app.lyly.dev {
 \t# lyly-admin-framework: nextjs
 \t# lyly-admin-healthcheck: /api/health
-\treverse_proxy localhost:3000
+\treverse_proxy localhost:3200
+}
+
+http://preview.lyly.dev {
+\t# lyly-admin-framework: nextjs
+\t# lyly-admin-healthcheck: /
+\treverse_proxy localhost:3100
 }
 
 http://legacy.lyly.dev {
@@ -64,6 +82,8 @@ ingress:
   - hostname: app.lyly.dev
     service: http://localhost:80
   - hostname: legacy.lyly.dev
+    service: http://localhost:80
+  - hostname: preview.lyly.dev
     service: http://localhost:80
   - service: http_status:404
 `;
@@ -116,6 +136,19 @@ export const SEEDED_INVENTORY = JSON.stringify(
         version: "v1.4.0", target: "v1.4.0", available: "v1.5.0",
         commit: "3c1d9e07b5a24f6e8d0a1b2c3d4e5f6071829304",
         result: "skipped", gate: "pin unchanged (v1.4.0)", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
+      // The two attached site resources (see SEED_CADDYFILE). preview is the
+      // tagless declaration after the reconciler's first look: no compose
+      // action, nothing installed, the pushed tag discovered. "" is what the
+      // producer writes for "no tag", and the parser normalises it away.
+      { name: "preview-lyly-dev", kind: "container", container: "preview-lyly-dev", group: "service", reconciled: true,
+        version: "", target: "", available: "0.1.0",
+        result: "awaiting-image", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
+      // app is settled on 0.2.0 with a newer tag pushed, so its page shows the
+      // installed card with the board's own offer line.
+      { name: "app-lyly-dev", kind: "container", container: "app-lyly-dev", group: "service", reconciled: true,
+        version: "0.2.0", target: "0.2.0", available: "0.3.0",
+        commit: "5b7e2a9c0d14f3e68a9b1c2d3e4f5061728394a5",
+        result: "skipped", gate: "pin unchanged (0.2.0)", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
       { name: "caddy", unit: "caddy.service", group: "infrastructure", reconciled: false },
       { name: "cloudflared-sites", unit: "cloudflared-sites.service", group: "infrastructure", reconciled: false },
     ],
@@ -143,6 +176,26 @@ export const seededUnitStates: Record<string, UnitState> = {
 export const SEEDED_TIMER_SCHEDULE: TimerSchedule = {
   last: new Date(Date.now() - 2 * 60_000),
   next: new Date(Date.now() + 3 * 60_000),
+};
+
+/**
+ * The lychee-resources declarations for the two attached sites, handed to
+ * createFakes by the dev server only — route tests start from an empty clone.
+ * preview's image is tagless, as Attach writes it; app's carries the tag its
+ * one deploy wrote.
+ */
+export const SEEDED_DECLARATIONS: DeclarationSummary[] = [
+  { name: "preview-lyly-dev", port: 3100, state: "running", image: "ghcr.io/lycheehome/preview-site" },
+  { name: "app-lyly-dev", port: 3200, state: "running", image: "ghcr.io/lycheehome/app-site:0.2.0" },
+];
+
+/**
+ * Live container state for resources that have a container. Only app has one:
+ * preview has never been deployed, and the board's lyly-docs and lyly-notes
+ * rows stay "unknown", the neutral answer a container row must get right.
+ */
+export const seededResourceContainers: Record<string, ContainerStatus> = {
+  "app-lyly-dev": { state: "running", health: "healthy" },
 };
 
 /**

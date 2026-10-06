@@ -5,9 +5,9 @@ import type { Deps } from "../deps";
 import { createBackup } from "../lib/backup";
 import { createLogger } from "../lib/logger";
 import { createFakes } from "./fakes";
-import { applySeed } from "./seed";
+import { applySeed, SEEDED_DECLARATIONS } from "./seed";
 
-const { fs, commands } = createFakes();
+const { fs, commands } = createFakes({}, { declarations: SEEDED_DECLARATIONS });
 applySeed(fs);
 
 const deps: Deps = {
