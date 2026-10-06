@@ -88,7 +88,9 @@ was dropped during implementation, with the operator's approval:
 `ansible.builtin.user` cannot pass `-K SYS_UID_MIN`, hand-rolled allocation in
 Jinja would be new surface for no stated benefit, and nothing compares a site's
 uid to a declared number — the account *name* marks a site account, and its
-identity is read back from `getent`.)
+identity is read back from `getent`. Each site account permanently takes a
+uid from that system range, which it shares with packages; at a handful of
+sites that is acceptable.)
 
 **Tagless at attach.** Rejected: writing a full `image:tag` at attach (no schema
 change, but `lyly-admin` cannot check the tag exists, a typo surfaces a tick
@@ -132,7 +134,8 @@ means discovery finds nothing yet.
 - **Awaiting first image.** A tagless declaration gets no compose action, no
   render, no pull. `resolve_available` still runs (it already derives the
   repository from the image string). Status file: `result: awaiting-image`,
-  `target_tag: ""`, `available_tag` as discovered.
+  `target_tag: none` (the inventory's no-tag sentinel, the same one
+  `installed_tag` uses), `available_tag` as discovered.
 - **Site accounts.** A new task ahead of `assert_identities` (in the role's
   `main.yml`, between the fetch and `getent`): run the validator, and for each
   valid `-lyly-dev` declaration ensure a system account of that name —
