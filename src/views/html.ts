@@ -8,6 +8,7 @@ import {
 } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
 import { ADD_STEPS } from "../lib/stepReport";
+import { resourceNameFor } from "../lib/siteResource";
 import type { BoardRow, ServiceBoard } from "../lib/serviceBoard";
 import type { ServiceGroup } from "../lib/serviceInventory";
 import { layout, type Nav } from "./shell";
@@ -387,7 +388,12 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
   // `tone === "bad"` already excludes it. A guard naming it would imply it is
   // still considered a failure. Pinned by "a never-deployed container is not
   // asked to read logs it has none of".
-  const containerIsBroken = containerStatus !== null && describeStatus(containerStatus).tone === "bad";
+  //
+  // Only an attached resource has a container to read: the reconciler runs it
+  // as a compose project named after the resource, so its logs are reached by
+  // project name from anywhere, never from a /var/www directory.
+  const containerIsBroken =
+    opts.resource !== undefined && containerStatus !== null && describeStatus(containerStatus).tone === "bad";
   const labels = opts.status ? describeStatus(opts.status) : null;
   const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
   const lastHop: Hop =
@@ -433,10 +439,15 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
   const arrow = `<div class="flex items-center justify-center text-stone-600 text-sm sm:flex-1 sm:min-w-[2rem]" aria-hidden="true"><span class="sm:hidden">&darr;</span><span class="hidden sm:inline">&rarr;</span></div>`;
 
   // Static sites carry their path in the last hop, so it is not repeated here.
+  // A Next.js site has no directory unless one predates site resources, so
+  // the row appears only when the route found one on disk.
+  const image = opts.resource?.repo ? `${IMAGE_PREFIX}${opts.resource.repo}` : null;
   const rows = [
     ...(frameworkLabel ? [["framework", frameworkLabel]] : []),
     ...(site.healthcheckPath ? [["healthcheck", site.healthcheckPath]] : []),
-    ...(site.type !== "static" && filesPath ? [["files", filesPath]] : []),
+    ...(site.type !== "static" && filesPath && opts.filesExist ? [["files", filesPath]] : []),
+    ...(opts.resource ? [["resource", opts.resource.name]] : []),
+    ...(image ? [["image", image]] : []),
   ];
 
   return `
@@ -446,10 +457,10 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
           ${hops.map((hop) => renderHop(hop)).join(arrow)}
         </div>
         ${
-          containerIsBroken && filesPath
+          containerIsBroken && opts.resource
             ? `<div class="mt-4">
           <p class="text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5">Check the container's logs to see why:</p>
-          ${commandBlock("cmd-logs", "docker compose logs", "Copy logs command", filesPath)}
+          ${commandBlock("cmd-logs", `docker compose -p ${opts.resource.name} logs`, "Copy logs command")}
         </div>`
             : ""
         }
@@ -577,6 +588,28 @@ function renderDangerZone(): string {
       </section>`;
 }
 
+/** The only registry path the reconciler accepts for a site's image. */
+const IMAGE_PREFIX = "ghcr.io/lycheehome/";
+
+/**
+ * A site attached to a repository: its resource in lychee-resources plus what
+ * the reconciler last published about it. `version` is what is installed;
+ * `available` the newest tag the registry offers; `target` what the
+ * declaration pins. `result` is absent until the reconciler's first tick.
+ */
+export interface SiteResourceView {
+  name: string;
+  /** Null when only the inventory knows the site (the declaration was unreadable). */
+  repo: string | null;
+  available?: string;
+  version?: string;
+  result?: string;
+  target?: string;
+  gate?: string;
+  /** The reconciler task that failed, with its error, when `result` is failed. */
+  failedStep?: string;
+}
+
 export interface SiteDetailOptions {
   sitesRoot: string;
   domain: string;
@@ -587,52 +620,220 @@ export interface SiteDetailOptions {
   /** Live unit states for the tunnel and Caddy hops, keyed by unit name. */
   unitStates?: Record<string, UnitState>;
   scaffold?: { buildCommand: string; runCommand: string };
+  /** The files a Next.js site's repository needs, rendered in full. */
+  scaffoldFiles?: { name: string; content: string }[];
+  /** Absent means not attached. */
+  resource?: SiteResourceView;
+  /** A declaration exists but is `state: absent`: not attached. Attach stays
+   *  offered, with a warning that it is refused until the file is pruned; the
+   *  writer's own fresh pull is what decides. */
+  detached?: boolean;
+  /** Whether a reverse-proxy site's /var/www directory exists. Only legacy Next.js sites have one. */
+  filesExist?: boolean;
   /** Every managed site, for the breadcrumb's hostname switcher. */
   sites: Site[];
   /** Set when this page is the redirect target of a successful add (`?created=1`). */
   created?: boolean;
 }
 
+const BODY = "text-stone-400 text-[0.8rem] leading-snug m-0";
+const STEP_DONE =
+  "font-mono text-[0.6875rem] text-stone-300 border border-stone-600 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5";
 /**
- * The one command you act on, then what the generated image does, as data.
- *
- * This card used to lead with a GitHub Actions workflow, and that workflow was
- * never usable by anyone. Its two real steps rsync the source into
- * `/var/www/<hostname>/` and run `docker compose up -d --build` there, so it
- * only does anything on a runner that *is* `lychee`. It carried
- * `runs-on: self-hosted` against an org-level runner retired 2026-09-28 — and
- * even while that runner existed, an org runner is reachable only from repos
- * inside the org, so a scaffolded site living in the user's own repository
- * could never have reached it. Repointing it at `ubuntu-latest` would be
- * strictly worse than deleting it: it would rsync into the ephemeral runner's
- * own filesystem, build a container there, destroy the runner, and report
- * success. `self-hosted` was the only honest line in the file. So the workflow
- * is gone rather than repaired, and the compose command it used to hide behind
- * a "Not using GitHub Actions?" aside is the whole instruction now.
- *
- * buildCommand and runCommand are NOT instructions: they are what the Dockerfile
- * bakes in (`RUN npm run build`, `CMD ["npm","start"]`), triggered inside the
- * image by that `docker compose up --build`. They were previously
- * rendered as copyable command boxes identical to the actionable ones in Manual
- * steps, which read as "run these first" — the reverse of
- * the truth, and running them on the host would be wrong. They are detail
- * rows now, the same shape the request-path card uses for data.
- *
- * They are surfaced at all because they tell you what the image assumes: an app
- * without an `npm run build` script, or one started another way, will not work
- * with this scaffold. Making them overridable is a later feature; the page
- * deliberately does not promise that yet.
+ * A whole file, at full height. It wraps rather than scrolling sideways: the
+ * Show-It Rule allows horizontal overflow only on a one-line command, and the
+ * release workflow's build line is wider than the reading column. The copy
+ * button reads textContent, so wrapping changes nothing that is copied.
  */
-function renderDeploy(scaffold: NonNullable<SiteDetailOptions["scaffold"]>, filesPath: string | null): string {
+const CODE_FILE =
+  "font-mono text-[0.72rem] leading-[1.6] bg-stone-900 border border-stone-700 rounded-md pl-2.5 pr-11 py-2.5 text-stone-50 whitespace-pre-wrap [overflow-wrap:anywhere] m-0";
+/** Multi-line blocks pin their copy button top-right, at the single-line inset. */
+const COPY_TOP = "absolute top-1.5 right-1.5";
+
+function fileBlock(file: { name: string; content: string }, index: number): string {
+  const id = `scaffold-file-${index}`;
+  const body = file.content.trimEnd();
+  const lines = body.split("\n").length;
+  return `<div class="flex flex-col gap-1.5">
+              <p class="${PATH_LABEL} flex justify-between gap-3"><span>${escapeHtml(file.name)}</span><span class="shrink-0">${lines} ${lines === 1 ? "line" : "lines"}</span></p>
+              <div class="relative">
+                <pre id="${id}" class="${CODE_FILE}">${escapeHtml(body)}</pre>
+                ${copyButton(id, `Copy ${file.name}`, COPY_TOP)}
+              </div>
+            </div>`;
+}
+
+/** `title` is markup: machine facts inside it are wrapped with mono() by the caller. */
+function runbookStep(n: number, done: boolean, title: string, body: string): string {
+  return `<div class="flex gap-3">
+          <span class="${done ? STEP_DONE : STEP_NUMBER}">${done ? `${icon("check")}<span class="sr-only">Step ${n}, done</span>` : n}</span>
+          <div class="flex-1 min-w-0 flex flex-col gap-2">
+            <p class="text-stone-50 font-semibold text-[0.9rem] leading-snug m-0">${title}${done ? ` <span class="font-mono text-[0.72rem] font-normal text-stone-400">done</span>` : ""}</p>
+            ${body}
+          </div>
+        </div>`;
+}
+
+const mono = (value: string): string => `<span class="font-mono text-stone-50 break-all">${escapeHtml(value)}</span>`;
+
+/**
+ * The attach control: a repository name composed with the fixed registry
+ * prefix, in the same shape as add-site's hostname field (the affix is part of
+ * the control, read out through aria-describedby, and the focus ring encloses
+ * both pieces). The prefix is fixed because the reconciler accepts no other
+ * registry path; the only thing to type is the repository's name.
+ *
+ * A retired declaration does not disable the control. The page's clone is
+ * refreshed on load but may still be stale (the refresh is bounded), so the
+ * page warns and the writer decides: it pulls first, and refuses with the
+ * same prune reason if the retired file is still there.
+ */
+function attachForm(site: Site, resourceName: string, detached: boolean): string {
+  const warning = detached
+    ? `<p id="attach-warning" class="${BODY} text-stone-300">${mono(`${resourceName}.yml`)} is retired (${mono("state: absent")}) and was still in lychee-resources when this page loaded. Attaching is refused until it is pruned there; pressing Attach checks again.</p>`
+    : "";
+  return `<form class="flex flex-col gap-1.5" data-attach="${escapeHtml(site.hostname)}" novalidate>
+              <label for="attach-repo" class="text-[0.85rem] text-stone-400">Repository in LycheeHome</label>
+              <div class="flex flex-wrap items-center gap-2.5">
+                <span id="attach-row" class="flex items-stretch min-w-0 flex-1 basis-[18rem] rounded-md focus-within:outline focus-within:outline-2 focus-within:outline-rose-400 focus-within:outline-offset-2">
+                  <span id="attach-prefix" class="font-mono text-[0.72rem] text-stone-300 bg-stone-700 border border-r-0 border-stone-700 rounded-l-md px-2.5 flex items-center shrink-0">${IMAGE_PREFIX}</span>
+                  <input type="text" id="attach-repo" name="repo" required autocomplete="off" autocapitalize="off" spellcheck="false"
+                         aria-describedby="attach-prefix${detached ? " attach-warning" : ""}"
+                         class="${INPUT} rounded-l-none flex-1 min-w-0 focus:outline-none! disabled:text-stone-500 disabled:cursor-not-allowed" placeholder="repo-name" />
+                </span>
+                <button type="submit" class="${BUTTON_PRIMARY}"${detached ? ` aria-describedby="attach-warning"` : ""}>Attach repository</button>
+              </div>
+              <p class="font-mono text-[0.72rem] text-stone-400 m-0 break-all">writes ${escapeHtml(resourceName)}.yml to lychee-resources · no tag until the first deploy</p>
+              ${warning}
+              <p id="attach-error" role="alert" class="hidden font-mono text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0"></p>
+            </form>`;
+}
+
+/** The gate string, in full, as the services board shows it. */
+function gateLine(resource: SiteResourceView): string {
+  return resource.gate ? `<p class="${SERVICE_DETAIL} text-stone-300" data-gate>${escapeHtml(resource.gate)}</p>` : "";
+}
+
+/**
+ * A deploy the reconciler attempted and could not complete: which tag, the
+ * step that failed as the reconciler recorded it, and where the whole run is
+ * logged. Prose stays Smoke; the Scorch belongs to the status pill, and the
+ * step is a machine fact, so it is mono like the gate line. Empty unless
+ * `result` is failed, so `blocked` keeps showing only its gate.
+ */
+function failureLine(resource: SiteResourceView, extraClass = ""): string {
+  if (resource.result !== "failed") return "";
+  const what = resource.target
+    ? `Deploying ${mono(resource.target)} failed${resource.failedStep ? " at this step:" : "."}`
+    : `The last deploy failed${resource.failedStep ? " at this step:" : "."}`;
+  const step = resource.failedStep
+    ? `<p class="${SERVICE_DETAIL} text-stone-300" data-failed-step>${escapeHtml(resource.failedStep)}</p>`
+    : "";
+  return `<div class="flex flex-col gap-2 ${extraClass}" data-deploy-failed>
+            <p class="${BODY}">${what}</p>
+            ${step}
+            <p class="${BODY}">The reconciler's journal has the whole run:</p>
+            ${commandBlock("cmd-reconcile-log", "journalctl -u lyly-reconcile", "Copy journal command")}
+          </div>`;
+}
+
+/**
+ * What the Deploy step says while nothing runs yet. A tag already written and
+ * not yet applied is stated, not offered again: the board's offer rule only
+ * treats a moved pin as in flight once something is installed, and a second
+ * request for the same tag would only race the first.
+ */
+function firstDeploy(resource: SiteResourceView | undefined): string {
+  if (!resource) {
+    return `<p class="${BODY}">Once the repository is attached and ${mono("v0.1.0")} is built, ${mono("0.1.0")} is offered here. Deploying writes the tag into the declaration; the reconciler starts the container on its next run.</p>`;
+  }
+  if (resource.result === undefined) {
+    return `<p class="${BODY}">Attached. The reconciler looks for the image on its next run, within five minutes, and offers the newest tag here; reload to see it.</p>`;
+  }
+  // Not "requested": the reconciler already tried, and will not simply pull it
+  // next time. Nothing is offered on a failed run (offeredTag), so this is all.
+  if (resource.result === "failed") return `${failureLine(resource)}${gateLine(resource)}`;
+  if (resource.target && resource.target === resource.available) {
+    const requested = `<p class="font-mono text-[0.8rem] text-stone-50 m-0">${escapeHtml(resource.target)} requested</p>`;
+    // A blocked run will not simply pull it next time; the gate says why.
+    if (resource.result === "blocked") return `${requested}${gateLine(resource)}`;
+    return `${requested}
+            <p class="${BODY}">The reconciler pulls it and starts the container on its next run.</p>${gateLine(resource)}`;
+  }
+  const tag = offeredTag(resource);
+  if (tag) return `${gateLine(resource)}${renderOfferLine(resource.name, tag)}`;
+  // A tag exists but is not on offer (the last run failed): the gate is the whole story.
+  if (resource.available) {
+    return gateLine(resource) || `<p class="${BODY}">${mono(resource.available)} is built; nothing is offered until the last run's failure is resolved.</p>`;
+  }
+  const image = resource.repo ? `${IMAGE_PREFIX}${resource.repo}` : "the image";
+  return `<p class="${BODY}">No tag found for ${mono(image)} yet. Push ${mono("v0.1.0")}; once its build finishes, the reconciler's next run offers it here.</p>${gateLine(resource)}`;
+}
+
+/**
+ * A Next.js site is a container resource built from its own repository. Until
+ * something runs, this card is the runbook to get there, in the order it
+ * happens: the files to commit, the repository and its first tag (both in
+ * GitHub), attaching (the one write this page makes), then the first deploy.
+ * Once a version is installed the setup is history, so the card keeps only
+ * the facts about the resource and the offer of a newer tag.
+ *
+ * The offer is the services board's own line (renderOfferLine) and its
+ * button the board's own [data-deploy] control, posting to the same
+ * /services/:name/deploy. It lives in this card rather than the page header,
+ * which keeps Visit as the header's one ember action.
+ *
+ * The baked-in build and run commands close the card in every state. They are
+ * what the Dockerfile runs inside the image, not commands to run yourself.
+ */
+function renderRepositoryCard(site: Site, opts: SiteDetailOptions, resourceName: string): string {
+  const { resource, scaffold } = opts;
+  const baked = scaffold
+    ? `<div class="h-px bg-stone-700 my-4"></div>
+        <p class="${BODY} mb-2">Baked into the Dockerfile. These run inside the image when it builds — not commands to run yourself.</p>
+        <p class="${DETAIL_ROW}"><span class="${DETAIL_KEY}">build</span><span class="text-stone-50 break-all">${escapeHtml(scaffold.buildCommand)}</span></p>
+        <p class="${DETAIL_ROW}"><span class="${DETAIL_KEY}">run</span><span class="text-stone-50 break-all">${escapeHtml(scaffold.runCommand)}</span></p>`
+    : "";
+
+  if (resource?.version) {
+    const repository = resource.repo ? `LycheeHome/${resource.repo}` : null;
+    const tag = offeredTag(resource);
+    const rows: [string, string][] = [
+      ["running", resource.version],
+      ...(resource.target && resource.target !== resource.version ? ([["requested", resource.target]] as [string, string][]) : []),
+      ...(repository ? ([["repository", repository]] as [string, string][]) : []),
+    ];
+    return `
+      <section class="${CARD}">
+        <h3 class="${CARD_LABEL}">From a repository</h3>
+        <p class="${BODY} mb-3">Push a newer ${mono("vX.Y.Z")} tag to ${repository ? mono(repository) : "the site's repository"}; it is offered here once the reconciler finds it.</p>
+        ${rows.map(([key, value]) => `<p class="${DETAIL_ROW}"><span class="${DETAIL_KEY}">${escapeHtml(key)}</span><span class="text-stone-50 break-all">${escapeHtml(value)}</span></p>`).join("\n        ")}
+        ${failureLine(resource, "mt-3")}
+        ${gateLine(resource)}
+        ${tag ? renderOfferLine(resource.name, tag) : ""}
+        ${baked}
+      </section>`;
+  }
+
+  const imageFound = Boolean(resource?.available);
+  const files = (opts.scaffoldFiles ?? []).map(fileBlock).join("\n            ");
+  const attached = resource
+    ? `<p class="font-mono text-[0.8rem] text-stone-50 m-0 break-all">${escapeHtml(resource.repo ? `${IMAGE_PREFIX}${resource.repo}` : resource.name)} <span class="text-stone-400">· ${escapeHtml(resource.name)}.yml</span></p>`
+    : attachForm(site, resourceName, opts.detached === true);
+
   return `
       <section class="${CARD}">
-        <h3 class="${CARD_LABEL}">Deploy</h3>
-        <p class="text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5">Copy your app's source in alongside the Dockerfile and compose file generated here, then build and start the container yourself — nothing on this page deploys it for you.</p>
-        ${commandBlock("cmd-compose", "docker compose up -d --build", "Copy docker compose command", filesPath ?? undefined)}
-        <div class="h-px bg-stone-700 my-4"></div>
-        <p class="text-stone-400 text-[0.8rem] leading-snug m-0 mb-2">Baked into the generated Dockerfile. These run inside the image when it builds — not commands to run yourself.</p>
-        <p class="${DETAIL_ROW}"><span class="${DETAIL_KEY}">build</span><span class="text-stone-50 break-all">${escapeHtml(scaffold.buildCommand)}</span></p>
-        <p class="${DETAIL_ROW}"><span class="${DETAIL_KEY}">run</span><span class="text-stone-50 break-all">${escapeHtml(scaffold.runCommand)}</span></p>
+        <h3 class="${CARD_LABEL}">From a repository</h3>
+        <p class="${BODY} mb-4">Steps 1 and 2 happen in GitHub; 3 and 4 happen here. Attaching before the first tag is pushed is fine: nothing is offered to deploy until the image exists.</p>
+        <div class="flex flex-col gap-5">
+          ${runbookStep(1, imageFound, "Commit these three files beside your app", `<p class="${BODY}">At the repository's root, next to ${mono("package.json")}.</p>
+            ${files}`)}
+          ${runbookStep(2, imageFound, `Create the repository in ${mono("LycheeHome")}, then push tag ${mono("v0.1.0")}`, `<p class="${BODY}">It has to live in the ${mono("LycheeHome")} org: the image is published as ${mono(`${IMAGE_PREFIX}<repo>`)}, the only registry path the reconciler accepts. The tag has GitHub's own runners build and push ${mono(`${IMAGE_PREFIX}<repo>:0.1.0`)}. Nothing runs on lychee yet.</p>
+            ${commandBlock("cmd-tag", "git tag v0.1.0 && git push origin v0.1.0", "Copy tag command")}`)}
+          ${runbookStep(3, resource !== undefined, "Attach the repository", attached)}
+          ${runbookStep(4, false, "Deploy", firstDeploy(resource))}
+        </div>
+        ${baked}
       </section>`;
 }
 
@@ -714,21 +915,26 @@ function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
  * status pill beside it: two of the three types arrive not-yet-working, so
  * leading with what did succeed keeps the two from contradicting each other.
  */
-function addedBanner(site: Site, sitesRoot: string): string {
+function addedBanner(site: Site): string {
   if (site.type === "static") {
     return `Added ${site.hostname} — Caddy is serving the placeholder page it created. Manual steps has the DNS record and how to replace it.`;
   }
   if (site.framework) {
-    return `Added ${site.hostname} — routing is live and the scaffold is at ${computeFilesPath(site, sitesRoot)}. It shows as not deployed until you add your source and deploy.`;
+    return `Added ${site.hostname} — routing is live. It shows as not deployed until a repository is attached and its first image deployed; From a repository has the steps.`;
   }
   return `Added ${site.hostname} — routing is live, but nothing is listening on port ${site.target} yet, so it shows as not responding until you start your process.`;
 }
 
 export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
-  const { scaffold } = opts;
+  const resourceName = site.framework ? resourceNameFor(site.hostname, opts.domain) : null;
   const filesPath = computeFilesPath(site, opts.sitesRoot);
 
-  const deleteFilesSection = filesPath
+  // Retiring the declaration is a fifth step only when there is one to retire.
+  const attachedName = resourceName && opts.resource ? resourceName : null;
+
+  // Offered only for a directory that is actually there: a Next.js site added
+  // after scaffolds stopped being written to the host has none to delete.
+  const deleteFilesSection = filesPath && opts.filesExist
     ? `
       <div class="flex flex-col gap-2 mb-5">
         <label class="flex flex-row items-center text-[0.8rem] text-stone-400 gap-1.5">
@@ -753,21 +959,31 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
 
       ${renderRequestPath(site, opts)}
       ${renderManualSteps(site, opts)}
-      ${scaffold ? renderDeploy(scaffold, computeFilesPath(site, opts.sitesRoot)) : ""}
+      ${resourceName && opts.scaffold ? renderRepositoryCard(site, opts, resourceName) : ""}
 
       ${renderDangerZone()}
     </div>
 
-    <dialog id="confirm-remove-dialog" aria-labelledby="confirm-remove-title" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
+    <dialog id="confirm-remove-dialog"${attachedName ? ` data-attached="true"` : ""} aria-labelledby="confirm-remove-title" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
       <h2 id="confirm-remove-title" class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Remove site</h2>
       <p class="m-0 mb-3 leading-relaxed">Remove <strong>${escapeHtml(site.hostname)}</strong>? In this order:</p>
       <ol id="confirm-remove-steps" class="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 p-0 list-none grid gap-y-1.5">
         <li class="flex gap-2" data-step-id="caddyfile"><span class="text-stone-400 shrink-0">1.</span><span>Caddyfile block removed</span><span class="step-mark ml-auto shrink-0"></span></li>
         <li class="flex gap-2" data-step-id="tunnel"><span class="text-stone-400 shrink-0">2.</span><span>Tunnel route removed</span><span class="step-mark ml-auto shrink-0"></span></li>
         <li class="flex gap-2" data-step-id="caddy"><span class="text-stone-400 shrink-0">3.</span><span>Caddy validated and reloaded</span><span class="step-mark ml-auto shrink-0"></span></li>
-        <li class="flex gap-2" data-step-id="cloudflared"><span class="text-stone-400 shrink-0">4.</span><span>cloudflared-sites restarted</span><span class="step-mark ml-auto shrink-0"></span></li>
+        <li class="flex gap-2" data-step-id="cloudflared"><span class="text-stone-400 shrink-0">4.</span><span>cloudflared-sites restarted</span><span class="step-mark ml-auto shrink-0"></span></li>${
+          attachedName
+            ? `
+        <li class="flex gap-2" data-step-id="declaration"><span class="text-stone-400 shrink-0">5.</span><span>${escapeHtml(attachedName)}.yml set to state: absent</span><span class="step-mark ml-auto shrink-0"></span></li>`
+            : ""
+        }
       </ol>
-      <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mb-4">If a step fails, the ones after it don't run.</p>
+      <p class="text-stone-400 text-[0.75rem] leading-snug m-0 ${attachedName ? "mb-2" : "mb-4"}">If a step fails, the ones after it don't run.</p>${
+        attachedName
+          ? `
+      <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mb-4">Step 5 is what stops the container: it writes <span class="font-mono text-stone-50">state: absent</span> to <span class="font-mono text-stone-50">${escapeHtml(attachedName)}.yml</span> in lychee-resources, and the reconciler takes the container down on its next run, within five minutes.</p>`
+          : ""
+      }
       <div id="confirm-remove-outcome" class="hidden font-mono text-[0.72rem] text-stone-400 leading-snug m-0 mb-4 flex items-start gap-2" role="status" aria-live="polite"><span id="confirm-remove-progress" class="hidden shrink-0 mt-[0.4em] h-1.5 w-1.5 rounded-full bg-stone-400 motion-safe:animate-pulse" aria-hidden="true"></span><span id="confirm-remove-outcome-text" class="whitespace-pre-wrap"></span></div>
       ${deleteFilesSection}
       <div class="flex items-center justify-end gap-2.5">
@@ -778,7 +994,7 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
     `,
     {
       nav: {},
-      banner: opts.created ? { message: addedBanner(site, opts.sitesRoot) } : undefined,
+      banner: opts.created ? { message: addedBanner(site) } : undefined,
     },
   );
 }
@@ -818,6 +1034,44 @@ function rowLabels(status: BoardRow["status"]) {
   return describeStatus({ kind: "container", state: status });
 }
 
+type DeployFacts = Pick<BoardRow, "available" | "version" | "target" | "result">;
+
+function isApplying(row: DeployFacts): boolean {
+  const settled = row.result === "deployed" || row.result === "skipped";
+  return settled && Boolean(row.version && row.target && row.target !== row.version);
+}
+
+/**
+ * The tag a row offers, or null. An offer only when nothing is in flight or
+ * broken: a second request on top of an unapplied one would race the first,
+ * and a failed deploy needs its gate read before anything is pushed after it.
+ * `blocked` still offers: the gate line above it says why, and the offer is
+ * the way out — unless the tag on offer is already the pin, which a second
+ * request would only race. Shared by the services board and a site's own page, so the two
+ * can never disagree about whether a tag is on offer.
+ */
+function offeredTag(row: DeployFacts): string | null {
+  return row.available &&
+    row.available !== row.version &&
+    row.available !== row.target &&
+    !isApplying(row) &&
+    row.result !== "failed"
+    ? row.available
+    : null;
+}
+
+/**
+ * The offer and its Deploy control. One markup for the board and the site
+ * page: app.js binds every [data-deploy] to POST /services/:name/deploy, and
+ * that route reads the tag from the inventory, never from the button.
+ */
+function renderOfferLine(name: string, tag: string): string {
+  return `<p class="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-offer>
+            <span class="font-mono text-[0.8rem] text-rose-300">${escapeHtml(tag)} available</span>
+            <button type="button" class="${BUTTON_OFFER}" data-deploy="${escapeHtml(name)}" data-deploy-tag="${escapeHtml(tag)}">Deploy ${escapeHtml(tag)}</button>
+          </p>`;
+}
+
 function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date): string {
   // `target` is what the reconciler has been asked to run; `version` is what
   // it last confirmed running. "Applying" means the reconciler last ran
@@ -830,17 +1084,10 @@ function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date): string
   // `unknown`, and those must not read as applying either. Neutral, and only
   // while the live state is not already red: "applying" must never hide a
   // container that is actually failing.
-  const settled = row.result === "deployed" || row.result === "skipped";
-  const applying = settled && Boolean(row.version && row.target && row.target !== row.version);
+  const applying = isApplying(row);
   const live = rowLabels(row.status);
   const labels = applying && live.tone !== "bad" ? { ...live, pill: "applying", tone: "neutral" as const } : live;
-
-  // An offer only when nothing is in flight or broken: a second request on top
-  // of an unapplied one would race the first, and a failed deploy needs its
-  // gate read before anything is pushed after it. `blocked` still offers: the
-  // gate line above it says why, and the offer is the way out.
-  const offer =
-    row.available && row.available !== row.version && !applying && row.result !== "failed" ? row.available : null;
+  const offer = offeredTag(row);
 
   const facts: string[] = [];
   // One fact with an arrow, not two: version and target are a single change.
@@ -879,12 +1126,7 @@ function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date): string
             // recovery instruction, so explanation comes first and the thing to
             // do about it second. Its own line so a row with nothing to offer
             // is exactly the row it was before this existed.
-            offer
-              ? `<p class="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-offer>
-            <span class="font-mono text-[0.8rem] text-rose-300">${escapeHtml(offer)} available</span>
-            <button type="button" class="${BUTTON_OFFER}" data-deploy="${escapeHtml(row.name)}" data-deploy-tag="${escapeHtml(offer)}">Deploy ${escapeHtml(offer)}</button>
-          </p>`
-              : ""
+            offer ? renderOfferLine(row.name, offer) : ""
           }
         </div>
       </li>`;

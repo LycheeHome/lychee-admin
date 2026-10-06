@@ -29,7 +29,7 @@ Then one question asking which to build. The set is the answer; a recommendation
 
 **Tokens.** The real ones: `colors` and `typography` from `DESIGN.md` frontmatter, tonal ramps/shadows/motion from `.impeccable/design.json`, Tailwind class constants from `src/views/shared.ts`. Variants in stand-in greys prove nothing about a warm-terminal palette.
 
-**Data.** The actual seed sites from `src/dev/seed.ts` — `lyly.dev` and `blog.lyly.dev` (static), `api.lyly.dev:4000` (plain proxy), `app.lyly.dev:3000` (Next.js, healthchecked), `legacy.lyly.dev:3001` (Next.js, no healthcheck). Never `example.com` or `Site One`. That mixed static/proxy/framework spread is what makes a weak layout visibly fail.
+**Data.** The actual seed sites from `src/dev/seed.ts` — `lyly.dev` and `blog.lyly.dev` (static), `api.lyly.dev:4000` (plain proxy), `app.lyly.dev:3200` (Next.js, attached, running `0.2.0` with `0.3.0` on offer), `preview.lyly.dev:3100` (Next.js, attached, awaiting its first image with `0.1.0` on offer), `legacy.lyly.dev:3001` (Next.js, no healthcheck, unattached). Never `example.com` or `Site One`. That mixed static/proxy/framework spread is what makes a weak layout visibly fail.
 
 **Control shot.** `npm run dev:mock`, then Playwright to `http://127.0.0.1:8787` with basic auth `dev`/`dev`, and screenshot the real surface.
 

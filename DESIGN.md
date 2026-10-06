@@ -197,6 +197,16 @@ components:
     textColor: "{colors.ember}"
     rounded: "{rounded.full}"
     size: "1.2rem"
+  step-number-done:
+    backgroundColor: "transparent"
+    textColor: "{colors.smoke-light}"
+    rounded: "{rounded.full}"
+    size: "1.2rem"
+  input-affix:
+    backgroundColor: "{colors.hairline}"
+    textColor: "{colors.smoke-light}"
+    rounded: "{rounded.md}"
+    padding: "0 10px"
 ---
 
 # Design System: lyly-admin
@@ -285,7 +295,7 @@ carry a verdict.
 - **Smoke** (`stone-400`): Secondary text. Every explanatory sentence, form
   label, and card eyebrow.
 - **Smoke Light** (`stone-300`): Neutral status pill text — the `neutral` tone,
-  carrying `starting`, `unknown` and `not deployed` — and the accent color
+  carrying `starting`, `unknown`, `not deployed` and `awaiting image` — and the accent color
   of the static radio control.
 - **Chalk** (`stone-50`): Primary text and every value that matters. Warm white,
   never `#fff`.
@@ -301,10 +311,11 @@ background for prose, or as an accent.
 - **Clear** (`green-300`) on **Clear Deep** (`green-950` at 60%): the `ok` tone —
   `running`, `running · healthy`, `responding`.
 - **Scorch** (`red-300`) on **Scorch Deep** (`red-950` at 60%): the `bad` tone —
-  `unhealthy`, `exited`, `restarting · crash-looping`, `not responding` — plus
-  the danger button's text and the Danger card's label. Every one of these is
-  something that tried and failed; see the Three-Tone Status Rule for why
-  `not deployed` is not among them.
+  `unhealthy`, `exited`, `restarting · crash-looping`, `not responding`, and
+  `failed` (a first deploy the reconciler attempted and could not complete) —
+  plus the danger button's text and the Danger card's label. Every one of these
+  is something that tried and failed; see the Three-Tone Status Rule for why
+  `not deployed` and `awaiting image` are not among them.
 - **Scorch Edge** (`red-400` at 70%): the border of an error banner or inline
   error, where Scorch itself would not read against Scorch Deep.
 - **Scorch Border** (`red-800`) / **Scorch Rule** (`red-900`): the danger
@@ -321,11 +332,12 @@ read. On any given screen it covers well under 10% of the pixels, and that
 rarity is what makes a primary button unmissable.
 
 **The Three-Tone Status Rule.** Site state resolves to exactly three tones:
-Clear, Scorch, or Smoke. `starting`, `unknown` and `not deployed` are **Smoke,
-never Scorch** — a container still running its first health check is not broken,
-a status we failed to read is not evidence that anything is down, and a
-container that was never created (or was deliberately taken down) has not
-crashed. Scorch is reserved for something that tried and failed, so that red
+Clear, Scorch, or Smoke. `starting`, `unknown`, `not deployed` and
+`awaiting image` are **Smoke, never Scorch** — a container still running its
+first health check is not broken, a status we failed to read is not evidence
+that anything is down, a container that was never created (or was deliberately
+taken down) has not crashed, and a site attached to a repository whose first
+image has not been deployed yet is between two steps, not failing. Scorch is reserved for something that tried and failed, so that red
 keeps meaning "this needs you now": a site that has simply never been deployed
 must not look like one that died. Never invent a fourth tone, and never let a
 tone marking site state appear without the canonical status word beside it —
@@ -333,8 +345,9 @@ that second clause is what makes the first safe, because the word carries
 which state it is while the tone carries only how bad it is. The
 what-gets-written panel's Clear-marked added lines are the one place Clear
 appears without a status word, because marking a diff addition is not a
-site-state verdict for this rule to govern. `not deployed` and `unknown` share Smoke and
-stay unambiguous.
+site-state verdict for this rule to govern. `not deployed`, `awaiting image`
+and `unknown` share Smoke and stay unambiguous, because the word is always
+there to tell them apart.
 
 **The Pill-Needs-an-Edge Rule.** A status pill aligns to an edge the eye can
 follow down the page. A single-line row has a clean right edge, so the pill is
@@ -677,6 +690,17 @@ exceptions to it.
 - **Error:** Inline errors are 0.8rem Scorch. A form-level error is Scorch on
   Scorch Deep at 60% with a Scorch Edge border at 70%, 6px radius, hidden until
   it has text.
+- **Affixed field:** When part of a value is fixed and only the rest is typed,
+  the fixed part is shown as an affix joined to the input, not as a hint
+  beside it: 0.72rem mono Smoke Light on a Hairline fill with a Hairline
+  border, the shared edge dropped and the input's facing corners squared. The
+  focus ring moves from the input to the wrapper (`focus-within`), so it
+  encloses both pieces and the affix reads as part of the control; the affix
+  is also tied to the input through `aria-describedby`, so it is announced
+  with it. Add-site's hostname field carries the domain as a suffix
+  (`.lyly.dev`); the attach control carries the registry as a prefix
+  (`ghcr.io/lycheehome/`), because the reconciler accepts no other path and
+  the only thing left to type is the repository's name.
 
 ### Pills
 
@@ -728,9 +752,21 @@ The most-used component in the app and the reason several other values are what
 they are. A `<pre>` at Code size on Hearth with a Hairline border and 6px radius,
 `overflow-x: auto` and `white-space: nowrap` so a long command scrolls rather
 than wraps, with a copy button absolutely positioned inside it. An optional
-caption beneath in 0.72rem Smoke names the directory the command must run in
-(`in /var/www/app.lyly.dev/`) — a value you have to read, so it is not dimmed
-below Smoke.
+caption beneath in 0.72rem Smoke names the directory the command must run in —
+a value you have to read, so it is not dimmed below Smoke. No current command
+takes one: the logs command reaches its container by compose project name
+(`docker compose -p <name> logs`), which runs from anywhere, and that is the
+better shape whenever it is available.
+
+**A whole file is the one multi-line variant.** The repository card renders
+each scaffold file in full, at full height, at 0.72rem with 1.6 leading, under a
+Micro-label row carrying the file's path (uppercase dropped, as a path always
+is) on the left and its line count on the right. It **wraps** rather than
+scrolling sideways — `pre-wrap`, breaking anywhere — because the release
+workflow's build line is wider than the reading column, and The Show-It Rule
+allows horizontal overflow only on a one-line command. The copy button reads
+the text content, so wrapping changes nothing that is copied; it pins
+top-right, per The Coupled-Inset Rule.
 
 The copy button is a 26px square: Hearth Lift fill, Hairline border, 6px radius,
 a 16px clipboard icon that swaps to a check on success. **It must keep its
@@ -822,6 +858,13 @@ the two that can ever carry an action, and eight of them would hold an empty
 cell on a board whose whole job is a five-second glance. A row with nothing to
 offer is byte-identical to one from before the feature existed.
 
+**The same line serves a site's own page.** An attached Next.js site's
+repository card carries the offer with the board's exact markup and the same
+Deploy control, posting to the same endpoint, and the rule for whether a tag is
+on offer at all is one function shared by both pages — so a site's page and the
+board can never disagree about what is deployable. It lives in that card, not
+the page header, which keeps Visit the header's one Ember action.
+
 Where both appear, the gate line comes first and the offer second. A blocked
 service's gate string carries its own recovery instruction — on this host it
 reads `not retrying (promote another tag, or rm …/.failed-tag)` — so the gate
@@ -838,6 +881,65 @@ says `applying` when the last reconcile actually succeeded; a blocked or failed
 row keeps its real state, because a pin that moved and then stopped is not in
 flight, and it would otherwise read as applying forever.
 
+### Repository Card (From a repository)
+
+The deploy story of a Next.js site, and the one card in the app that is a
+runbook. It has two shapes, decided by whether a version is installed.
+
+**Before anything runs, it is four numbered steps in the order they happen:**
+commit the three scaffold files (each shown in full — see the Command Block's
+whole-file variant), create the repository in `LycheeHome` and push the first
+tag (a copyable command), attach, and deploy. A one-line Body sentence above the
+steps says which happen in GitHub and which happen here, because a numbered
+list otherwise implies the page performs all of them. Each step is a numeral
+column beside a Body Strong title — machine facts inside it set in mono, per The
+Mono-Carries-Facts Rule — over its body, 20px between steps. An open step's
+numeral is the remove dialog's: Ember, in a 1.2rem ring of Ember at 40%. A
+done step's numeral becomes a check in Smoke Light inside a Hairline Strong
+ring, and its title gains a mono `done` in Smoke. The numeral leaves Ember when
+the step is done because there is nothing left to act on there — The Ember Is
+Interactive Rule, applied to a step rather than a button.
+
+**Once a version is installed, the setup is history** and the card collapses
+to facts: `running`, `requested` while a pin is in flight, and `repository`, as
+key–value detail rows, then the failure line when a redeploy failed, then the
+gate line and the offer line exactly as a service row shows them. In both shapes the card closes, below a Hairline rule,
+with the build and run commands the Dockerfile bakes in — detail rows, not
+command blocks, because they run inside the image and are not commands to run
+yourself.
+
+**The attach control** is step three's body until there is something to show
+instead: a Smoke label, then the affixed repository field and a primary
+`Attach repository` button on one wrapping row, then a mono caption naming the
+file it will write and saying that no tag is written until the first deploy.
+Its error is the form-level error surface with `role="alert"`, hidden until it
+has text. When the site's declaration is retired but not yet pruned, the field
+and the button stay enabled, and a Smoke Light sentence beside them warns that
+attaching is refused until the file is pruned and says where, tied to both
+through `aria-describedby`. A warning and not a disabled control, because the
+page's copy of `lychee-resources` can be stale; the writer pulls before it
+writes and refuses with the same prune reason, so pressing Attach is the
+check. Attached, the step's body becomes the image and declaration file in
+mono, so the step shows what was written rather than that something was.
+
+**The failure line** replaces "requested" when the reconciler tried a deploy
+and failed: a Body sentence naming the tag it tried, the step that failed as
+the reconciler recorded it — mono, in Smoke Light, the gate line's own
+treatment — and `journalctl -u lyly-reconcile` as a single-line Command Block.
+It sits in step four before anything is installed and, after, in the
+collapsed card above the gate line. The Scorch is the status pill's alone
+(`failed` before anything is installed; the container's own word after); the
+sentences stay Smoke, because status colors never go on prose.
+
+**The Evidence-Marks-Done Rule.** A runbook step is checked only by something
+the page has read, never by the operator's say-so and never by elapsed time.
+The commit and the first tag are done once the reconciler has found a tag in
+the registry; attach is done once a declaration exists, or, only when the
+app's copy of `lychee-resources` cannot be read, an inventory entry;
+deploy is never checked, because once something is installed the runbook is
+replaced. A step that cannot be verified from here stays open rather than
+guessing, so a check always means the host agrees.
+
 ### Flash Banner
 
 Fixed 24px from the top, centered, `min(480px, 100vw - 2rem)` wide, mono at
@@ -847,8 +949,16 @@ dismissal: success and info are Ember Deep at 60% with an Ember Edge border at
 70% (success auto-dismisses after 4s, info holds until replaced); persistent is
 the same colors with a close button and no timer; error is Scorch Deep at 60%
 with a Scorch Edge border at 70% and a close button. **A banner carrying a fact
-the operator still has to act on — a DNS command, a scaffold path — is
-`persistent`, never timed.**
+the operator still has to act on — a DNS command — is `persistent`, never
+timed.**
+
+An error banner may carry **one recovery action**, an Offer-geometry button
+beside its close button, focused when the banner appears. Today that is only
+Retry, after a site was removed but its container declaration was not retired.
+The toast carries it rather than the dialog because the dialog has to close —
+a modal makes everything beneath it inert, the toast included — and every call
+that shows a new message clears the action, so an action can never outlive the
+message it was offered with.
 
 ### Dialog
 
@@ -864,8 +974,12 @@ The remove dialog is the system's model for a destructive confirmation: it names
 the target in `<strong>`, lists the four steps **in the order they run** as a
 two-column mono grid at 0.75rem, states in 0.75rem Smoke that a failed step stops
 the ones after it, and only then offers the "also delete files" checkbox with the
-exact path in mono beside it. A scaffolded site adds a Scorch warning box that
-deleting files will not stop a running container.
+exact path in mono beside it — offered only where the directory exists. A
+Next.js site that still has a directory from before site resources adds a
+Scorch warning box that deleting files will not stop a container started from
+them. An attached site adds a fifth step, retiring its declaration, and a Smoke
+line beneath the stop-on-failure sentence saying that step five is the one that
+stops the container, and when.
 
 ## Do's and Don'ts
 
@@ -875,8 +989,8 @@ deleting files will not stop a running container.
   A path in Nunito is a bug.
 - **Do** reserve Ember for what the operator can act on, and keep it under ~10%
   of any screen.
-- **Do** give `starting`, `unknown` and `not deployed` the neutral Smoke tone.
-  None of them is a failure.
+- **Do** give `starting`, `unknown`, `not deployed` and `awaiting image` the
+  neutral Smoke tone. None of them is a failure.
 - **Do** show a status word with every status color — the `●` and the tone are
   never the whole message.
 - **Do** let long hostnames, paths, and commands break or scroll (`break-all`,

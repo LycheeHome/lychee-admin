@@ -11,7 +11,14 @@ import type { ContainerHealth, ContainerState } from "./containerStatus";
  */
 export type SiteStatus =
   | { kind: "tcp"; responding: boolean }
-  | { kind: "container"; state: ContainerState; health?: ContainerHealth };
+  | { kind: "container"; state: ContainerState; health?: ContainerHealth }
+  /** Attached to a repository, no tag deployed yet: there is no container to
+   *  ask, because the reconciler takes no compose action for a tagless image. */
+  | { kind: "awaiting-image" }
+  /** The reconciler tried to deploy the first tag and failed; nothing is
+   *  installed, so there is still no container to ask. A failed REDEPLOY is not
+   *  this: an older version is installed, and the container reports itself. */
+  | { kind: "failed" };
 
 export type StatusTone = "ok" | "bad" | "neutral";
 
@@ -35,8 +42,21 @@ export interface StatusLabels {
  * bad tone is reserved for something that tried and failed, so that red keeps
  * meaning "this needs you now". The status word still says the site is not
  * serving; only the alarm is withdrawn.
+ *
+ * "awaiting image" is neutral for the same reason: a repository attached
+ * before its first tag is pushed, or before the reconciler has looked, is the
+ * expected state between two steps, not a fault. "failed" is its opposite and
+ * is bad: the reconciler attempted that first deploy and could not complete
+ * it, which is exactly "tried and failed", and nothing will change until the
+ * operator reads why.
  */
 export function describeStatus(status: SiteStatus): StatusLabels {
+  if (status.kind === "failed") {
+    return { pill: "failed", hop: "deploy failed", tone: "bad" };
+  }
+  if (status.kind === "awaiting-image") {
+    return { pill: "awaiting image", hop: "awaiting first image", tone: "neutral" };
+  }
   if (status.kind === "tcp") {
     return status.responding
       ? { pill: "responding", hop: "responding", tone: "ok" }

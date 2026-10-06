@@ -1,8 +1,10 @@
 import path from "node:path";
 import { config } from "../config";
+import { toRowStatus } from "../lib/containerStatus";
 import type { FileSystem } from "../lib/fileSystem";
+import type { DeclarationSummary } from "../lib/siteResource";
 import type { SystemCommands } from "../lib/systemCommands";
-import { SEEDED_TIMER_SCHEDULE, seededUnitStates } from "./seed";
+import { SEEDED_TIMER_SCHEDULE, seededResourceContainers, seededUnitStates } from "./seed";
 
 /**
  * Collapses both separators to "/" so that a path built with path.posix.join
@@ -73,23 +75,40 @@ export function createInMemoryFileSystem(): FileSystem & {
     return dirs.has(normalizePath(target));
   }
 
-  return { readFile, writeFile, mkdir, appendFile, copyFile, rmRecursive, hasFile, hasDir };
+  function exists(target: string): boolean {
+    return hasFile(target) || hasDir(target);
+  }
+
+  return { readFile, writeFile, mkdir, appendFile, copyFile, rmRecursive, exists, hasFile, hasDir };
 }
 
 /**
  * Fakes for both outward-facing interfaces, sharing one store — the fake
  * createSiteDirectory must create its directory in the same filesystem the
- * routes then write scaffold files into.
+ * routes then write a static site's placeholder page into.
  *
  * `overrides` lets a test replace one or more commands (e.g. to make
  * `restartCloudflared` reject) without having to reimplement the rest —
  * a minimal fault seam for exercising failure-branch behavior.
+ *
+ * `declarations` pre-populates the fake lychee-resources clone. Only the dev
+ * server passes it (SEEDED_DECLARATIONS); tests start from an empty clone so
+ * that no seeded port claim or name can change what they assert.
  */
-export function createFakes(overrides: Partial<SystemCommands> = {}): {
+export function createFakes(
+  overrides: Partial<SystemCommands> = {},
+  seed: { declarations?: DeclarationSummary[] } = {},
+): {
   fs: ReturnType<typeof createInMemoryFileSystem>;
   commands: SystemCommands;
 } {
   const fs = createInMemoryFileSystem();
+  // Stands in for the lychee-resources clone, so attach/remove round-trip in
+  // dev and in route tests. Mirrors the real writer's refusals that matter to
+  // a caller (existing name, claimed port), not its validation.
+  const declarations = new Map<string, DeclarationSummary>(
+    (seed.declarations ?? []).map((d) => [d.name, { ...d }]),
+  );
 
   const commands: SystemCommands = {
     validateCaddyfile: (caddyfilePath) =>
@@ -117,10 +136,49 @@ export function createFakes(overrides: Partial<SystemCommands> = {}): {
           units.flatMap((u) => (u in seededUnitStates ? [[u, seededUnitStates[u]]] : [])),
         ),
       ),
-    // No seeded container services: "unknown" is the honest neutral answer.
-    readResourceStatus: () => Promise.resolve("unknown"),
+    // Only seeded containers have state; for every other one "unknown" is the
+    // honest neutral answer. The board and a site's page read the same map, so
+    // dev mode can never show one container two ways.
+    checkResourceContainerStatus: (project) =>
+      Promise.resolve(seededResourceContainers[project] ?? { state: "unknown" }),
+    readResourceStatus: (project) =>
+      Promise.resolve(project in seededResourceContainers ? toRowStatus(seededResourceContainers[project]) : "unknown"),
     readTimerSchedule: () => Promise.resolve(SEEDED_TIMER_SCHEDULE),
-    writeDeclarationTag: () => Promise.resolve({ ok: true }),
+    writeDeclarationTag: (name, tag) => {
+      const decl = declarations.get(name);
+      if (decl) {
+        const base = decl.image.replace(/:[^:/]*$/, "");
+        declarations.set(name, { ...decl, image: `${base}:${tag}` });
+      }
+      return Promise.resolve({ ok: true });
+    },
+    createSiteDeclaration: (name, repo, port) => {
+      const existing = declarations.get(name);
+      if (existing) {
+        return Promise.resolve({
+          ok: false,
+          reason:
+            existing.state === "absent"
+              ? `${name}.yml already exists with state: absent; prune it from lychee-resources first.`
+              : `A declaration named ${name}.yml already exists in lychee-resources.`,
+        });
+      }
+      const claimant = [...declarations.values()].find((d) => d.port === port);
+      if (claimant) {
+        return Promise.resolve({ ok: false, reason: `Port ${port} is already claimed by ${claimant.name}.` });
+      }
+      declarations.set(name, { name, port, state: "running", image: `ghcr.io/lycheehome/${repo.trim().toLowerCase()}` });
+      return Promise.resolve({ ok: true });
+    },
+    setDeclarationState: (name, state) => {
+      const decl = declarations.get(name);
+      if (!decl) return Promise.resolve({ ok: false, reason: `No declaration named ${name}.yml in lychee-resources.` });
+      declarations.set(name, { ...decl, state });
+      return Promise.resolve({ ok: true });
+    },
+    readDeclarations: () => Promise.resolve([...declarations.values()].map((d) => ({ ...d }))),
+    // The fake clone is always readable and has no remote to pull from.
+    refreshDeclarations: () => Promise.resolve(),
   };
 
   return { fs, commands: { ...commands, ...overrides } };

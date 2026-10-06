@@ -37,6 +37,10 @@ interface InventoryEntryBase {
   /** The newest tag the registry offers. Absent means no upgrade is on offer,
    *  not that anything is wrong. */
   available?: string;
+  /** The reconciler task that failed and its error, for `result: failed`.
+   *  Absent when nothing failed, and from inventories published before the
+   *  field existed; neither is an error. */
+  failedStep?: string;
 }
 
 /** A systemd unit, read with `systemctl show`. */
@@ -146,8 +150,10 @@ function toEntry(raw: Record<string, unknown>): InventoryEntry | null {
   const lastRun = knownString(raw.last_run);
   const target = knownVersion(raw.target);
   const available = knownVersion(raw.available);
+  const failedStep = knownString(raw.failed_step);
   if (target !== undefined) entry.target = target;
   if (available !== undefined) entry.available = available;
+  if (failedStep !== undefined) entry.failedStep = failedStep;
   if (version !== undefined) entry.version = version;
   if (commit !== undefined) entry.commit = commit;
   if (gate !== undefined) entry.gate = gate;

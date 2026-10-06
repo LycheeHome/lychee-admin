@@ -19,9 +19,25 @@ const flashBannerProgress = document.getElementById("flash-banner-progress");
 const flashBannerClose = document.getElementById("flash-banner-close");
 let flashBannerTimeout = null;
 
-function showBanner(message, kind) {
+const flashBannerAction = document.getElementById("flash-banner-action");
+let flashBannerActionHandler = null;
+
+flashBannerAction?.addEventListener("click", () => {
+  const handler = flashBannerActionHandler;
+  if (handler) handler();
+});
+
+// `action` ({ label, onClick }) is optional and only meaningful on an error:
+// a recovery the operator can take from the toast itself. Every call resets
+// it, so an action can never outlive the message it was offered with.
+function showBanner(message, kind, action) {
   if (!flashBanner || !flashBannerMessage || !flashBannerClose) return;
   clearTimeout(flashBannerTimeout);
+  flashBannerActionHandler = action?.onClick ?? null;
+  if (flashBannerAction) {
+    flashBannerAction.textContent = action?.label ?? "";
+    flashBannerAction.classList.toggle("hidden", !action);
+  }
   flashBanner.classList.remove("hidden", "bg-red-950/60", "border-red-400/70", "bg-rose-950", "border-rose-400/70");
   // Only the "info" tone is ever in-flight (see the add form's submit
   // handler, the one caller today) — the pulsing dot says "still working",
@@ -49,6 +65,8 @@ function showBanner(message, kind) {
 
 function hideBanner() {
   clearTimeout(flashBannerTimeout);
+  flashBannerActionHandler = null;
+  flashBannerAction?.classList.add("hidden");
   flashBanner?.classList.add("hidden");
   flashBannerProgress?.classList.add("hidden");
 }
@@ -200,6 +218,63 @@ confirmRemoveDialog?.addEventListener("cancel", (event) => {
   if (deleteInFlight) event.preventDefault();
 });
 
+// POST /detach. Resolves { ok, reason } and never throws, so every caller —
+// the dialog's own chain and the toast's Retry — handles one shape.
+async function retireDeclaration(hostname) {
+  try {
+    const response = await fetch(`/sites/${encodeURIComponent(hostname)}/detach`, { method: "POST" });
+    const body = await response.json().catch(() => ({}));
+    if (response.ok && body.ok) return { ok: true };
+    return { ok: false, reason: body.reason ?? `HTTP ${response.status}` };
+  } catch {
+    return { ok: false, reason: "could not reach the server" };
+  }
+}
+
+// Site removal already succeeded by the time this runs — files deletion is a
+// separate request specifically so a failure here can't be confused with the
+// (already-completed) config removal. Resolves the error text, or null.
+async function deleteSiteFiles(hostname) {
+  try {
+    const response = await fetch(`/sites/${encodeURIComponent(hostname)}/delete-files`, { method: "POST" });
+    const body = await response.json().catch(() => ({}));
+    return response.ok ? null : (body.error ?? "unknown error");
+  } catch {
+    return "could not reach the server";
+  }
+}
+
+function filesFailureMessage(hostname, error) {
+  return `Removed ${hostname} from Caddy and the sites tunnel, but deleting its files failed:\n${error}\n\nThe site is no longer served. Its files are still on disk.`;
+}
+
+// The site is gone from Caddy and the tunnel, but its container is still
+// declared running. The dialog closes because a modal makes everything
+// beneath it inert, the toast included; the toast then carries the one thing
+// left to do. Retry re-posts /detach and, once it lands, resumes the chain
+// where it stopped — file deletion, if it was asked for, then the list.
+function offerDeclarationRetry(hostname, needsFileConfirm, reason) {
+  if (confirmRemoveDialog?.open) confirmRemoveDialog.close();
+  showBanner(`Site removed, but its container is still declared running: ${reason}`, "error", {
+    label: "Retry",
+    onClick: async () => {
+      showBanner(`Retiring ${hostname}'s container declaration…`, "info");
+      const detached = await retireDeclaration(hostname);
+      if (!detached.ok) {
+        offerDeclarationRetry(hostname, needsFileConfirm, detached.reason);
+        return;
+      }
+      const filesError = needsFileConfirm ? await deleteSiteFiles(hostname) : null;
+      if (filesError) {
+        showBanner(filesFailureMessage(hostname, filesError), "error");
+        return;
+      }
+      window.location.href = `/?removed=${encodeURIComponent(hostname)}`;
+    },
+  });
+  flashBannerAction?.focus();
+}
+
 document.getElementById("confirm-remove-submit")?.addEventListener("click", async (event) => {
   if (deleteInFlight || removalSettled) return;
   const hostname = event.currentTarget.dataset.hostname;
@@ -231,21 +306,23 @@ document.getElementById("confirm-remove-submit")?.addEventListener("click", asyn
       return;
     }
 
-    if (!result.needsFileConfirm) {
-      window.location.href = `/?removed=${encodeURIComponent(hostname)}`;
-      return;
+    // A resource-backed site's declaration is retired in its own request,
+    // sent only now that the Caddy/tunnel removal has succeeded — never as
+    // part of it. If it fails, nothing after it runs: file deletion waits
+    // until the container has actually been told to stop.
+    if (confirmRemoveDialog?.dataset.attached === "true") {
+      setOutcome(`Retiring ${hostname}'s container declaration…`, false);
+      const detached = await retireDeclaration(hostname);
+      markSteps("confirm-remove-steps", [{ id: "declaration", status: detached.ok ? "ok" : "failed" }]);
+      if (!detached.ok) {
+        offerDeclarationRetry(hostname, result.needsFileConfirm, detached.reason);
+        return;
+      }
     }
 
-    // Site removal already succeeded at this point — files deletion is a
-    // separate request specifically so a failure here can't be confused
-    // with the (already-completed) config removal.
-    const filesResponse = await fetch(`/sites/${encodeURIComponent(hostname)}/delete-files`, { method: "POST" });
-    const filesResult = await filesResponse.json();
-    if (!filesResponse.ok) {
-      setOutcome(
-        `Removed ${hostname} from Caddy and the sites tunnel, but deleting its files failed:\n${filesResult.error ?? "unknown error"}\n\nThe site is no longer served. Its files are still on disk.`,
-        true,
-      );
+    const filesError = result.needsFileConfirm ? await deleteSiteFiles(hostname) : null;
+    if (filesError) {
+      setOutcome(filesFailureMessage(hostname, filesError), true);
       return;
     }
     window.location.href = `/?removed=${encodeURIComponent(hostname)}`;
@@ -777,5 +854,63 @@ document.querySelectorAll("[data-deploy]").forEach((button) => {
       showBanner(`Could not reach the server to request ${tag} for ${name}.`, "error");
     }
     button.disabled = false;
+  });
+});
+
+// A Next.js site's Attach control. The server takes the port from the site's
+// own Caddyfile block, so only the repository name is sent. Success reloads the
+// page rather than patching it: the attached state (awaiting image, the
+// resource and image rows) is server-rendered, and a reload is also what shows
+// it after the reconciler's next run.
+document.querySelectorAll("form[data-attach]").forEach((attachForm) => {
+  const hostname = attachForm.dataset.attach;
+  const repoInput = attachForm.querySelector('input[name="repo"]');
+  const submit = attachForm.querySelector('button[type="submit"]');
+  const error = attachForm.querySelector("#attach-error");
+  let inFlight = false;
+
+  function showError(message) {
+    if (!error) return;
+    // Unhide before writing, as #add-site-error does: a role="alert" region
+    // inside display:none announces nothing.
+    error.classList.remove("hidden");
+    error.textContent = message;
+  }
+
+  attachForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (inFlight || submit?.disabled) return;
+    const repo = String(repoInput?.value ?? "").trim();
+    if (!repo) {
+      showError("Enter the repository's name.");
+      repoInput?.focus();
+      return;
+    }
+
+    inFlight = true;
+    error?.classList.add("hidden");
+    if (submit) submit.disabled = true;
+    showBanner(`Attaching ${repo} to ${hostname}…`, "info");
+    try {
+      const response = await fetch(`/sites/${encodeURIComponent(hostname)}/attach`, {
+        method: "POST",
+        body: new URLSearchParams({ repo }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (response.ok && body.ok) {
+        // inFlight stays true: the page is about to be replaced, and a second
+        // submit before it is would only be refused as an existing declaration.
+        // The path alone, so a ?created=1 notice from add-site is not replayed.
+        window.location.href = window.location.pathname;
+        return;
+      }
+      hideBanner();
+      showError(body.reason ?? `Could not attach ${repo} (HTTP ${response.status}).`);
+    } catch {
+      hideBanner();
+      showError(`Could not reach the server to attach ${repo}.`);
+    }
+    inFlight = false;
+    if (submit) submit.disabled = false;
   });
 });

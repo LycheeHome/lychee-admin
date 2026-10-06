@@ -1,4 +1,4 @@
-import { escapeHtml, DETAIL_WIDTH, FOCUS_RING } from "./shared";
+import { escapeHtml, BUTTON_OFFER, DETAIL_WIDTH, FOCUS_RING } from "./shared";
 
 export interface Nav {
   /** Which header item is current. Absent on a site detail page. */
@@ -77,6 +77,11 @@ const DISMISS_BUTTON =
  * wholesale; nesting it would delete it the next time the banner fires.
  * motion-safe: means a reduced-motion viewer sees a plain static dot rather
  * than a moving one, the same gating every other motion in this app uses.
+ *
+ * #flash-banner-action is the toast's one optional recovery control (today
+ * only Retry, after a site was removed but its declaration was not retired).
+ * showBanner() labels and reveals it, and hides it again on every other call,
+ * so an action can never outlive the message it belongs to.
  */
 function renderFlashBanner(): string {
   const base =
@@ -87,7 +92,10 @@ function renderFlashBanner(): string {
           <span id="flash-banner-progress" class="hidden shrink-0 h-1.5 w-1.5 rounded-full bg-stone-50 motion-safe:animate-pulse" aria-hidden="true"></span>
           <span id="flash-banner-message"></span>
         </span>
-        <button type="button" id="flash-banner-close" class="hidden ${DISMISS_BUTTON}" aria-label="Dismiss">&times;</button>
+        <span class="flex items-center gap-2 shrink-0">
+          <button type="button" id="flash-banner-action" class="hidden ${BUTTON_OFFER}"></button>
+          <button type="button" id="flash-banner-close" class="hidden ${DISMISS_BUTTON}" aria-label="Dismiss">&times;</button>
+        </span>
       </div>`;
 }
 

@@ -27,6 +27,14 @@ export type Validation = { ok: true } | { ok: false; error: string };
 
 const HEALTHCHECK_PATH_PATTERN = /^\/[A-Za-z0-9._~\-/]{0,199}$/;
 
+/** Appended to a site's label to form its container-resource name. */
+export const SITE_SUFFIX = "-lyly-dev";
+
+/** A resource name is capped at 63 characters (a DNS label, and the
+ *  reconciler's own limit), so a site's label may use 63 minus the suffix. */
+export const MAX_RESOURCE_NAME_LENGTH = 63;
+export const MAX_SITE_LABEL_LENGTH = MAX_RESOURCE_NAME_LENGTH - SITE_SUFFIX.length;
+
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -77,6 +85,25 @@ export function validateSiteInput(input: SiteInput, env: SiteEnv): Validation {
     return { ok: false, error: "A valid local port is required for a reverse proxy site" };
   }
 
+  // A Next.js site becomes the resource <label>-lyly-dev. Refused here rather
+  // than at Attach, so the site is never added in a shape it can never be
+  // attached in; here rather than in the route, so preview and submit agree.
+  if (input.framework === "nextjs") {
+    const label = input.hostname.slice(0, input.hostname.length - env.domain.length - 1);
+    if (label.length > MAX_SITE_LABEL_LENGTH) {
+      return {
+        ok: false,
+        error: `A Next.js site's label can be at most ${MAX_SITE_LABEL_LENGTH} characters (this one is ${label.length}): it becomes the resource name <label>${SITE_SUFFIX}, which is capped at ${MAX_RESOURCE_NAME_LENGTH}.`,
+      };
+    }
+  }
+
+  // The reconciler's validator rejects sites below 1024, and one rejected
+  // declaration freezes every resource on the host for a tick.
+  if (input.framework === "nextjs" && Number(input.port) < 1024) {
+    return { ok: false, error: "A Next.js site needs a port of 1024 or above; lower ports are privileged" };
+  }
+
   if (input.healthcheckPath && !HEALTHCHECK_PATH_PATTERN.test(input.healthcheckPath)) {
     return { ok: false, error: `"${input.healthcheckPath}" is not a valid healthcheck path` };
   }
@@ -89,6 +116,7 @@ export function validateAgainstExisting(
   input: SiteInput,
   caddyfileContent: string,
   env: SiteEnv,
+  declaredPorts: Map<number, string>,
 ): Validation {
   if (hostnameExists(caddyfileContent, input.hostname)) {
     return { ok: false, error: `${input.hostname} already exists in the Caddyfile` };
@@ -101,6 +129,13 @@ export function validateAgainstExisting(
       ok: false,
       error: `Port ${input.port} is reserved (used by lyly-admin itself or Caddy's admin API)`,
     };
+  }
+
+  // Every claim counts, absent declarations included: two declarations on one
+  // port make the reconciler reject both.
+  const claimant = declaredPorts.get(Number(input.port));
+  if (claimant) {
+    return { ok: false, error: `Port ${input.port} is already claimed by ${claimant} in lychee-resources.` };
   }
 
   const conflicting = parseSites(caddyfileContent).find(

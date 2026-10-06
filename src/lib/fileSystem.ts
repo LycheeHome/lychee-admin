@@ -20,6 +20,7 @@ export interface FileSystem {
   appendFile(path: string, content: string): void;
   copyFile(source: string, destination: string): void;
   rmRecursive(path: string): void;
+  exists(path: string): boolean;
 }
 
 export const realFileSystem: FileSystem = {
@@ -39,4 +40,5 @@ export const realFileSystem: FileSystem = {
   rmRecursive: (p) => {
     fs.rmSync(p, { recursive: true, force: true });
   },
+  exists: (p) => fs.existsSync(p),
 };

@@ -1,7 +1,16 @@
 import { execFile as execFileCb, spawn } from "node:child_process";
 import { promisify } from "node:util";
-import { writeDeclarationTag, type WriteResult } from "./declarationWriter";
-import { parseComposePsOutput, parseServiceStatusOutput, type ContainerStatus } from "./containerStatus";
+import {
+  createSiteDeclaration,
+  readDeclarations,
+  refreshDeclarations,
+  setDeclarationState,
+  writeDeclarationTag,
+  type GitRunner,
+  type WriteResult,
+} from "./declarationWriter";
+import { parseComposePsOutput, toRowStatus, type ContainerStatus } from "./containerStatus";
+import type { DeclarationSummary } from "./siteResource";
 import {
   parseTimerSchedule,
   parseUnitShowOutput,
@@ -38,6 +47,14 @@ export class CommandError extends Error {
  * the operator would not know which of the two happened.
  */
 const STATUS_READ_TIMEOUT_MS = 2000;
+
+/**
+ * How long a page load waits for the lychee-resources clone to be refreshed.
+ * Longer than a status read because it is a network round trip to GitHub; each
+ * git call it makes is killed at this bound too, so a wedged pull cannot hold
+ * the clone queue (and every write behind it) open indefinitely.
+ */
+const DECLARATION_REFRESH_TIMEOUT_MS = 5000;
 
 /**
  * Runs a single command via execFile (never a shell), so arguments can't be
@@ -83,10 +100,19 @@ export interface SystemCommands {
   writeManagedConfig(targetPath: string, content: string): Promise<void>;
   checkContainerStatus(hostname: string): Promise<ContainerStatus>;
   readUnitStates(units: string[]): Promise<Record<string, UnitState>>;
+  checkResourceContainerStatus(project: string): Promise<ContainerStatus>;
   readResourceStatus(project: string): Promise<ServiceStatus>;
   readTimerSchedule(timer: string): Promise<TimerSchedule>;
   writeDeclarationTag(name: string, tag: string): Promise<WriteResult>;
+  createSiteDeclaration(name: string, repo: string, port: number): Promise<WriteResult>;
+  setDeclarationState(name: string, state: "absent"): Promise<WriteResult>;
+  /** The local clone's declarations; null when the clone cannot be read. */
+  readDeclarations(): Promise<DeclarationSummary[] | null>;
+  /** Pulls the local clone, bounded in time. Never throws. */
+  refreshDeclarations(): Promise<void>;
 }
+
+const gitRunner: GitRunner = (args, options) => run("git", args, options);
 
 export const realSystemCommands: SystemCommands = {
   validateCaddyfile(caddyfilePath) {
@@ -201,21 +227,31 @@ export const realSystemCommands: SystemCommands = {
    * output means no compose file there, which the shared parser reads as
    * not-created. Output goes through containerStatus.ts like the site path
    * does; a second parser would be a second thing to keep correct against
-   * compose versions. Degrades to "unknown" on any failure, never throws: the
-   * services page must not error, and an unreadable state is not evidence of
-   * a stopped container.
+   * compose versions. Degrades to { state: "unknown" } on any failure, never
+   * throws: an unreadable state is not evidence of a stopped container.
    */
-  async readResourceStatus(project) {
+  async checkResourceContainerStatus(project) {
     try {
       const { stdout } = await run(
         "sudo",
         ["/usr/local/sbin/lyly-admin-resource-status", project],
         { timeoutMs: STATUS_READ_TIMEOUT_MS },
       );
-      return parseServiceStatusOutput(stdout);
+      return parseComposePsOutput(stdout);
     } catch {
-      return "unknown";
+      return { state: "unknown" };
     }
+  },
+
+  /**
+   * The same read as a board-row status. Still "unknown" on any failure (the
+   * services page must not error), because checkResourceContainerStatus
+   * degrades to { state: "unknown" } and toRowStatus passes that through.
+   * Called through realSystemCommands rather than `this`, so the method keeps
+   * working when it is passed around detached.
+   */
+  async readResourceStatus(project) {
+    return toRowStatus(await realSystemCommands.checkResourceContainerStatus(project));
   },
 
   /**
@@ -243,13 +279,48 @@ export const realSystemCommands: SystemCommands = {
   },
 
   /**
-   * The app's one write capability: change a version tag in a declaration in
-   * lychee-resources, which the reconciler then applies. No sudo. The app
+   * The app's write capability: requests in lychee-resources, which the
+   * reconciler then applies. A tag change, a new site declaration, a site set
+   * absent; each is a git push with the existing deploy key. No sudo. The app
    * writes a request and never the thing that acts on it; see declarationWriter.ts.
    */
   writeDeclarationTag(name, tag) {
-    return writeDeclarationTag(name, tag, {
-      git: (args, options) => run("git", args, options),
+    return writeDeclarationTag(name, tag, { git: gitRunner });
+  },
+
+  createSiteDeclaration(name, repo, port) {
+    return createSiteDeclaration(name, repo, port, { git: gitRunner });
+  },
+
+  setDeclarationState(name, state) {
+    return setDeclarationState(name, state, { git: gitRunner });
+  },
+
+  /** The local clone as last pulled; no git, no network. null when unreadable. */
+  readDeclarations() {
+    return Promise.resolve(readDeclarations());
+  },
+
+  /**
+   * Called by the GETs that read declarations (the add page and a site's
+   * page), never by POST /sites/preview, which runs per keystroke, nor by
+   * POST /sites, so the preview and the submit still read one clone. Waits at
+   * most DECLARATION_REFRESH_TIMEOUT_MS; past that the page renders from the
+   * clone as it is, and the pull either finishes in the queue or is killed.
+   */
+  async refreshDeclarations() {
+    let timer: NodeJS.Timeout | undefined;
+    const deadline = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, DECLARATION_REFRESH_TIMEOUT_MS);
+      timer.unref();
     });
+    try {
+      await Promise.race([
+        refreshDeclarations({ git: gitRunner, timeoutMs: DECLARATION_REFRESH_TIMEOUT_MS }),
+        deadline,
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
   },
 };

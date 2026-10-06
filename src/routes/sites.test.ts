@@ -1,4 +1,4 @@
-import { after, before, beforeEach, describe, test } from "node:test";
+import { after, afterEach, before, beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { once } from "node:events";
@@ -57,6 +57,8 @@ ingress:
 `;
 
 let fakeFs: ReturnType<typeof createInMemoryFileSystem>;
+let fakeCommands: import("../lib/systemCommands").SystemCommands;
+const createSiteDirectoryCalls: string[] = [];
 
 function writeFixtures(caddyfile = SEED_CADDYFILE, tunnel = SEED_TUNNEL): void {
   fakeFs.rmRecursive(SITES_ROOT);
@@ -103,9 +105,17 @@ before(async () => {
   const { createLogger } = await import("../lib/logger");
   const { createFakes } = await import("../dev/fakes");
 
-  const fakes = createFakes();
+  const fakes = createFakes({
+    createSiteDirectory: (hostname) => {
+      createSiteDirectoryCalls.push(hostname);
+      fakeFs.mkdir(path.posix.join(SITES_ROOT, hostname));
+      return Promise.resolve({ stdout: "", stderr: "" });
+    },
+  });
   fakeFs = fakes.fs;
+  fakeCommands = fakes.commands;
   writeFixtures();
+  await fakes.commands.createSiteDeclaration("palsave-api", "palsave-api", 8788);
 
   const app = createApp({
     commands: fakes.commands,
@@ -127,6 +137,7 @@ after(async () => {
 });
 
 beforeEach(() => {
+  createSiteDirectoryCalls.length = 0;
   writeFixtures();
 });
 
@@ -229,6 +240,18 @@ describe("GET / when the Caddyfile can't be read", () => {
 });
 
 describe("GET /sites/new", () => {
+  // GET /sites/new is async (it awaits a clone refresh). An unguarded throw
+  // there hangs the request and crashes the process under Express 4. The
+  // timeout turns a hang into a failure rather than a stuck test run.
+  test("returns 500 with the error text when the Caddyfile can't be read, rather than hanging", async () => {
+    fakeFs.rmRecursive(CADDYFILE);
+
+    const response = await request("/sites/new", { signal: AbortSignal.timeout(3000) });
+
+    assert.equal(response.status, 500);
+    assert.match(await response.text(), /ENOENT/);
+  });
+
   test("serves the add-site form with port-conflict data", async () => {
     const response = await request("/sites/new");
     assert.equal(response.status, 200);
@@ -247,6 +270,57 @@ describe("GET /sites/new", () => {
   test("is not mistaken for a hostname by the detail route", async () => {
     const body = await (await request("/sites/new")).text();
     assert.doesNotMatch(body, /No managed site found/);
+  });
+});
+
+describe("refreshing the lychee-resources clone", () => {
+  const NEXT = `${SEED_CADDYFILE}
+http://test.lyly.dev {
+\t# lyly-admin-framework: nextjs
+\t# lyly-admin-healthcheck: /
+\treverse_proxy localhost:3000
+}
+`;
+  let saved: import("../lib/systemCommands").SystemCommands["refreshDeclarations"];
+  let refreshes = 0;
+
+  beforeEach(() => {
+    writeFixtures(NEXT);
+    refreshes = 0;
+    saved = fakeCommands.refreshDeclarations;
+    fakeCommands.refreshDeclarations = () => {
+      refreshes += 1;
+      return Promise.resolve();
+    };
+  });
+
+  afterEach(() => {
+    fakeCommands.refreshDeclarations = saved;
+  });
+
+  test("the add page refreshes the clone, so its preview and submit read a fresh one", async () => {
+    assert.equal((await request("/sites/new")).status, 200);
+    assert.equal(refreshes, 1);
+  });
+
+  test("a Next.js site's page refreshes the clone before reading its declaration", async () => {
+    assert.equal((await request("/sites/test.lyly.dev")).status, 200);
+    assert.equal(refreshes, 1);
+  });
+
+  test("the preview, which runs per keystroke, and the submit never refresh", async () => {
+    await request("/sites/preview", form({ hostname: "docs.lyly.dev", type: "reverse-proxy", port: "3300" }));
+    await request("/sites", form({ hostname: "docs.lyly.dev", type: "reverse-proxy", port: "3300" }));
+    assert.equal(refreshes, 0);
+  });
+
+  // The real refresh never rejects; this is the contract failing anyway.
+  test("a refresh that fails still renders both pages", async () => {
+    fakeCommands.refreshDeclarations = () => Promise.reject(new Error("network down"));
+    assert.equal((await request("/sites/new")).status, 200);
+    const response = await request("/sites/test.lyly.dev");
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /From a repository/);
   });
 });
 
@@ -310,23 +384,55 @@ describe("POST /sites — static", () => {
 });
 
 describe("POST /sites — reverse proxy", () => {
-  test("writes the Next.js scaffold and both marker comments", async () => {
+  test("a Next.js site writes both marker comments and nothing to the host", async () => {
     const response = await request(
       "/sites",
       form({ hostname: "app.lyly.dev", type: "reverse-proxy", port: "3000", framework: "nextjs", healthcheckPath: "/api/health" }),
     );
     assert.equal(response.status, 200);
-    assert.equal((await json<{ framework: string }>(response)).framework, "nextjs");
+    const body = await json<{ framework: string; steps: { id: string; status: string }[] }>(response);
+    assert.equal(body.framework, "nextjs");
+    assert.equal(body.steps.find((step) => step.id === "files")?.status, "skipped");
 
     const caddyfile = fakeFs.readFile(CADDYFILE);
     assert.match(caddyfile, /# lyly-admin-framework: nextjs/);
     assert.match(caddyfile, /# lyly-admin-healthcheck: \/api\/health/);
 
     const siteDir = path.join(SITES_ROOT, "app.lyly.dev");
-    assert.equal(fakeFs.hasDir(siteDir), true);
-    assert.match(fakeFs.readFile(path.join(siteDir, "Dockerfile")), /HEALTHCHECK .*\/api\/health/);
-    assert.match(fakeFs.readFile(path.join(siteDir, "docker-compose.yml")), /127\.0\.0\.1:3000:3000/);
-    assert.ok(fakeFs.hasFile(path.join(siteDir, ".dockerignore")));
+    assert.equal(fakeFs.hasDir(siteDir), false);
+    assert.equal(fakeFs.hasFile(path.join(siteDir, "Dockerfile")), false);
+    assert.equal(fakeFs.hasFile(path.join(siteDir, ".github/workflows/release.yml")), false);
+    assert.deepEqual(createSiteDirectoryCalls, []);
+  });
+
+  test("a static site still creates its directory", async () => {
+    await request("/sites", form({ hostname: "static.lyly.dev", type: "static" }));
+    assert.deepEqual(createSiteDirectoryCalls, ["static.lyly.dev"]);
+  });
+
+  test("rejects a port claimed by a declaration, naming it", async () => {
+    const response = await request("/sites", form({ hostname: "clash.lyly.dev", type: "reverse-proxy", port: "8788" }));
+    assert.equal(response.status, 500);
+    assert.equal(
+      (await json<{ error: string }>(response)).error,
+      "Port 8788 is already claimed by palsave-api in lychee-resources.",
+    );
+  });
+
+  test("an unreadable clone (null) degrades to no claims", async () => {
+    const original = fakeCommands.readDeclarations;
+    fakeCommands.readDeclarations = () => Promise.resolve(null);
+    try {
+      const response = await request("/sites", form({ hostname: "ok.lyly.dev", type: "reverse-proxy", port: "8788" }));
+      assert.equal(response.status, 200);
+    } finally {
+      fakeCommands.readDeclarations = original;
+    }
+  });
+
+  test("refuses a Next.js site on a privileged port", async () => {
+    const response = await request("/sites", form({ hostname: "low.lyly.dev", type: "reverse-proxy", port: "80", framework: "nextjs" }));
+    assert.equal(response.status, 400);
   });
 
   test("creates no directory for a reverse proxy with no framework", async () => {
@@ -697,6 +803,17 @@ describe("POST /sites/preview", () => {
     assert.equal(fakeFs.hasFile(path.join(SITES_ROOT, "docs.lyly.dev", "index.html")), false);
   });
 
+  // The handler is async (it awaits the declared ports), so an unguarded
+  // throw would hang the request and crash the process under Express 4.
+  test("an unreadable Caddyfile answers with an error, rather than hanging", async () => {
+    fakeFs.rmRecursive(CADDYFILE);
+    const response = await request("/sites/preview", form({ hostname: "docs.lyly.dev", type: "static" }));
+    assert.equal(response.status, 200);
+    const body = await json<{ ready: boolean; error: string }>(response);
+    assert.equal(body.ready, false);
+    assert.match(body.error, /ENOENT/);
+  });
+
   test("an empty hostname is not ready and not an error — the form is merely early", async () => {
     const response = await request("/sites/preview", form({ hostname: "", type: "static" }));
     assert.equal(response.status, 200);
@@ -720,6 +837,26 @@ describe("POST /sites/preview", () => {
       await request("/sites", form({ hostname: "docs.lyly.dev", type: "reverse-proxy", port: "4000" })),
     );
     assert.equal(preview.error, submit.error);
+  });
+
+  test("rejects a declared port with the same string the submit returns", async () => {
+    const fields = { hostname: "docs.lyly.dev", type: "reverse-proxy", port: "8788" };
+    const preview = await json<{ ready: boolean; error: string }>(await request("/sites/preview", form(fields)));
+    const submit = await json<{ error: string }>(await request("/sites", form(fields)));
+    assert.equal(preview.ready, false);
+    assert.equal(preview.error, submit.error);
+    assert.match(preview.error, /palsave-api in lychee-resources/);
+  });
+
+  test("a Next.js preview offers the files for the repository, not /var/www", async () => {
+    const response = await request(
+      "/sites/preview",
+      form({ hostname: "docs.lyly.dev", type: "reverse-proxy", port: "4100", framework: "nextjs" }),
+    );
+    const body = await json<{ preview: { files: { path: string; creates: string[]; destination: string } } }>(response);
+    assert.equal(body.preview.files.destination, "repository");
+    assert.doesNotMatch(body.preview.files.path, /\/var\/www/);
+    assert.equal(body.preview.files.creates.length, 3);
   });
 
   test("marks the directory step as not running for a plain reverse proxy", async () => {
@@ -750,5 +887,371 @@ describe("audit log", () => {
     assert.equal(entry.action, "add-site");
     assert.equal(entry.hostname, "new.lyly.dev");
     assert.ok(entry.timestamp);
+  });
+});
+
+// --- Site resources: attach, awaiting image, deploy ------------------------
+
+const INVENTORY = "/var/lib/lychee-inventory/services.json";
+
+const NEXT_CADDYFILE = `${SEED_CADDYFILE}
+http://test.lyly.dev {
+\t# lyly-admin-framework: nextjs
+\t# lyly-admin-healthcheck: /
+\treverse_proxy localhost:3000
+}
+`;
+
+function writeInventory(services: unknown[]): void {
+  fakeFs.writeFile(INVENTORY, JSON.stringify({ generated: "2026-10-05T10:00:00Z", services }));
+}
+
+function siteEntry(fields: Record<string, unknown>): Record<string, unknown> {
+  return { name: "test-lyly-dev", container: "test-lyly-dev", kind: "container", group: "service", reconciled: true, ...fields };
+}
+
+const TEST_DECLARATION = { name: "test-lyly-dev", port: 3000, state: "running", image: "ghcr.io/lycheehome/test-site" };
+
+describe("GET /sites/:hostname — a Next.js site's resource", () => {
+  type Commands = import("../lib/systemCommands").SystemCommands;
+  let saved: Partial<Commands>;
+  const calls: { container: string[]; resource: string[] } = { container: [], resource: [] };
+
+  beforeEach(() => {
+    writeFixtures(NEXT_CADDYFILE);
+    fakeFs.rmRecursive(INVENTORY);
+    calls.container.length = 0;
+    calls.resource.length = 0;
+    saved = {
+      readDeclarations: fakeCommands.readDeclarations,
+      checkContainerStatus: fakeCommands.checkContainerStatus,
+      checkResourceContainerStatus: fakeCommands.checkResourceContainerStatus,
+    };
+    fakeCommands.checkContainerStatus = (hostname) => {
+      calls.container.push(hostname);
+      return Promise.resolve({ state: "running", health: "healthy" });
+    };
+    fakeCommands.checkResourceContainerStatus = (project) => {
+      calls.resource.push(project);
+      return Promise.resolve({ state: "running", health: "healthy" });
+    };
+  });
+
+  afterEach(() => {
+    Object.assign(fakeCommands, saved);
+    fakeFs.rmRecursive(INVENTORY);
+  });
+
+  function declarations(decls: unknown[]): void {
+    fakeCommands.readDeclarations = () => Promise.resolve(decls as never);
+  }
+
+  async function page(): Promise<string> {
+    const response = await request("/sites/test.lyly.dev");
+    assert.equal(response.status, 200);
+    return withoutHeader(await response.text());
+  }
+
+  test("with no declaration, renders the three scaffold files and the attach control, and no compose command", async () => {
+    declarations([]);
+    const html = await page();
+    for (const file of ["Dockerfile", ".dockerignore", ".github/workflows/release.yml"]) {
+      assert.match(html, new RegExp(`>${file.replace(/\./g, "\\.")}<`));
+    }
+    assert.match(html, /HEALTHCHECK/);
+    assert.match(html, /data-attach=/);
+    assert.match(html, /name="repo"/);
+    assert.doesNotMatch(html, /docker compose up/);
+    assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> not deployed/);
+  });
+
+  test("before the reconciler's first tick, a written declaration reads awaiting image, not Attach again", async () => {
+    declarations([TEST_DECLARATION]);
+    const html = await page();
+    assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> awaiting image/);
+    assert.doesNotMatch(html, /data-attach=/);
+    assert.doesNotMatch(html, /data-deploy=/);
+  });
+
+  test("awaiting image with a tag on offer renders the offer and a Deploy control for the resource", async () => {
+    declarations([TEST_DECLARATION]);
+    writeInventory([siteEntry({ result: "awaiting-image", available: "0.1.0" })]);
+    const html = await page();
+    assert.match(html, /awaiting image/);
+    assert.match(html, /data-deploy="test-lyly-dev"/);
+    assert.match(html, /data-deploy-tag="0\.1\.0"/);
+    assert.match(html, /0\.1\.0 available/);
+    assert.doesNotMatch(html, /data-attach=/);
+  });
+
+  test("a deployed resource reads its last hop from the resource's container, not /var/www", async () => {
+    declarations([TEST_DECLARATION]);
+    writeInventory([siteEntry({ result: "deployed", version: "0.1.0", target: "0.1.0" })]);
+    const html = await page();
+    assert.deepEqual(calls.resource, ["test-lyly-dev"]);
+    assert.deepEqual(calls.container, []);
+    assert.match(html, /running · healthy/);
+  });
+
+  test("legacy: a Next.js site with an old directory and no declaration still offers Attach", async () => {
+    declarations([]);
+    fakeFs.mkdir("/var/www/test.lyly.dev");
+    fakeFs.writeFile("/var/www/test.lyly.dev/docker-compose.yml", "services: {}\n");
+    const html = await page();
+    assert.match(html, /data-attach=/);
+    assert.deepEqual(calls.container, []);
+  });
+
+  test("a retired declaration renders as not attached, with Attach enabled and the prune warning beside it", async () => {
+    declarations([{ ...TEST_DECLARATION, state: "absent" }]);
+    writeInventory([siteEntry({ result: "deployed" })]);
+    const html = await page();
+    assert.doesNotMatch(html, /awaiting image/);
+    assert.match(html, /not deployed/);
+    assert.match(html, /prune/);
+    const button = html.match(/<button[^>]*type="submit"[^>]*>Attach repository/);
+    assert.ok(button, "no Attach button");
+    assert.doesNotMatch(button[0], /\sdisabled(?=[\s>/])/);
+  });
+
+  // The reconciler never deletes a pruned site's status.json, so its entry
+  // outlives the declaration. A readable clone with no declaration is the
+  // authority: the site is not attached, and Attach is offered again.
+  test("a readable clone with no declaration is not attached, whatever a stale inventory entry says", async () => {
+    declarations([]);
+    writeInventory([siteEntry({ result: "deployed", version: "", target: "0.2.0" })]);
+    const response = await request("/sites/test.lyly.dev");
+    const raw = await response.text();
+    const html = withoutHeader(raw);
+    assert.match(html, /data-attach=/);
+    assert.doesNotMatch(html, /awaiting image/);
+    assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> not deployed/);
+    assert.doesNotMatch(raw, /<dialog[^>]*data-attached/);
+  });
+
+  test("an unreadable clone falls back to the inventory: an entry means attached", async () => {
+    fakeCommands.readDeclarations = () => Promise.resolve(null);
+    writeInventory([siteEntry({ result: "awaiting-image", available: "0.1.0" })]);
+    const response = await request("/sites/test.lyly.dev");
+    const raw = await response.text();
+    const html = withoutHeader(raw);
+    assert.doesNotMatch(html, /data-attach=/);
+    assert.match(html, /awaiting image/);
+    assert.match(raw, /<dialog[^>]*data-attached="true"/);
+  });
+
+  test("an unreadable clone and no entry is not attached", async () => {
+    fakeCommands.readDeclarations = () => Promise.resolve(null);
+    const html = await page();
+    assert.match(html, /data-attach=/);
+  });
+
+  test("a failed first deploy reads failed, in the bad tone, and names the step and the journal", async () => {
+    declarations([TEST_DECLARATION]);
+    writeInventory([
+      siteEntry({ result: "failed", version: "", target: "0.1.0", available: "0.1.0", gate: "", failed_step: "Pull the image: manifest unknown" }),
+    ]);
+    const html = await page();
+    assert.doesNotMatch(html, /awaiting image/);
+    const pill = html.match(/<span class="([^"]*)"[^>]*data-state-pill><span aria-hidden="true">&#9679;<\/span> failed<\/span>/);
+    assert.ok(pill, "no failed pill");
+    const { TONE_PILL } = await import("../views/shared");
+    assert.equal(pill[1].includes(TONE_PILL.bad), true);
+    assert.match(html, /Pull the image: manifest unknown/);
+    assert.match(html, /journalctl -u lyly-reconcile/);
+    assert.deepEqual(calls.resource, []);
+  });
+
+  test("a failed redeploy keeps the container's own pill and shows the failure in the card", async () => {
+    declarations([TEST_DECLARATION]);
+    writeInventory([siteEntry({ result: "failed", version: "0.1.0", target: "0.2.0", failed_step: "Start the container: exit 1" })]);
+    const html = await page();
+    assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> running/);
+    assert.match(html, /Start the container: exit 1/);
+    assert.match(html, /0\.2\.0/);
+    assert.match(html, /journalctl -u lyly-reconcile/);
+  });
+});
+
+describe("POST /sites/:hostname/attach", () => {
+  type Commands = import("../lib/systemCommands").SystemCommands;
+  let saved: Commands["createSiteDeclaration"];
+  const created: [string, string, number][] = [];
+
+  beforeEach(() => {
+    writeFixtures(NEXT_CADDYFILE);
+    created.length = 0;
+    saved = fakeCommands.createSiteDeclaration;
+    fakeCommands.createSiteDeclaration = (name, repo, port) => {
+      created.push([name, repo, port]);
+      return Promise.resolve({ ok: true });
+    };
+  });
+
+  afterEach(() => {
+    fakeCommands.createSiteDeclaration = saved;
+  });
+
+  test("writes the declaration with the site's own Caddy port", async () => {
+    const response = await request("/sites/test.lyly.dev/attach", form({ repo: "Test-Site", port: "9999" }));
+    assert.equal(response.status, 200);
+    assert.deepEqual(await json(response), { ok: true });
+    assert.deepEqual(created, [["test-lyly-dev", "test-site", 3000]]);
+    const entry = JSON.parse(fakeFs.readFile(LOG_FILE).trim().split("\n").at(-1)!);
+    assert.equal(entry.action, "attach-site");
+  });
+
+  test("a bad repository is a 400 and writes nothing", async () => {
+    const response = await request("/sites/test.lyly.dev/attach", form({ repo: "LycheeHome/test site" }));
+    assert.equal(response.status, 400);
+    const body = await json<{ ok: boolean; reason: string }>(response);
+    assert.equal(body.ok, false);
+    assert.ok(body.reason);
+    assert.deepEqual(created, []);
+  });
+
+  test("a refused write is a 502 carrying the writer's reason", async () => {
+    fakeCommands.createSiteDeclaration = () =>
+      Promise.resolve({ ok: false, reason: "test-lyly-dev.yml already exists with state: absent; prune it first." });
+    const response = await request("/sites/test.lyly.dev/attach", form({ repo: "test-site" }));
+    assert.equal(response.status, 502);
+    assert.deepEqual(await json(response), {
+      ok: false,
+      reason: "test-lyly-dev.yml already exists with state: absent; prune it first.",
+    });
+    const entry = JSON.parse(fakeFs.readFile(LOG_FILE).trim().split("\n").at(-1)!);
+    assert.equal(entry.action, "attach-site-failed");
+  });
+
+  test("an unknown site or a site that is not Next.js is a 404", async () => {
+    for (const hostname of ["nope.lyly.dev", "api.lyly.dev", "blog.lyly.dev"]) {
+      const response = await request(`/sites/${hostname}/attach`, form({ repo: "test-site" }));
+      assert.equal(response.status, 404, hostname);
+    }
+    assert.deepEqual(created, []);
+  });
+});
+
+describe("removing a Next.js site: the confirm dialog", () => {
+  type Commands = import("../lib/systemCommands").SystemCommands;
+  let saved: Commands["readDeclarations"];
+
+  beforeEach(() => {
+    writeFixtures(NEXT_CADDYFILE);
+    saved = fakeCommands.readDeclarations;
+  });
+
+  afterEach(() => {
+    fakeCommands.readDeclarations = saved;
+  });
+
+  function declarations(decls: unknown[]): void {
+    fakeCommands.readDeclarations = () => Promise.resolve(decls as never);
+  }
+
+  async function dialog(): Promise<string> {
+    const response = await request("/sites/test.lyly.dev");
+    assert.equal(response.status, 200);
+    const match = (await response.text()).match(/<dialog id="confirm-remove-dialog"[\s\S]*?<\/dialog>/);
+    assert.ok(match, "no confirm-remove dialog was rendered");
+    return match[0];
+  }
+
+  const stepIds = (html: string): string[] => [...html.matchAll(/data-step-id="([a-z]+)"/g)].map((m) => m[1]);
+
+  test("an attached site lists the declaration's retirement fifth, after the cloudflared-sites restart", async () => {
+    declarations([TEST_DECLARATION]);
+    const html = await dialog();
+    assert.match(html, /<dialog[^>]*data-attached="true"/);
+    assert.deepEqual(stepIds(html), ["caddyfile", "tunnel", "caddy", "cloudflared", "declaration"]);
+  });
+
+  test("an unattached site lists the existing four and is not marked attached", async () => {
+    declarations([]);
+    const html = await dialog();
+    assert.doesNotMatch(html, /data-attached/);
+    assert.deepEqual(stepIds(html), ["caddyfile", "tunnel", "caddy", "cloudflared"]);
+  });
+
+  test("a Next.js site with no directory renders no delete-files checkbox", async () => {
+    declarations([]);
+    assert.doesNotMatch(await dialog(), /id="confirm-remove-delete-files"/);
+  });
+
+  test("test.lyly.dev's legacy directory still gets one", async () => {
+    declarations([]);
+    fakeFs.mkdir("/var/www/test.lyly.dev");
+    assert.match(await dialog(), /id="confirm-remove-delete-files"/);
+  });
+});
+
+describe("POST /sites/:hostname/detach", () => {
+  type Commands = import("../lib/systemCommands").SystemCommands;
+  let saved: Pick<Commands, "readDeclarations" | "setDeclarationState">;
+  const retired: [string, string][] = [];
+
+  beforeEach(() => {
+    writeFixtures(NEXT_CADDYFILE);
+    retired.length = 0;
+    saved = { readDeclarations: fakeCommands.readDeclarations, setDeclarationState: fakeCommands.setDeclarationState };
+    fakeCommands.readDeclarations = () => Promise.resolve([TEST_DECLARATION]);
+    fakeCommands.setDeclarationState = (name, state) => {
+      retired.push([name, state]);
+      return Promise.resolve({ ok: true });
+    };
+  });
+
+  afterEach(() => {
+    Object.assign(fakeCommands, saved);
+  });
+
+  function lastLogEntry(): { action: string; hostname: string; detail?: string } {
+    return JSON.parse(fakeFs.readFile(LOG_FILE).trim().split("\n").at(-1)!);
+  }
+
+  test("sets the declaration to absent", async () => {
+    const response = await request("/sites/test.lyly.dev/detach", form({}));
+    assert.equal(response.status, 200);
+    assert.deepEqual(await json(response), { ok: true });
+    assert.deepEqual(retired, [["test-lyly-dev", "absent"]]);
+    assert.equal(lastLogEntry().action, "detach-site");
+  });
+
+  test("works after the Caddy block is gone, so a failed retirement can be retried", async () => {
+    writeFixtures(SEED_CADDYFILE);
+    const response = await request("/sites/test.lyly.dev/detach", form({}));
+    assert.equal(response.status, 200);
+    assert.deepEqual(retired, [["test-lyly-dev", "absent"]]);
+  });
+
+  test("no declaration is a 404 and calls nothing", async () => {
+    fakeCommands.readDeclarations = () => Promise.resolve([]);
+    const response = await request("/sites/test.lyly.dev/detach", form({}));
+    assert.equal(response.status, 404);
+    assert.equal(((await json<{ ok: boolean }>(response)).ok), false);
+    assert.deepEqual(retired, []);
+  });
+
+  test("a hostname outside the managed domain is a 404 and calls nothing", async () => {
+    const response = await request("/sites/evil.example.com/detach", form({}));
+    assert.equal(response.status, 404);
+    assert.deepEqual(retired, []);
+  });
+
+  test("a refused write is a 502 carrying the writer's reason, and is logged", async () => {
+    fakeCommands.setDeclarationState = () => Promise.resolve({ ok: false, reason: "push rejected" });
+    const response = await request("/sites/test.lyly.dev/detach", form({}));
+    assert.equal(response.status, 502);
+    assert.deepEqual(await json(response), { ok: false, reason: "push rejected" });
+    assert.equal(lastLogEntry().action, "detach-site-failed");
+  });
+
+  test("an unreadable clone is a 502 saying so, not a 404 claiming nothing is declared", async () => {
+    fakeCommands.readDeclarations = () => Promise.resolve(null);
+    const response = await request("/sites/test.lyly.dev/detach", form({}));
+    assert.equal(response.status, 502);
+    assert.match((await json<{ reason: string }>(response)).reason, /could not read the local lychee-resources clone/i);
+    assert.deepEqual(retired, []);
+    assert.equal(lastLogEntry().action, "detach-site-failed");
   });
 });

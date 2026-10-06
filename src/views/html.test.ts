@@ -299,6 +299,9 @@ describe("the hostname switcher", () => {
   });
 });
 
+/** An attached site with a version installed: the only state with a container to read logs from. */
+const RUNNING_RESOURCE = { name: "app-lyly-dev", repo: "app-site", version: "0.2.0", result: "deployed" };
+
 describe("renderSiteDetail request path", () => {
   test("names all four hops", () => {
     const html = renderSiteDetail(NEXT_SITE, {
@@ -409,12 +412,12 @@ describe("renderSiteDetail request path", () => {
   });
 
   test("a failing container gets its logs hint beside the hop that reports it", () => {
-    const html = renderSiteDetail(NEXT_SITE, { ...OPTS, status: { kind: "container", state: "exited" } });
+    const html = renderSiteDetail(NEXT_SITE, { ...OPTS, resource: RUNNING_RESOURCE, status: { kind: "container", state: "exited" } });
     const card = html.split("Request path</h3>")[1].split("</section>")[0];
     // Remediation sits with the failure, not as a numbered setup step that
     // appears and disappears with container state.
     assert.match(card, /id="cmd-logs"/);
-    assert.match(card, /docker compose logs/);
+    assert.match(card, /docker compose -p app-lyly-dev logs/);
     const steps = html.split("Manual steps</h3>")[1].split("</section>")[0];
     assert.doesNotMatch(steps, /cmd-logs/);
   });
@@ -478,7 +481,7 @@ describe("renderSiteDetail manual steps", () => {
   test("a static site gets no container steps", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     assert.doesNotMatch(html, /docker compose up/);
-    assert.doesNotMatch(html, /docker compose logs/);
+    assert.doesNotMatch(html, /cmd-logs|compose -p/);
   });
 
   test("a plain proxy gets no docker step — lyly-admin scaffolded nothing", () => {
@@ -493,7 +496,7 @@ describe("renderSiteDetail manual steps", () => {
       scaffold: SCAFFOLD,
     });
     const card = html.split("Manual steps</h3>")[1].split("</section>")[0];
-    // Deploying is the workflow's job and lives in Deploy; only DNS is manual
+    // Deploying lives in From a repository; only DNS is manual
     // in the strong sense for a scaffolded proxy site.
     assert.match(card, /cmd-dns/);
     assert.doesNotMatch(card, /docker compose/);
@@ -503,24 +506,25 @@ describe("renderSiteDetail manual steps", () => {
   test("a healthy site is not offered the logs step", () => {
     const html = renderSiteDetail(NEXT_SITE, {
       ...OPTS,
+      resource: RUNNING_RESOURCE,
       status: { kind: "container", state: "running", health: "healthy" },
     });
-    assert.doesNotMatch(html, /docker compose logs/);
+    assert.doesNotMatch(html, /cmd-logs|compose -p/);
   });
 
   test("a broken container adds the logs step", () => {
-    const html = renderSiteDetail(NEXT_SITE, { ...OPTS, status: { kind: "container", state: "exited" } });
-    assert.match(html, /docker compose logs/);
+    const html = renderSiteDetail(NEXT_SITE, { ...OPTS, resource: RUNNING_RESOURCE, status: { kind: "container", state: "exited" } });
+    assert.match(html, /docker compose -p app-lyly-dev logs/);
     assert.match(html, /id="cmd-logs"/);
   });
 
   test("an unreadable container status is not treated as broken", () => {
-    const html = renderSiteDetail(NEXT_SITE, { ...OPTS, status: { kind: "container", state: "unknown" } });
-    assert.doesNotMatch(html, /docker compose logs/);
+    const html = renderSiteDetail(NEXT_SITE, { ...OPTS, resource: RUNNING_RESOURCE, status: { kind: "container", state: "unknown" } });
+    assert.doesNotMatch(html, /cmd-logs|compose -p/);
   });
 
   test("a never-deployed container is not asked to read logs it has none of", () => {
-    const html = renderSiteDetail(NEXT_SITE, { ...OPTS, status: { kind: "container", state: "not-created" } });
+    const html = renderSiteDetail(NEXT_SITE, { ...OPTS, resource: RUNNING_RESOURCE, status: { kind: "container", state: "not-created" } });
     assert.doesNotMatch(html, /cmd-logs/);
   });
 });
@@ -541,90 +545,72 @@ describe("renderSiteDetail deploy", () => {
     const html = withoutHeader(
       renderSiteDetail(NEXT_SITE, {
         ...OPTS,
-        status: { kind: "container", state: "running", health: "healthy" },
+        status: { kind: "container", state: "not-created" },
         scaffold: SCAFFOLD,
       }),
     );
-    // Anchored to the Deploy card: the breadcrumb's hostname switcher is its
-    // own, unrelated <details> elsewhere on the page.
-    //
-    // Split in two steps, with an assert.ok in between, rather than chaining
-    // straight through to a slice: the doesNotMatch calls below pass
-    // trivially on an empty string, so if "Deploy</h3>" ever stopped
-    // appearing this needs to fail with a clear message here, not let the
-    // second .split silently produce "" (or throw an opaque TypeError on
-    // undefined) and have the negative assertions pass having proven nothing.
-    const [, afterDeployHeading] = html.split("Deploy</h3>");
-    assert.ok(afterDeployHeading, "expected a Deploy card to anchor to");
-    const card = afterDeployHeading.split("</section>")[0];
+    // Anchored to the card: the breadcrumb's hostname switcher is its own,
+    // unrelated <details> elsewhere on the page. Split in two steps with an
+    // assert between, because the negative assertions below pass trivially on
+    // an empty string.
+    const [, afterHeading] = html.split("From a repository</h3>");
+    assert.ok(afterHeading, "expected a From a repository card to anchor to");
+    const card = afterHeading.split("</section>")[0];
     assert.doesNotMatch(card, /<details/);
     assert.doesNotMatch(card, /<summary/);
-    // Deploy is a plain card like Request path and Manual steps.
-    assert.match(html, />Deploy<\/h3>/);
   });
 
-  test("only the compose command is copyable; build and run are data, not instructions", () => {
+  test("build and run are data, not instructions", () => {
     const html = renderSiteDetail(NEXT_SITE, {
       ...OPTS,
-      status: { kind: "container", state: "running", health: "healthy" },
+      status: { kind: "container", state: "not-created" },
       scaffold: SCAFFOLD,
     });
-    assert.match(html, /data-copy-target="cmd-compose"/);
-    // buildCommand and runCommand describe what the Dockerfile bakes in and
-    // that compose run triggers. A copy button on them reads as "run these",
-    // which is both wrong and the reverse of the actual order.
+    // buildCommand and runCommand describe what the Dockerfile bakes in. A
+    // copy button on them reads as "run these", which is wrong.
     assert.match(html, /npm run build/);
     assert.match(html, /npm start/);
     assert.doesNotMatch(html, /cmd-build|cmd-run/);
     assert.match(html, /not commands to run yourself/);
   });
 
-  test("deploy states the one command you run yourself", () => {
+  test("no state offers a docker compose command to run by hand", () => {
     const html = renderSiteDetail(NEXT_SITE, {
       ...OPTS,
-      status: { kind: "container", state: "running", health: "healthy" },
+      status: { kind: "container", state: "not-created" },
       scaffold: SCAFFOLD,
     });
-    const card = html.split(">Deploy</h3>")[1];
-    // It was an aside behind "Not using GitHub Actions?" while a workflow led
-    // the card. The workflow never worked off lychee, so this is the whole
-    // instruction now and must not read as a fallback.
-    assert.doesNotMatch(card, /Not using GitHub Actions\?/);
-    assert.match(card, /id="cmd-compose"/);
-    assert.match(card, /docker compose up -d --build/);
+    // The reconciler runs the container now; the operator never does.
+    assert.doesNotMatch(html, /cmd-compose/);
+    assert.doesNotMatch(html, /docker compose up/);
+    assert.doesNotMatch(html, />Deploy<\/h3>/);
   });
 
-  test("the command comes before what the image does, not after", () => {
+  test("the runbook comes before what the image does, not after", () => {
     const html = renderSiteDetail(NEXT_SITE, {
       ...OPTS,
-      status: { kind: "container", state: "running", health: "healthy" },
+      status: { kind: "container", state: "not-created" },
       scaffold: SCAFFOLD,
     });
-    // Ordering carried the wrong implication: the baked-in commands first read
-    // as "do these, then deploy", when the compose run is what causes them.
-    assert.ok(
-      html.indexOf("cmd-compose") < html.indexOf("npm run build"),
-      "the compose command must precede the baked-in commands",
-    );
+    const tag = html.indexOf("cmd-tag");
+    assert.notEqual(tag, -1, "expected the tag command");
+    assert.ok(tag < html.indexOf("npm run build"), "the steps must precede the baked-in commands");
   });
 
   test("every copy button inside a code block shares one right-hand inset", () => {
     const html = withoutHeader(
       renderSiteDetail(NEXT_SITE, {
         ...OPTS,
-        status: { kind: "container", state: "running", health: "healthy" },
+        status: { kind: "container", state: "not-created" },
         scaffold: SCAFFOLD,
+        scaffoldFiles: [{ name: "Dockerfile", content: "FROM node:20-alpine\n" }],
       }),
     );
-    // The DNS command and the compose command each carry one. They drifted
-    // once (right-1.5 vs right-2) and 2px was noticeable. This was 3 while the
-    // card led with a multi-line workflow block, whose button pinned to the
-    // top rather than centring; that block is gone, the inset rule is not.
-    // Scoped past the header, whose own markup carries no absolutely
-    // positioned elements today but is stripped anyway for the same reason
-    // as the tests above.
+    // The DNS command, the tag command and each file carry one. They drifted
+    // once (right-1.5 vs right-2) and 2px was noticeable. Files pin top-right
+    // and commands centre-right; the inset is the same either way.
     const insets = [...html.matchAll(/class="[^"]*\babsolute\b[^"]*?(right-[^\s"]+)/g)].map((m) => m[1]);
-    assert.ok(insets.length >= 2, `expected 2+ positioned copy buttons, saw ${insets.length}`);
+    assert.ok(insets.length >= 3, `expected 3+ positioned copy buttons, saw ${insets.length}`);
     assert.equal(
       new Set(insets).size,
       1,
@@ -632,16 +618,23 @@ describe("renderSiteDetail deploy", () => {
     );
   });
 
-  test("a site with no scaffold gets no Deploy section at all", () => {
+  test("a site with no scaffold gets no repository card at all", () => {
     const html = renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: true } });
-    assert.doesNotMatch(html, />Deploy<\/h3>/);
-    assert.doesNotMatch(html, /cmd-build|cmd-run|cmd-compose/);
+    assert.doesNotMatch(html, />From a repository<\/h3>/);
+    assert.doesNotMatch(html, /cmd-build|cmd-run|cmd-compose|cmd-tag/);
   });
 
   test("copy buttons are distinguishable by name", () => {
-    const html = renderSiteDetail(NEXT_SITE, OPTS);
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...OPTS,
+      scaffold: SCAFFOLD,
+      scaffoldFiles: [
+        { name: "Dockerfile", content: "FROM x\n" },
+        { name: ".dockerignore", content: "node_modules\n" },
+      ],
+    });
     const labels = [...html.matchAll(/aria-label="(Copy [^"]*)"/g)].map((match) => match[1]);
-    assert.ok(labels.length >= 2, "expected at least two copy buttons");
+    assert.ok(labels.length >= 4, "expected at least four copy buttons");
     assert.equal(new Set(labels).size, labels.length, `duplicate copy labels: ${labels.join(", ")}`);
   });
 });
@@ -723,7 +716,7 @@ describe("renderSiteDetail danger zone", () => {
   });
 
   test("a site with files offers the delete checkbox naming the exact path", () => {
-    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    const html = renderSiteDetail(STATIC_SITE, { ...OPTS, filesExist: true });
     assert.match(html, /id="confirm-remove-delete-files"[\s\S]{0,200}?\/var\/www\/blog\.lyly\.dev/);
   });
 
@@ -732,13 +725,49 @@ describe("renderSiteDetail danger zone", () => {
     assert.doesNotMatch(html, /id="confirm-remove-delete-files"/);
   });
 
-  test("a scaffolded site keeps the running-container warning", () => {
+  test("a static site whose directory is gone offers nothing to delete", () => {
+    const html = renderSiteDetail(STATIC_SITE, { ...OPTS, filesExist: false });
+    assert.doesNotMatch(html, /id="confirm-remove-delete-files"/);
+  });
+
+  test("a legacy Next.js directory keeps the checkbox and its running-container warning", () => {
     const html = renderSiteDetail(NEXT_SITE, {
       ...OPTS,
+      filesExist: true,
       status: { kind: "container", state: "running", health: "healthy" },
     });
+    assert.match(html, /id="confirm-remove-delete-files"[\s\S]{0,200}?\/var\/www\/app\.lyly\.dev/);
     assert.match(html, /docker compose down/);
     assert.match(html, /won't stop it/);
+  });
+
+  test("a Next.js site with no directory has no checkbox and no docker compose instruction", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...OPTS, status: { kind: "container", state: "not-created" } });
+    const dialog = html.match(/<dialog id="confirm-remove-dialog"[\s\S]*?<\/dialog>/)?.[0] ?? "";
+    assert.doesNotMatch(dialog, /id="confirm-remove-delete-files"/);
+    assert.doesNotMatch(dialog, /docker compose/);
+  });
+
+  test("an attached site lists retiring its declaration fifth, and says what that does", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...OPTS,
+      resource: { name: "app-lyly-dev", repo: "app-site", version: "0.2.0", result: "deployed" },
+      status: { kind: "container", state: "running", health: "healthy" },
+    });
+    const dialog = html.match(/<dialog id="confirm-remove-dialog"[\s\S]*?<\/dialog>/)?.[0] ?? "";
+    assert.match(dialog, /<dialog[^>]*data-attached="true"/);
+    const list = listById(html, "confirm-remove-steps");
+    assert.deepEqual([...list.matchAll(/data-step-id="([a-z]+)"/g)].map((m) => m[1]), ["caddyfile", "tunnel", "caddy", "cloudflared", "declaration"]);
+    assert.match(list, />5\.<\/span><span>app-lyly-dev\.yml set to state: absent<\/span>/);
+    assert.match(dialog, /reconciler takes the container down on its next run/);
+    assert.doesNotMatch(dialog, /docker compose/);
+  });
+
+  test("an unattached site keeps four steps and no attached marker", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...OPTS, status: { kind: "container", state: "not-created" } });
+    const dialog = html.match(/<dialog id="confirm-remove-dialog"[^>]*>/)?.[0] ?? "";
+    assert.doesNotMatch(dialog, /data-attached/);
+    assert.doesNotMatch(listById(html, "confirm-remove-steps"), /data-step-id="declaration"/);
   });
 });
 
@@ -757,12 +786,11 @@ describe("remove dialog accessibility", () => {
     const cancel = html.match(/<button[^>]*data-close-dialog="confirm-remove-dialog"[^>]*>/);
     assert.ok(cancel, "no Cancel button was rendered");
     assert.match(cancel[0], /\bautofocus\b/);
-    const checkbox = tagById(html, "confirm-remove-delete-files");
-    assert.doesNotMatch(checkbox, /\bautofocus\b/);
+    assert.doesNotMatch(tagById(renderSiteDetail(STATIC_SITE, { ...OPTS, filesExist: true }), "confirm-remove-delete-files"), /\bautofocus\b/);
   });
 
   test("the delete-files checkbox uses the system accent and focus ring", () => {
-    const checkbox = tagById(renderSiteDetail(STATIC_SITE, OPTS), "confirm-remove-delete-files");
+    const checkbox = tagById(renderSiteDetail(STATIC_SITE, { ...OPTS, filesExist: true }), "confirm-remove-delete-files");
     assert.match(checkbox, /accent-rose-400/);
     assert.match(checkbox, /focus-visible:outline-rose-400/);
   });
@@ -846,8 +874,10 @@ describe("the ?created=1 notice", () => {
   test("a scaffolded site is told why it reads as not deployed", () => {
     const html = renderSiteDetail(NEXT_SITE, { ...OPTS, created: true });
     assert.match(notice(html), /routing is live/);
-    assert.match(notice(html), /scaffold is at \/var\/www\/app\.lyly\.dev/);
-    assert.match(notice(html), /not deployed until you add your source/);
+    // Add-site writes nothing to /var/www for a Next.js site any more.
+    assert.doesNotMatch(notice(html), /\/var\/www/);
+    assert.match(notice(html), /not deployed until a repository is attached/);
+    assert.match(notice(html), /From a repository has the steps/);
   });
 
   test("it is dismissible when created, and absent otherwise", () => {
@@ -1553,6 +1583,11 @@ describe("renderServicesPage", () => {
     assert.ok(!offerBoard({ version: "v1.4.0", available: "v1.4.0" }).includes("data-deploy"));
   });
 
+  test("a tag already requested is not offered again", () => {
+    const html = offerBoard({ version: "v1.4.0", target: "v1.5.0", available: "v1.5.0", result: "blocked", gate: "job test concluded: failure" });
+    assert.ok(!html.includes("data-deploy"));
+  });
+
   test("a failed result shows the failed step, not a Deploy button", () => {
     const html = offerBoard({ version: "v1.4.0", available: "v1.5.0", result: "failed", gate: "health check failed after install" });
     assert.ok(html.includes("health check failed after install"));
@@ -1687,5 +1722,272 @@ describe("renderSiteDetail request path: live unit state", () => {
 
   test("no unitStates at all renders no hop status", () => {
     assert.ok(!renderSiteDetail(STATIC_SITE, OPTS).includes("data-hop-status"));
+  });
+});
+
+describe("renderSiteDetail from a repository", () => {
+  const FILES = [
+    { name: "Dockerfile", content: "FROM node:20-alpine AS deps\nWORKDIR /app\n" },
+    { name: ".dockerignore", content: "node_modules\n.next\n" },
+    { name: ".github/workflows/release.yml", content: "on:\n  push:\n    tags: ['v*.*.*']\n" },
+  ];
+  const BASE = { ...OPTS, scaffold: { buildCommand: "npm run build", runCommand: "npm start" }, scaffoldFiles: FILES };
+  const RESOURCE = { name: "app-lyly-dev", repo: "app-site" };
+
+  function card(html: string): string {
+    const [, after] = withoutHeader(html).split(">From a repository</h3>");
+    assert.ok(after, "expected a From a repository card");
+    return after.split("</section>")[0];
+  }
+
+  test("not attached: every scaffold file in full, with nothing folded or scrolled", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...BASE, status: { kind: "container", state: "not-created" } });
+    const c = card(html);
+    for (const file of FILES) {
+      assert.ok(c.includes(`>${file.name}<`), `missing ${file.name}`);
+      assert.ok(c.includes(file.content.trimEnd().replace(/'/g, "'")), `${file.name} not in full`);
+    }
+    assert.doesNotMatch(c, /<details|role="tab"|max-h-|overflow-y/);
+    assert.match(c, /git tag v0\.1\.0 &amp;&amp; git push origin v0\.1\.0/);
+  });
+
+  test("not attached: the attach control fixes the ghcr prefix beside the input and is the page's ember action", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...BASE, status: { kind: "container", state: "not-created" } });
+    const c = card(html);
+    assert.match(c, /data-attach="app\.lyly\.dev"/);
+    assert.match(c, />ghcr\.io\/lycheehome\/</);
+    assert.match(c, /name="repo"/);
+    assert.ok(c.includes(BUTTON_PRIMARY), "Attach should be the primary button");
+    assert.match(c, /LycheeHome/);
+  });
+
+  test("no Next.js state tells the operator to run docker compose up", () => {
+    for (const opts of [
+      { ...BASE, status: { kind: "container", state: "not-created" } as const },
+      { ...BASE, resource: RESOURCE, status: { kind: "awaiting-image" } as const },
+      { ...BASE, resource: { ...RESOURCE, version: "0.2.0", result: "deployed" }, status: { kind: "container", state: "exited" } as const },
+    ]) {
+      assert.doesNotMatch(renderSiteDetail(NEXT_SITE, opts), /docker compose up/);
+    }
+  });
+
+  test("a Next.js site with no directory has no files row", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...BASE, status: { kind: "container", state: "not-created" } });
+    assert.doesNotMatch(html, /files<\/span>/);
+  });
+
+  test("awaiting image is neutral in the pill and on the last hop", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...BASE, resource: RESOURCE, status: { kind: "awaiting-image" } });
+    assert.ok(html.includes(`<span class="${TONE_PILL.neutral}" data-state-pill><span aria-hidden="true">&#9679;</span> awaiting image</span>`));
+    assert.match(html, new RegExp(`${TONE_TEXT.neutral}[^"]*"><span aria-hidden="true">●</span> awaiting first image`));
+    assert.doesNotMatch(html, /text-red-300[^"]*"><span aria-hidden="true">●<\/span> awaiting/);
+  });
+
+  test("attached: resource and image join the request path's detail rows", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...BASE, resource: RESOURCE, status: { kind: "awaiting-image" } });
+    const path = html.split("Request path</h3>")[1].split("</section>")[0];
+    assert.match(path, /resource<\/span><span[^>]*>app-lyly-dev</);
+    assert.match(path, /image<\/span><span[^>]*>ghcr\.io\/lycheehome\/app-site</);
+  });
+
+  test("attached before the first tick: no Attach, no Deploy, and the reason nothing is offered yet", () => {
+    const c = card(renderSiteDetail(NEXT_SITE, { ...BASE, resource: RESOURCE, status: { kind: "awaiting-image" } }));
+    assert.doesNotMatch(c, /data-attach/);
+    assert.doesNotMatch(c, /data-deploy=/);
+    assert.match(c, /next run/);
+  });
+
+  test("awaiting image with a tag on offer: the board's offer line ends the runbook", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...BASE,
+      resource: { ...RESOURCE, result: "awaiting-image", available: "0.1.0" },
+      status: { kind: "awaiting-image" },
+    });
+    const c = card(html);
+    const offer = c.match(/<p[^>]*data-offer>[\s\S]*?<\/p>/);
+    assert.ok(offer, "expected the offer line");
+    assert.match(offer[0], /0\.1\.0 available/);
+    assert.ok(offer[0].includes(`class="${BUTTON_OFFER}" data-deploy="app-lyly-dev" data-deploy-tag="0.1.0">Deploy 0.1.0</button>`));
+    assert.ok(c.lastIndexOf("data-offer") > c.indexOf("ghcr.io/lycheehome/app-site"), "the offer comes after the attach step");
+    // Not in the page header: Visit stays the header's one ember control.
+    const header = withoutHeader(html).split("Request path</h3>")[0];
+    assert.doesNotMatch(header, /data-deploy/);
+  });
+
+  test("the offer is the same markup the services board renders", () => {
+    const board = renderServicesPage(
+      {
+        groups: [
+          {
+            group: "service",
+            rows: [
+              { kind: "container", container: "app-lyly-dev", name: "app-lyly-dev", group: "service", reconciled: true, version: "0.2.0", available: "0.3.0", result: "deployed", status: "running", since: null },
+            ],
+          },
+        ],
+        schedule: { next: null, last: null },
+        timerUnit: null,
+        generated: null,
+        inventoryAvailable: true,
+      },
+      new Date("2026-10-05T00:00:00Z"),
+    );
+    const site = renderSiteDetail(NEXT_SITE, {
+      ...BASE,
+      resource: { ...RESOURCE, version: "0.2.0", available: "0.3.0", result: "deployed" },
+      status: { kind: "container", state: "running", health: "healthy" },
+    });
+    const offerOf = (html: string) => html.match(/<p[^>]*data-offer>[\s\S]*?<\/p>/)?.[0];
+    assert.ok(offerOf(board));
+    assert.equal(offerOf(site), offerOf(board));
+  });
+
+  test("running: the scaffold and setup steps are gone; the resource facts stay", () => {
+    const c = card(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, version: "0.2.0", result: "deployed" },
+        status: { kind: "container", state: "running", health: "healthy" },
+      }),
+    );
+    assert.doesNotMatch(c, /Dockerfile<|release\.yml|data-attach|git tag/);
+    assert.match(c, /running<\/span><span[^>]*>0\.2\.0</);
+    assert.match(c, /LycheeHome\/app-site/);
+    assert.doesNotMatch(c, /data-deploy=/);
+  });
+
+  test("a deploy already requested is not offered a second time", () => {
+    const c = card(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, result: "awaiting-image", available: "0.1.0", target: "0.1.0" },
+        status: { kind: "awaiting-image" },
+      }),
+    );
+    assert.doesNotMatch(c, /data-deploy=/);
+    assert.match(c, /0\.1\.0 requested/);
+  });
+
+  // The clone may be stale (refreshed on page load, but bounded), so the page
+  // warns and the writer's own fresh pull decides; it refuses with the same
+  // prune reason if the retired file is still there.
+  test("detached: renders as not attached, Attach enabled, with the prune warning tied to it", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...BASE, detached: true, status: { kind: "container", state: "not-created" } });
+    const c = card(html);
+    assert.doesNotMatch(html, /awaiting image/);
+    assert.match(c, /app-lyly-dev\.yml/);
+    assert.match(c, /pruned/);
+    const button = c.match(/<button[^>]*type="submit"[^>]*>/);
+    assert.ok(button);
+    assert.doesNotMatch(button[0], /\sdisabled(?=[\s>/])/);
+    assert.match(button[0], /aria-describedby="attach-warning"/);
+    const input = c.match(/<input[^>]*id="attach-repo"[^>]*>/);
+    assert.ok(input);
+    assert.doesNotMatch(input[0], /\sdisabled(?=[\s>/])/);
+    assert.match(input[0], /aria-describedby="attach-prefix attach-warning"/);
+    assert.match(c, /id="attach-warning"/);
+  });
+
+  test("a failed first deploy: the Deploy step names the tag, the failed step and the journal, and offers nothing", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...BASE,
+      resource: { ...RESOURCE, result: "failed", target: "0.1.0", available: "0.1.0", failedStep: "Pull the image: <manifest> unknown" },
+      status: { kind: "failed" },
+    });
+    const c = card(html);
+    assert.match(c, /data-deploy-failed/);
+    assert.match(c, /0\.1\.0/);
+    assert.match(c, /Pull the image: &lt;manifest&gt; unknown/);
+    assert.match(c, /journalctl -u lyly-reconcile/);
+    assert.doesNotMatch(c, /0\.1\.0 requested/);
+    assert.doesNotMatch(c, /data-deploy=/);
+    assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> failed<\/span>/);
+  });
+
+  test("a failed deploy with no failed step still names the tag and the journal", () => {
+    const c = card(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, result: "failed", target: "0.1.0" },
+        status: { kind: "failed" },
+      }),
+    );
+    assert.match(c, /data-deploy-failed/);
+    assert.match(c, /journalctl -u lyly-reconcile/);
+    assert.doesNotMatch(c, /data-failed-step/);
+  });
+
+  test("a failed redeploy shows the failure line in the collapsed card", () => {
+    const c = card(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, version: "0.1.0", target: "0.2.0", result: "failed", failedStep: "Start the container: exit 1" },
+        status: { kind: "container", state: "running" },
+      }),
+    );
+    assert.match(c, /data-deploy-failed/);
+    assert.match(c, /0\.2\.0/);
+    assert.match(c, /Start the container: exit 1/);
+    assert.match(c, /journalctl -u lyly-reconcile/);
+  });
+
+  test("blocked shows its gate and no failure line", () => {
+    const c = card(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, version: "0.1.0", target: "0.2.0", result: "blocked", gate: "job test concluded: failure" },
+        status: { kind: "container", state: "running" },
+      }),
+    );
+    assert.match(c, /job test concluded: failure/);
+    assert.doesNotMatch(c, /data-deploy-failed/);
+  });
+
+  test("a requested tag whose deploy failed shows the gate, not a promise of the next run", () => {
+    for (const result of ["failed", "blocked"]) {
+      const c = card(
+        renderSiteDetail(NEXT_SITE, {
+          ...BASE,
+          resource: { ...RESOURCE, result, available: "0.1.0", target: "0.1.0", gate: "health check failed after install" },
+          status: { kind: "awaiting-image" },
+        }),
+      );
+      assert.match(c, /health check failed after install/, result);
+      assert.doesNotMatch(c, /pulls it and starts the container/, result);
+    }
+  });
+
+  test("with a tag found but none on offer, the Deploy step shows the gate, not the push-v0.1.0 copy", () => {
+    const c = card(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, result: "failed", available: "0.1.0", gate: "health check failed after install" },
+        status: { kind: "awaiting-image" },
+      }),
+    );
+    assert.match(c, /health check failed after install/);
+    assert.doesNotMatch(c, /No tag found/);
+    assert.doesNotMatch(c, /data-deploy=/);
+  });
+
+  test("with no tag found, the Deploy step asks for v0.1.0", () => {
+    const c = card(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, result: "awaiting-image", gate: "no image yet" },
+        status: { kind: "awaiting-image" },
+      }),
+    );
+    assert.match(c, /No tag found/);
+  });
+
+  test("a running resource that fails points at its logs by project, not a /var/www directory", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...BASE,
+      resource: { ...RESOURCE, version: "0.2.0", result: "deployed" },
+      status: { kind: "container", state: "exited" },
+    });
+    assert.match(html, /docker compose -p app-lyly-dev logs/);
+    assert.doesNotMatch(html, /in \/var\/www\/app\.lyly\.dev\//);
   });
 });

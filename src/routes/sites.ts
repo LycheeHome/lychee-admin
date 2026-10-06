@@ -4,7 +4,9 @@ import { config } from "../config";
 import * as caddyfile from "../lib/caddyfile";
 import * as tunnelConfig from "../lib/tunnelConfig";
 import { CommandError } from "../lib/systemCommands";
+import { claimedPorts, normalizeRepo, resourceNameFor, type DeclarationSummary } from "../lib/siteResource";
 import { getFrameworkScaffold, getScaffoldFiles } from "../lib/frameworkScaffold";
+import { readInventory, type InventoryEntry } from "../lib/serviceInventory";
 import { checkPortOpen } from "../lib/portStatus";
 import { ADD_STEPS, REMOVE_STEPS, createStepReport } from "../lib/stepReport";
 import {
@@ -16,7 +18,13 @@ import {
   type SiteEnv,
 } from "../lib/siteValidation";
 import { buildSitePreview } from "../lib/sitePreview";
-import { renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "../views/html";
+import {
+  renderAddSite,
+  renderSiteDetail,
+  renderSiteList,
+  renderSiteNotFound,
+  type SiteResourceView,
+} from "../views/html";
 import type { SiteStatus } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
 import type { Site } from "../lib/caddyfile";
@@ -50,19 +58,118 @@ function computePortOwners(sites: Site[]): Record<string, string> {
   return portOwners;
 }
 
+const IMAGE_PREFIX = "ghcr.io/lycheehome/";
+
+/** `ghcr.io/lycheehome/<repo>[:tag]` -> `<repo>`; null for any other image. */
+function repoFromImage(image: string): string | null {
+  if (!image.startsWith(IMAGE_PREFIX)) return null;
+  const rest = image.slice(IMAGE_PREFIX.length).replace(/:[^:/]*$/, "");
+  return rest && !rest.includes("/") ? rest : null;
+}
+
+/** What the reconciler side knows, read once per request and shared across sites. */
+interface ResourceSources {
+  /** null when the local clone could not be read: "could not tell", not "none". */
+  declarations: DeclarationSummary[] | null;
+  entries: InventoryEntry[];
+}
+
+async function readResourceSources(deps: Deps): Promise<ResourceSources> {
+  // Both reads degrade rather than failing the page: an unreadable clone is
+  // null (the real read never rejects; a rejection means the same thing), a
+  // missing inventory no entries.
+  const declarations = await deps.commands.readDeclarations().catch(() => null);
+  return { declarations, entries: readInventory(deps.fs).entries };
+}
+
+/**
+ * Pulls the local clone before a page reads it, so a declaration pruned or
+ * added on GitHub by hand is seen. Bounded and non-throwing by contract; the
+ * catch is for the contract failing, because a stale clone is never a reason
+ * to fail a page.
+ */
+async function refreshClone(deps: Deps): Promise<void> {
+  await deps.commands.refreshDeclarations().catch(() => undefined);
+}
+
+interface NextjsState {
+  status: SiteStatus;
+  resource?: SiteResourceView;
+  detached: boolean;
+}
+
+const NOT_DEPLOYED: SiteStatus = { kind: "container", state: "not-created" };
+
+/**
+ * A Next.js site's state, decided from its declaration and its inventory entry.
+ *
+ * Attached means a declaration that is not `absent`, or — only when the clone
+ * could not be read at all (null) — an inventory entry. The declaration wins
+ * whenever it exists, because the inventory has no notion of `absent`: a
+ * retired declaration must never read as awaiting, whatever the reconciler
+ * last published. And a readable clone with no declaration wins over the
+ * inventory too: the reconciler never deletes a pruned site's status file, so
+ * its entry outlives the declaration, and trusting it would show a site that
+ * was pruned and re-added as attached forever, with no Attach to offer and a
+ * Remove that retires a declaration that does not exist.
+ *
+ * A declaration with no inventory entry is the reconciler not having ticked
+ * since the attach. That is still attached (awaiting image), so reloading the
+ * page after attaching never offers Attach a second time.
+ *
+ * Only an installed version means a container exists to ask about; before that
+ * the site is awaiting its first image, or — when the reconciler tried to
+ * deploy it and could not — failed. The legacy /var/www container is never
+ * consulted.
+ */
+async function resolveNextjsSite(site: Site, sources: ResourceSources, deps: Deps): Promise<NextjsState> {
+  const name = resourceNameFor(site.hostname, config.domain);
+  if (!name) return { status: NOT_DEPLOYED, detached: false };
+
+  const declaration = sources.declarations?.find((d) => d.name === name);
+  const entry = sources.entries.find((e) => e.kind === "container" && e.name === name);
+  if (declaration?.state === "absent") return { status: NOT_DEPLOYED, detached: true };
+  // An entry stands in for the declaration only when the clone was unreadable.
+  if (!declaration && (sources.declarations !== null || !entry)) return { status: NOT_DEPLOYED, detached: false };
+
+  const resource: SiteResourceView = {
+    name,
+    repo: declaration ? repoFromImage(declaration.image) : null,
+    ...(entry?.available !== undefined ? { available: entry.available } : {}),
+    ...(entry?.version !== undefined ? { version: entry.version } : {}),
+    ...(entry?.result !== undefined ? { result: entry.result } : {}),
+    ...(entry?.target !== undefined ? { target: entry.target } : {}),
+    ...(entry?.gate !== undefined ? { gate: entry.gate } : {}),
+    ...(entry?.failedStep !== undefined ? { failedStep: entry.failedStep } : {}),
+  };
+  if (!resource.version) {
+    return { status: { kind: resource.result === "failed" ? "failed" : "awaiting-image" }, resource, detached: false };
+  }
+
+  const container = await deps.commands
+    .checkResourceContainerStatus(name)
+    .catch(() => ({ state: "unknown" as const }));
+  return { status: { kind: "container", ...container }, resource, detached: false };
+}
+
 /**
  * Status for the list page. Reverse-proxy sites only: static sites have no
  * check today and gain none here. Concurrent, so the page costs the slowest
  * check rather than their sum — and every call is bounded, because
- * checkContainerStatus carries its own timeout and checkPortOpen a 500ms one.
+ * checkResourceContainerStatus carries its own timeout and checkPortOpen a
+ * 500ms one. The list does not refresh the clone: it is the five-second
+ * glance, and a git pull per view would make it the slowest page.
  */
 async function computeStatuses(sites: Site[], deps: Deps): Promise<Record<string, SiteStatus>> {
+  const proxies = sites.filter((site) => site.type === "reverse-proxy");
+  const sources = proxies.some((site) => site.framework) ? await readResourceSources(deps) : null;
   const entries = await Promise.all(
-    sites
-      .filter((site) => site.type === "reverse-proxy")
+    proxies
       .map(async (site): Promise<[string, SiteStatus]> => {
-        if (site.framework) {
-          return [site.hostname, { kind: "container", ...(await deps.commands.checkContainerStatus(site.hostname)) }];
+        // The same resolution as the detail page, so the list's pill and the
+        // site's own page can never describe one site two ways.
+        if (site.framework && sources) {
+          return [site.hostname, (await resolveNextjsSite(site, sources, deps)).status];
         }
         const port = Number(site.target);
         return [site.hostname, { kind: "tcp", responding: port >= 1 && port <= 65535 ? await checkPortOpen(port) : false }];
@@ -73,6 +180,19 @@ async function computeStatuses(sites: Site[], deps: Deps): Promise<Record<string
 
 export function createSitesRouter(deps: Deps): Router {
   const sitesRouter = Router();
+
+  // Called once per request, by both POST /sites and POST /sites/preview, so
+  // the two can never disagree about which ports are claimed. An unreadable
+  // clone (null) degrades to no claims: the writer re-checks at declaration
+  // time. Neither route refreshes the clone (the add page's GET did), so the
+  // two always read the same one.
+  async function readDeclaredPorts(): Promise<Map<number, string>> {
+    try {
+      return claimedPorts((await deps.commands.readDeclarations()) ?? []);
+    } catch {
+      return new Map();
+    }
+  }
   const { backupFile } = deps.backup;
   const { logAction } = deps.logger;
 
@@ -100,15 +220,28 @@ export function createSitesRouter(deps: Deps): Router {
   // Registered above /sites/:hostname deliberately: Express matches in
   // registration order, so if this were below, "new" would be captured as
   // :hostname, fail isManagedHostname, and 404 instead of rendering the form.
-  sitesRouter.get("/sites/new", (req, res) => {
-    const content = deps.fs.readFile(config.caddyfilePath);
-    const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname, config.domain));
-    res.send(
-      renderAddSite(sites, config.domain, computePortOwners(sites), {
-        caddyfilePath: config.caddyfilePath,
-        tunnelConfigPath: config.tunnelConfigPath,
-      }),
-    );
+  sitesRouter.get("/sites/new", async (req, res) => {
+    // Async handler: an unguarded throw hangs the request and crashes the
+    // process under Express 4, so a read failure becomes an ordinary 500, the
+    // same as GET /.
+    try {
+      // For the preview and submit this page sends: neither refreshes, so the
+      // port claims they check are as fresh as this page load.
+      await refreshClone(deps);
+      const content = deps.fs.readFile(config.caddyfilePath);
+      const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname, config.domain));
+      res.send(
+        renderAddSite(sites, config.domain, computePortOwners(sites), {
+          caddyfilePath: config.caddyfilePath,
+          tunnelConfigPath: config.tunnelConfigPath,
+        }),
+      );
+    } catch (error) {
+      const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
+      // The URL is /sites/new, not / — same reasoning as the detail page's
+      // fallback: no header item is marked current.
+      res.status(500).send(renderSiteList([], {}, config.domain, message, {}));
+    }
   });
 
   sitesRouter.get("/sites/:hostname", async (req, res) => {
@@ -155,6 +288,7 @@ export function createSitesRouter(deps: Deps): Router {
             tunnelConfigPath: config.tunnelConfigPath,
             caddyfilePath: config.caddyfilePath,
             unitStates,
+            filesExist: deps.fs.exists(path.posix.join(config.sitesRoot, site.hostname)),
             sites,
             created,
           }),
@@ -167,21 +301,28 @@ export function createSitesRouter(deps: Deps): Router {
       // port number) — treat it as simply "not responding" rather than
       // letting an invalid value reach net.connect inside checkPortOpen.
       const port = Number(site.target);
-      const [status, unitStates] = await Promise.all([
-        (async (): Promise<SiteStatus> =>
+      const [nextjs, unitStates] = await Promise.all([
+        (async (): Promise<NextjsState> =>
           site.framework
-            ? { kind: "container", ...(await deps.commands.checkContainerStatus(hostname)) }
-            : { kind: "tcp", responding: port >= 1 && port <= 65535 ? await checkPortOpen(port) : false })(),
+            ? resolveNextjsSite(site, await refreshClone(deps).then(() => readResourceSources(deps)), deps)
+            : {
+                status: { kind: "tcp", responding: port >= 1 && port <= 65535 ? await checkPortOpen(port) : false },
+                detached: false,
+              })(),
         unitStatesRead,
       ]);
-      // site.healthcheckPath is unvalidated on this read path (only POST /sites validates it);
-      // safe here only because scaffold.dockerfile is discarded below and never rendered.
+      // site.healthcheckPath is unvalidated on this read path (only POST /sites
+      // validates it), and the Dockerfile it lands in is rendered for copying.
+      // That is HTML-safe because every file is escaped at render; the
+      // Caddyfile it comes from is root-owned and written only through add-site.
       const scaffold = site.framework
-        ? getFrameworkScaffold(site.framework, site.target, site.healthcheckPath ?? "/")
+        ? getFrameworkScaffold(site.framework, site.healthcheckPath ?? "/")
         : null;
       const scaffoldCommands = scaffold
         ? { buildCommand: scaffold.buildCommand, runCommand: scaffold.runCommand }
         : undefined;
+      const scaffoldFiles = site.framework ? getScaffoldFiles(site.framework, site.healthcheckPath ?? "/") : null;
+      const filesPath = caddyfile.computeFilesPath(site, config.sitesRoot);
 
       res.send(
         renderSiteDetail(site, {
@@ -190,8 +331,12 @@ export function createSitesRouter(deps: Deps): Router {
           tunnelId,
           tunnelConfigPath: config.tunnelConfigPath,
           caddyfilePath: config.caddyfilePath,
-          status,
+          status: nextjs.status,
           scaffold: scaffoldCommands,
+          ...(scaffoldFiles ? { scaffoldFiles } : {}),
+          ...(nextjs.resource ? { resource: nextjs.resource } : {}),
+          detached: nextjs.detached,
+          filesExist: filesPath !== null && deps.fs.exists(filesPath),
           unitStates,
           sites,
           created,
@@ -229,7 +374,7 @@ export function createSitesRouter(deps: Deps): Router {
 
     try {
       caddyfileContent = deps.fs.readFile(config.caddyfilePath);
-      const existing = validateAgainstExisting(input, caddyfileContent, SITE_ENV);
+      const existing = validateAgainstExisting(input, caddyfileContent, SITE_ENV, await readDeclaredPorts());
       if (!existing.ok) throw new Error(existing.error);
 
       tunnelContent = deps.fs.readFile(config.tunnelConfigPath);
@@ -246,27 +391,18 @@ export function createSitesRouter(deps: Deps): Router {
         ),
       );
 
-      // Static sites get a directory + placeholder page; Next.js
-      // reverse-proxy sites get a directory + Dockerfile/docker-compose
-      // scaffold. A plain reverse-proxy site has no directory to create, so
-      // that case is a skip, not a step that never ran. Not covered by the
-      // rollback below if a later step fails — same deliberate asymmetry
-      // that already applies to the static placeholder file.
+      // Only static sites get a directory + placeholder page. A Next.js site
+      // is a container resource declared elsewhere, and its scaffold is for
+      // the site's own repository, so the host gets nothing; a plain proxy
+      // has no directory either. Both are skips, not steps that never ran.
+      // Not covered by the rollback below if a later step fails — same
+      // deliberate asymmetry that already applies to the placeholder file.
       if (type === "static") {
         await report.run("files", async () => {
           await deps.commands.createSiteDirectory(hostname);
           deps.fs.writeFile(path.join(sitePath, "index.html"), PLACEHOLDER_INDEX_HTML(hostname));
         });
-      } else if (framework) {
-        await report.run("files", async () => {
-          const files = getScaffoldFiles(framework, port, healthcheckPath ?? "/");
-          if (!files) return;
-          await deps.commands.createSiteDirectory(hostname);
-          for (const file of files) deps.fs.writeFile(path.join(sitePath, file.name), file.content);
-        });
       } else {
-        // A plain reverse-proxy site has no directory to create. This is not
-        // a blocked step, so it must not report as not-run.
         report.skip("files");
       }
 
@@ -358,7 +494,7 @@ export function createSitesRouter(deps: Deps): Router {
    * Always 200. A half-typed form is not a client error, and a 4xx per
    * keystroke would fill the console with failures that are merely early.
    */
-  sitesRouter.post("/sites/preview", (req, res) => {
+  sitesRouter.post("/sites/preview", async (req, res) => {
     const input = readSiteInput(req.body);
     if (!input.hostname) {
       res.json({ ready: false });
@@ -371,16 +507,123 @@ export function createSitesRouter(deps: Deps): Router {
       return;
     }
 
-    const caddyfileContent = deps.fs.readFile(config.caddyfilePath);
-    const tunnelContent = deps.fs.readFile(config.tunnelConfigPath);
+    // Async handler: a throw here would hang the request and crash the
+    // process under Express 4, so an unreadable config becomes an error the
+    // panel can show, in the same shape as any other rejection.
+    try {
+      const caddyfileContent = deps.fs.readFile(config.caddyfilePath);
+      const tunnelContent = deps.fs.readFile(config.tunnelConfigPath);
 
-    const existing = validateAgainstExisting(input, caddyfileContent, SITE_ENV);
-    if (!existing.ok) {
-      res.json({ ready: false, error: existing.error });
+      const existing = validateAgainstExisting(input, caddyfileContent, SITE_ENV, await readDeclaredPorts());
+      if (!existing.ok) {
+        res.json({ ready: false, error: existing.error });
+        return;
+      }
+
+      res.json({ ready: true, preview: buildSitePreview(input, { caddyfileContent, tunnelContent }, SITE_ENV) });
+    } catch (error) {
+      res.json({ ready: false, error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  /**
+   * Attaches a Next.js site to its repository by writing a tagless
+   * declaration to lychee-resources. The port is the site's own, read from its
+   * Caddyfile block — never from the request, so the declaration can only
+   * claim the port Caddy already proxies this hostname to. The writer refuses
+   * an existing file (naming the prune when it is retired), a claimed port and
+   * a port below 1024; the ports this app reserves for itself it cannot know
+   * about, so they are refused here.
+   */
+  sitesRouter.post("/sites/:hostname/attach", async (req, res) => {
+    const hostname = req.params.hostname.toLowerCase();
+    try {
+      const site = caddyfile
+        .parseSites(deps.fs.readFile(config.caddyfilePath))
+        .find((s) => s.hostname === hostname && isManagedHostname(s.hostname, config.domain));
+      const name = site ? resourceNameFor(hostname, config.domain) : null;
+      if (!site || site.type !== "reverse-proxy" || site.framework !== "nextjs" || !name) {
+        res.status(404).json({ ok: false, reason: `No Next.js site named ${hostname} to attach.` });
+        return;
+      }
+
+      const repo = normalizeRepo(String(req.body?.repo ?? ""));
+      if (!repo.ok) {
+        res.status(400).json({ ok: false, reason: repo.reason });
+        return;
+      }
+
+      const port = Number(site.target);
+      if (SITE_ENV.reservedPorts.includes(port)) {
+        res.status(400).json({ ok: false, reason: `Port ${port} is reserved and cannot be declared.` });
+        return;
+      }
+
+      // Never throws by contract; the catch below is for the contract failing.
+      const result = await deps.commands.createSiteDeclaration(name, repo.repo, port);
+      if (!result.ok) {
+        logAction({ action: "attach-site-failed", hostname, detail: `${name} ${repo.repo}: ${result.reason}` });
+        res.status(502).json({ ok: false, reason: result.reason });
+        return;
+      }
+      logAction({ action: "attach-site", hostname, detail: `${name} image=${IMAGE_PREFIX}${repo.repo} port=${port}` });
+      res.json({ ok: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logAction({ action: "attach-site-failed", hostname, detail: message });
+      res.status(502).json({ ok: false, reason: `Could not attach the repository: ${message}` });
+    }
+  });
+
+  /**
+   * Retires a site's container declaration by setting it to `state: absent`,
+   * which is what has the reconciler take the container down. Always its own
+   * request, sent by the client only after /delete succeeded — never part of
+   * the Caddy/tunnel removal.
+   *
+   * It requires a declaration, not a site in the Caddyfile: by the time this
+   * runs the Caddy block is already gone, and a retry after a failed write has
+   * to find the declaration with nothing else left to look at.
+   *
+   * 404 only when the clone is readable and has no such declaration. An
+   * unreadable clone (readDeclarations returns null) is a 502 that says so:
+   * the app cannot tell whether the site is declared, and the client treats it
+   * as a failed step and offers Retry. The catch's 502 is for the read
+   * rejecting, which the production implementation never does.
+   */
+  sitesRouter.post("/sites/:hostname/detach", async (req, res) => {
+    const hostname = req.params.hostname.toLowerCase();
+    const name = resourceNameFor(hostname, config.domain);
+    if (!name) {
+      res.status(404).json({ ok: false, reason: `No declaration for ${hostname} to retire.` });
       return;
     }
-
-    res.json({ ready: true, preview: buildSitePreview(input, { caddyfileContent, tunnelContent }, SITE_ENV) });
+    try {
+      const declarations = await deps.commands.readDeclarations();
+      if (declarations === null) {
+        const reason = `Could not read the local lychee-resources clone, so ${name}.yml could not be found to retire.`;
+        logAction({ action: "detach-site-failed", hostname, detail: `${name}: ${reason}` });
+        res.status(502).json({ ok: false, reason });
+        return;
+      }
+      if (!declarations.some((d) => d.name === name)) {
+        res.status(404).json({ ok: false, reason: `No declaration named ${name}.yml in lychee-resources.` });
+        return;
+      }
+      // Never throws by contract; the catch below is for the contract failing.
+      const result = await deps.commands.setDeclarationState(name, "absent");
+      if (!result.ok) {
+        logAction({ action: "detach-site-failed", hostname, detail: `${name}: ${result.reason}` });
+        res.status(502).json({ ok: false, reason: result.reason });
+        return;
+      }
+      logAction({ action: "detach-site", hostname, detail: `${name} state=absent` });
+      res.json({ ok: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logAction({ action: "detach-site-failed", hostname, detail: `${name}: ${message}` });
+      res.status(502).json({ ok: false, reason: `Could not retire ${name}.yml: ${message}` });
+    }
   });
 
   sitesRouter.post("/sites/:hostname/delete", async (req, res) => {
