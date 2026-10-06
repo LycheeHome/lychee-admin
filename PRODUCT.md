@@ -135,8 +135,9 @@ claim.
   tunnel* (`cloudflared-sites`) as distinct from the SSH tunnel this app must
   never touch.
 - **Hostnames are validated as `*.lyly.dev`.** Reverse-proxy ports are
-  rejected on conflict with another site or with a reserved port (the app's
-  own, and Caddy's admin API on 2019).
+  rejected on conflict with another site, with a port claimed by a declaration
+  in `lychee-resources` (in any state, retired included), or with a reserved
+  port (the app's own, and Caddy's admin API on 2019).
 - **Server-rendered HTML plus vanilla JS, deliberately** — Express templates
   and Tailwind via its CLI, no frontend framework, no client-side routing.
   This is a single-purpose internal tool and that choice is durable.

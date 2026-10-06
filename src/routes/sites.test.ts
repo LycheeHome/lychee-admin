@@ -356,7 +356,8 @@ describe("POST /sites — reverse proxy", () => {
     );
   });
 
-  test("a failing declaration read degrades to no claims", async () => {
+  // An injected rejection: the production readDeclarations returns [] instead.
+  test("a rejecting declaration read degrades to no claims", async () => {
     const original = fakeCommands.readDeclarations;
     fakeCommands.readDeclarations = () => Promise.reject(new Error("clone missing"));
     try {
@@ -1123,7 +1124,9 @@ describe("POST /sites/:hostname/detach", () => {
     assert.equal(lastLogEntry().action, "detach-site-failed");
   });
 
-  test("an unreadable clone is a 502, not a 404 that would read as nothing to retire", async () => {
+  // An injected rejection: the production readDeclarations never rejects (it
+  // returns [] for an unreadable clone, which this route answers with a 404).
+  test("a rejecting readDeclarations is a 502 carrying its message", async () => {
     fakeCommands.readDeclarations = () => Promise.reject(new Error("clone unreadable"));
     const response = await request("/sites/test.lyly.dev/detach", form({}));
     assert.equal(response.status, 502);

@@ -899,14 +899,6 @@ ring, and its title gains a mono `done` in Smoke. The numeral leaves Ember when
 the step is done because there is nothing left to act on there — The Ember Is
 Interactive Rule, applied to a step rather than a button.
 
-**The Evidence-Marks-Done Rule.** A runbook step is checked only by something
-the page has read, never by the operator's say-so and never by elapsed time.
-The commit and the first tag are done once the reconciler has found a tag in
-the registry; attach is done once a declaration or an inventory entry exists;
-deploy is never checked, because once something is installed the runbook is
-replaced. A step that cannot be verified from here stays open rather than
-guessing, so a check always means the host agrees.
-
 **Once a version is installed, the setup is history** and the card collapses
 to facts: `running`, `requested` while a pin is in flight, and `repository`, as
 key–value detail rows, then the gate line and the offer line exactly as a
@@ -926,6 +918,14 @@ exemption — and a Smoke Light sentence says what has to be pruned and where,
 tied to both through `aria-describedby`. Attached, the step's body becomes the
 image and declaration file in mono, so the step shows what was written rather
 than that something was.
+
+**The Evidence-Marks-Done Rule.** A runbook step is checked only by something
+the page has read, never by the operator's say-so and never by elapsed time.
+The commit and the first tag are done once the reconciler has found a tag in
+the registry; attach is done once a declaration or an inventory entry exists;
+deploy is never checked, because once something is installed the runbook is
+replaced. A step that cannot be verified from here stays open rather than
+guessing, so a check always means the host agrees.
 
 ### Flash Banner
 

@@ -544,9 +544,14 @@ export function createSitesRouter(deps: Deps): Router {
    *
    * It requires a declaration, not a site in the Caddyfile: by the time this
    * runs the Caddy block is already gone, and a retry after a failed write has
-   * to find the declaration with nothing else left to look at. An unreadable
-   * clone is a 502 rather than a 404, so a read failure never reads as
-   * "nothing to retire" while the container is still declared running.
+   * to find the declaration with nothing else left to look at.
+   *
+   * An unreadable clone is a 404, not a 502: the real readDeclarations never
+   * throws and returns [] when the clone cannot be read, so here it is
+   * indistinguishable from nothing being declared. The client still treats the
+   * 404 as a failed step and offers Retry, so it never reads as success; only
+   * the stated reason is wrong. The catch's 502 is reached only if
+   * readDeclarations rejects, which the production implementation does not.
    */
   sitesRouter.post("/sites/:hostname/detach", async (req, res) => {
     const hostname = req.params.hostname.toLowerCase();
