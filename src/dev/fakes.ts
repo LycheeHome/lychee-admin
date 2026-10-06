@@ -177,6 +177,8 @@ export function createFakes(
       return Promise.resolve({ ok: true });
     },
     readDeclarations: () => Promise.resolve([...declarations.values()].map((d) => ({ ...d }))),
+    // The fake clone is always readable and has no remote to pull from.
+    refreshDeclarations: () => Promise.resolve(),
   };
 
   return { fs, commands: { ...commands, ...overrides } };

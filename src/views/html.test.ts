@@ -1868,7 +1868,10 @@ describe("renderSiteDetail from a repository", () => {
     assert.match(c, /0\.1\.0 requested/);
   });
 
-  test("detached: renders as not attached, with Attach disabled and the prune reason beside it", () => {
+  // The clone may be stale (refreshed on page load, but bounded), so the page
+  // warns and the writer's own fresh pull decides; it refuses with the same
+  // prune reason if the retired file is still there.
+  test("detached: renders as not attached, Attach enabled, with the prune warning tied to it", () => {
     const html = renderSiteDetail(NEXT_SITE, { ...BASE, detached: true, status: { kind: "container", state: "not-created" } });
     const c = card(html);
     assert.doesNotMatch(html, /awaiting image/);
@@ -1876,8 +1879,68 @@ describe("renderSiteDetail from a repository", () => {
     assert.match(c, /pruned/);
     const button = c.match(/<button[^>]*type="submit"[^>]*>/);
     assert.ok(button);
-    assert.match(button[0], /\bdisabled\b/);
-    assert.match(button[0], /aria-describedby="attach-blocked"/);
+    assert.doesNotMatch(button[0], /\sdisabled(?=[\s>/])/);
+    assert.match(button[0], /aria-describedby="attach-warning"/);
+    const input = c.match(/<input[^>]*id="attach-repo"[^>]*>/);
+    assert.ok(input);
+    assert.doesNotMatch(input[0], /\sdisabled(?=[\s>/])/);
+    assert.match(input[0], /aria-describedby="attach-prefix attach-warning"/);
+    assert.match(c, /id="attach-warning"/);
+  });
+
+  test("a failed first deploy: the Deploy step names the tag, the failed step and the journal, and offers nothing", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...BASE,
+      resource: { ...RESOURCE, result: "failed", target: "0.1.0", available: "0.1.0", failedStep: "Pull the image: <manifest> unknown" },
+      status: { kind: "failed" },
+    });
+    const c = card(html);
+    assert.match(c, /data-deploy-failed/);
+    assert.match(c, /0\.1\.0/);
+    assert.match(c, /Pull the image: &lt;manifest&gt; unknown/);
+    assert.match(c, /journalctl -u lyly-reconcile/);
+    assert.doesNotMatch(c, /0\.1\.0 requested/);
+    assert.doesNotMatch(c, /data-deploy=/);
+    assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> failed<\/span>/);
+  });
+
+  test("a failed deploy with no failed step still names the tag and the journal", () => {
+    const c = card(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, result: "failed", target: "0.1.0" },
+        status: { kind: "failed" },
+      }),
+    );
+    assert.match(c, /data-deploy-failed/);
+    assert.match(c, /journalctl -u lyly-reconcile/);
+    assert.doesNotMatch(c, /data-failed-step/);
+  });
+
+  test("a failed redeploy shows the failure line in the collapsed card", () => {
+    const c = card(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, version: "0.1.0", target: "0.2.0", result: "failed", failedStep: "Start the container: exit 1" },
+        status: { kind: "container", state: "running" },
+      }),
+    );
+    assert.match(c, /data-deploy-failed/);
+    assert.match(c, /0\.2\.0/);
+    assert.match(c, /Start the container: exit 1/);
+    assert.match(c, /journalctl -u lyly-reconcile/);
+  });
+
+  test("blocked shows its gate and no failure line", () => {
+    const c = card(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, version: "0.1.0", target: "0.2.0", result: "blocked", gate: "job test concluded: failure" },
+        status: { kind: "container", state: "running" },
+      }),
+    );
+    assert.match(c, /job test concluded: failure/);
+    assert.doesNotMatch(c, /data-deploy-failed/);
   });
 
   test("a requested tag whose deploy failed shows the gate, not a promise of the next run", () => {

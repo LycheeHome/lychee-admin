@@ -1,11 +1,9 @@
 import { load } from "js-yaml";
-import { isValidHostname } from "./siteValidation";
+import { isValidHostname, MAX_SITE_LABEL_LENGTH, SITE_SUFFIX } from "./siteValidation";
 
-/** Appended to a site's label to form its container-resource name. */
-export const SITE_SUFFIX = "-lyly-dev";
-
-/** 63 (DNS label / resource name cap) minus the suffix. */
-const MAX_LABEL_LENGTH = 63 - SITE_SUFFIX.length;
+// Defined beside the validator that refuses an over-long Next.js label, so the
+// refusal at add-site and the null here can never disagree about the limit.
+export { SITE_SUFFIX };
 
 /**
  * `test.lyly.dev` -> `test-lyly-dev`. Null for anything that is not a
@@ -15,7 +13,7 @@ const MAX_LABEL_LENGTH = 63 - SITE_SUFFIX.length;
 export function resourceNameFor(hostname: string, domain: string): string | null {
   if (!isValidHostname(hostname, domain)) return null;
   const label = hostname.slice(0, hostname.length - domain.length - 1).toLowerCase();
-  if (label.length > MAX_LABEL_LENGTH) return null;
+  if (label.length > MAX_SITE_LABEL_LENGTH) return null;
   return `${label}${SITE_SUFFIX}`;
 }
 

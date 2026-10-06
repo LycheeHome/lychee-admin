@@ -27,6 +27,14 @@ export type Validation = { ok: true } | { ok: false; error: string };
 
 const HEALTHCHECK_PATH_PATTERN = /^\/[A-Za-z0-9._~\-/]{0,199}$/;
 
+/** Appended to a site's label to form its container-resource name. */
+export const SITE_SUFFIX = "-lyly-dev";
+
+/** A resource name is capped at 63 characters (a DNS label, and the
+ *  reconciler's own limit), so a site's label may use 63 minus the suffix. */
+export const MAX_RESOURCE_NAME_LENGTH = 63;
+export const MAX_SITE_LABEL_LENGTH = MAX_RESOURCE_NAME_LENGTH - SITE_SUFFIX.length;
+
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -75,6 +83,19 @@ export function validateSiteInput(input: SiteInput, env: SiteEnv): Validation {
 
   if (input.type === "reverse-proxy" && (!input.port || Number(input.port) < 1 || Number(input.port) > 65535)) {
     return { ok: false, error: "A valid local port is required for a reverse proxy site" };
+  }
+
+  // A Next.js site becomes the resource <label>-lyly-dev. Refused here rather
+  // than at Attach, so the site is never added in a shape it can never be
+  // attached in; here rather than in the route, so preview and submit agree.
+  if (input.framework === "nextjs") {
+    const label = input.hostname.slice(0, input.hostname.length - env.domain.length - 1);
+    if (label.length > MAX_SITE_LABEL_LENGTH) {
+      return {
+        ok: false,
+        error: `A Next.js site's label can be at most ${MAX_SITE_LABEL_LENGTH} characters (this one is ${label.length}): it becomes the resource name <label>${SITE_SUFFIX}, which is capped at ${MAX_RESOURCE_NAME_LENGTH}.`,
+      };
+    }
   }
 
   // The reconciler's validator rejects sites below 1024, and one rejected

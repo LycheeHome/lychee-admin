@@ -291,3 +291,28 @@ test("deploy fields on an unreconciled entry are ignored", () => {
   assert.equal(e.target, undefined);
   assert.equal(e.available, undefined);
 });
+
+test("failed_step is read into failedStep", () => {
+  const inv = parseInventory(JSON.stringify({
+    generated: "x",
+    services: [{
+      name: "test-lyly-dev", kind: "container", container: "test-lyly-dev", group: "service", reconciled: true,
+      result: "failed", version: "", target: "0.1.0", gate: "", failed_step: "Pull the image: manifest unknown",
+    }],
+  }));
+  assert.equal(inv.entries[0].failedStep, "Pull the image: manifest unknown");
+  assert.equal(inv.entries[0].result, "failed");
+});
+
+// The producer omits failed_step unless a step failed, and an inventory
+// published before it existed never carries it: absence is not an error.
+test("a missing or empty failed_step leaves failedStep absent", () => {
+  for (const extra of [{}, { failed_step: "" }, { failed_step: 3 }]) {
+    const inv = parseInventory(JSON.stringify({
+      generated: "x",
+      services: [{ name: "swee", kind: "unit", unit: "swee.service", group: "service", reconciled: true, result: "failed", ...extra }],
+    }));
+    assert.equal(inv.entries.length, 1);
+    assert.equal("failedStep" in inv.entries[0], false, JSON.stringify(extra));
+  }
+});

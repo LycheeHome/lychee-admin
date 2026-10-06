@@ -484,7 +484,7 @@
       },
       {
         "name": "The Evidence-Marks-Done Rule",
-        "body": "A runbook step is checked only by something the page has read, never by the operator's say-so and never by elapsed time. The commit and the first tag are done once the reconciler has found a tag in the registry; attach is done once a declaration or an inventory entry exists; deploy is never checked, because once something is installed the runbook is replaced. A step that cannot be verified from here stays open rather than guessing, so a check always means the host agrees.",
+        "body": "A runbook step is checked only by something the page has read, never by the operator's say-so and never by elapsed time. The commit and the first tag are done once the reconciler has found a tag in the registry; attach is done once a declaration exists, or, only when the app's copy of lychee-resources cannot be read, an inventory entry; deploy is never checked, because once something is installed the runbook is replaced. A step that cannot be verified from here stays open rather than guessing, so a check always means the host agrees.",
         "section": "components"
       }
     ],

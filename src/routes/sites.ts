@@ -69,15 +69,27 @@ function repoFromImage(image: string): string | null {
 
 /** What the reconciler side knows, read once per request and shared across sites. */
 interface ResourceSources {
-  declarations: DeclarationSummary[];
+  /** null when the local clone could not be read: "could not tell", not "none". */
+  declarations: DeclarationSummary[] | null;
   entries: InventoryEntry[];
 }
 
 async function readResourceSources(deps: Deps): Promise<ResourceSources> {
-  // Both reads degrade: an unreadable clone is no declarations, a missing
-  // inventory no entries. Neither is a reason to fail a page.
-  const declarations = await deps.commands.readDeclarations().catch((): DeclarationSummary[] => []);
+  // Both reads degrade rather than failing the page: an unreadable clone is
+  // null (the real read never rejects; a rejection means the same thing), a
+  // missing inventory no entries.
+  const declarations = await deps.commands.readDeclarations().catch(() => null);
   return { declarations, entries: readInventory(deps.fs).entries };
+}
+
+/**
+ * Pulls the local clone before a page reads it, so a declaration pruned or
+ * added on GitHub by hand is seen. Bounded and non-throwing by contract; the
+ * catch is for the contract failing, because a stale clone is never a reason
+ * to fail a page.
+ */
+async function refreshClone(deps: Deps): Promise<void> {
+  await deps.commands.refreshDeclarations().catch(() => undefined);
 }
 
 interface NextjsState {
@@ -91,27 +103,34 @@ const NOT_DEPLOYED: SiteStatus = { kind: "container", state: "not-created" };
 /**
  * A Next.js site's state, decided from its declaration and its inventory entry.
  *
- * Attached means a declaration that is not `absent`, or — when the clone could
- * not be read — an inventory entry. The declaration wins whenever it exists,
- * because the inventory has no notion of `absent`: a retired declaration must
- * never read as awaiting, whatever the reconciler last published.
+ * Attached means a declaration that is not `absent`, or — only when the clone
+ * could not be read at all (null) — an inventory entry. The declaration wins
+ * whenever it exists, because the inventory has no notion of `absent`: a
+ * retired declaration must never read as awaiting, whatever the reconciler
+ * last published. And a readable clone with no declaration wins over the
+ * inventory too: the reconciler never deletes a pruned site's status file, so
+ * its entry outlives the declaration, and trusting it would show a site that
+ * was pruned and re-added as attached forever, with no Attach to offer and a
+ * Remove that retires a declaration that does not exist.
  *
  * A declaration with no inventory entry is the reconciler not having ticked
  * since the attach. That is still attached (awaiting image), so reloading the
  * page after attaching never offers Attach a second time.
  *
  * Only an installed version means a container exists to ask about; before that
- * the site is awaiting its first image, and the reconciler has taken no
- * compose action. The legacy /var/www container is never consulted.
+ * the site is awaiting its first image, or — when the reconciler tried to
+ * deploy it and could not — failed. The legacy /var/www container is never
+ * consulted.
  */
 async function resolveNextjsSite(site: Site, sources: ResourceSources, deps: Deps): Promise<NextjsState> {
   const name = resourceNameFor(site.hostname, config.domain);
   if (!name) return { status: NOT_DEPLOYED, detached: false };
 
-  const declaration = sources.declarations.find((d) => d.name === name);
+  const declaration = sources.declarations?.find((d) => d.name === name);
   const entry = sources.entries.find((e) => e.kind === "container" && e.name === name);
   if (declaration?.state === "absent") return { status: NOT_DEPLOYED, detached: true };
-  if (!declaration && !entry) return { status: NOT_DEPLOYED, detached: false };
+  // An entry stands in for the declaration only when the clone was unreadable.
+  if (!declaration && (sources.declarations !== null || !entry)) return { status: NOT_DEPLOYED, detached: false };
 
   const resource: SiteResourceView = {
     name,
@@ -121,8 +140,11 @@ async function resolveNextjsSite(site: Site, sources: ResourceSources, deps: Dep
     ...(entry?.result !== undefined ? { result: entry.result } : {}),
     ...(entry?.target !== undefined ? { target: entry.target } : {}),
     ...(entry?.gate !== undefined ? { gate: entry.gate } : {}),
+    ...(entry?.failedStep !== undefined ? { failedStep: entry.failedStep } : {}),
   };
-  if (!resource.version) return { status: { kind: "awaiting-image" }, resource, detached: false };
+  if (!resource.version) {
+    return { status: { kind: resource.result === "failed" ? "failed" : "awaiting-image" }, resource, detached: false };
+  }
 
   const container = await deps.commands
     .checkResourceContainerStatus(name)
@@ -134,7 +156,9 @@ async function resolveNextjsSite(site: Site, sources: ResourceSources, deps: Dep
  * Status for the list page. Reverse-proxy sites only: static sites have no
  * check today and gain none here. Concurrent, so the page costs the slowest
  * check rather than their sum — and every call is bounded, because
- * checkContainerStatus carries its own timeout and checkPortOpen a 500ms one.
+ * checkResourceContainerStatus carries its own timeout and checkPortOpen a
+ * 500ms one. The list does not refresh the clone: it is the five-second
+ * glance, and a git pull per view would make it the slowest page.
  */
 async function computeStatuses(sites: Site[], deps: Deps): Promise<Record<string, SiteStatus>> {
   const proxies = sites.filter((site) => site.type === "reverse-proxy");
@@ -159,10 +183,12 @@ export function createSitesRouter(deps: Deps): Router {
 
   // Called once per request, by both POST /sites and POST /sites/preview, so
   // the two can never disagree about which ports are claimed. An unreadable
-  // clone degrades to no claims: the writer re-checks at declaration time.
+  // clone (null) degrades to no claims: the writer re-checks at declaration
+  // time. Neither route refreshes the clone (the add page's GET did), so the
+  // two always read the same one.
   async function readDeclaredPorts(): Promise<Map<number, string>> {
     try {
-      return claimedPorts(await deps.commands.readDeclarations());
+      return claimedPorts((await deps.commands.readDeclarations()) ?? []);
     } catch {
       return new Map();
     }
@@ -194,7 +220,10 @@ export function createSitesRouter(deps: Deps): Router {
   // Registered above /sites/:hostname deliberately: Express matches in
   // registration order, so if this were below, "new" would be captured as
   // :hostname, fail isManagedHostname, and 404 instead of rendering the form.
-  sitesRouter.get("/sites/new", (req, res) => {
+  sitesRouter.get("/sites/new", async (req, res) => {
+    // For the preview and submit this page sends: neither refreshes, so the
+    // port claims they check are as fresh as this page load.
+    await refreshClone(deps);
     const content = deps.fs.readFile(config.caddyfilePath);
     const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname, config.domain));
     res.send(
@@ -265,7 +294,7 @@ export function createSitesRouter(deps: Deps): Router {
       const [nextjs, unitStates] = await Promise.all([
         (async (): Promise<NextjsState> =>
           site.framework
-            ? resolveNextjsSite(site, await readResourceSources(deps), deps)
+            ? resolveNextjsSite(site, await refreshClone(deps).then(() => readResourceSources(deps)), deps)
             : {
                 status: { kind: "tcp", responding: port >= 1 && port <= 65535 ? await checkPortOpen(port) : false },
                 detached: false,
@@ -546,12 +575,11 @@ export function createSitesRouter(deps: Deps): Router {
    * runs the Caddy block is already gone, and a retry after a failed write has
    * to find the declaration with nothing else left to look at.
    *
-   * An unreadable clone is a 404, not a 502: the real readDeclarations never
-   * throws and returns [] when the clone cannot be read, so here it is
-   * indistinguishable from nothing being declared. The client still treats the
-   * 404 as a failed step and offers Retry, so it never reads as success; only
-   * the stated reason is wrong. The catch's 502 is reached only if
-   * readDeclarations rejects, which the production implementation does not.
+   * 404 only when the clone is readable and has no such declaration. An
+   * unreadable clone (readDeclarations returns null) is a 502 that says so:
+   * the app cannot tell whether the site is declared, and the client treats it
+   * as a failed step and offers Retry. The catch's 502 is for the read
+   * rejecting, which the production implementation never does.
    */
   sitesRouter.post("/sites/:hostname/detach", async (req, res) => {
     const hostname = req.params.hostname.toLowerCase();
@@ -562,6 +590,12 @@ export function createSitesRouter(deps: Deps): Router {
     }
     try {
       const declarations = await deps.commands.readDeclarations();
+      if (declarations === null) {
+        const reason = `Could not read the local lychee-resources clone, so ${name}.yml could not be found to retire.`;
+        logAction({ action: "detach-site-failed", hostname, detail: `${name}: ${reason}` });
+        res.status(502).json({ ok: false, reason });
+        return;
+      }
       if (!declarations.some((d) => d.name === name)) {
         res.status(404).json({ ok: false, reason: `No declaration named ${name}.yml in lychee-resources.` });
         return;

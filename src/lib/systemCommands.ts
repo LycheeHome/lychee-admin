@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import {
   createSiteDeclaration,
   readDeclarations,
+  refreshDeclarations,
   setDeclarationState,
   writeDeclarationTag,
   type GitRunner,
@@ -46,6 +47,14 @@ export class CommandError extends Error {
  * the operator would not know which of the two happened.
  */
 const STATUS_READ_TIMEOUT_MS = 2000;
+
+/**
+ * How long a page load waits for the lychee-resources clone to be refreshed.
+ * Longer than a status read because it is a network round trip to GitHub; each
+ * git call it makes is killed at this bound too, so a wedged pull cannot hold
+ * the clone queue (and every write behind it) open indefinitely.
+ */
+const DECLARATION_REFRESH_TIMEOUT_MS = 5000;
 
 /**
  * Runs a single command via execFile (never a shell), so arguments can't be
@@ -97,7 +106,10 @@ export interface SystemCommands {
   writeDeclarationTag(name: string, tag: string): Promise<WriteResult>;
   createSiteDeclaration(name: string, repo: string, port: number): Promise<WriteResult>;
   setDeclarationState(name: string, state: "absent"): Promise<WriteResult>;
-  readDeclarations(): Promise<DeclarationSummary[]>;
+  /** The local clone's declarations; null when the clone cannot be read. */
+  readDeclarations(): Promise<DeclarationSummary[] | null>;
+  /** Pulls the local clone, bounded in time. Never throws. */
+  refreshDeclarations(): Promise<void>;
 }
 
 const gitRunner: GitRunner = (args, options) => run("git", args, options);
@@ -284,8 +296,31 @@ export const realSystemCommands: SystemCommands = {
     return setDeclarationState(name, state, { git: gitRunner });
   },
 
-  /** The local clone as last pulled; no git, no network. [] when absent. */
+  /** The local clone as last pulled; no git, no network. null when unreadable. */
   readDeclarations() {
     return Promise.resolve(readDeclarations());
+  },
+
+  /**
+   * Called by the GETs that read declarations (the add page and a site's
+   * page), never by POST /sites/preview, which runs per keystroke, nor by
+   * POST /sites, so the preview and the submit still read one clone. Waits at
+   * most DECLARATION_REFRESH_TIMEOUT_MS; past that the page renders from the
+   * clone as it is, and the pull either finishes in the queue or is killed.
+   */
+  async refreshDeclarations() {
+    let timer: NodeJS.Timeout | undefined;
+    const deadline = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, DECLARATION_REFRESH_TIMEOUT_MS);
+      timer.unref();
+    });
+    try {
+      await Promise.race([
+        refreshDeclarations({ git: gitRunner, timeoutMs: DECLARATION_REFRESH_TIMEOUT_MS }),
+        deadline,
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
   },
 };

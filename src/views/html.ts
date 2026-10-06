@@ -606,6 +606,8 @@ export interface SiteResourceView {
   result?: string;
   target?: string;
   gate?: string;
+  /** The reconciler task that failed, with its error, when `result` is failed. */
+  failedStep?: string;
 }
 
 export interface SiteDetailOptions {
@@ -622,7 +624,9 @@ export interface SiteDetailOptions {
   scaffoldFiles?: { name: string; content: string }[];
   /** Absent means not attached. */
   resource?: SiteResourceView;
-  /** A declaration exists but is `state: absent`: not attached, and attach is blocked until it is pruned. */
+  /** A declaration exists but is `state: absent`: not attached. Attach stays
+   *  offered, with a warning that it is refused until the file is pruned; the
+   *  writer's own fresh pull is what decides. */
   detached?: boolean;
   /** Whether a reverse-proxy site's /var/www directory exists. Only legacy Next.js sites have one. */
   filesExist?: boolean;
@@ -678,10 +682,15 @@ const mono = (value: string): string => `<span class="font-mono text-stone-50 br
  * the control, read out through aria-describedby, and the focus ring encloses
  * both pieces). The prefix is fixed because the reconciler accepts no other
  * registry path; the only thing to type is the repository's name.
+ *
+ * A retired declaration does not disable the control. The page's clone is
+ * refreshed on load but may still be stale (the refresh is bounded), so the
+ * page warns and the writer decides: it pulls first, and refuses with the
+ * same prune reason if the retired file is still there.
  */
 function attachForm(site: Site, resourceName: string, detached: boolean): string {
-  const blocked = detached
-    ? `<p id="attach-blocked" class="${BODY} text-stone-300">${mono(`${resourceName}.yml`)} is retired (${mono("state: absent")}) but still in lychee-resources. It has to be pruned there before this site can be attached again.</p>`
+  const warning = detached
+    ? `<p id="attach-warning" class="${BODY} text-stone-300">${mono(`${resourceName}.yml`)} is retired (${mono("state: absent")}) and was still in lychee-resources when this page loaded. Attaching is refused until it is pruned there; pressing Attach checks again.</p>`
     : "";
   return `<form class="flex flex-col gap-1.5" data-attach="${escapeHtml(site.hostname)}" novalidate>
               <label for="attach-repo" class="text-[0.85rem] text-stone-400">Repository in LycheeHome</label>
@@ -689,13 +698,13 @@ function attachForm(site: Site, resourceName: string, detached: boolean): string
                 <span id="attach-row" class="flex items-stretch min-w-0 flex-1 basis-[18rem] rounded-md focus-within:outline focus-within:outline-2 focus-within:outline-rose-400 focus-within:outline-offset-2">
                   <span id="attach-prefix" class="font-mono text-[0.72rem] text-stone-300 bg-stone-700 border border-r-0 border-stone-700 rounded-l-md px-2.5 flex items-center shrink-0">${IMAGE_PREFIX}</span>
                   <input type="text" id="attach-repo" name="repo" required autocomplete="off" autocapitalize="off" spellcheck="false"
-                         aria-describedby="attach-prefix${detached ? " attach-blocked" : ""}"
-                         class="${INPUT} rounded-l-none flex-1 min-w-0 focus:outline-none! disabled:text-stone-500 disabled:cursor-not-allowed" placeholder="repo-name"${detached ? " disabled" : ""} />
+                         aria-describedby="attach-prefix${detached ? " attach-warning" : ""}"
+                         class="${INPUT} rounded-l-none flex-1 min-w-0 focus:outline-none! disabled:text-stone-500 disabled:cursor-not-allowed" placeholder="repo-name" />
                 </span>
-                <button type="submit" class="${BUTTON_PRIMARY}"${detached ? ` disabled aria-describedby="attach-blocked"` : ""}>Attach repository</button>
+                <button type="submit" class="${BUTTON_PRIMARY}"${detached ? ` aria-describedby="attach-warning"` : ""}>Attach repository</button>
               </div>
               <p class="font-mono text-[0.72rem] text-stone-400 m-0 break-all">writes ${escapeHtml(resourceName)}.yml to lychee-resources · no tag until the first deploy</p>
-              ${blocked}
+              ${warning}
               <p id="attach-error" role="alert" class="hidden font-mono text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0"></p>
             </form>`;
 }
@@ -703,6 +712,29 @@ function attachForm(site: Site, resourceName: string, detached: boolean): string
 /** The gate string, in full, as the services board shows it. */
 function gateLine(resource: SiteResourceView): string {
   return resource.gate ? `<p class="${SERVICE_DETAIL} text-stone-300" data-gate>${escapeHtml(resource.gate)}</p>` : "";
+}
+
+/**
+ * A deploy the reconciler attempted and could not complete: which tag, the
+ * step that failed as the reconciler recorded it, and where the whole run is
+ * logged. Prose stays Smoke; the Scorch belongs to the status pill, and the
+ * step is a machine fact, so it is mono like the gate line. Empty unless
+ * `result` is failed, so `blocked` keeps showing only its gate.
+ */
+function failureLine(resource: SiteResourceView, extraClass = ""): string {
+  if (resource.result !== "failed") return "";
+  const what = resource.target
+    ? `Deploying ${mono(resource.target)} failed${resource.failedStep ? " at this step:" : "."}`
+    : `The last deploy failed${resource.failedStep ? " at this step:" : "."}`;
+  const step = resource.failedStep
+    ? `<p class="${SERVICE_DETAIL} text-stone-300" data-failed-step>${escapeHtml(resource.failedStep)}</p>`
+    : "";
+  return `<div class="flex flex-col gap-2 ${extraClass}" data-deploy-failed>
+            <p class="${BODY}">${what}</p>
+            ${step}
+            <p class="${BODY}">The reconciler's journal has the whole run:</p>
+            ${commandBlock("cmd-reconcile-log", "journalctl -u lyly-reconcile", "Copy journal command")}
+          </div>`;
 }
 
 /**
@@ -718,10 +750,13 @@ function firstDeploy(resource: SiteResourceView | undefined): string {
   if (resource.result === undefined) {
     return `<p class="${BODY}">Attached. The reconciler looks for the image on its next run, within five minutes, and offers the newest tag here; reload to see it.</p>`;
   }
+  // Not "requested": the reconciler already tried, and will not simply pull it
+  // next time. Nothing is offered on a failed run (offeredTag), so this is all.
+  if (resource.result === "failed") return `${failureLine(resource)}${gateLine(resource)}`;
   if (resource.target && resource.target === resource.available) {
     const requested = `<p class="font-mono text-[0.8rem] text-stone-50 m-0">${escapeHtml(resource.target)} requested</p>`;
-    // A failed or blocked run will not simply pull it next time; the gate says why.
-    if (resource.result === "failed" || resource.result === "blocked") return `${requested}${gateLine(resource)}`;
+    // A blocked run will not simply pull it next time; the gate says why.
+    if (resource.result === "blocked") return `${requested}${gateLine(resource)}`;
     return `${requested}
             <p class="${BODY}">The reconciler pulls it and starts the container on its next run.</p>${gateLine(resource)}`;
   }
@@ -773,6 +808,7 @@ function renderRepositoryCard(site: Site, opts: SiteDetailOptions, resourceName:
         <h3 class="${CARD_LABEL}">From a repository</h3>
         <p class="${BODY} mb-3">Push a newer ${mono("vX.Y.Z")} tag to ${repository ? mono(repository) : "the site's repository"}; it is offered here once the reconciler finds it.</p>
         ${rows.map(([key, value]) => `<p class="${DETAIL_ROW}"><span class="${DETAIL_KEY}">${escapeHtml(key)}</span><span class="text-stone-50 break-all">${escapeHtml(value)}</span></p>`).join("\n        ")}
+        ${failureLine(resource, "mt-3")}
         ${gateLine(resource)}
         ${tag ? renderOfferLine(resource.name, tag) : ""}
         ${baked}

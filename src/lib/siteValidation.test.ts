@@ -112,6 +112,32 @@ describe("validateSiteInput — privileged ports", () => {
   });
 });
 
+describe("validateSiteInput — a Next.js site's label must fit its resource name", () => {
+  const label = (n: number) => "a".repeat(n);
+
+  test("refuses a Next.js label longer than 54 characters, naming the resource-name limit", () => {
+    const input = readSiteInput({ hostname: `${label(55)}.lyly.dev`, type: "reverse-proxy", port: "3000", framework: "nextjs" });
+    const result = validateSiteInput(input, ENV);
+    assert.equal(result.ok, false);
+    const error = result.ok ? "" : result.error;
+    assert.match(error, /54/);
+    assert.match(error, /63/);
+    assert.match(error, /-lyly-dev/);
+  });
+
+  test("accepts a 54-character label, and longer labels for a plain proxy or a static site", () => {
+    assert.deepEqual(
+      validateSiteInput(readSiteInput({ hostname: `${label(54)}.lyly.dev`, type: "reverse-proxy", port: "3000", framework: "nextjs" }), ENV),
+      { ok: true },
+    );
+    assert.deepEqual(
+      validateSiteInput(readSiteInput({ hostname: `${label(60)}.lyly.dev`, type: "reverse-proxy", port: "3000" }), ENV),
+      { ok: true },
+    );
+    assert.deepEqual(validateSiteInput(readSiteInput({ hostname: `${label(60)}.lyly.dev`, type: "static" }), ENV), { ok: true });
+  });
+});
+
 describe("validateAgainstExisting", () => {
   test("rejects a hostname already in the Caddyfile", () => {
     const result = validateAgainstExisting(readSiteInput({ hostname: "blog.lyly.dev" }), CADDYFILE, ENV, NO_DECLARED);

@@ -7,6 +7,7 @@ import { load } from "js-yaml";
 import {
   createSiteDeclaration,
   readDeclarations,
+  refreshDeclarations,
   setDeclarationState,
   writeDeclarationTag,
   type GitRunner,
@@ -22,7 +23,7 @@ state: stopped
 let root: string;
 let clone: string;
 let key: string;
-let calls: { args: string[]; cwd: string; sshCommand?: string; id?: string }[];
+let calls: { args: string[]; cwd: string; sshCommand?: string; id?: string; timeoutMs?: number }[];
 
 // A small model of the remote and the clone, so status, reset and untracked
 // files behave as they do in real git: `upstream` is the remote's tree, `head`
@@ -59,8 +60,8 @@ function fakeGit(
     yieldEachCall?: boolean;
   } = {},
 ): GitRunner {
-  return async (args, { cwd, env }) => {
-    calls.push({ args, cwd, sshCommand: env.GIT_SSH_COMMAND, id: opts.id });
+  return async (args, { cwd, env, timeoutMs }) => {
+    calls.push({ args, cwd, sshCommand: env.GIT_SSH_COMMAND, id: opts.id, timeoutMs });
     if (opts.yieldEachCall) await new Promise((resolve) => setTimeout(resolve, 1));
     const verb = args.includes("commit") ? "commit" : args[0];
     if (opts.failOn === verb) throw Object.assign(new Error("git failed"), { stderr: "! [rejected] (fetch first)" });
@@ -342,6 +343,17 @@ describe("createSiteDeclaration", () => {
     assert.equal(calls.length, 0);
   });
 
+  // The reconciler's validator refuses these (RESERVED_PORTS in lychee-ops'
+  // validate_declarations.py), and one refused declaration freezes the set.
+  test("refuses the validator's reserved ports, 8787 and 2019, before touching git", async () => {
+    for (const port of [8787, 2019]) {
+      const result = await createSiteDeclaration("test-lyly-dev", "test-site", port, { git: fakeGit(), clonePath: clone, keyPath: key });
+      assert.equal(result.ok, false, String(port));
+      assert.match((result as { reason: string }).reason, new RegExp(`${port}.*reserved`), String(port));
+    }
+    assert.equal(calls.length, 0);
+  });
+
   test("accepts the port bounds 1024 and 65535", async () => {
     seedClone();
     for (const [name, port] of [["a-lyly-dev", 1024], ["b-lyly-dev", 65535]] as const) {
@@ -468,7 +480,7 @@ describe("setDeclarationState", () => {
 describe("readDeclarations", () => {
   test("summarizes every .yml in the clone without invoking git", () => {
     seedClone({ "test-lyly-dev.yml": SITE_TAGLESS, "README.md": "not a declaration", "broken.yml": "a: [" });
-    const decls = readDeclarations(clone).sort((a, b) => a.name.localeCompare(b.name));
+    const decls = readDeclarations(clone)!.sort((a, b) => a.name.localeCompare(b.name));
     assert.deepEqual(decls, [
       { name: "palsave-api", port: null, state: "stopped", image: "ghcr.io/lycheehome/palsave-api:sha-old" },
       { name: "test-lyly-dev", port: 3000, state: "running", image: "ghcr.io/lycheehome/test-site" },
@@ -476,8 +488,66 @@ describe("readDeclarations", () => {
     assert.equal(calls.length, 0);
   });
 
-  test("returns [] when the clone does not exist", () => {
-    assert.deepEqual(readDeclarations(path.join(root, "missing")), []);
+  // null and [] are different answers: null is "could not tell", [] is "the
+  // clone is readable and declares nothing". A caller that confuses them
+  // either treats a pruned site as attached forever, or a site it cannot see
+  // as detached.
+  test("returns null when the clone does not exist", () => {
+    assert.equal(readDeclarations(path.join(root, "missing")), null);
+  });
+
+  test("returns null for a directory that is not a clone, such as one left by a failed re-clone", () => {
+    fs.mkdirSync(clone, { recursive: true });
+    assert.equal(readDeclarations(clone), null);
+  });
+
+  test("returns [] for a readable clone with no declarations", () => {
+    seedClone();
+    fs.rmSync(path.join(clone, "palsave-api.yml"));
+    assert.deepEqual(readDeclarations(clone), []);
+  });
+});
+
+describe("refreshDeclarations", () => {
+  const opts = (git: GitRunner) => ({ git, clonePath: clone, keyPath: key });
+
+  test("pulls a healthy clone, so a declaration pruned or added on GitHub is seen", async () => {
+    seedClone();
+    await refreshDeclarations(opts(fakeGit({ pullAdds: { "test-lyly-dev.yml": SITE_TAGLESS } })));
+    assert.ok(calls.some((c) => c.args[0] === "pull"));
+    assert.deepEqual(readDeclarations(clone)!.map((d) => d.name).sort(), ["palsave-api", "test-lyly-dev"]);
+    assert.equal(commits().length, 0);
+  });
+
+  test("never throws, and a failed pull leaves the clone as it was", async () => {
+    seedClone({ "test-lyly-dev.yml": SITE_TAGLESS });
+    const result = await refreshDeclarations(opts(fakeGit({ failOn: "pull" })));
+    assert.equal(result, undefined);
+    assert.deepEqual(readDeclarations(clone)!.map((d) => d.name).sort(), ["palsave-api", "test-lyly-dev"]);
+  });
+
+  test("never throws when the deploy key is missing", async () => {
+    seedClone();
+    await refreshDeclarations({ git: fakeGit(), clonePath: clone, keyPath: path.join(root, "nope") });
+    assert.equal(calls.length, 0);
+  });
+
+  test("bounds every git call it makes with the given timeout", async () => {
+    seedClone();
+    await refreshDeclarations({ ...opts(fakeGit()), timeoutMs: 5000 });
+    assert.ok(calls.length > 0);
+    assert.ok(calls.every((c) => c.timeoutMs === 5000), JSON.stringify(calls.map((c) => c.timeoutMs)));
+  });
+
+  test("takes its turn on the clone queue: it never interleaves with a write", async () => {
+    seedClone({ "test-lyly-dev.yml": SITE_TAGLESS });
+    await Promise.all([
+      writeDeclarationTag("palsave-api", "sha-new", { git: fakeGit({ id: "W", yieldEachCall: true }), clonePath: clone, keyPath: key }),
+      refreshDeclarations({ git: fakeGit({ id: "R", yieldEachCall: true }), clonePath: clone, keyPath: key }),
+    ]);
+    const ids = calls.map((c) => c.id);
+    const switches = ids.filter((id, i) => i > 0 && id !== ids[i - 1]).length;
+    assert.equal(switches, 1, `interleaved: ${ids.join("")}`);
   });
 });
 
@@ -495,7 +565,7 @@ describe("a dirty or locked clone", () => {
     assert.ok(calls.some((c) => c.args[0] === "clone"), "dirty clone was not re-cloned");
     assert.equal(fs.existsSync(path.join(clone, "test-lyly-dev.yml")), false);
     assert.equal(upstream.has("test-lyly-dev.yml"), false);
-    assert.deepEqual(readDeclarations(clone).map((d) => d.name), ["palsave-api"]);
+    assert.deepEqual(readDeclarations(clone)!.map((d) => d.name), ["palsave-api"]);
   });
 
   test("after a failed add, the phantom cannot be pushed by a later state write", async () => {

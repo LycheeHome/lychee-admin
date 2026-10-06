@@ -261,6 +261,57 @@ describe("GET /sites/new", () => {
   });
 });
 
+describe("refreshing the lychee-resources clone", () => {
+  const NEXT = `${SEED_CADDYFILE}
+http://test.lyly.dev {
+\t# lyly-admin-framework: nextjs
+\t# lyly-admin-healthcheck: /
+\treverse_proxy localhost:3000
+}
+`;
+  let saved: import("../lib/systemCommands").SystemCommands["refreshDeclarations"];
+  let refreshes = 0;
+
+  beforeEach(() => {
+    writeFixtures(NEXT);
+    refreshes = 0;
+    saved = fakeCommands.refreshDeclarations;
+    fakeCommands.refreshDeclarations = () => {
+      refreshes += 1;
+      return Promise.resolve();
+    };
+  });
+
+  afterEach(() => {
+    fakeCommands.refreshDeclarations = saved;
+  });
+
+  test("the add page refreshes the clone, so its preview and submit read a fresh one", async () => {
+    assert.equal((await request("/sites/new")).status, 200);
+    assert.equal(refreshes, 1);
+  });
+
+  test("a Next.js site's page refreshes the clone before reading its declaration", async () => {
+    assert.equal((await request("/sites/test.lyly.dev")).status, 200);
+    assert.equal(refreshes, 1);
+  });
+
+  test("the preview, which runs per keystroke, and the submit never refresh", async () => {
+    await request("/sites/preview", form({ hostname: "docs.lyly.dev", type: "reverse-proxy", port: "3300" }));
+    await request("/sites", form({ hostname: "docs.lyly.dev", type: "reverse-proxy", port: "3300" }));
+    assert.equal(refreshes, 0);
+  });
+
+  // The real refresh never rejects; this is the contract failing anyway.
+  test("a refresh that fails still renders both pages", async () => {
+    fakeCommands.refreshDeclarations = () => Promise.reject(new Error("network down"));
+    assert.equal((await request("/sites/new")).status, 200);
+    const response = await request("/sites/test.lyly.dev");
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /From a repository/);
+  });
+});
+
 describe("POST /sites — static", () => {
   const OK_ADD_STEPS = [
     { id: "backup", label: "Configs backed up", status: "ok" },
@@ -356,10 +407,9 @@ describe("POST /sites — reverse proxy", () => {
     );
   });
 
-  // An injected rejection: the production readDeclarations returns [] instead.
-  test("a rejecting declaration read degrades to no claims", async () => {
+  test("an unreadable clone (null) degrades to no claims", async () => {
     const original = fakeCommands.readDeclarations;
-    fakeCommands.readDeclarations = () => Promise.reject(new Error("clone missing"));
+    fakeCommands.readDeclarations = () => Promise.resolve(null);
     try {
       const response = await request("/sites", form({ hostname: "ok.lyly.dev", type: "reverse-proxy", port: "8788" }));
       assert.equal(response.status, 200);
@@ -940,14 +990,74 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     assert.deepEqual(calls.container, []);
   });
 
-  test("a retired declaration renders as not attached, with Attach disabled and the prune reason", async () => {
+  test("a retired declaration renders as not attached, with Attach enabled and the prune warning beside it", async () => {
     declarations([{ ...TEST_DECLARATION, state: "absent" }]);
     writeInventory([siteEntry({ result: "deployed" })]);
     const html = await page();
     assert.doesNotMatch(html, /awaiting image/);
     assert.match(html, /not deployed/);
     assert.match(html, /prune/);
-    assert.match(html, /<button[^>]*type="submit"[^>]*disabled/);
+    const button = html.match(/<button[^>]*type="submit"[^>]*>Attach repository/);
+    assert.ok(button, "no Attach button");
+    assert.doesNotMatch(button[0], /\sdisabled(?=[\s>/])/);
+  });
+
+  // The reconciler never deletes a pruned site's status.json, so its entry
+  // outlives the declaration. A readable clone with no declaration is the
+  // authority: the site is not attached, and Attach is offered again.
+  test("a readable clone with no declaration is not attached, whatever a stale inventory entry says", async () => {
+    declarations([]);
+    writeInventory([siteEntry({ result: "deployed", version: "", target: "0.2.0" })]);
+    const response = await request("/sites/test.lyly.dev");
+    const raw = await response.text();
+    const html = withoutHeader(raw);
+    assert.match(html, /data-attach=/);
+    assert.doesNotMatch(html, /awaiting image/);
+    assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> not deployed/);
+    assert.doesNotMatch(raw, /<dialog[^>]*data-attached/);
+  });
+
+  test("an unreadable clone falls back to the inventory: an entry means attached", async () => {
+    fakeCommands.readDeclarations = () => Promise.resolve(null);
+    writeInventory([siteEntry({ result: "awaiting-image", available: "0.1.0" })]);
+    const response = await request("/sites/test.lyly.dev");
+    const raw = await response.text();
+    const html = withoutHeader(raw);
+    assert.doesNotMatch(html, /data-attach=/);
+    assert.match(html, /awaiting image/);
+    assert.match(raw, /<dialog[^>]*data-attached="true"/);
+  });
+
+  test("an unreadable clone and no entry is not attached", async () => {
+    fakeCommands.readDeclarations = () => Promise.resolve(null);
+    const html = await page();
+    assert.match(html, /data-attach=/);
+  });
+
+  test("a failed first deploy reads failed, in the bad tone, and names the step and the journal", async () => {
+    declarations([TEST_DECLARATION]);
+    writeInventory([
+      siteEntry({ result: "failed", version: "", target: "0.1.0", available: "0.1.0", gate: "", failed_step: "Pull the image: manifest unknown" }),
+    ]);
+    const html = await page();
+    assert.doesNotMatch(html, /awaiting image/);
+    const pill = html.match(/<span class="([^"]*)"[^>]*data-state-pill><span aria-hidden="true">&#9679;<\/span> failed<\/span>/);
+    assert.ok(pill, "no failed pill");
+    const { TONE_PILL } = await import("../views/shared");
+    assert.equal(pill[1].includes(TONE_PILL.bad), true);
+    assert.match(html, /Pull the image: manifest unknown/);
+    assert.match(html, /journalctl -u lyly-reconcile/);
+    assert.deepEqual(calls.resource, []);
+  });
+
+  test("a failed redeploy keeps the container's own pill and shows the failure in the card", async () => {
+    declarations([TEST_DECLARATION]);
+    writeInventory([siteEntry({ result: "failed", version: "0.1.0", target: "0.2.0", failed_step: "Start the container: exit 1" })]);
+    const html = await page();
+    assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> running/);
+    assert.match(html, /Start the container: exit 1/);
+    assert.match(html, /0\.2\.0/);
+    assert.match(html, /journalctl -u lyly-reconcile/);
   });
 });
 
@@ -1124,13 +1234,11 @@ describe("POST /sites/:hostname/detach", () => {
     assert.equal(lastLogEntry().action, "detach-site-failed");
   });
 
-  // An injected rejection: the production readDeclarations never rejects (it
-  // returns [] for an unreadable clone, which this route answers with a 404).
-  test("a rejecting readDeclarations is a 502 carrying its message", async () => {
-    fakeCommands.readDeclarations = () => Promise.reject(new Error("clone unreadable"));
+  test("an unreadable clone is a 502 saying so, not a 404 claiming nothing is declared", async () => {
+    fakeCommands.readDeclarations = () => Promise.resolve(null);
     const response = await request("/sites/test.lyly.dev/detach", form({}));
     assert.equal(response.status, 502);
-    assert.match((await json<{ reason: string }>(response)).reason, /clone unreadable/);
+    assert.match((await json<{ reason: string }>(response)).reason, /could not read the local lychee-resources clone/i);
     assert.deepEqual(retired, []);
     assert.equal(lastLogEntry().action, "detach-site-failed");
   });

@@ -3,6 +3,17 @@ import assert from "node:assert/strict";
 import { describeStatus, splitHostnameForDisplay } from "./siteDisplay";
 
 describe("describeStatus", () => {
+  // Scorch is for something that tried and failed: a first deploy the
+  // reconciler attempted and could not complete is exactly that, unlike
+  // awaiting image, which has not been attempted yet.
+  test("a failed deploy with nothing installed is bad, and says failed", () => {
+    assert.deepEqual(describeStatus({ kind: "failed" }), {
+      pill: "failed",
+      hop: "deploy failed",
+      tone: "bad",
+    });
+  });
+
   test("a site awaiting its first image is neutral, not a failure", () => {
     assert.deepEqual(describeStatus({ kind: "awaiting-image" }), {
       pill: "awaiting image",

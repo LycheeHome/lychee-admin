@@ -126,9 +126,10 @@ claim.
   survives restarts. Nothing is written to the host for it.
 - **Canonical status vocabulary**, shared by the header pill and the last
   hop of the request path: `running`, `unhealthy`, `starting`, `exited`,
-  `restarting`, `paused`, `not deployed`, `awaiting image`, `unknown`, and
-  `responding` / `not responding` for plain proxies. `starting`,
-  `awaiting image` and `unknown` are neutral — not failures.
+  `restarting`, `paused`, `not deployed`, `awaiting image`, `failed`,
+  `unknown`, and `responding` / `not responding` for plain proxies.
+  `starting`, `awaiting image` and `unknown` are neutral — not failures;
+  `failed` is a first deploy the reconciler attempted and could not complete.
 - **Terminology that must stay stable**: managed hostname; static vs
   reverse-proxy site; framework scaffold; healthcheck path; hop; attach /
   attached; site resource (`<label>-lyly-dev`); declaration; awaiting image; *the sites

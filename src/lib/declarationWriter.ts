@@ -6,7 +6,7 @@ export type WriteResult = { ok: true } | { ok: false; reason: string };
 
 export type GitRunner = (
   args: string[],
-  options: { cwd: string; env: NodeJS.ProcessEnv },
+  options: { cwd: string; env: NodeJS.ProcessEnv; timeoutMs?: number },
 ) => Promise<{ stdout: string; stderr: string }>;
 
 export const RESOURCES_CLONE = "/var/lib/lyly-admin/lychee-resources";
@@ -55,10 +55,19 @@ const IMAGE_PREFIX = "ghcr.io/lycheehome/";
 const MIN_SITE_PORT = 1024;
 const MAX_PORT = 65535;
 
+// lyly-admin's own PORT and Caddy's admin API. Mirrors RESERVED_PORTS in
+// lychee-ops' validate_declarations.py, for the same reason as MIN_SITE_PORT:
+// this is the last guard before a declaration the validator would refuse, and
+// a refused declaration freezes the whole set for the tick, not just this site.
+const RESERVED_PORTS: readonly number[] = [8787, 2019];
+
 export interface WriterOptions {
   git: GitRunner;
   clonePath?: string;
   keyPath?: string;
+  /** Kills each git call after this long. Unset for writes, which wait; set
+   *  by refreshDeclarations, which runs on a page load. */
+  timeoutMs?: number;
 }
 
 function isSiteName(name: string): boolean {
@@ -101,7 +110,7 @@ function withClone(opts: WriterOptions, edit: Edit): Promise<WriteResult> {
 }
 
 async function withCloneUnqueued(
-  { git, clonePath = RESOURCES_CLONE, keyPath = RESOURCES_KEY }: WriterOptions,
+  { git, clonePath = RESOURCES_CLONE, keyPath = RESOURCES_KEY, timeoutMs }: WriterOptions,
   edit: Edit,
 ): Promise<WriteResult> {
   if (!fs.existsSync(keyPath)) {
@@ -125,7 +134,8 @@ async function withCloneUnqueued(
       "-o StrictHostKeyChecking=yes",
     ].join(" "),
   };
-  const inClone = (args: string[]) => git(args, { cwd: clonePath, env });
+  const inClone = (args: string[]) =>
+    git(args, { cwd: clonePath, env, ...(timeoutMs === undefined ? {} : { timeoutMs }) });
 
   try {
     // Healthy means readable AND clean. A clone left dirty by a failed write
@@ -258,6 +268,9 @@ export async function createSiteDeclaration(
   if (port < MIN_SITE_PORT) {
     return { ok: false, reason: `Sites may not use privileged ports; ${port} is below ${MIN_SITE_PORT}.` };
   }
+  if (RESERVED_PORTS.includes(port)) {
+    return { ok: false, reason: `Port ${port} is reserved (lyly-admin itself or Caddy's admin API) and cannot be declared.` };
+  }
   const image = `${IMAGE_PREFIX}${normalized.repo}`;
   const hostname = `${name.slice(0, -SITE_SUFFIX.length)}.lyly.dev`;
 
@@ -274,7 +287,7 @@ export async function createSiteDeclaration(
       }
       return { ok: false, reason: `A declaration named ${file} already exists in lychee-resources.` };
     }
-    const claimant = claimedPorts(readDeclarations(clonePath)).get(port);
+    const claimant = claimedPorts(readDeclarations(clonePath) ?? []).get(port);
     if (claimant !== undefined) {
       return { ok: false, reason: `Port ${port} is already claimed by ${claimant}.` };
     }
@@ -331,17 +344,39 @@ export async function setDeclarationState(name: string, state: "absent", opts: W
 }
 
 /**
- * Every declaration in the local clone, as last pulled. No git: this is a
- * read for display and is as fresh as the last write or clone. `[]` when the
- * clone is absent or unreadable; unparseable files are skipped. Never throws.
+ * Brings the local clone up to date with the remote, so a declaration pruned
+ * or added on GitHub by hand is seen without waiting for this app's next
+ * write. The same pull a write does (or the same re-clone, for an unhealthy
+ * clone), on the same queue, so it can never run underneath a write.
+ *
+ * Never throws and never writes: every failure (no key, no network, a
+ * timeout) leaves the clone as the failed step left it, and the page reads
+ * whatever is there. A failed pull changes nothing; a failed re-clone leaves
+ * no clone, which readDeclarations reports as null rather than as empty.
  */
-export function readDeclarations(clonePath: string = RESOURCES_CLONE): DeclarationSummary[] {
+export async function refreshDeclarations(opts: WriterOptions): Promise<void> {
+  await withClone(opts, () => ({ ok: true })).catch(() => undefined);
+}
+
+/**
+ * Every declaration in the local clone, as last pulled. No git: this is a
+ * read for display and is as fresh as the last write, clone or refresh.
+ * Unparseable files are skipped. Never throws.
+ *
+ * `null` means "could not tell": the clone is absent, unreadable, or a
+ * directory with no `.git` (what a failed re-clone leaves). `[]` means the
+ * clone is readable and declares nothing. Callers must not conflate them: a
+ * site with no declaration in a readable clone is not attached, whatever the
+ * inventory still says about it, while a site the app cannot see may be.
+ */
+export function readDeclarations(clonePath: string = RESOURCES_CLONE): DeclarationSummary[] | null {
   let entries: string[];
   try {
     entries = fs.readdirSync(clonePath);
   } catch {
-    return [];
+    return null;
   }
+  if (!entries.includes(".git")) return null;
   return entries.flatMap((entry) => {
     if (!entry.endsWith(".yml")) return [];
     try {

@@ -311,10 +311,11 @@ background for prose, or as an accent.
 - **Clear** (`green-300`) on **Clear Deep** (`green-950` at 60%): the `ok` tone —
   `running`, `running · healthy`, `responding`.
 - **Scorch** (`red-300`) on **Scorch Deep** (`red-950` at 60%): the `bad` tone —
-  `unhealthy`, `exited`, `restarting · crash-looping`, `not responding` — plus
-  the danger button's text and the Danger card's label. Every one of these is
-  something that tried and failed; see the Three-Tone Status Rule for why
-  `not deployed` is not among them.
+  `unhealthy`, `exited`, `restarting · crash-looping`, `not responding`, and
+  `failed` (a first deploy the reconciler attempted and could not complete) —
+  plus the danger button's text and the Danger card's label. Every one of these
+  is something that tried and failed; see the Three-Tone Status Rule for why
+  `not deployed` and `awaiting image` are not among them.
 - **Scorch Edge** (`red-400` at 70%): the border of an error banner or inline
   error, where Scorch itself would not read against Scorch Deep.
 - **Scorch Border** (`red-800`) / **Scorch Rule** (`red-900`): the danger
@@ -901,8 +902,8 @@ Interactive Rule, applied to a step rather than a button.
 
 **Once a version is installed, the setup is history** and the card collapses
 to facts: `running`, `requested` while a pin is in flight, and `repository`, as
-key–value detail rows, then the gate line and the offer line exactly as a
-service row shows them. In both shapes the card closes, below a Hairline rule,
+key–value detail rows, then the failure line when a redeploy failed, then the
+gate line and the offer line exactly as a service row shows them. In both shapes the card closes, below a Hairline rule,
 with the build and run commands the Dockerfile bakes in — detail rows, not
 command blocks, because they run inside the image and are not commands to run
 yourself.
@@ -913,16 +914,28 @@ instead: a Smoke label, then the affixed repository field and a primary
 file it will write and saying that no tag is written until the first deploy.
 Its error is the form-level error surface with `role="alert"`, hidden until it
 has text. When the site's declaration is retired but not yet pruned, the field
-and the button are disabled — Smoke Deep, per the Dim-Text Rule's disabled
-exemption — and a Smoke Light sentence says what has to be pruned and where,
-tied to both through `aria-describedby`. Attached, the step's body becomes the
-image and declaration file in mono, so the step shows what was written rather
-than that something was.
+and the button stay enabled, and a Smoke Light sentence beside them warns that
+attaching is refused until the file is pruned and says where, tied to both
+through `aria-describedby`. A warning and not a disabled control, because the
+page's copy of `lychee-resources` can be stale; the writer pulls before it
+writes and refuses with the same prune reason, so pressing Attach is the
+check. Attached, the step's body becomes the image and declaration file in
+mono, so the step shows what was written rather than that something was.
+
+**The failure line** replaces "requested" when the reconciler tried a deploy
+and failed: a Body sentence naming the tag it tried, the step that failed as
+the reconciler recorded it — mono, in Smoke Light, the gate line's own
+treatment — and `journalctl -u lyly-reconcile` as a single-line Command Block.
+It sits in step four before anything is installed and, after, in the
+collapsed card above the gate line. The Scorch is the status pill's alone
+(`failed` before anything is installed; the container's own word after); the
+sentences stay Smoke, because status colors never go on prose.
 
 **The Evidence-Marks-Done Rule.** A runbook step is checked only by something
 the page has read, never by the operator's say-so and never by elapsed time.
 The commit and the first tag are done once the reconciler has found a tag in
-the registry; attach is done once a declaration or an inventory entry exists;
+the registry; attach is done once a declaration exists, or, only when the
+app's copy of `lychee-resources` cannot be read, an inventory entry;
 deploy is never checked, because once something is installed the runbook is
 replaced. A step that cannot be verified from here stays open rather than
 guessing, so a check always means the host agrees.
