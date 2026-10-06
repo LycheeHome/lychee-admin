@@ -284,8 +284,9 @@ export const realSystemCommands: SystemCommands = {
   /**
    * The app's write capability: requests in lychee-resources, which the
    * reconciler then applies. A tag change, a new site declaration, a site set
-   * absent, a tagless site's repository corrected; each is a git push with the existing deploy key. No sudo. The app
-   * writes a request and never the thing that acts on it; see declarationWriter.ts.
+   * absent, a tagless site's repository corrected; each is a git push with the
+   * existing deploy key. No sudo. The app writes a request and never the thing
+   * that acts on it; see declarationWriter.ts.
    */
   writeDeclarationTag(name, tag) {
     return writeDeclarationTag(name, tag, { git: gitRunner });

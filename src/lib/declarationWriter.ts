@@ -1,5 +1,7 @@
+import { isDeepStrictEqual } from "node:util";
 import fs from "node:fs";
 import path from "node:path";
+import { load } from "js-yaml";
 import { normalizeRepo, parseDeclaration, claimedPorts, SITE_SUFFIX, type DeclarationSummary } from "./siteResource";
 
 /**
@@ -32,8 +34,10 @@ const TAG_RE = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
 const NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
 
 // Group 1 ends at the FINAL colon of the image reference, so only the tag is
-// ever replaced. Changing the registry or repository is a different, unbounded
-// capability and is deliberately unreachable from here.
+// ever replaced. Changing the registry or repository is deliberately
+// unreachable from writeDeclarationTag. The one path that changes a repository
+// is changeSiteRepository, which is bounded differently: tagless declarations
+// only, and checked against the parsed YAML value, not just this line's text.
 const IMAGE_LINE_RE = /^(\s*image:\s*["']?[^\s"'#]*:)([^:\s"'#]+)(.*)$/;
 
 // A site declaration is created tagless and gets its first tag from Deploy.
@@ -353,12 +357,26 @@ export async function setDeclarationState(name: string, state: "absent", opts: W
   });
 }
 
+/** A declaration's whole parsed mapping, or null for anything else. Never throws. */
+function parsedFields(content: string): Record<string, unknown> | null {
+  try {
+    const doc = load(content);
+    return doc !== null && typeof doc === "object" && !Array.isArray(doc) ? (doc as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Points a site's tagless declaration at a different repository, for the one
  * mistake that otherwise strands a site: a typo at Attach, which leaves it
  * awaiting an image that will never exist. Only the repository part of the one
  * `image:` line is rewritten, as text, so comments and every other line
  * survive; the registry stays ghcr.io/lycheehome.
+ *
+ * The line is found by pattern, but the decision is made on the parsed value:
+ * the old line must parse to exactly ghcr.io/lycheehome/<the repo it shows>,
+ * and the new file must parse to the new image with every other field equal.
  *
  * Tagless only, checked after the pull. A tag means Deploy has run and the
  * reconciler may be running that image, so changing the repository under it
@@ -401,6 +419,19 @@ export async function changeSiteRepository(name: string, repo: string, opts: Wri
       };
     }
     const index = hits[0];
+    // The regexes above are lexical, and YAML is not: a quoted escape such as
+    // "ghcr.io/lycheehome/foo\x3a1.0" reads as tagless here while YAML (and the
+    // reconciler) parse it as tagged, and a nested path would have only its
+    // first component replaced. So the line must parse to exactly the
+    // repository it appears to name, or nothing is written.
+    const before = parsedFields(original);
+    const shown = SITE_TAGLESS_IMAGE_RE.exec(lines[index])?.[2] ?? "";
+    if (!before || before.image !== `${IMAGE_PREFIX}${shown}`) {
+      return {
+        ok: false,
+        reason: `${file}'s image line does not parse as a plain ${IMAGE_PREFIX}<repo>; edit it in lychee-resources by hand.`,
+      };
+    }
     lines[index] = lines[index].replace(
       SITE_TAGLESS_IMAGE_RE,
       (_m, head: string, _old: string, quote: string, rest: string) => `${head}${normalized.repo}${quote}${rest}`,
@@ -408,6 +439,13 @@ export async function changeSiteRepository(name: string, repo: string, opts: Wri
     const updated = lines.join("\n");
     if (updated === original) {
       return { ok: true };
+    }
+    // And the rewrite must parse to the new image with every other field as it was.
+    const after = parsedFields(updated);
+    const withoutImage = (fields: Record<string, unknown>) =>
+      Object.fromEntries(Object.entries(fields).filter(([key]) => key !== "image"));
+    if (!after || after.image !== image || !isDeepStrictEqual(withoutImage(before), withoutImage(after))) {
+      return { ok: false, reason: `Rewriting ${file} would change more than its image; nothing was written.` };
     }
     fs.writeFileSync(target, updated);
     return { file, message: `${name}: change repository to ${image}` };

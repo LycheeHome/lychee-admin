@@ -2005,6 +2005,7 @@ describe("renderSiteDetail from a repository", () => {
       }),
     );
     assert.doesNotMatch(c, /data-change-repository/);
+    assert.match(c, /No tag found for <span[^>]*>the image<\/span> yet/);
   });
 
   test("a running resource that fails points at its logs by project, not a /var/www directory", () => {

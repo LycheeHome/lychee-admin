@@ -547,6 +547,26 @@ describe("changeSiteRepository", () => {
     assert.equal(commits().length, 0);
   });
 
+  test("refuses a YAML-escaped tag that only looks tagless, committing nothing", async () => {
+    const escaped = SITE_TAGLESS.replace("ghcr.io/lycheehome/test-site ", `"ghcr.io/lycheehome/test-site\\x3a0.1.0" `);
+    assert.equal(load(escaped) && (load(escaped) as { image: string }).image, "ghcr.io/lycheehome/test-site:0.1.0");
+    seedClone({ "test-lyly-dev.yml": escaped });
+    const result = await changeSiteRepository("test-lyly-dev", "test-app", opts());
+    assert.equal(result.ok, false);
+    assert.equal(read(), escaped);
+    assert.equal(commits().length, 0);
+    assert.ok(!calls.some((c) => c.args[0] === "push"));
+  });
+
+  test("refuses a multi-component repository instead of rewriting only its first part", async () => {
+    const nested = SITE_TAGLESS.replace("ghcr.io/lycheehome/test-site", "ghcr.io/lycheehome/test-site/extra");
+    seedClone({ "test-lyly-dev.yml": nested });
+    const result = await changeSiteRepository("test-lyly-dev", "test-app", opts());
+    assert.equal(result.ok, false);
+    assert.equal(read(), nested);
+    assert.equal(commits().length, 0);
+  });
+
   test("refuses two tagless image lines", async () => {
     seedClone({ "test-lyly-dev.yml": `${SITE_TAGLESS}image: ghcr.io/lycheehome/other\n` });
     const result = await changeSiteRepository("test-lyly-dev", "test-app", opts());
