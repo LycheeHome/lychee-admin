@@ -1970,7 +1970,7 @@ describe("renderSiteDetail from a repository", () => {
     assert.doesNotMatch(c, /data-deploy=/);
   });
 
-  test("with no tag found, the Deploy step asks for v0.1.0", () => {
+  test("with no tag found, step 3 says so once, names both causes and offers the change; Deploy does not repeat it", () => {
     const c = card(
       renderSiteDetail(NEXT_SITE, {
         ...BASE,
@@ -1978,7 +1978,33 @@ describe("renderSiteDetail from a repository", () => {
         status: { kind: "awaiting-image" },
       }),
     );
-    assert.match(c, /No tag found/);
+    assert.equal(c.match(/No image found at/g)?.length, 1);
+    assert.match(c, /No image found at <span[^>]*>ghcr\.io\/lycheehome\/app-site<\/span> yet/);
+    assert.match(c, /v0\.1\.0/);
+    assert.match(c, /repository name is wrong/);
+    assert.doesNotMatch(c, /No tag found/);
+    assert.match(c, /no image yet/);
+    const form = c.match(/<form[^>]*data-change-repository="app\.lyly\.dev"[\s\S]*?<\/form>/);
+    assert.ok(form, "no change-repository form");
+    const input = form[0].match(/<input[^>]*>/);
+    assert.ok(input);
+    assert.match(input[0], /name="repo"/);
+    assert.match(input[0], /value="app-site"/);
+    assert.match(input[0], /aria-describedby="change-repo-prefix"/);
+    assert.match(form[0], />ghcr\.io\/lycheehome\/</);
+    assert.ok(form[0].includes(`class="${BUTTON_SECONDARY}">Change repository</button>`));
+    assert.match(form[0], /id="change-repo-error" role="alert"/);
+  });
+
+  test("an unreadable declaration (no repo) offers no change control", () => {
+    const c = card(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, repo: null, result: "awaiting-image" },
+        status: { kind: "awaiting-image" },
+      }),
+    );
+    assert.doesNotMatch(c, /data-change-repository/);
   });
 
   test("a running resource that fails points at its logs by project, not a /var/www directory", () => {
