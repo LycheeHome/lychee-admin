@@ -82,7 +82,13 @@ as laundering privilege between everything that shares it), and a hand commit
 per site (provisioning would never be one action in `lyly-admin`). Accepted
 cost: a `lyly-admin` write can now cause root to create an account. That is
 bounded by the name pattern, the account has no shell and no supplementary
-groups, and its uid comes from a reserved range.
+groups, and its uid is allocated by `useradd --system` from the host's system
+range. (A reserved range declared in `group_vars` was the original design and
+was dropped during implementation, with the operator's approval:
+`ansible.builtin.user` cannot pass `-K SYS_UID_MIN`, hand-rolled allocation in
+Jinja would be new surface for no stated benefit, and nothing compares a site's
+uid to a declared number — the account *name* marks a site account, and its
+identity is read back from `getent`.)
 
 **Tagless at attach.** Rejected: writing a full `image:tag` at attach (no schema
 change, but `lyly-admin` cannot check the tag exists, a typo surfaces a tick
@@ -127,12 +133,16 @@ means discovery finds nothing yet.
   render, no pull. `resolve_available` still runs (it already derives the
   repository from the image string). Status file: `result: awaiting-image`,
   `target_tag: ""`, `available_tag` as discovered.
-- **Site accounts.** A new task ahead of `assert_identities`: for each
-  `-lyly-dev` declaration whose account does not exist, create a system account
-  of that name — `nologin`, no home, no supplementary groups, uid/gid from a
-  reserved range declared in `group_vars`. `service_identities` entries for sites
-  are derived from those accounts rather than hand-maintained; `palsave-api`
-  stays hand-declared. An `absent` declaration does not delete its account
+- **Site accounts.** A new task ahead of `assert_identities` (in the role's
+  `main.yml`, between the fetch and `getent`): run the validator, and for each
+  valid `-lyly-dev` declaration ensure a system account of that name —
+  `nologin`, no home, no supplementary groups, uid/gid allocated by `useradd
+  --system` (amended 2026-10-05; this said "from a reserved range declared in
+  `group_vars`"). A failure there blocks only the affected site, at render. The
+  identities the compose template renders under are `service_identities` plus
+  each site's uid/gid as `getent` reads it back, rather than hand-maintained
+  entries; `palsave-api` stays hand-declared, and `assert_identities` still
+  checks only the hand map. An `absent` declaration does not delete its account
   (deleting accounts frees uids that orphaned files would then inherit — the
   `github-runner` lesson).
 - **Inventory.** Sites enter `services.json` automatically from their
