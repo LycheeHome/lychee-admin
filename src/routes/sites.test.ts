@@ -240,6 +240,18 @@ describe("GET / when the Caddyfile can't be read", () => {
 });
 
 describe("GET /sites/new", () => {
+  // GET /sites/new is async (it awaits a clone refresh). An unguarded throw
+  // there hangs the request and crashes the process under Express 4. The
+  // timeout turns a hang into a failure rather than a stuck test run.
+  test("returns 500 with the error text when the Caddyfile can't be read, rather than hanging", async () => {
+    fakeFs.rmRecursive(CADDYFILE);
+
+    const response = await request("/sites/new", { signal: AbortSignal.timeout(3000) });
+
+    assert.equal(response.status, 500);
+    assert.match(await response.text(), /ENOENT/);
+  });
+
   test("serves the add-site form with port-conflict data", async () => {
     const response = await request("/sites/new");
     assert.equal(response.status, 200);

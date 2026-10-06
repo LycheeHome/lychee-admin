@@ -221,17 +221,27 @@ export function createSitesRouter(deps: Deps): Router {
   // registration order, so if this were below, "new" would be captured as
   // :hostname, fail isManagedHostname, and 404 instead of rendering the form.
   sitesRouter.get("/sites/new", async (req, res) => {
-    // For the preview and submit this page sends: neither refreshes, so the
-    // port claims they check are as fresh as this page load.
-    await refreshClone(deps);
-    const content = deps.fs.readFile(config.caddyfilePath);
-    const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname, config.domain));
-    res.send(
-      renderAddSite(sites, config.domain, computePortOwners(sites), {
-        caddyfilePath: config.caddyfilePath,
-        tunnelConfigPath: config.tunnelConfigPath,
-      }),
-    );
+    // Async handler: an unguarded throw hangs the request and crashes the
+    // process under Express 4, so a read failure becomes an ordinary 500, the
+    // same as GET /.
+    try {
+      // For the preview and submit this page sends: neither refreshes, so the
+      // port claims they check are as fresh as this page load.
+      await refreshClone(deps);
+      const content = deps.fs.readFile(config.caddyfilePath);
+      const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname, config.domain));
+      res.send(
+        renderAddSite(sites, config.domain, computePortOwners(sites), {
+          caddyfilePath: config.caddyfilePath,
+          tunnelConfigPath: config.tunnelConfigPath,
+        }),
+      );
+    } catch (error) {
+      const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
+      // The URL is /sites/new, not / — same reasoning as the detail page's
+      // fallback: no header item is marked current.
+      res.status(500).send(renderSiteList([], {}, config.domain, message, {}));
+    }
   });
 
   sitesRouter.get("/sites/:hostname", async (req, res) => {
