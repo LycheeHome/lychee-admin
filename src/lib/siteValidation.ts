@@ -77,6 +77,12 @@ export function validateSiteInput(input: SiteInput, env: SiteEnv): Validation {
     return { ok: false, error: "A valid local port is required for a reverse proxy site" };
   }
 
+  // The reconciler's validator rejects sites below 1024, and one rejected
+  // declaration freezes every resource on the host for a tick.
+  if (input.framework === "nextjs" && Number(input.port) < 1024) {
+    return { ok: false, error: "A Next.js site needs a port of 1024 or above; lower ports are privileged" };
+  }
+
   if (input.healthcheckPath && !HEALTHCHECK_PATH_PATTERN.test(input.healthcheckPath)) {
     return { ok: false, error: `"${input.healthcheckPath}" is not a valid healthcheck path` };
   }
@@ -89,6 +95,7 @@ export function validateAgainstExisting(
   input: SiteInput,
   caddyfileContent: string,
   env: SiteEnv,
+  declaredPorts: Map<number, string>,
 ): Validation {
   if (hostnameExists(caddyfileContent, input.hostname)) {
     return { ok: false, error: `${input.hostname} already exists in the Caddyfile` };
@@ -101,6 +108,13 @@ export function validateAgainstExisting(
       ok: false,
       error: `Port ${input.port} is reserved (used by lyly-admin itself or Caddy's admin API)`,
     };
+  }
+
+  // Every claim counts, absent declarations included: two declarations on one
+  // port make the reconciler reject both.
+  const claimant = declaredPorts.get(Number(input.port));
+  if (claimant) {
+    return { ok: false, error: `Port ${input.port} is already claimed by ${claimant} in lychee-resources.` };
   }
 
   const conflicting = parseSites(caddyfileContent).find(

@@ -74,7 +74,11 @@ export function createInMemoryFileSystem(): FileSystem & {
     return dirs.has(normalizePath(target));
   }
 
-  return { readFile, writeFile, mkdir, appendFile, copyFile, rmRecursive, hasFile, hasDir };
+  function exists(target: string): boolean {
+    return hasFile(target) || hasDir(target);
+  }
+
+  return { readFile, writeFile, mkdir, appendFile, copyFile, rmRecursive, exists, hasFile, hasDir };
 }
 
 /**

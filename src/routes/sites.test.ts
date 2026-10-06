@@ -57,6 +57,8 @@ ingress:
 `;
 
 let fakeFs: ReturnType<typeof createInMemoryFileSystem>;
+let fakeCommands: import("../lib/systemCommands").SystemCommands;
+const createSiteDirectoryCalls: string[] = [];
 
 function writeFixtures(caddyfile = SEED_CADDYFILE, tunnel = SEED_TUNNEL): void {
   fakeFs.rmRecursive(SITES_ROOT);
@@ -103,9 +105,17 @@ before(async () => {
   const { createLogger } = await import("../lib/logger");
   const { createFakes } = await import("../dev/fakes");
 
-  const fakes = createFakes();
+  const fakes = createFakes({
+    createSiteDirectory: (hostname) => {
+      createSiteDirectoryCalls.push(hostname);
+      fakeFs.mkdir(path.posix.join(SITES_ROOT, hostname));
+      return Promise.resolve({ stdout: "", stderr: "" });
+    },
+  });
   fakeFs = fakes.fs;
+  fakeCommands = fakes.commands;
   writeFixtures();
+  await fakes.commands.createSiteDeclaration("palsave-api", "palsave-api", 8788);
 
   const app = createApp({
     commands: fakes.commands,
@@ -127,6 +137,7 @@ after(async () => {
 });
 
 beforeEach(() => {
+  createSiteDirectoryCalls.length = 0;
   writeFixtures();
 });
 
@@ -310,23 +321,55 @@ describe("POST /sites — static", () => {
 });
 
 describe("POST /sites — reverse proxy", () => {
-  test("writes the Next.js scaffold and both marker comments", async () => {
+  test("a Next.js site writes both marker comments and nothing to the host", async () => {
     const response = await request(
       "/sites",
       form({ hostname: "app.lyly.dev", type: "reverse-proxy", port: "3000", framework: "nextjs", healthcheckPath: "/api/health" }),
     );
     assert.equal(response.status, 200);
-    assert.equal((await json<{ framework: string }>(response)).framework, "nextjs");
+    const body = await json<{ framework: string; steps: { id: string; status: string }[] }>(response);
+    assert.equal(body.framework, "nextjs");
+    assert.equal(body.steps.find((step) => step.id === "files")?.status, "skipped");
 
     const caddyfile = fakeFs.readFile(CADDYFILE);
     assert.match(caddyfile, /# lyly-admin-framework: nextjs/);
     assert.match(caddyfile, /# lyly-admin-healthcheck: \/api\/health/);
 
     const siteDir = path.join(SITES_ROOT, "app.lyly.dev");
-    assert.equal(fakeFs.hasDir(siteDir), true);
-    assert.match(fakeFs.readFile(path.join(siteDir, "Dockerfile")), /HEALTHCHECK .*\/api\/health/);
-    assert.match(fakeFs.readFile(path.join(siteDir, ".github/workflows/release.yml")), /packages: write/);
-    assert.ok(fakeFs.hasFile(path.join(siteDir, ".dockerignore")));
+    assert.equal(fakeFs.hasDir(siteDir), false);
+    assert.equal(fakeFs.hasFile(path.join(siteDir, "Dockerfile")), false);
+    assert.equal(fakeFs.hasFile(path.join(siteDir, ".github/workflows/release.yml")), false);
+    assert.deepEqual(createSiteDirectoryCalls, []);
+  });
+
+  test("a static site still creates its directory", async () => {
+    await request("/sites", form({ hostname: "static.lyly.dev", type: "static" }));
+    assert.deepEqual(createSiteDirectoryCalls, ["static.lyly.dev"]);
+  });
+
+  test("rejects a port claimed by a declaration, naming it", async () => {
+    const response = await request("/sites", form({ hostname: "clash.lyly.dev", type: "reverse-proxy", port: "8788" }));
+    assert.equal(response.status, 500);
+    assert.equal(
+      (await json<{ error: string }>(response)).error,
+      "Port 8788 is already claimed by palsave-api in lychee-resources.",
+    );
+  });
+
+  test("a failing declaration read degrades to no claims", async () => {
+    const original = fakeCommands.readDeclarations;
+    fakeCommands.readDeclarations = () => Promise.reject(new Error("clone missing"));
+    try {
+      const response = await request("/sites", form({ hostname: "ok.lyly.dev", type: "reverse-proxy", port: "8788" }));
+      assert.equal(response.status, 200);
+    } finally {
+      fakeCommands.readDeclarations = original;
+    }
+  });
+
+  test("refuses a Next.js site on a privileged port", async () => {
+    const response = await request("/sites", form({ hostname: "low.lyly.dev", type: "reverse-proxy", port: "80", framework: "nextjs" }));
+    assert.equal(response.status, 400);
   });
 
   test("creates no directory for a reverse proxy with no framework", async () => {
@@ -720,6 +763,26 @@ describe("POST /sites/preview", () => {
       await request("/sites", form({ hostname: "docs.lyly.dev", type: "reverse-proxy", port: "4000" })),
     );
     assert.equal(preview.error, submit.error);
+  });
+
+  test("rejects a declared port with the same string the submit returns", async () => {
+    const fields = { hostname: "docs.lyly.dev", type: "reverse-proxy", port: "8788" };
+    const preview = await json<{ ready: boolean; error: string }>(await request("/sites/preview", form(fields)));
+    const submit = await json<{ error: string }>(await request("/sites", form(fields)));
+    assert.equal(preview.ready, false);
+    assert.equal(preview.error, submit.error);
+    assert.match(preview.error, /palsave-api in lychee-resources/);
+  });
+
+  test("a Next.js preview offers the files for the repository, not /var/www", async () => {
+    const response = await request(
+      "/sites/preview",
+      form({ hostname: "docs.lyly.dev", type: "reverse-proxy", port: "4100", framework: "nextjs" }),
+    );
+    const body = await json<{ preview: { files: { path: string; creates: string[]; destination: string } } }>(response);
+    assert.equal(body.preview.files.destination, "repository");
+    assert.doesNotMatch(body.preview.files.path, /\/var\/www/);
+    assert.equal(body.preview.files.creates.length, 3);
   });
 
   test("marks the directory step as not running for a plain reverse proxy", async () => {

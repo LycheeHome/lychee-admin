@@ -9,7 +9,7 @@ export interface SitePreview {
   hostname: string;
   caddy: { path: string; added: string[] };
   tunnel: { path: string; added: string[]; contextAfter: string | null };
-  files: { path: string; creates: string[] } | null;
+  files: { path: string; creates: string[]; destination?: "repository" } | null;
   steps: { id: string; label: string; willRun: boolean }[];
 }
 
@@ -81,21 +81,26 @@ export function buildSitePreview(
     ? getScaffoldFiles(input.framework, input.healthcheckPath ?? "/")
     : null;
 
-  // Mirrors the add handler's three cases exactly: a static site gets a
-  // directory and a placeholder, a scaffolded proxy gets a directory and its
-  // scaffold, and a plain proxy has no directory to create at all.
-  const files =
+  // Mirrors the add handler: only a static site gets a host directory. A
+  // scaffolded proxy lists its files to copy into the site's own repository,
+  // and a plain proxy has nothing to show.
+  const files: SitePreview["files"] =
     input.type === "static"
       ? { path: sitePath, creates: ["index.html"] }
       : scaffold
-        ? { path: sitePath, creates: scaffold.map((file) => file.name) }
+        ? {
+            path: "Copy into your site's repository",
+            creates: scaffold.map((file) => file.name),
+            destination: "repository",
+          }
         : null;
+  const createsHostDirectory = input.type === "static";
 
   return {
     hostname: input.hostname,
     caddy: { path: env.caddyfilePath, added: caddyDiff.added },
     tunnel: { path: env.tunnelConfigPath, added: tunnelDiff.added, contextAfter: tunnelDiff.contextAfter },
     files,
-    steps: ADD_STEPS.map((step) => ({ ...step, willRun: step.id === "files" ? files !== null : true })),
+    steps: ADD_STEPS.map((step) => ({ ...step, willRun: step.id === "files" ? createsHostDirectory : true })),
   };
 }

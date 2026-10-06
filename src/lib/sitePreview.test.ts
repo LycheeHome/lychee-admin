@@ -140,11 +140,16 @@ describe("buildSitePreview — Next.js reverse proxy", () => {
     ]);
   });
 
-  test("lists the scaffold files, and the files step runs again", () => {
+  test("lists the scaffold files as to copy into the site's repository, not written to /var/www", () => {
     assert.deepEqual(preview.files, {
-      path: "/var/www/docs.lyly.dev",
+      path: "Copy into your site's repository",
       creates: ["Dockerfile", ".dockerignore", ".github/workflows/release.yml"],
+      destination: "repository",
     });
-    assert.deepEqual(preview.steps.filter((step) => !step.willRun), []);
+    assert.doesNotMatch(JSON.stringify(preview.files), /\/var\/www/);
+  });
+
+  test("the host files step does not run, since nothing is created on the host", () => {
+    assert.deepEqual(preview.steps.filter((step) => !step.willRun).map((step) => step.id), ["files"]);
   });
 });

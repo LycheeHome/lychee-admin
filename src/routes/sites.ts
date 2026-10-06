@@ -4,7 +4,8 @@ import { config } from "../config";
 import * as caddyfile from "../lib/caddyfile";
 import * as tunnelConfig from "../lib/tunnelConfig";
 import { CommandError } from "../lib/systemCommands";
-import { getFrameworkScaffold, getScaffoldFiles } from "../lib/frameworkScaffold";
+import { claimedPorts } from "../lib/siteResource";
+import { getFrameworkScaffold } from "../lib/frameworkScaffold";
 import { checkPortOpen } from "../lib/portStatus";
 import { ADD_STEPS, REMOVE_STEPS, createStepReport } from "../lib/stepReport";
 import {
@@ -73,6 +74,17 @@ async function computeStatuses(sites: Site[], deps: Deps): Promise<Record<string
 
 export function createSitesRouter(deps: Deps): Router {
   const sitesRouter = Router();
+
+  // Called once per request, by both POST /sites and POST /sites/preview, so
+  // the two can never disagree about which ports are claimed. An unreadable
+  // clone degrades to no claims: the writer re-checks at declaration time.
+  async function readDeclaredPorts(): Promise<Map<number, string>> {
+    try {
+      return claimedPorts(await deps.commands.readDeclarations());
+    } catch {
+      return new Map();
+    }
+  }
   const { backupFile } = deps.backup;
   const { logAction } = deps.logger;
 
@@ -229,7 +241,7 @@ export function createSitesRouter(deps: Deps): Router {
 
     try {
       caddyfileContent = deps.fs.readFile(config.caddyfilePath);
-      const existing = validateAgainstExisting(input, caddyfileContent, SITE_ENV);
+      const existing = validateAgainstExisting(input, caddyfileContent, SITE_ENV, await readDeclaredPorts());
       if (!existing.ok) throw new Error(existing.error);
 
       tunnelContent = deps.fs.readFile(config.tunnelConfigPath);
@@ -246,32 +258,18 @@ export function createSitesRouter(deps: Deps): Router {
         ),
       );
 
-      // Static sites get a directory + placeholder page; Next.js
-      // reverse-proxy sites get a directory + Dockerfile/docker-compose
-      // scaffold. A plain reverse-proxy site has no directory to create, so
-      // that case is a skip, not a step that never ran. Not covered by the
-      // rollback below if a later step fails — same deliberate asymmetry
-      // that already applies to the static placeholder file.
+      // Only static sites get a directory + placeholder page. A Next.js site
+      // is a container resource declared elsewhere, and its scaffold is for
+      // the site's own repository, so the host gets nothing; a plain proxy
+      // has no directory either. Both are skips, not steps that never ran.
+      // Not covered by the rollback below if a later step fails — same
+      // deliberate asymmetry that already applies to the placeholder file.
       if (type === "static") {
         await report.run("files", async () => {
           await deps.commands.createSiteDirectory(hostname);
           deps.fs.writeFile(path.join(sitePath, "index.html"), PLACEHOLDER_INDEX_HTML(hostname));
         });
-      } else if (framework) {
-        await report.run("files", async () => {
-          const files = getScaffoldFiles(framework, healthcheckPath ?? "/");
-          if (!files) return;
-          await deps.commands.createSiteDirectory(hostname);
-          for (const file of files) {
-            const target = path.join(sitePath, file.name);
-            // The workflow lives in a nested directory the site dir lacks.
-            deps.fs.mkdir(path.dirname(target));
-            deps.fs.writeFile(target, file.content);
-          }
-        });
       } else {
-        // A plain reverse-proxy site has no directory to create. This is not
-        // a blocked step, so it must not report as not-run.
         report.skip("files");
       }
 
@@ -363,7 +361,7 @@ export function createSitesRouter(deps: Deps): Router {
    * Always 200. A half-typed form is not a client error, and a 4xx per
    * keystroke would fill the console with failures that are merely early.
    */
-  sitesRouter.post("/sites/preview", (req, res) => {
+  sitesRouter.post("/sites/preview", async (req, res) => {
     const input = readSiteInput(req.body);
     if (!input.hostname) {
       res.json({ ready: false });
@@ -379,7 +377,7 @@ export function createSitesRouter(deps: Deps): Router {
     const caddyfileContent = deps.fs.readFile(config.caddyfilePath);
     const tunnelContent = deps.fs.readFile(config.tunnelConfigPath);
 
-    const existing = validateAgainstExisting(input, caddyfileContent, SITE_ENV);
+    const existing = validateAgainstExisting(input, caddyfileContent, SITE_ENV, await readDeclaredPorts());
     if (!existing.ok) {
       res.json({ ready: false, error: existing.error });
       return;

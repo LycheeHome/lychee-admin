@@ -16,6 +16,8 @@ const ENV: SiteEnv = {
   reservedPorts: [8787, 2019],
 };
 
+const NO_DECLARED = new Map<number, string>();
+
 const CADDYFILE = `{
 \tauto_https off
 }
@@ -90,15 +92,35 @@ describe("validateSiteInput", () => {
   }
 });
 
+describe("validateSiteInput — privileged ports", () => {
+  test("refuses a Next.js site below 1024", () => {
+    const input = readSiteInput({ hostname: "x.lyly.dev", type: "reverse-proxy", port: "80", framework: "nextjs" });
+    const result = validateSiteInput(input, ENV);
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? "" : result.error, /1024/);
+  });
+
+  test("allows 1024 for Next.js, and low ports for plain proxies", () => {
+    assert.deepEqual(
+      validateSiteInput(readSiteInput({ hostname: "x.lyly.dev", type: "reverse-proxy", port: "1024", framework: "nextjs" }), ENV),
+      { ok: true },
+    );
+    assert.deepEqual(
+      validateSiteInput(readSiteInput({ hostname: "x.lyly.dev", type: "reverse-proxy", port: "80" }), ENV),
+      { ok: true },
+    );
+  });
+});
+
 describe("validateAgainstExisting", () => {
   test("rejects a hostname already in the Caddyfile", () => {
-    const result = validateAgainstExisting(readSiteInput({ hostname: "blog.lyly.dev" }), CADDYFILE, ENV);
+    const result = validateAgainstExisting(readSiteInput({ hostname: "blog.lyly.dev" }), CADDYFILE, ENV, NO_DECLARED);
     assert.deepEqual(result, { ok: false, error: "blog.lyly.dev already exists in the Caddyfile" });
   });
 
   test("rejects a reserved port before it can reach a conflict check", () => {
     const input = readSiteInput({ hostname: "x.lyly.dev", type: "reverse-proxy", port: "2019" });
-    assert.deepEqual(validateAgainstExisting(input, CADDYFILE, ENV), {
+    assert.deepEqual(validateAgainstExisting(input, CADDYFILE, ENV, NO_DECLARED), {
       ok: false,
       error: "Port 2019 is reserved (used by lyly-admin itself or Caddy's admin API)",
     });
@@ -106,7 +128,7 @@ describe("validateAgainstExisting", () => {
 
   test("names the site already holding a conflicting port", () => {
     const input = readSiteInput({ hostname: "x.lyly.dev", type: "reverse-proxy", port: "4000" });
-    assert.deepEqual(validateAgainstExisting(input, CADDYFILE, ENV), {
+    assert.deepEqual(validateAgainstExisting(input, CADDYFILE, ENV, NO_DECLARED), {
       ok: false,
       error: "Port 4000 is already used by api.lyly.dev",
     });
@@ -114,12 +136,25 @@ describe("validateAgainstExisting", () => {
 
   test("lets a free port through", () => {
     const input = readSiteInput({ hostname: "x.lyly.dev", type: "reverse-proxy", port: "4100" });
-    assert.deepEqual(validateAgainstExisting(input, CADDYFILE, ENV), { ok: true });
+    assert.deepEqual(validateAgainstExisting(input, CADDYFILE, ENV, NO_DECLARED), { ok: true });
+  });
+
+  test("rejects a port claimed by a declaration, naming it and lychee-resources", () => {
+    const input = readSiteInput({ hostname: "x.lyly.dev", type: "reverse-proxy", port: "8788" });
+    assert.deepEqual(validateAgainstExisting(input, CADDYFILE, ENV, new Map([[8788, "palsave-api"]])), {
+      ok: false,
+      error: "Port 8788 is already claimed by palsave-api in lychee-resources.",
+    });
+  });
+
+  test("a declared port does not block a static site", () => {
+    const input = readSiteInput({ hostname: "x.lyly.dev", type: "static", port: "8788" });
+    assert.deepEqual(validateAgainstExisting(input, CADDYFILE, ENV, new Map([[8788, "palsave-api"]])), { ok: true });
   });
 
   test("a static site is not port-checked at all", () => {
     const input = readSiteInput({ hostname: "x.lyly.dev", type: "static", port: "4000" });
-    assert.deepEqual(validateAgainstExisting(input, CADDYFILE, ENV), { ok: true });
+    assert.deepEqual(validateAgainstExisting(input, CADDYFILE, ENV, NO_DECLARED), { ok: true });
   });
 });
 

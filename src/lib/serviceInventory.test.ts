@@ -20,7 +20,7 @@ function fsReturning(content: string | (() => never)): FileSystem {
   return {
     readFile: typeof content === "string" ? () => content : content,
     writeFile: () => {}, mkdir: () => {}, appendFile: () => {},
-    copyFile: () => {}, rmRecursive: () => {},
+    copyFile: () => {}, rmRecursive: () => {}, exists: () => true,
   };
 }
 
