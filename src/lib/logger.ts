@@ -17,7 +17,9 @@ export interface AuditEntry {
     | "deploy-service"
     | "deploy-service-failed"
     | "attach-site"
-    | "attach-site-failed";
+    | "attach-site-failed"
+    | "detach-site"
+    | "detach-site-failed";
   /** The site's hostname, or for a service action the declaration's name. */
   hostname: string;
   detail?: string;

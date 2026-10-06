@@ -716,7 +716,7 @@ describe("renderSiteDetail danger zone", () => {
   });
 
   test("a site with files offers the delete checkbox naming the exact path", () => {
-    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    const html = renderSiteDetail(STATIC_SITE, { ...OPTS, filesExist: true });
     assert.match(html, /id="confirm-remove-delete-files"[\s\S]{0,200}?\/var\/www\/blog\.lyly\.dev/);
   });
 
@@ -725,13 +725,49 @@ describe("renderSiteDetail danger zone", () => {
     assert.doesNotMatch(html, /id="confirm-remove-delete-files"/);
   });
 
-  test("a scaffolded site keeps the running-container warning", () => {
+  test("a static site whose directory is gone offers nothing to delete", () => {
+    const html = renderSiteDetail(STATIC_SITE, { ...OPTS, filesExist: false });
+    assert.doesNotMatch(html, /id="confirm-remove-delete-files"/);
+  });
+
+  test("a legacy Next.js directory keeps the checkbox and its running-container warning", () => {
     const html = renderSiteDetail(NEXT_SITE, {
       ...OPTS,
+      filesExist: true,
       status: { kind: "container", state: "running", health: "healthy" },
     });
+    assert.match(html, /id="confirm-remove-delete-files"[\s\S]{0,200}?\/var\/www\/app\.lyly\.dev/);
     assert.match(html, /docker compose down/);
     assert.match(html, /won't stop it/);
+  });
+
+  test("a Next.js site with no directory has no checkbox and no docker compose instruction", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...OPTS, status: { kind: "container", state: "not-created" } });
+    const dialog = html.match(/<dialog id="confirm-remove-dialog"[\s\S]*?<\/dialog>/)?.[0] ?? "";
+    assert.doesNotMatch(dialog, /id="confirm-remove-delete-files"/);
+    assert.doesNotMatch(dialog, /docker compose/);
+  });
+
+  test("an attached site lists retiring its declaration fifth, and says what that does", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...OPTS,
+      resource: { name: "app-lyly-dev", repo: "app-site", version: "0.2.0", result: "deployed" },
+      status: { kind: "container", state: "running", health: "healthy" },
+    });
+    const dialog = html.match(/<dialog id="confirm-remove-dialog"[\s\S]*?<\/dialog>/)?.[0] ?? "";
+    assert.match(dialog, /<dialog[^>]*data-attached="true"/);
+    const list = listById(html, "confirm-remove-steps");
+    assert.deepEqual([...list.matchAll(/data-step-id="([a-z]+)"/g)].map((m) => m[1]), ["caddyfile", "tunnel", "caddy", "cloudflared", "declaration"]);
+    assert.match(list, />5\.<\/span><span>app-lyly-dev\.yml set to state: absent<\/span>/);
+    assert.match(dialog, /reconciler takes the container down on its next run/);
+    assert.doesNotMatch(dialog, /docker compose/);
+  });
+
+  test("an unattached site keeps four steps and no attached marker", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...OPTS, status: { kind: "container", state: "not-created" } });
+    const dialog = html.match(/<dialog id="confirm-remove-dialog"[^>]*>/)?.[0] ?? "";
+    assert.doesNotMatch(dialog, /data-attached/);
+    assert.doesNotMatch(listById(html, "confirm-remove-steps"), /data-step-id="declaration"/);
   });
 });
 
@@ -750,12 +786,11 @@ describe("remove dialog accessibility", () => {
     const cancel = html.match(/<button[^>]*data-close-dialog="confirm-remove-dialog"[^>]*>/);
     assert.ok(cancel, "no Cancel button was rendered");
     assert.match(cancel[0], /\bautofocus\b/);
-    const checkbox = tagById(html, "confirm-remove-delete-files");
-    assert.doesNotMatch(checkbox, /\bautofocus\b/);
+    assert.doesNotMatch(tagById(renderSiteDetail(STATIC_SITE, { ...OPTS, filesExist: true }), "confirm-remove-delete-files"), /\bautofocus\b/);
   });
 
   test("the delete-files checkbox uses the system accent and focus ring", () => {
-    const checkbox = tagById(renderSiteDetail(STATIC_SITE, OPTS), "confirm-remove-delete-files");
+    const checkbox = tagById(renderSiteDetail(STATIC_SITE, { ...OPTS, filesExist: true }), "confirm-remove-delete-files");
     assert.match(checkbox, /accent-rose-400/);
     assert.match(checkbox, /focus-visible:outline-rose-400/);
   });

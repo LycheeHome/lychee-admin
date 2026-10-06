@@ -893,7 +893,12 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
   const resourceName = site.framework ? resourceNameFor(site.hostname, opts.domain) : null;
   const filesPath = computeFilesPath(site, opts.sitesRoot);
 
-  const deleteFilesSection = filesPath
+  // Retiring the declaration is a fifth step only when there is one to retire.
+  const attachedName = resourceName && opts.resource ? resourceName : null;
+
+  // Offered only for a directory that is actually there: a Next.js site added
+  // after scaffolds stopped being written to the host has none to delete.
+  const deleteFilesSection = filesPath && opts.filesExist
     ? `
       <div class="flex flex-col gap-2 mb-5">
         <label class="flex flex-row items-center text-[0.8rem] text-stone-400 gap-1.5">
@@ -923,16 +928,26 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       ${renderDangerZone()}
     </div>
 
-    <dialog id="confirm-remove-dialog" aria-labelledby="confirm-remove-title" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
+    <dialog id="confirm-remove-dialog"${attachedName ? ` data-attached="true"` : ""} aria-labelledby="confirm-remove-title" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
       <h2 id="confirm-remove-title" class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Remove site</h2>
       <p class="m-0 mb-3 leading-relaxed">Remove <strong>${escapeHtml(site.hostname)}</strong>? In this order:</p>
       <ol id="confirm-remove-steps" class="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 p-0 list-none grid gap-y-1.5">
         <li class="flex gap-2" data-step-id="caddyfile"><span class="text-stone-400 shrink-0">1.</span><span>Caddyfile block removed</span><span class="step-mark ml-auto shrink-0"></span></li>
         <li class="flex gap-2" data-step-id="tunnel"><span class="text-stone-400 shrink-0">2.</span><span>Tunnel route removed</span><span class="step-mark ml-auto shrink-0"></span></li>
         <li class="flex gap-2" data-step-id="caddy"><span class="text-stone-400 shrink-0">3.</span><span>Caddy validated and reloaded</span><span class="step-mark ml-auto shrink-0"></span></li>
-        <li class="flex gap-2" data-step-id="cloudflared"><span class="text-stone-400 shrink-0">4.</span><span>cloudflared-sites restarted</span><span class="step-mark ml-auto shrink-0"></span></li>
+        <li class="flex gap-2" data-step-id="cloudflared"><span class="text-stone-400 shrink-0">4.</span><span>cloudflared-sites restarted</span><span class="step-mark ml-auto shrink-0"></span></li>${
+          attachedName
+            ? `
+        <li class="flex gap-2" data-step-id="declaration"><span class="text-stone-400 shrink-0">5.</span><span>${escapeHtml(attachedName)}.yml set to state: absent</span><span class="step-mark ml-auto shrink-0"></span></li>`
+            : ""
+        }
       </ol>
-      <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mb-4">If a step fails, the ones after it don't run.</p>
+      <p class="text-stone-400 text-[0.75rem] leading-snug m-0 ${attachedName ? "mb-2" : "mb-4"}">If a step fails, the ones after it don't run.</p>${
+        attachedName
+          ? `
+      <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mb-4">Step 5 is what stops the container: it writes <span class="font-mono text-stone-50">state: absent</span> to <span class="font-mono text-stone-50">${escapeHtml(attachedName)}.yml</span> in lychee-resources, and the reconciler takes the container down on its next run, within five minutes.</p>`
+          : ""
+      }
       <div id="confirm-remove-outcome" class="hidden font-mono text-[0.72rem] text-stone-400 leading-snug m-0 mb-4 flex items-start gap-2" role="status" aria-live="polite"><span id="confirm-remove-progress" class="hidden shrink-0 mt-[0.4em] h-1.5 w-1.5 rounded-full bg-stone-400 motion-safe:animate-pulse" aria-hidden="true"></span><span id="confirm-remove-outcome-text" class="whitespace-pre-wrap"></span></div>
       ${deleteFilesSection}
       <div class="flex items-center justify-end gap-2.5">

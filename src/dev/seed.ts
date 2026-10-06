@@ -1,3 +1,4 @@
+import path from "node:path";
 import { config } from "../config";
 import type { FileSystem } from "../lib/fileSystem";
 import { INVENTORY_PATH } from "../lib/serviceInventory";
@@ -144,7 +145,16 @@ export const SEEDED_TIMER_SCHEDULE: TimerSchedule = {
   next: new Date(Date.now() + 3 * 60_000),
 };
 
+/**
+ * The directories that exist on a real host: both static sites', and the
+ * legacy Next.js site's, from when scaffolds were still written to /var/www.
+ * app.lyly.dev deliberately has none — the remove dialog offers to delete
+ * files only where they exist, and dev mode should show both cases.
+ */
+const SEEDED_SITE_DIRS = ["lyly.dev", "blog.lyly.dev", "legacy.lyly.dev"];
+
 export function applySeed(fs: FileSystem): void {
+  for (const hostname of SEEDED_SITE_DIRS) fs.mkdir(path.posix.join(config.sitesRoot, hostname));
   fs.writeFile(config.caddyfilePath, SEED_CADDYFILE);
   fs.writeFile(config.tunnelConfigPath, SEED_TUNNEL_CONFIG);
   fs.writeFile(INVENTORY_PATH, SEEDED_INVENTORY);

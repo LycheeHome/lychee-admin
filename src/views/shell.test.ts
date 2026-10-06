@@ -67,6 +67,18 @@ describe("the header band", () => {
   });
 });
 
+describe("the flash toast", () => {
+  test("carries a hidden action button, so a failure can offer its own recovery", () => {
+    const html = renderSiteList(SITES, {}, "lyly.dev");
+    const toast = html.match(/<div id="flash-banner"[\s\S]*?<\/div>/)?.[0] ?? "";
+    const action = toast.match(/<button[^>]*id="flash-banner-action"[^>]*>/)?.[0];
+    assert.ok(action, "no #flash-banner-action in the toast");
+    assert.match(action, /type="button"/);
+    assert.match(action, /\bhidden\b/);
+    assert.ok(toast.indexOf("flash-banner-action") < toast.indexOf("flash-banner-close"), "the action precedes Dismiss");
+  });
+});
+
 const PORT_OWNERS = { "8787": "reserved (lyly-admin itself)", "4000": "api.lyly.dev" };
 const PATHS = {
   caddyfilePath: "/etc/caddy/Caddyfile",

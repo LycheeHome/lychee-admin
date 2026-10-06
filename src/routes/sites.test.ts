@@ -896,7 +896,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
       assert.match(html, new RegExp(`>${file.replace(/\./g, "\\.")}<`));
     }
     assert.match(html, /HEALTHCHECK/);
-    assert.match(html, /data-attach/);
+    assert.match(html, /data-attach=/);
     assert.match(html, /name="repo"/);
     assert.doesNotMatch(html, /docker compose up/);
     assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> not deployed/);
@@ -906,7 +906,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     declarations([TEST_DECLARATION]);
     const html = await page();
     assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> awaiting image/);
-    assert.doesNotMatch(html, /data-attach/);
+    assert.doesNotMatch(html, /data-attach=/);
     assert.doesNotMatch(html, /data-deploy=/);
   });
 
@@ -918,7 +918,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     assert.match(html, /data-deploy="test-lyly-dev"/);
     assert.match(html, /data-deploy-tag="0\.1\.0"/);
     assert.match(html, /0\.1\.0 available/);
-    assert.doesNotMatch(html, /data-attach/);
+    assert.doesNotMatch(html, /data-attach=/);
   });
 
   test("a deployed resource reads its last hop from the resource's container, not /var/www", async () => {
@@ -935,7 +935,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     fakeFs.mkdir("/var/www/test.lyly.dev");
     fakeFs.writeFile("/var/www/test.lyly.dev/docker-compose.yml", "services: {}\n");
     const html = await page();
-    assert.match(html, /data-attach/);
+    assert.match(html, /data-attach=/);
     assert.deepEqual(calls.container, []);
   });
 
@@ -1006,5 +1006,129 @@ describe("POST /sites/:hostname/attach", () => {
       assert.equal(response.status, 404, hostname);
     }
     assert.deepEqual(created, []);
+  });
+});
+
+describe("removing a Next.js site: the confirm dialog", () => {
+  type Commands = import("../lib/systemCommands").SystemCommands;
+  let saved: Commands["readDeclarations"];
+
+  beforeEach(() => {
+    writeFixtures(NEXT_CADDYFILE);
+    saved = fakeCommands.readDeclarations;
+  });
+
+  afterEach(() => {
+    fakeCommands.readDeclarations = saved;
+  });
+
+  function declarations(decls: unknown[]): void {
+    fakeCommands.readDeclarations = () => Promise.resolve(decls as never);
+  }
+
+  async function dialog(): Promise<string> {
+    const response = await request("/sites/test.lyly.dev");
+    assert.equal(response.status, 200);
+    const match = (await response.text()).match(/<dialog id="confirm-remove-dialog"[\s\S]*?<\/dialog>/);
+    assert.ok(match, "no confirm-remove dialog was rendered");
+    return match[0];
+  }
+
+  const stepIds = (html: string): string[] => [...html.matchAll(/data-step-id="([a-z]+)"/g)].map((m) => m[1]);
+
+  test("an attached site lists the declaration's retirement fifth, after the cloudflared-sites restart", async () => {
+    declarations([TEST_DECLARATION]);
+    const html = await dialog();
+    assert.match(html, /<dialog[^>]*data-attached="true"/);
+    assert.deepEqual(stepIds(html), ["caddyfile", "tunnel", "caddy", "cloudflared", "declaration"]);
+  });
+
+  test("an unattached site lists the existing four and is not marked attached", async () => {
+    declarations([]);
+    const html = await dialog();
+    assert.doesNotMatch(html, /data-attached/);
+    assert.deepEqual(stepIds(html), ["caddyfile", "tunnel", "caddy", "cloudflared"]);
+  });
+
+  test("a Next.js site with no directory renders no delete-files checkbox", async () => {
+    declarations([]);
+    assert.doesNotMatch(await dialog(), /id="confirm-remove-delete-files"/);
+  });
+
+  test("test.lyly.dev's legacy directory still gets one", async () => {
+    declarations([]);
+    fakeFs.mkdir("/var/www/test.lyly.dev");
+    assert.match(await dialog(), /id="confirm-remove-delete-files"/);
+  });
+});
+
+describe("POST /sites/:hostname/detach", () => {
+  type Commands = import("../lib/systemCommands").SystemCommands;
+  let saved: Pick<Commands, "readDeclarations" | "setDeclarationState">;
+  const retired: [string, string][] = [];
+
+  beforeEach(() => {
+    writeFixtures(NEXT_CADDYFILE);
+    retired.length = 0;
+    saved = { readDeclarations: fakeCommands.readDeclarations, setDeclarationState: fakeCommands.setDeclarationState };
+    fakeCommands.readDeclarations = () => Promise.resolve([TEST_DECLARATION]);
+    fakeCommands.setDeclarationState = (name, state) => {
+      retired.push([name, state]);
+      return Promise.resolve({ ok: true });
+    };
+  });
+
+  afterEach(() => {
+    Object.assign(fakeCommands, saved);
+  });
+
+  function lastLogEntry(): { action: string; hostname: string; detail?: string } {
+    return JSON.parse(fakeFs.readFile(LOG_FILE).trim().split("\n").at(-1)!);
+  }
+
+  test("sets the declaration to absent", async () => {
+    const response = await request("/sites/test.lyly.dev/detach", form({}));
+    assert.equal(response.status, 200);
+    assert.deepEqual(await json(response), { ok: true });
+    assert.deepEqual(retired, [["test-lyly-dev", "absent"]]);
+    assert.equal(lastLogEntry().action, "detach-site");
+  });
+
+  test("works after the Caddy block is gone, so a failed retirement can be retried", async () => {
+    writeFixtures(SEED_CADDYFILE);
+    const response = await request("/sites/test.lyly.dev/detach", form({}));
+    assert.equal(response.status, 200);
+    assert.deepEqual(retired, [["test-lyly-dev", "absent"]]);
+  });
+
+  test("no declaration is a 404 and calls nothing", async () => {
+    fakeCommands.readDeclarations = () => Promise.resolve([]);
+    const response = await request("/sites/test.lyly.dev/detach", form({}));
+    assert.equal(response.status, 404);
+    assert.equal(((await json<{ ok: boolean }>(response)).ok), false);
+    assert.deepEqual(retired, []);
+  });
+
+  test("a hostname outside the managed domain is a 404 and calls nothing", async () => {
+    const response = await request("/sites/evil.example.com/detach", form({}));
+    assert.equal(response.status, 404);
+    assert.deepEqual(retired, []);
+  });
+
+  test("a refused write is a 502 carrying the writer's reason, and is logged", async () => {
+    fakeCommands.setDeclarationState = () => Promise.resolve({ ok: false, reason: "push rejected" });
+    const response = await request("/sites/test.lyly.dev/detach", form({}));
+    assert.equal(response.status, 502);
+    assert.deepEqual(await json(response), { ok: false, reason: "push rejected" });
+    assert.equal(lastLogEntry().action, "detach-site-failed");
+  });
+
+  test("an unreadable clone is a 502, not a 404 that would read as nothing to retire", async () => {
+    fakeCommands.readDeclarations = () => Promise.reject(new Error("clone unreadable"));
+    const response = await request("/sites/test.lyly.dev/detach", form({}));
+    assert.equal(response.status, 502);
+    assert.match((await json<{ reason: string }>(response)).reason, /clone unreadable/);
+    assert.deepEqual(retired, []);
+    assert.equal(lastLogEntry().action, "detach-site-failed");
   });
 });

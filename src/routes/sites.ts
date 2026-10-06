@@ -249,6 +249,7 @@ export function createSitesRouter(deps: Deps): Router {
             tunnelConfigPath: config.tunnelConfigPath,
             caddyfilePath: config.caddyfilePath,
             unitStates,
+            filesExist: deps.fs.exists(path.posix.join(config.sitesRoot, site.hostname)),
             sites,
             created,
           }),
@@ -532,6 +533,47 @@ export function createSitesRouter(deps: Deps): Router {
       const message = error instanceof Error ? error.message : String(error);
       logAction({ action: "attach-site-failed", hostname, detail: message });
       res.status(502).json({ ok: false, reason: `Could not attach the repository: ${message}` });
+    }
+  });
+
+  /**
+   * Retires a site's container declaration by setting it to `state: absent`,
+   * which is what has the reconciler take the container down. Always its own
+   * request, sent by the client only after /delete succeeded — never part of
+   * the Caddy/tunnel removal.
+   *
+   * It requires a declaration, not a site in the Caddyfile: by the time this
+   * runs the Caddy block is already gone, and a retry after a failed write has
+   * to find the declaration with nothing else left to look at. An unreadable
+   * clone is a 502 rather than a 404, so a read failure never reads as
+   * "nothing to retire" while the container is still declared running.
+   */
+  sitesRouter.post("/sites/:hostname/detach", async (req, res) => {
+    const hostname = req.params.hostname.toLowerCase();
+    const name = resourceNameFor(hostname, config.domain);
+    if (!name) {
+      res.status(404).json({ ok: false, reason: `No declaration for ${hostname} to retire.` });
+      return;
+    }
+    try {
+      const declarations = await deps.commands.readDeclarations();
+      if (!declarations.some((d) => d.name === name)) {
+        res.status(404).json({ ok: false, reason: `No declaration named ${name}.yml in lychee-resources.` });
+        return;
+      }
+      // Never throws by contract; the catch below is for the contract failing.
+      const result = await deps.commands.setDeclarationState(name, "absent");
+      if (!result.ok) {
+        logAction({ action: "detach-site-failed", hostname, detail: `${name}: ${result.reason}` });
+        res.status(502).json({ ok: false, reason: result.reason });
+        return;
+      }
+      logAction({ action: "detach-site", hostname, detail: `${name} state=absent` });
+      res.json({ ok: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logAction({ action: "detach-site-failed", hostname, detail: `${name}: ${message}` });
+      res.status(502).json({ ok: false, reason: `Could not retire ${name}.yml: ${message}` });
     }
   });
 
