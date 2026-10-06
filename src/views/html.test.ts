@@ -1548,6 +1548,11 @@ describe("renderServicesPage", () => {
     assert.ok(!offerBoard({ version: "v1.4.0", available: "v1.4.0" }).includes("data-deploy"));
   });
 
+  test("a tag already requested is not offered again", () => {
+    const html = offerBoard({ version: "v1.4.0", target: "v1.5.0", available: "v1.5.0", result: "blocked", gate: "job test concluded: failure" });
+    assert.ok(!html.includes("data-deploy"));
+  });
+
   test("a failed result shows the failed step, not a Deploy button", () => {
     const html = offerBoard({ version: "v1.4.0", available: "v1.5.0", result: "failed", gate: "health check failed after install" });
     assert.ok(html.includes("health check failed after install"));
@@ -1838,6 +1843,44 @@ describe("renderSiteDetail from a repository", () => {
     assert.ok(button);
     assert.match(button[0], /\bdisabled\b/);
     assert.match(button[0], /aria-describedby="attach-blocked"/);
+  });
+
+  test("a requested tag whose deploy failed shows the gate, not a promise of the next run", () => {
+    for (const result of ["failed", "blocked"]) {
+      const c = card(
+        renderSiteDetail(NEXT_SITE, {
+          ...BASE,
+          resource: { ...RESOURCE, result, available: "0.1.0", target: "0.1.0", gate: "health check failed after install" },
+          status: { kind: "awaiting-image" },
+        }),
+      );
+      assert.match(c, /health check failed after install/, result);
+      assert.doesNotMatch(c, /pulls it and starts the container/, result);
+    }
+  });
+
+  test("with a tag found but none on offer, the Deploy step shows the gate, not the push-v0.1.0 copy", () => {
+    const c = card(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, result: "failed", available: "0.1.0", gate: "health check failed after install" },
+        status: { kind: "awaiting-image" },
+      }),
+    );
+    assert.match(c, /health check failed after install/);
+    assert.doesNotMatch(c, /No tag found/);
+    assert.doesNotMatch(c, /data-deploy=/);
+  });
+
+  test("with no tag found, the Deploy step asks for v0.1.0", () => {
+    const c = card(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, result: "awaiting-image", gate: "no image yet" },
+        status: { kind: "awaiting-image" },
+      }),
+    );
+    assert.match(c, /No tag found/);
   });
 
   test("a running resource that fails points at its logs by project, not a /var/www directory", () => {

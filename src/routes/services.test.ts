@@ -307,4 +307,11 @@ describe("POST /services/:name/deploy", () => {
     assert.equal((await post([{ ...NOTES, available: "v1.4.0" }], overrides)).status, 409);
     assert.equal(writes, 0);
   });
+
+  test("a tag already requested is a 409 and writes nothing", async () => {
+    let writes = 0;
+    const overrides = { writeDeclarationTag: () => (writes++, Promise.resolve({ ok: true as const })) };
+    assert.equal((await post([{ ...NOTES, target: "v1.5.0" }], overrides)).status, 409);
+    assert.equal(writes, 0);
+  });
 });

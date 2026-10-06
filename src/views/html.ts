@@ -719,11 +719,18 @@ function firstDeploy(resource: SiteResourceView | undefined): string {
     return `<p class="${BODY}">Attached. The reconciler looks for the image on its next run, within five minutes, and offers the newest tag here; reload to see it.</p>`;
   }
   if (resource.target && resource.target === resource.available) {
-    return `<p class="font-mono text-[0.8rem] text-stone-50 m-0">${escapeHtml(resource.target)} requested</p>
+    const requested = `<p class="font-mono text-[0.8rem] text-stone-50 m-0">${escapeHtml(resource.target)} requested</p>`;
+    // A failed or blocked run will not simply pull it next time; the gate says why.
+    if (resource.result === "failed" || resource.result === "blocked") return `${requested}${gateLine(resource)}`;
+    return `${requested}
             <p class="${BODY}">The reconciler pulls it and starts the container on its next run.</p>${gateLine(resource)}`;
   }
   const tag = offeredTag(resource);
   if (tag) return `${gateLine(resource)}${renderOfferLine(resource.name, tag)}`;
+  // A tag exists but is not on offer (the last run failed): the gate is the whole story.
+  if (resource.available) {
+    return gateLine(resource) || `<p class="${BODY}">${mono(resource.available)} is built; nothing is offered until the last run's failure is resolved.</p>`;
+  }
   const image = resource.repo ? `${IMAGE_PREFIX}${resource.repo}` : "the image";
   return `<p class="${BODY}">No tag found for ${mono(image)} yet. Push ${mono("v0.1.0")}; once its build finishes, the reconciler's next run offers it here.</p>${gateLine(resource)}`;
 }
@@ -988,11 +995,16 @@ function isApplying(row: DeployFacts): boolean {
  * broken: a second request on top of an unapplied one would race the first,
  * and a failed deploy needs its gate read before anything is pushed after it.
  * `blocked` still offers: the gate line above it says why, and the offer is
- * the way out. Shared by the services board and a site's own page, so the two
+ * the way out — unless the tag on offer is already the pin, which a second
+ * request would only race. Shared by the services board and a site's own page, so the two
  * can never disagree about whether a tag is on offer.
  */
 function offeredTag(row: DeployFacts): string | null {
-  return row.available && row.available !== row.version && !isApplying(row) && row.result !== "failed"
+  return row.available &&
+    row.available !== row.version &&
+    row.available !== row.target &&
+    !isApplying(row) &&
+    row.result !== "failed"
     ? row.available
     : null;
 }

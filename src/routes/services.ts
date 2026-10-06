@@ -58,6 +58,11 @@ export function createServicesRouter(deps: Deps): express.Router {
         res.status(409).json({ ok: false, reason: `${name} has no newer version on offer.` });
         return;
       }
+      // Already the pin: a second write of the same tag would only race the first.
+      if (entry.target === entry.available) {
+        res.status(409).json({ ok: false, reason: `${entry.available} is already requested for ${name}.` });
+        return;
+      }
       // Never throws by contract; the catch below is for the contract failing.
       const result = await deps.commands.writeDeclarationTag(name, entry.available);
       if (!result.ok) {
