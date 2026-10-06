@@ -740,6 +740,17 @@ describe("POST /sites/preview", () => {
     assert.equal(fakeFs.hasFile(path.join(SITES_ROOT, "docs.lyly.dev", "index.html")), false);
   });
 
+  // The handler is async (it awaits the declared ports), so an unguarded
+  // throw would hang the request and crash the process under Express 4.
+  test("an unreadable Caddyfile answers with an error, rather than hanging", async () => {
+    fakeFs.rmRecursive(CADDYFILE);
+    const response = await request("/sites/preview", form({ hostname: "docs.lyly.dev", type: "static" }));
+    assert.equal(response.status, 200);
+    const body = await json<{ ready: boolean; error: string }>(response);
+    assert.equal(body.ready, false);
+    assert.match(body.error, /ENOENT/);
+  });
+
   test("an empty hostname is not ready and not an error — the form is merely early", async () => {
     const response = await request("/sites/preview", form({ hostname: "", type: "static" }));
     assert.equal(response.status, 200);

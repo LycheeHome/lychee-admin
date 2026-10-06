@@ -374,16 +374,23 @@ export function createSitesRouter(deps: Deps): Router {
       return;
     }
 
-    const caddyfileContent = deps.fs.readFile(config.caddyfilePath);
-    const tunnelContent = deps.fs.readFile(config.tunnelConfigPath);
+    // Async handler: a throw here would hang the request and crash the
+    // process under Express 4, so an unreadable config becomes an error the
+    // panel can show, in the same shape as any other rejection.
+    try {
+      const caddyfileContent = deps.fs.readFile(config.caddyfilePath);
+      const tunnelContent = deps.fs.readFile(config.tunnelConfigPath);
 
-    const existing = validateAgainstExisting(input, caddyfileContent, SITE_ENV, await readDeclaredPorts());
-    if (!existing.ok) {
-      res.json({ ready: false, error: existing.error });
-      return;
+      const existing = validateAgainstExisting(input, caddyfileContent, SITE_ENV, await readDeclaredPorts());
+      if (!existing.ok) {
+        res.json({ ready: false, error: existing.error });
+        return;
+      }
+
+      res.json({ ready: true, preview: buildSitePreview(input, { caddyfileContent, tunnelContent }, SITE_ENV) });
+    } catch (error) {
+      res.json({ ready: false, error: error instanceof Error ? error.message : String(error) });
     }
-
-    res.json({ ready: true, preview: buildSitePreview(input, { caddyfileContent, tunnelContent }, SITE_ENV) });
   });
 
   sitesRouter.post("/sites/:hostname/delete", async (req, res) => {

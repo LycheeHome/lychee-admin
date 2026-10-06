@@ -84,7 +84,7 @@ export function createInMemoryFileSystem(): FileSystem & {
 /**
  * Fakes for both outward-facing interfaces, sharing one store — the fake
  * createSiteDirectory must create its directory in the same filesystem the
- * routes then write scaffold files into.
+ * routes then write a static site's placeholder page into.
  *
  * `overrides` lets a test replace one or more commands (e.g. to make
  * `restartCloudflared` reject) without having to reimplement the rest —
