@@ -129,7 +129,6 @@ export function createFakes(
       return Promise.resolve();
     },
 
-    checkContainerStatus: () => Promise.resolve({ state: "running", health: "healthy" }),
     readUnitStates: (units) =>
       Promise.resolve(
         Object.fromEntries(

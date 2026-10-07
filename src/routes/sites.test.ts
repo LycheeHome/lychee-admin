@@ -915,21 +915,15 @@ const TEST_DECLARATION = { name: "test-lyly-dev", port: 3000, state: "running", 
 describe("GET /sites/:hostname — a Next.js site's resource", () => {
   type Commands = import("../lib/systemCommands").SystemCommands;
   let saved: Partial<Commands>;
-  const calls: { container: string[]; resource: string[] } = { container: [], resource: [] };
+  const calls: { resource: string[] } = { resource: [] };
 
   beforeEach(() => {
     writeFixtures(NEXT_CADDYFILE);
     fakeFs.rmRecursive(INVENTORY);
-    calls.container.length = 0;
     calls.resource.length = 0;
     saved = {
       readDeclarations: fakeCommands.readDeclarations,
-      checkContainerStatus: fakeCommands.checkContainerStatus,
       checkResourceContainerStatus: fakeCommands.checkResourceContainerStatus,
-    };
-    fakeCommands.checkContainerStatus = (hostname) => {
-      calls.container.push(hostname);
-      return Promise.resolve({ state: "running", health: "healthy" });
     };
     fakeCommands.checkResourceContainerStatus = (project) => {
       calls.resource.push(project);
@@ -984,12 +978,11 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     assert.doesNotMatch(html, /data-attach=/);
   });
 
-  test("a deployed resource reads its last hop from the resource's container, not /var/www", async () => {
+  test("a deployed resource reads its last hop from the resource's container", async () => {
     declarations([TEST_DECLARATION]);
     writeInventory([siteEntry({ result: "deployed", version: "0.1.0", target: "0.1.0" })]);
     const html = await page();
     assert.deepEqual(calls.resource, ["test-lyly-dev"]);
-    assert.deepEqual(calls.container, []);
     assert.match(html, /running · healthy/);
   });
 
@@ -999,7 +992,6 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     fakeFs.writeFile("/var/www/test.lyly.dev/docker-compose.yml", "services: {}\n");
     const html = await page();
     assert.match(html, /data-attach=/);
-    assert.deepEqual(calls.container, []);
   });
 
   test("a retired declaration renders as not attached, with Attach enabled and the prune warning beside it", async () => {
