@@ -99,7 +99,6 @@ export interface SystemCommands {
   restartCloudflared(): Promise<{ stdout: string; stderr: string }>;
   createSiteDirectory(hostname: string): Promise<{ stdout: string; stderr: string }>;
   writeManagedConfig(targetPath: string, content: string): Promise<void>;
-  checkContainerStatus(hostname: string): Promise<ContainerStatus>;
   readUnitStates(units: string[]): Promise<Record<string, UnitState>>;
   checkResourceContainerStatus(project: string): Promise<ContainerStatus>;
   readResourceStatus(project: string): Promise<ServiceStatus>;
@@ -179,28 +178,6 @@ export const realSystemCommands: SystemCommands = {
   },
 
   /**
-   * Reads container lifecycle state + Docker health (if the image defines a
-   * HEALTHCHECK) for a Next.js-scaffolded site via lychee-ops' lyly-admin-docker-status.sh.
-   * Unlike every other function in this file, failures are swallowed into
-   * { state: "unknown" } rather than thrown — this is best-effort display
-   * data for the detail page, not a mutating action a caller needs to detect
-   * and roll back. No raw stderr reaches the page. A timeout lands here too,
-   * so a wedged daemon renders "can't check" instead of hanging the page.
-   */
-  async checkContainerStatus(hostname) {
-    try {
-      const { stdout } = await run(
-        "sudo",
-        ["/usr/local/sbin/lyly-admin-docker-status", hostname],
-        { timeoutMs: STATUS_READ_TIMEOUT_MS },
-      );
-      return parseComposePsOutput(stdout);
-    } catch {
-      return { state: "unknown" };
-    }
-  },
-
-  /**
    * One invocation for every unit, not one per unit: this runs on every render
    * of the services page, and the hostname dropdown already establishes that
    * per-row status checks are the thing to avoid.
@@ -228,8 +205,8 @@ export const realSystemCommands: SystemCommands = {
    * One declared container service's state, via lychee-ops'
    * lyly-admin-resource-status (sudo-pinned: docker is not world-usable). Empty
    * output means no compose file there, which the shared parser reads as
-   * not-created. Output goes through containerStatus.ts like the site path
-   * does; a second parser would be a second thing to keep correct against
+   * not-created. Output goes through containerStatus.ts, the one parser for
+   * compose output; a second would be a second thing to keep correct against
    * compose versions. Degrades to { state: "unknown" } on any failure, never
    * throws: an unreadable state is not evidence of a stopped container.
    */
