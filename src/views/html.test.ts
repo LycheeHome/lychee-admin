@@ -449,6 +449,44 @@ describe("renderSiteDetail manual steps", () => {
     assert.match(html, /data-copy-target="cmd-dns"/);
   });
 
+  test("leads with the dashboard CNAME and its copyable target", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    const card = html.split("Manual steps</h3>")[1].split("</section>")[0];
+    assert.match(
+      card,
+      /<pre id="cmd-dns-target"[^>]*>11111111-2222-3333-4444-555555555555\.cfargotunnel\.com<\/pre>/,
+    );
+    assert.match(card, /data-copy-target="cmd-dns-target"/);
+    assert.match(card, /Copy CNAME target/);
+    assert.match(card, /proxied/);
+    assert.match(card, /<code[^>]*>blog<\/code>/);
+  });
+
+  test("puts the dashboard instruction before the route dns command", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    const card = html.split("Manual steps</h3>")[1].split("</section>")[0];
+    const dashboard = card.indexOf("Cloudflare dashboard");
+    const target = card.indexOf('id="cmd-dns-target"');
+    const command = card.indexOf('id="cmd-dns"');
+    assert.ok(dashboard >= 0 && dashboard < target && target < command);
+  });
+
+  test("explains the host keeps no account certificate for route dns", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    assert.match(html, /cloudflared tunnel login/);
+    assert.match(html, /keeps no account certificate/);
+  });
+
+  test("without a tunnel id there is no concrete target", () => {
+    const html = renderSiteDetail(STATIC_SITE, { ...OPTS, tunnelId: "" });
+    assert.doesNotMatch(html, /cfargotunnel/);
+    assert.doesNotMatch(html, /cmd-dns-target/);
+    assert.match(
+      html,
+      /Create the DNS record, once per hostname — add a CNAME for this hostname to your tunnel from the Cloudflare dashboard\. Until it exists/,
+    );
+  });
+
   test("warns that a missing DNS record still reads as running here", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     assert.match(html, /only checks localhost/);

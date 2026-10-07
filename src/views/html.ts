@@ -512,16 +512,33 @@ function commandBlock(id: string, value: string, label: string, cwd?: string): s
 
 interface ManualStep {
   /** Plain sentence. Escaped at render time — never carries markup. */
-  text: string;
-  command?: { id: string; value: string };
+  text?: string;
+  /**
+   * A sentence with inline machine facts, already escaped by the caller.
+   * Used instead of `text`, never beside it.
+   */
+  html?: string;
+  command?: { id: string; value: string; label?: string };
+  /** A secondary line and command after the first, for a step with a fallback. */
+  then?: { note: string; command: { id: string; value: string; label?: string } };
 }
 
+const INLINE_CODE = "font-mono text-[0.72rem] text-stone-300 bg-stone-900 rounded-[4px] px-1";
+
 function renderStep(step: ManualStep, index: number): string {
+  const block = (c: { id: string; value: string; label?: string }): string =>
+    commandBlock(c.id, c.value, c.label ?? "Copy DNS command");
   return `<div class="flex gap-3">
           <span class="${STEP_NUMBER}">${index + 1}</span>
           <div class="flex-1 min-w-0">
-            <p class="${STEP_TEXT}">${escapeHtml(step.text)}</p>
-            ${step.command ? commandBlock(step.command.id, step.command.value, "Copy DNS command") : ""}
+            <p class="${STEP_TEXT}">${step.html ?? escapeHtml(step.text ?? "")}</p>
+            ${step.command ? block(step.command) : ""}
+            ${
+              step.then
+                ? `<p class="text-stone-400 text-[0.8rem] leading-snug m-0 mt-3 mb-2">${step.then.note}</p>
+            ${block(step.then.command)}`
+                : ""
+            }
           </div>
         </div>`;
 }
@@ -536,21 +553,34 @@ function renderStep(step: ManualStep, index: number): string {
 function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
   const filesPath = computeFilesPath(site, opts.sitesRoot);
 
-  const steps: ManualStep[] = [
-    {
-      text: opts.tunnelId
-        ? "Create the DNS record, once per hostname. Until it exists this page still reports the site running, because lyly-admin only checks localhost."
-        : "Create the DNS record, once per hostname — add a CNAME for this hostname to your tunnel from the Cloudflare dashboard. Until it exists this page still reports the site running, because lyly-admin only checks localhost.",
-      ...(opts.tunnelId
-        ? {
-            command: {
-              id: "cmd-dns",
-              value: `cloudflared tunnel route dns ${opts.tunnelId} ${site.hostname}`,
-            },
-          }
-        : {}),
-    },
-  ];
+  const { lead: label } = splitHostnameForDisplay(site.hostname, opts.domain);
+  // The apex has no subdomain label; a CNAME for it is named "@".
+  const recordName = label === site.hostname ? "@" : label;
+
+  // `cloudflared tunnel route dns` needs an account certificate (cert.pem) that
+  // exists on the host only during `cloudflared tunnel login`, so the dashboard
+  // CNAME leads and the command is a fallback for a machine that has a login.
+  const dnsStep: ManualStep = opts.tunnelId
+    ? {
+        html: `Create the DNS record, once per hostname: in the Cloudflare dashboard, add a proxied CNAME named <code class="${INLINE_CODE}">${escapeHtml(recordName)}</code> pointing at the target below. Until it exists this page still reports the site running, because lyly-admin only checks localhost.`,
+        command: {
+          id: "cmd-dns-target",
+          value: `${opts.tunnelId}.cfargotunnel.com`,
+          label: "Copy CNAME target",
+        },
+        then: {
+          note: `Or, from a machine with a Cloudflare login — the host keeps no account certificate, so run <code class="${INLINE_CODE}">cloudflared tunnel login</code> first:`,
+          command: {
+            id: "cmd-dns",
+            value: `cloudflared tunnel route dns ${opts.tunnelId} ${site.hostname}`,
+            label: "Copy route dns command",
+          },
+        },
+      }
+    : {
+        text: "Create the DNS record, once per hostname — add a CNAME for this hostname to your tunnel from the Cloudflare dashboard. Until it exists this page still reports the site running, because lyly-admin only checks localhost.",
+      };
+  const steps: ManualStep[] = [dnsStep];
 
   // A static site is already serving — add-site created the directory and wrote
   // a placeholder index.html into it — so nothing prompts the user to notice
