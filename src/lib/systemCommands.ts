@@ -1,6 +1,7 @@
 import { execFile as execFileCb, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import {
+  changeSiteRepository,
   createSiteDeclaration,
   readDeclarations,
   refreshDeclarations,
@@ -106,6 +107,8 @@ export interface SystemCommands {
   writeDeclarationTag(name: string, tag: string): Promise<WriteResult>;
   createSiteDeclaration(name: string, repo: string, port: number): Promise<WriteResult>;
   setDeclarationState(name: string, state: "absent"): Promise<WriteResult>;
+  /** Tagless declarations only; a tagged one is refused with `code: "tagged"`. */
+  changeSiteRepository(name: string, repo: string): Promise<WriteResult>;
   /** The local clone's declarations; null when the clone cannot be read. */
   readDeclarations(): Promise<DeclarationSummary[] | null>;
   /** Pulls the local clone, bounded in time. Never throws. */
@@ -281,8 +284,9 @@ export const realSystemCommands: SystemCommands = {
   /**
    * The app's write capability: requests in lychee-resources, which the
    * reconciler then applies. A tag change, a new site declaration, a site set
-   * absent; each is a git push with the existing deploy key. No sudo. The app
-   * writes a request and never the thing that acts on it; see declarationWriter.ts.
+   * absent, a tagless site's repository corrected; each is a git push with the
+   * existing deploy key. No sudo. The app writes a request and never the thing
+   * that acts on it; see declarationWriter.ts.
    */
   writeDeclarationTag(name, tag) {
     return writeDeclarationTag(name, tag, { git: gitRunner });
@@ -294,6 +298,10 @@ export const realSystemCommands: SystemCommands = {
 
   setDeclarationState(name, state) {
     return setDeclarationState(name, state, { git: gitRunner });
+  },
+
+  changeSiteRepository(name, repo) {
+    return changeSiteRepository(name, repo, { git: gitRunner });
   },
 
   /** The local clone as last pulled; no git, no network. null when unreadable. */

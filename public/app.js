@@ -914,3 +914,59 @@ document.querySelectorAll("form[data-attach]").forEach((attachForm) => {
     if (submit) submit.disabled = false;
   });
 });
+
+// A Next.js site's Change repository control, shown only while its declaration
+// is tagless and the reconciler has found no image. Mirrors Attach: only the
+// repository name is sent (the resource name comes from the hostname), errors
+// land in the form's own alert region, and success reloads so the page shows
+// what the declaration now says. The server refuses a declaration that gained
+// a tag since this page loaded (409), and that reason is shown as-is.
+document.querySelectorAll("form[data-change-repository]").forEach((changeForm) => {
+  const hostname = changeForm.dataset.changeRepository;
+  const repoInput = changeForm.querySelector('input[name="repo"]');
+  const submit = changeForm.querySelector('button[type="submit"]');
+  const error = changeForm.querySelector("#change-repo-error");
+  let inFlight = false;
+
+  function showError(message) {
+    if (!error) return;
+    // Unhide before writing: a role="alert" region inside display:none announces nothing.
+    error.classList.remove("hidden");
+    error.textContent = message;
+  }
+
+  changeForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (inFlight || submit?.disabled) return;
+    const repo = String(repoInput?.value ?? "").trim();
+    if (!repo) {
+      showError("Enter the repository's name.");
+      repoInput?.focus();
+      return;
+    }
+
+    inFlight = true;
+    error?.classList.add("hidden");
+    if (submit) submit.disabled = true;
+    showBanner(`Changing ${hostname}'s repository to ${repo}…`, "info");
+    try {
+      const response = await fetch(`/sites/${encodeURIComponent(hostname)}/repository`, {
+        method: "POST",
+        body: new URLSearchParams({ repo }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (response.ok && body.ok) {
+        // inFlight stays true: the page is about to be replaced.
+        window.location.href = window.location.pathname;
+        return;
+      }
+      hideBanner();
+      showError(body.reason ?? `Could not change the repository to ${repo} (HTTP ${response.status}).`);
+    } catch {
+      hideBanner();
+      showError(`Could not reach the server to change the repository to ${repo}.`);
+    }
+    inFlight = false;
+    if (submit) submit.disabled = false;
+  });
+});

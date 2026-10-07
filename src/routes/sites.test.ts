@@ -1046,6 +1046,47 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     assert.match(html, /data-attach=/);
   });
 
+  test("awaiting with an entry and nothing available says no image was found, and offers to change the repository", async () => {
+    declarations([TEST_DECLARATION]);
+    writeInventory([siteEntry({ result: "awaiting-image" })]);
+    const html = await page();
+    assert.match(html, /No image found at <span[^>]*>ghcr\.io\/lycheehome\/test-site<\/span> yet/);
+    assert.match(html, /data-change-repository="test\.lyly\.dev"/);
+    assert.match(html, /<input[^>]*name="repo"[^>]*value="test-site"/);
+    assert.match(html, />Change repository</);
+    assert.doesNotMatch(html, /data-attach=/);
+  });
+
+  test("before the reconciler's first tick, there is no change control and no 'No image found'", async () => {
+    declarations([TEST_DECLARATION]);
+    const html = await page();
+    assert.doesNotMatch(html, /No image found/);
+    assert.doesNotMatch(html, /data-change-repository=/);
+  });
+
+  test("with a tag on offer, there is no change control", async () => {
+    declarations([TEST_DECLARATION]);
+    writeInventory([siteEntry({ result: "awaiting-image", available: "0.1.0" })]);
+    const html = await page();
+    assert.doesNotMatch(html, /No image found/);
+    assert.doesNotMatch(html, /data-change-repository=/);
+  });
+
+  test("once running, there is no change control", async () => {
+    declarations([{ ...TEST_DECLARATION, image: "ghcr.io/lycheehome/test-site:0.1.0" }]);
+    writeInventory([siteEntry({ result: "deployed", version: "0.1.0", target: "0.1.0" })]);
+    const html = await page();
+    assert.doesNotMatch(html, /No image found/);
+    assert.doesNotMatch(html, /data-change-repository=/);
+  });
+
+  test("a failed first deploy has no change control", async () => {
+    declarations([{ ...TEST_DECLARATION, image: "ghcr.io/lycheehome/test-site:0.1.0" }]);
+    writeInventory([siteEntry({ result: "failed", version: "", target: "0.1.0", failed_step: "Pull the image: manifest unknown" })]);
+    const html = await page();
+    assert.doesNotMatch(html, /data-change-repository=/);
+  });
+
   test("a failed first deploy reads failed, in the bad tone, and names the step and the journal", async () => {
     declarations([TEST_DECLARATION]);
     writeInventory([
@@ -1129,6 +1170,79 @@ describe("POST /sites/:hostname/attach", () => {
       assert.equal(response.status, 404, hostname);
     }
     assert.deepEqual(created, []);
+  });
+});
+
+describe("POST /sites/:hostname/repository", () => {
+  type Commands = import("../lib/systemCommands").SystemCommands;
+  let saved: Commands["changeSiteRepository"];
+  const changed: [string, string][] = [];
+
+  beforeEach(() => {
+    writeFixtures(NEXT_CADDYFILE);
+    changed.length = 0;
+    saved = fakeCommands.changeSiteRepository;
+    fakeCommands.changeSiteRepository = (name, repo) => {
+      changed.push([name, repo]);
+      return Promise.resolve({ ok: true });
+    };
+  });
+
+  afterEach(() => {
+    fakeCommands.changeSiteRepository = saved;
+  });
+
+  const lastLog = () => JSON.parse(fakeFs.readFile(LOG_FILE).trim().split("\n").at(-1)!);
+
+  test("changes the repository, normalized, for the site's own resource name", async () => {
+    const response = await request("/sites/test.lyly.dev/repository", form({ repo: " Test-App ", name: "other-lyly-dev", port: "9999" }));
+    assert.equal(response.status, 200);
+    assert.deepEqual(await json(response), { ok: true });
+    assert.deepEqual(changed, [["test-lyly-dev", "test-app"]]);
+    const entry = lastLog();
+    assert.equal(entry.action, "change-repository");
+    assert.match(entry.detail, /ghcr\.io\/lycheehome\/test-app/);
+  });
+
+  test("a bad repository is a 400 and writes nothing", async () => {
+    const response = await request("/sites/test.lyly.dev/repository", form({ repo: "LycheeHome/test app" }));
+    assert.equal(response.status, 400);
+    const body = await json<{ ok: boolean; reason: string }>(response);
+    assert.equal(body.ok, false);
+    assert.ok(body.reason);
+    assert.deepEqual(changed, []);
+  });
+
+  test("a tagged declaration is a 409 carrying the writer's reason", async () => {
+    const reason = "test-lyly-dev.yml already has a tag: deployed images can't change repository; remove the site instead.";
+    fakeCommands.changeSiteRepository = () => Promise.resolve({ ok: false, code: "tagged", reason });
+    const response = await request("/sites/test.lyly.dev/repository", form({ repo: "test-app" }));
+    assert.equal(response.status, 409);
+    assert.deepEqual(await json(response), { ok: false, reason });
+    assert.equal(lastLog().action, "change-repository-failed");
+  });
+
+  test("a refused write is a 502 carrying the writer's reason", async () => {
+    fakeCommands.changeSiteRepository = () => Promise.resolve({ ok: false, reason: "Push was rejected: fetch first" });
+    const response = await request("/sites/test.lyly.dev/repository", form({ repo: "test-app" }));
+    assert.equal(response.status, 502);
+    assert.deepEqual(await json(response), { ok: false, reason: "Push was rejected: fetch first" });
+    assert.equal(lastLog().action, "change-repository-failed");
+  });
+
+  test("a writer that throws is a 502, not a crash", async () => {
+    fakeCommands.changeSiteRepository = () => Promise.reject(new Error("boom"));
+    const response = await request("/sites/test.lyly.dev/repository", form({ repo: "test-app" }));
+    assert.equal(response.status, 502);
+    assert.equal(lastLog().action, "change-repository-failed");
+  });
+
+  test("an unknown site or a site that is not Next.js is a 404", async () => {
+    for (const hostname of ["nope.lyly.dev", "api.lyly.dev", "blog.lyly.dev"]) {
+      const response = await request(`/sites/${hostname}/repository`, form({ repo: "test-app" }));
+      assert.equal(response.status, 404, hostname);
+    }
+    assert.deepEqual(changed, []);
   });
 });
 

@@ -695,17 +695,68 @@ function attachForm(site: Site, resourceName: string, detached: boolean): string
   return `<form class="flex flex-col gap-1.5" data-attach="${escapeHtml(site.hostname)}" novalidate>
               <label for="attach-repo" class="text-[0.85rem] text-stone-400">Repository in LycheeHome</label>
               <div class="flex flex-wrap items-center gap-2.5">
-                <span id="attach-row" class="flex items-stretch min-w-0 flex-1 basis-[18rem] rounded-md focus-within:outline focus-within:outline-2 focus-within:outline-rose-400 focus-within:outline-offset-2">
-                  <span id="attach-prefix" class="font-mono text-[0.72rem] text-stone-300 bg-stone-700 border border-r-0 border-stone-700 rounded-l-md px-2.5 flex items-center shrink-0">${IMAGE_PREFIX}</span>
-                  <input type="text" id="attach-repo" name="repo" required autocomplete="off" autocapitalize="off" spellcheck="false"
-                         aria-describedby="attach-prefix${detached ? " attach-warning" : ""}"
-                         class="${INPUT} rounded-l-none flex-1 min-w-0 focus:outline-none! disabled:text-stone-500 disabled:cursor-not-allowed" placeholder="repo-name" />
-                </span>
+                ${repoField("attach", "", detached ? "attach-warning" : "")}
                 <button type="submit" class="${BUTTON_PRIMARY}"${detached ? ` aria-describedby="attach-warning"` : ""}>Attach repository</button>
               </div>
               <p class="font-mono text-[0.72rem] text-stone-400 m-0 break-all">writes ${escapeHtml(resourceName)}.yml to lychee-resources · no tag until the first deploy</p>
               ${warning}
               <p id="attach-error" role="alert" class="hidden font-mono text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0"></p>
+            </form>`;
+}
+
+/**
+ * The affixed repository field: the fixed registry prefix joined to the input,
+ * with the focus ring on the wrapper so it encloses both. Shared by Attach and
+ * Change repository, so the two can never present the registry differently.
+ * Ids are `<id>-row`, `<id>-prefix`, `<id>-repo`.
+ */
+function repoField(id: string, value: string, extraDescribedBy: string): string {
+  return `<span id="${id}-row" class="flex items-stretch min-w-0 flex-1 basis-[18rem] rounded-md focus-within:outline focus-within:outline-2 focus-within:outline-rose-400 focus-within:outline-offset-2">
+                  <span id="${id}-prefix" class="font-mono text-[0.72rem] text-stone-300 bg-stone-700 border border-r-0 border-stone-700 rounded-l-md px-2.5 flex items-center shrink-0">${IMAGE_PREFIX}</span>
+                  <input type="text" id="${id}-repo" name="repo" required autocomplete="off" autocapitalize="off" spellcheck="false"${value ? ` value="${escapeHtml(value)}"` : ""}
+                         aria-describedby="${id}-prefix${extraDescribedBy ? ` ${extraDescribedBy}` : ""}"
+                         class="${INPUT} rounded-l-none flex-1 min-w-0 focus:outline-none! disabled:text-stone-500 disabled:cursor-not-allowed" placeholder="repo-name" />
+                </span>`;
+}
+
+/**
+ * Attached, and the reconciler has looked and found no tag. Only then: before
+ * its first run nothing has been checked, and once a tag is found or written
+ * the declaration is no longer tagless, which the writer refuses to repoint.
+ * A null repo means the declaration itself could not be read, so there is no
+ * current value to show or correct.
+ */
+function canChangeRepository(resource: SiteResourceView | undefined): resource is SiteResourceView & { repo: string } {
+  return (
+    resource !== undefined &&
+    resource.repo !== null &&
+    !resource.version &&
+    resource.result !== undefined &&
+    resource.result !== "failed" &&
+    !resource.available &&
+    !resource.target
+  );
+}
+
+/**
+ * Step three's body once the reconciler has found nothing. A typo in the
+ * repository and a tag not pushed yet look identical from here (an empty tag
+ * list either way), so the copy names both causes and claims neither; the
+ * control is the fix for one of them. Secondary, not primary: correcting a
+ * request is not the step's forward action, and the page's one Ember button
+ * stays where it was.
+ */
+function changeRepositoryForm(site: Site, resource: SiteResourceView & { repo: string }): string {
+  const image = `${IMAGE_PREFIX}${resource.repo}`;
+  return `<p class="${BODY}">No image found at ${mono(image)} yet. If ${mono("v0.1.0")} hasn't been pushed, push it (step 2). If the repository name is wrong, change it here; the reconciler looks again on its next run.</p>
+            <form class="flex flex-col gap-1.5" data-change-repository="${escapeHtml(site.hostname)}" novalidate>
+              <label for="change-repo-repo" class="text-[0.85rem] text-stone-400">Repository in LycheeHome</label>
+              <div class="flex flex-wrap items-center gap-2.5">
+                ${repoField("change-repo", resource.repo, "")}
+                <button type="submit" class="${BUTTON_SECONDARY}">Change repository</button>
+              </div>
+              <p class="font-mono text-[0.72rem] text-stone-400 m-0 break-all">rewrites the image line in ${escapeHtml(resource.name)}.yml · only while it has no tag</p>
+              <p id="change-repo-error" role="alert" class="hidden font-mono text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0"></p>
             </form>`;
 }
 
@@ -766,6 +817,10 @@ function firstDeploy(resource: SiteResourceView | undefined): string {
   if (resource.available) {
     return gateLine(resource) || `<p class="${BODY}">${mono(resource.available)} is built; nothing is offered until the last run's failure is resolved.</p>`;
   }
+  // Step three already says no image was found and why that might be.
+  if (canChangeRepository(resource)) {
+    return `<p class="${BODY}">Nothing to deploy until the image exists; its newest tag is offered here once the reconciler finds it.</p>${gateLine(resource)}`;
+  }
   const image = resource.repo ? `${IMAGE_PREFIX}${resource.repo}` : "the image";
   return `<p class="${BODY}">No tag found for ${mono(image)} yet. Push ${mono("v0.1.0")}; once its build finishes, the reconciler's next run offers it here.</p>${gateLine(resource)}`;
 }
@@ -818,7 +873,9 @@ function renderRepositoryCard(site: Site, opts: SiteDetailOptions, resourceName:
   const imageFound = Boolean(resource?.available);
   const files = (opts.scaffoldFiles ?? []).map(fileBlock).join("\n            ");
   const attached = resource
-    ? `<p class="font-mono text-[0.8rem] text-stone-50 m-0 break-all">${escapeHtml(resource.repo ? `${IMAGE_PREFIX}${resource.repo}` : resource.name)} <span class="text-stone-400">· ${escapeHtml(resource.name)}.yml</span></p>`
+    ? `<p class="font-mono text-[0.8rem] text-stone-50 m-0 break-all">${escapeHtml(resource.repo ? `${IMAGE_PREFIX}${resource.repo}` : resource.name)} <span class="text-stone-400">· ${escapeHtml(resource.name)}.yml</span></p>${
+        canChangeRepository(resource) ? `\n            ${changeRepositoryForm(site, resource)}` : ""
+      }`
     : attachForm(site, resourceName, opts.detached === true);
 
   return `
