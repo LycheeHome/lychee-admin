@@ -943,7 +943,11 @@ and failed: a Body sentence naming the tag it tried, the step that failed as
 the reconciler recorded it — mono, in Smoke Light, the gate line's own
 treatment — and `journalctl -u lyly-reconcile` as a single-line Command Block.
 It sits in step four before anything is installed and, after, in the
-collapsed card above the gate line. The Scorch is the status pill's alone
+collapsed card above the gate line. When a different, newer tag has been
+published, the offer line follows it in both places, exactly as a blocked row's
+follows its gate: the reconciler retries the failing pin every tick, so a newer
+tag is the way out, and the failure stays on screen beside it. The tag that
+failed is never offered again. The Scorch is the status pill's alone
 (`failed` before anything is installed; the container's own word after); the
 sentences stay Smoke, because status colors never go on prose.
 

@@ -832,8 +832,12 @@ function firstDeploy(resource: SiteResourceView | undefined): string {
     return `<p class="${BODY}">Attached. The reconciler looks for the image on its next run, within five minutes, and offers the newest tag here; reload to see it.</p>`;
   }
   // Not "requested": the reconciler already tried, and will not simply pull it
-  // next time. Nothing is offered on a failed run (offeredTag), so this is all.
-  if (resource.result === "failed") return `${failureLine(resource)}${gateLine(resource)}`;
+  // next time. Explanation first, then a newer tag if one has been published:
+  // offeredTag never re-offers the one that failed.
+  if (resource.result === "failed") {
+    const tag = offeredTag(resource);
+    return `${failureLine(resource)}${gateLine(resource)}${tag ? renderOfferLine(resource.name, tag) : ""}`;
+  }
   if (resource.target && resource.target === resource.available) {
     const requested = `<p class="font-mono text-[0.8rem] text-stone-50 m-0">${escapeHtml(resource.target)} requested</p>`;
     // A blocked run will not simply pull it next time; the gate says why.
@@ -841,12 +845,9 @@ function firstDeploy(resource: SiteResourceView | undefined): string {
     return `${requested}
             <p class="${BODY}">The reconciler pulls it and starts the container on its next run.</p>${gateLine(resource)}`;
   }
+  // Nothing is installed here, so a found tag that is not the pin is on offer.
   const tag = offeredTag(resource);
   if (tag) return `${gateLine(resource)}${renderOfferLine(resource.name, tag)}`;
-  // A tag exists but is not on offer (the last run failed): the gate is the whole story.
-  if (resource.available) {
-    return gateLine(resource) || `<p class="${BODY}">${mono(resource.available)} is built; nothing is offered until the last run's failure is resolved.</p>`;
-  }
   // Step three already says no image was found and why that might be.
   if (canChangeRepository(resource)) {
     return `<p class="${BODY}">Nothing to deploy until the image exists; its newest tag is offered here once the reconciler finds it.</p>${gateLine(resource)}`;
@@ -1129,20 +1130,23 @@ function isApplying(row: DeployFacts): boolean {
 }
 
 /**
- * The tag a row offers, or null. An offer only when nothing is in flight or
- * broken: a second request on top of an unapplied one would race the first,
- * and a failed deploy needs its gate read before anything is pushed after it.
- * `blocked` still offers: the gate line above it says why, and the offer is
- * the way out — unless the tag on offer is already the pin, which a second
- * request would only race. Shared by the services board and a site's own page, so the two
- * can never disagree about whether a tag is on offer.
+ * The tag a row offers, or null. Nothing is offered while a deploy is in
+ * flight (applying), because a second request on top of an unapplied one would
+ * race the first, and the pinned tag is never offered again, so the tag that
+ * just failed or was blocked cannot be re-requested from here.
+ *
+ * `blocked` and `failed` both offer anything else. The failure stays visible
+ * beside the offer (the gate line, or the failure line naming the tag, the
+ * step and the journal), and the reconciler retries the failing pin every
+ * tick, so a different, newer tag is the way out; withholding it left a hand
+ * edit of lychee-resources as the only one. A failed row is never applying:
+ * isApplying() requires a clean last run.
+ *
+ * Shared by the services board and a site's own page, so the two can never
+ * disagree about whether a tag is on offer.
  */
-function offeredTag(row: DeployFacts): string | null {
-  return row.available &&
-    row.available !== row.version &&
-    row.available !== row.target &&
-    !isApplying(row) &&
-    row.result !== "failed"
+export function offeredTag(row: DeployFacts): string | null {
+  return row.available && row.available !== row.version && row.available !== row.target && !isApplying(row)
     ? row.available
     : null;
 }

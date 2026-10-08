@@ -308,6 +308,15 @@ describe("POST /services/:name/deploy", () => {
     assert.equal(writes, 0);
   });
 
+  test("a failed row with a newer tag accepts the deploy and writes that tag", async () => {
+    const writes: Array<[string, string]> = [];
+    const failed = { ...NOTES, target: "v1.5.0", available: "v1.6.0", result: "failed", failed_step: "Start the container: exit 1" };
+    const res = await post([failed], { writeDeclarationTag: (n, t) => (writes.push([n, t]), Promise.resolve({ ok: true })) });
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { ok: true, tag: "v1.6.0" });
+    assert.deepEqual(writes, [["notes", "v1.6.0"]]);
+  });
+
   test("a tag already requested is a 409 and writes nothing", async () => {
     let writes = 0;
     const overrides = { writeDeclarationTag: () => (writes++, Promise.resolve({ ok: true as const })) };
