@@ -7,6 +7,9 @@ dist/
 public/style.css
 .claude/worktrees/
 .superpowers/
+# Snapshots and console logs the Playwright MCP browser tools write into the
+# working directory; scratch, never source.
+.playwright-mcp/
 
 # Impeccable design-tool state. The directory is deliberately NOT ignored:
 # .impeccable/config.json carries the detector waivers and the reasoning behind
