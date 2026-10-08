@@ -253,6 +253,40 @@ describe("GET /services", () => {
   });
 });
 
+describe("GET /services: Prune on retired site rows", () => {
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  after(async () => {
+    await current?.close();
+  });
+  const site = (name: string) => ({ name, kind: "container", container: name, group: "service", reconciled: true, result: "deployed" });
+  const PALSAVE = { name: "palsave-api", unit: "palsave-api.service", group: "service", reconciled: true, result: "deployed" };
+  const DECLS = [
+    { name: "gone-lyly-dev", port: 3400, state: "absent", image: "ghcr.io/lycheehome/gone" },
+    { name: "app-lyly-dev", port: 3200, state: "running", image: "ghcr.io/lycheehome/app:0.2.0" },
+    { name: "palsave-api", port: 8788, state: "absent", image: "ghcr.io/lycheehome/palsave-api" },
+  ];
+  async function board(readDeclarations: SystemCommands["readDeclarations"]): Promise<string> {
+    await current?.close();
+    current = await serve(inventory([site("gone-lyly-dev"), site("app-lyly-dev"), PALSAVE]), { readDeclarations });
+    const res = await current.get("/services");
+    assert.equal(res.status, 200);
+    return res.text();
+  }
+  const pruned = (html: string) => [...html.matchAll(/data-prune="([^"]+)"/g)].map((m) => m[1]);
+
+  test("only a site whose declaration is absent gets the control", async () => {
+    assert.deepEqual(pruned(await board(() => Promise.resolve(DECLS))), ["gone-lyly-dev"]);
+  });
+
+  test("an unreadable clone shows no control anywhere", async () => {
+    assert.deepEqual(pruned(await board(() => Promise.resolve(null))), []);
+  });
+
+  test("a declarations read that throws still renders the board, without the control", async () => {
+    assert.deepEqual(pruned(await board(() => Promise.reject(new Error("boom")))), []);
+  });
+});
+
 describe("POST /services/:name/deploy", () => {
   let current: Awaited<ReturnType<typeof serve>> | undefined;
   after(async () => {

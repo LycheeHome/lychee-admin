@@ -2,7 +2,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { withoutHeader } from "../dev/testHelpers";
-import { offeredTag, renderServicesPage, renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
+import { offeredTag, renderPruneControl, renderServicesPage, renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
 import { formatAge, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, TYPE_PILL_PROXY } from "./shared";
 import { ADD_STEPS } from "../lib/stepReport";
 
@@ -1723,6 +1723,38 @@ describe("renderServicesPage", () => {
   });
 });
 
+describe("Prune on the services board", () => {
+  const NOW = new Date("2026-10-02T05:00:00Z");
+  const row = (name: string, extra: Record<string, unknown> = {}) => ({
+    name, kind: "container" as const, container: name, group: "service" as const,
+    reconciled: true, result: "deployed" as const, status: "not-created" as const, since: null, ...extra,
+  });
+  const board = (names: string[]) => ({
+    inventoryAvailable: true, schedule: { next: null, last: null }, timerUnit: null, generated: null,
+    groups: [{ group: "service" as const, rows: names.map((n) => row(n)) }],
+  });
+  const rowOf = (html: string, name: string) => {
+    const start = html.indexOf(`data-service="${name}"`);
+    return html.slice(start, html.indexOf("</li>", start));
+  };
+
+  test("a row whose site declaration is absent carries the same control as the site page", () => {
+    const html = renderServicesPage(board(["gone-lyly-dev", "app-lyly-dev"]), NOW, new Set(["gone-lyly-dev"]));
+    assert.ok(rowOf(html, "gone-lyly-dev").includes(renderPruneControl("gone-lyly-dev")));
+    assert.doesNotMatch(rowOf(html, "app-lyly-dev"), /data-prune/);
+  });
+
+  test("a non-site name gets no control even if it is named absent", () => {
+    const html = renderServicesPage(board(["palsave-api"]), NOW, new Set(["palsave-api"]));
+    assert.doesNotMatch(html, /data-prune/);
+  });
+
+  test("with nothing named absent (or the clone unreadable) no row carries the control", () => {
+    assert.doesNotMatch(renderServicesPage(board(["gone-lyly-dev"]), NOW), /data-prune/);
+    assert.doesNotMatch(renderServicesPage(board(["gone-lyly-dev"]), NOW, new Set()), /data-prune/);
+  });
+});
+
 describe("formatAge", () => {
   const now = new Date("2026-10-02T05:00:00Z");
   const at = (secondsFromNow: number) => new Date(now.getTime() + secondsFromNow * 1000);
@@ -1966,7 +1998,8 @@ describe("renderSiteDetail from a repository", () => {
     const c = card(html);
     assert.doesNotMatch(html, /awaiting image/);
     assert.match(c, /app-lyly-dev\.yml/);
-    assert.match(c, /pruned/);
+    assert.match(c, /Prune it to re-attach/);
+    assert.doesNotMatch(c, /before re-attaching/);
     const button = c.match(/<button[^>]*type="submit"[^>]*>/);
     assert.ok(button);
     assert.doesNotMatch(button[0], /\sdisabled(?=[\s>/])/);
@@ -1976,6 +2009,31 @@ describe("renderSiteDetail from a repository", () => {
     assert.doesNotMatch(input[0], /\sdisabled(?=[\s>/])/);
     assert.match(input[0], /aria-describedby="attach-prefix attach-warning"/);
     assert.match(c, /id="attach-warning"/);
+  });
+
+  test("detached: the warning carries the Prune control for the site's resource", () => {
+    const c = card(renderSiteDetail(NEXT_SITE, { ...BASE, detached: true, status: { kind: "container", state: "not-created" } }));
+    assert.ok(c.includes(renderPruneControl("app-lyly-dev")));
+    const button = c.match(/<button[^>]*data-prune="app-lyly-dev"[^>]*>([^<]*)<\/button>/);
+    assert.ok(button);
+    assert.equal(button[1], "Prune old declaration");
+    assert.match(button[0], /type="button"/);
+    assert.ok(button[0].includes(`class="${BUTTON_SECONDARY}"`));
+    // After the warning it acts on, so the reason is read before the action.
+    assert.ok(c.indexOf("data-prune=") > c.indexOf('id="attach-warning"'));
+  });
+
+  test("not detached: no Prune control, whatever the resource's state", () => {
+    const pages = [
+      renderSiteDetail(NEXT_SITE, { ...BASE, status: { kind: "container", state: "not-created" } }),
+      renderSiteDetail(NEXT_SITE, { ...BASE, resource: { ...RESOURCE, result: "awaiting-image" }, status: { kind: "awaiting-image" } }),
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, version: "0.2.0", result: "deployed" },
+        status: { kind: "container", state: "running", health: "healthy" },
+      }),
+    ];
+    for (const html of pages) assert.doesNotMatch(html, /data-prune/);
   });
 
   test("a failed first deploy: the Deploy step names the tag, the failed step and the journal, and offers nothing", () => {

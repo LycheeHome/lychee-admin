@@ -108,9 +108,9 @@ const NOT_DEPLOYED: SiteStatus = { kind: "container", state: "not-created" };
  * whenever it exists, because the inventory has no notion of `absent`: a
  * retired declaration must never read as awaiting, whatever the reconciler
  * last published. And a readable clone with no declaration wins over the
- * inventory too: the reconciler never deletes a pruned site's status file, so
- * its entry outlives the declaration, and trusting it would show a site that
- * was pruned and re-added as attached forever, with no Attach to offer and a
+ * inventory too: the reconciler removes a pruned site's status file only once
+ * it proves the site down, so its entry can outlive the declaration, and
+ * trusting it would show a site that was pruned and re-added as attached, with no Attach to offer and a
  * Remove that retires a declaration that does not exist.
  *
  * A declaration with no inventory entry is the reconciler not having ticked

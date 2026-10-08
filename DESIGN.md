@@ -879,6 +879,21 @@ line still reads `failed · N attempts`; the failure line is what says which tag
 and why, which a service with no site page (palsave-api) has nowhere else to
 say.
 
+**The prune line.** A site row whose declaration is retired (`state: absent`)
+and still in `lychee-resources` grows one more line, last: a secondary
+`Prune old declaration` button and a mono caption naming the file it deletes and
+the condition it waits for — `deletes <name>.yml from lychee-resources · once
+its container is confirmed down`. The same markup, from the same function, sits
+under a site page's detached warning, and both post to the same route. Secondary
+rather than the offer's Ember outline or the danger button's Scorch: it removes
+a file already retired for a container already down, in a commit that can be
+reverted, so it is neither the row's way forward nor a destructive act, and no
+modal guards it. The button is shown only on evidence that the declaration is
+absent — an unreadable clone shows none anywhere — and only for a site's
+resource name; a hand-declared service such as palsave-api is never pruned from
+here. Whether the container is down yet is the route's to answer, through the
+toast, rather than the page's to predict.
+
 **Applying is a state of the pill, not a colour.** While a declaration pins a
 version the host has not installed yet, the pill reads `applying` in the neutral
 tone and the facts line states both versions as one fact, `v0.2.0 → v0.3.0`,
@@ -923,11 +938,12 @@ file it will write and saying that no tag is written until the first deploy.
 Its error is the form-level error surface with `role="alert"`, hidden until it
 has text. When the site's declaration is retired but not yet pruned, the field
 and the button stay enabled, and a Smoke Light sentence beside them warns that
-attaching is refused until the file is pruned and says where, tied to both
-through `aria-describedby`. A warning and not a disabled control, because the
-page's copy of `lychee-resources` can be stale; the writer pulls before it
-writes and refuses with the same prune reason, so pressing Attach is the
-check. Attached, the step's body becomes the image and declaration file in
+attaching is refused while the file is there and says to prune it, tied to both
+through `aria-describedby`; beneath it sits the board's prune line, so the way
+out is on the page rather than on GitHub. A warning and not a disabled control,
+because the page's copy of `lychee-resources` can be stale; the writer pulls
+before it writes and refuses with the same prune reason, so pressing Attach is
+the check. Attached, the step's body becomes the image and declaration file in
 mono, so the step shows what was written rather than that something was.
 
 **The change-repository control** joins that body only once the reconciler has

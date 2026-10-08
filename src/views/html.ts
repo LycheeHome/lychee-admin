@@ -9,6 +9,7 @@ import {
 import type { UnitState } from "../lib/unitState";
 import { ADD_STEPS } from "../lib/stepReport";
 import { resourceNameFor } from "../lib/siteResource";
+import { isSiteName } from "../lib/declarationWriter";
 import type { BoardRow, ServiceBoard } from "../lib/serviceBoard";
 import type { ServiceGroup } from "../lib/serviceInventory";
 import { layout, type Nav } from "./shell";
@@ -707,6 +708,25 @@ function runbookStep(n: number, done: boolean, title: string, body: string): str
 const mono = (value: string): string => `<span class="font-mono text-stone-50 break-all">${escapeHtml(value)}</span>`;
 
 /**
+ * Prune: deletes a retired site declaration from lychee-resources. One markup
+ * for the site page's detached warning and a retired row on the services
+ * board; app.js binds every [data-prune] to POST /resources/:name/prune.
+ *
+ * Secondary, not primary or danger, and no modal: it removes a file already
+ * `state: absent` for a container the route checks is confirmed down, in a
+ * revertible commit, so it is neither the page's forward action nor a
+ * destructive one. Callers render it only for an absent declaration; whether
+ * the container is down yet is the route's to answer, through the banner.
+ */
+export function renderPruneControl(name: string): string {
+  const safe = escapeHtml(name);
+  return `<p class="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-prune-line>
+            <button type="button" class="${BUTTON_SECONDARY}" data-prune="${safe}">Prune old declaration</button>
+            <span class="font-mono text-[0.72rem] text-stone-400 break-all">deletes ${safe}.yml from lychee-resources · once its container is confirmed down</span>
+          </p>`;
+}
+
+/**
  * The attach control: a repository name composed with the fixed registry
  * prefix, in the same shape as add-site's hostname field (the affix is part of
  * the control, read out through aria-describedby, and the focus ring encloses
@@ -716,11 +736,13 @@ const mono = (value: string): string => `<span class="font-mono text-stone-50 br
  * A retired declaration does not disable the control. The page's clone is
  * refreshed on load but may still be stale (the refresh is bounded), so the
  * page warns and the writer decides: it pulls first, and refuses with the
- * same prune reason if the retired file is still there.
+ * same prune reason if the retired file is still there. The warning carries
+ * the way out, the Prune control, after the sentence that explains it.
  */
 function attachForm(site: Site, resourceName: string, detached: boolean): string {
   const warning = detached
-    ? `<p id="attach-warning" class="${BODY} text-stone-300">${mono(`${resourceName}.yml`)} is retired (${mono("state: absent")}) and was still in lychee-resources when this page loaded. Attaching is refused until it is pruned there; pressing Attach checks again.</p>`
+    ? `<p id="attach-warning" class="${BODY} text-stone-300">${mono(`${resourceName}.yml`)} is retired (${mono("state: absent")}) and was still in lychee-resources when this page loaded. Attaching is refused while it is there. Prune it to re-attach; pressing Attach checks again.</p>
+              ${renderPruneControl(resourceName)}`
     : "";
   return `<form class="flex flex-col gap-1.5" data-attach="${escapeHtml(site.hostname)}" novalidate>
               <label for="attach-repo" class="text-[0.85rem] text-stone-400">Repository in LycheeHome</label>
@@ -1170,7 +1192,7 @@ function renderOfferLine(name: string, tag: string): string {
           </p>`;
 }
 
-function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date): string {
+function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date, prunable: ReadonlySet<string>): string {
   // `target` is what the reconciler has been asked to run; `version` is what
   // it last confirmed running. "Applying" means the reconciler last ran
   // cleanly (`deployed` or `skipped`) and the pin has since moved, so the next
@@ -1233,15 +1255,27 @@ function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date): string
             // is exactly the row it was before this existed.
             offer ? renderOfferLine(row.name, offer) : ""
           }
+          ${
+            // A retired site's declaration, still in lychee-resources. Site
+            // names only: a hand-declared resource (palsave-api) is never
+            // pruned from here, whatever the caller passed.
+            prunable.has(row.name) && isSiteName(row.name) ? renderPruneControl(row.name) : ""
+          }
         </div>
       </li>`;
 }
 
 /**
- * What else runs on the host. Read-only except for one control: a row with a
- * newer tag on offer carries a Deploy button. `now` is a parameter so ages are testable.
+ * What else runs on the host. Read-only except for two controls: a row with a
+ * newer tag on offer carries a Deploy button, and a site row named in
+ * `prunable` (its declaration is `state: absent`) carries Prune. `now` is a
+ * parameter so ages are testable.
  */
-export function renderServicesPage(board: ServiceBoard, now: Date = new Date()): string {
+export function renderServicesPage(
+  board: ServiceBoard,
+  now: Date = new Date(),
+  prunable: ReadonlySet<string> = new Set(),
+): string {
   const written = formatAge(board.generated, now);
   const freshness = board.inventoryAvailable
     ? written
@@ -1254,7 +1288,7 @@ export function renderServicesPage(board: ServiceBoard, now: Date = new Date()):
       (g) => `
     <section aria-labelledby="group-${g.group}">
       <h3 id="group-${g.group}" class="${GROUP_LABEL}">${GROUP_LABELS[g.group]}</h3>
-      <ul class="list-none m-0 p-0 flex flex-col">${g.rows.map((r) => renderServiceRow(r, board, now)).join("")}
+      <ul class="list-none m-0 p-0 flex flex-col">${g.rows.map((r) => renderServiceRow(r, board, now, prunable)).join("")}
       </ul>
     </section>`,
     )
