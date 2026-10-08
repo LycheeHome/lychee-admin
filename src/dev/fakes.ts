@@ -175,6 +175,25 @@ export function createFakes(
       declarations.set(name, { ...decl, state });
       return Promise.resolve({ ok: true });
     },
+    // Site-only and absent-only, with the real writer's codes.
+    pruneSiteDeclaration: (name) => {
+      if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?-lyly-dev$/.test(name) || name.length > 63) {
+        return Promise.resolve({ ok: false, reason: `"${name}" is not a valid site resource name.` });
+      }
+      const decl = declarations.get(name);
+      if (!decl) {
+        return Promise.resolve({ ok: false, code: "missing", reason: `No declaration named ${name}.yml in lychee-resources.` });
+      }
+      if (decl.state !== "absent") {
+        return Promise.resolve({
+          ok: false,
+          code: "not-absent",
+          reason: `${name}.yml is not retired (state is not absent); it can't be pruned.`,
+        });
+      }
+      declarations.delete(name);
+      return Promise.resolve({ ok: true });
+    },
     // Mirrors the refusals a caller branches on: missing, retired, tagged (with
     // its code, so the route's 409 is reachable in dev).
     changeSiteRepository: (name, repo) => {

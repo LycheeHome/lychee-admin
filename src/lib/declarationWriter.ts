@@ -8,8 +8,10 @@ import { normalizeRepo, parseDeclaration, claimedPorts, SITE_SUFFIX, type Declar
  * `code: "tagged"` marks the one refusal a caller must tell apart from a failed
  * write: changeSiteRepository on a declaration that already carries a tag. It
  * is decided after the pull, so it is the remote's answer, not the page's.
+ * pruneSiteDeclaration adds two of the same kind: "not-absent" (the declaration
+ * is not retired) and "missing" (no such file), each also the remote's answer.
  */
-export type WriteResult = { ok: true } | { ok: false; reason: string; code?: "tagged" };
+export type WriteResult = { ok: true } | { ok: false; reason: string; code?: "tagged" | "not-absent" | "missing" };
 
 export type GitRunner = (
   args: string[],
@@ -89,7 +91,7 @@ function isSiteName(name: string): boolean {
 }
 
 /** What a write callback hands back: the file it changed and the commit message. */
-type Change = { file: string; message: string };
+type Change = { file: string; message: string; remove?: boolean };
 
 function describe(error: unknown): string {
   const err = error as { stderr?: string; message?: string };
@@ -181,7 +183,7 @@ async function withCloneUnqueued(
     if ("ok" in change) return change;
 
     try {
-      await inClone(["add", "--", change.file]);
+      await inClone(change.remove ? ["rm", "--", change.file] : ["add", "--", change.file]);
       await inClone([
         "-c", "user.name=lyly-admin",
         "-c", "user.email=lyly-admin@lychee.local",
@@ -449,6 +451,33 @@ export async function changeSiteRepository(name: string, repo: string, opts: Wri
     }
     fs.writeFileSync(target, updated);
     return { file, message: `${name}: change repository to ${image}` };
+  });
+}
+
+/**
+ * Deletes a retired site's declaration from lychee-resources: `git rm`, one
+ * commit, pushed. The only thing this app ever deletes there, and only when
+ * the file's PARSED `state` is `absent`, decided after the pull, so a quoted
+ * or commented value still counts and a declaration someone revived on the
+ * remote is refused. Refusals carry `code: "not-absent"` or `code: "missing"`.
+ * Site names only.
+ *
+ * Never throws and never forces (see withClone).
+ */
+export async function pruneSiteDeclaration(name: string, opts: WriterOptions): Promise<WriteResult> {
+  if (!isSiteName(name)) {
+    return { ok: false, reason: `"${name}" is not a valid site resource name.` };
+  }
+  return withClone(opts, (clonePath) => {
+    const file = `${name}.yml`;
+    const target = path.join(clonePath, file);
+    if (!fs.existsSync(target)) {
+      return { ok: false, code: "missing", reason: `No declaration named ${file} in lychee-resources.` };
+    }
+    if (parsedFields(fs.readFileSync(target, "utf8"))?.state !== "absent") {
+      return { ok: false, code: "not-absent", reason: `${file} is not retired (state is not absent); it can't be pruned.` };
+    }
+    return { file, message: `${name}: prune retired declaration`, remove: true };
   });
 }
 
