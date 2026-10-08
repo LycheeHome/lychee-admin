@@ -30,7 +30,7 @@ and a ghost row on the services board, both permanently.
 
 | Question | Decision |
 |---|---|
-| What Prune leaves behind | **Clean retirement**: the app deletes the declaration; the reconciler removes the rendered project and status file once it can prove nothing runs. The site's account stays. |
+| What Prune leaves behind | **Clean retirement**: the app deletes the declaration; the reconciler removes the rendered project and status file once it can prove nothing runs, then deletes the site's system account once it can prove the account owns nothing. |
 | Where Prune lives | **Both**: the site page's detached warning and a retired row on the services board, behind one route. |
 
 Rejected: an app-only delete (permanent drift and ghost rows train the operator
@@ -67,8 +67,42 @@ If either fails, the name stays reported as drift, exactly as today. A deleted
 declaration still never stops anything. Names are filtered by the reconciler's
 existing name rule before any path is built from them.
 
-The site's system account is **not** removed (uid reuse; see the slice-5 spec).
-Re-adding the same hostname later reuses it.
+**Account deletion** — after the directories are gone, the reconciler deletes
+the site's system account, but only on proof that its uid cannot hand anything to
+a stranger. File ownership is recorded by uid number, and a freed uid is given to
+the next account `useradd` creates, which then silently owns whatever the old
+account left behind outside its home (`userdel` does not touch those files). That
+happened on this host: `github-runner` had once owned `/opt/lyly-admin/node_modules`,
+and its deletion on 2026-09-28 was preceded by exactly this check. Here the proof
+is, all of:
+
+- the name matches the site pattern, has an account, and has **no** declaration
+  in this tick's valid set (a re-added site is never a candidate), and no rendered
+  project or status directory remains;
+- `pgrep -u <uid>` finds no process;
+- `find / -xdev \( -uid <uid> -o -gid <gid> \) -print -quit`, excluding `/proc`,
+  `/sys` and `/run`, under `timeout 120`, prints nothing and exits cleanly.
+
+Then `userdel <name>`, which also removes its private group. If any proof fails,
+the scan times out, or `userdel` errors, the account is kept, the reason is
+logged, and nothing fails the tick.
+
+**Retry.** Candidates are recomputed every tick from accounts, not from the
+directories the cleanup just removed, so an account whose deletion was skipped
+once (a timeout, a found file) is tried again rather than stranded. To bound the
+cost, at most **one** account deletion is attempted per tick. A scan that keeps
+finding a file repeats each tick at the cost of `-print -quit` stopping at the
+first hit; one that keeps timing out costs up to 120s per tick and is visible in
+the journal as such.
+
+Expected outcome: a site account owns nothing on disk. It has no home
+(`/nonexistent`), no shell, and its container runs with a read-only root whose
+only writable paths are tmpfs. The scan is there because "owns nothing by
+design" is what was believed of `github-runner` too.
+
+Re-adding a hostname after its account was deleted creates a fresh account,
+possibly with a different uid, which is harmless because the old uid owned
+nothing.
 
 ## lychee-ops
 
@@ -87,6 +121,16 @@ Re-adding the same hostname later reuses it.
   - a never-installed (`awaiting-image`) undeclared site → cleaned;
   - `palsave-api` and every declared resource untouched;
   - a malformed or missing status file → kept as drift.
+- **Account deletion** lives in the host-only part of the role
+  (`roles/resources_reconcile/tasks/main.yml`, after the reconcile import), like
+  account creation, because `pgrep`, `find` and `userdel` act on the real host. The
+  candidate selection is a pure expression over this tick's valid set, `passwd`,
+  and the directory listing, and is factored so the suite can test it: a declared
+  site, a site with a remaining directory, a non-site account (`palsave-api`,
+  `byron`), and a name failing the site pattern are never candidates; at most one
+  candidate is chosen per tick. The `pgrep` / `find` / `userdel` steps themselves
+  are verified on `lychee`, and the suite's "what a green suite is evidence for"
+  note applies.
 
 ## lyly-admin
 
@@ -128,12 +172,15 @@ safe: a prune with no cleanup rule only leaves drift and a stale row.
 ## Verification on lychee
 
 Retire test.lyly.dev (Remove in the app), wait for the down, Prune it, then
-confirm within a tick: `/etc/lychee-resources/test-lyly-dev` and
+confirm within a tick or two: `/etc/lychee-resources/test-lyly-dev` and
 `/var/lib/lychee-resources/test-lyly-dev` are gone, `drift.json` is empty, the
-board row is gone, and `getent passwd test-lyly-dev` still shows the account.
+board row is gone, and `getent passwd test-lyly-dev` and `getent group
+test-lyly-dev` both return nothing, with the journal showing the clean scan
+before `userdel`. Then re-add and attach the hostname once more to confirm a
+fresh account is created.
 
 ## Not in this design
 
-Deleting site accounts; pruning hand-declared (non-site) resources from the app;
+Deleting non-site accounts; pruning hand-declared (non-site) resources from the app;
 pruning anything not already `absent`; purging named volumes (still a separate,
 deliberate act outside this work).
