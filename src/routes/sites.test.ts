@@ -372,14 +372,19 @@ describe("POST /sites — static", () => {
 
   test("rejects a hostname that already exists", async () => {
     const response = await request("/sites", form({ hostname: "blog.lyly.dev", type: "static" }));
-    assert.equal(response.status, 500);
-    const body = await json<{ error: string; steps: { id: string; status: string }[] }>(response);
+    assert.equal(response.status, 400);
+    const body = await json<{ error: string }>(response);
     assert.match(body.error, /already exists in the Caddyfile/);
-    // This throws before report.run("backup", ...) ever executes, so the
-    // response must not claim backups were saved — see the "backup"
-    // step's own status, which stays "not-run".
-    assert.equal(body.steps.find((step) => step.id === "backup")?.status, "not-run");
+    // Nothing ran, so there is no backup to mention and no step report.
     assert.doesNotMatch(body.error, /Backed-up copies/);
+    assert.deepEqual(createSiteDirectoryCalls, []);
+  });
+
+  test("an unreadable Caddyfile is still a 500, not an input error", async () => {
+    fakeFs.rmRecursive(CADDYFILE);
+    const response = await request("/sites", form({ hostname: "new.lyly.dev", type: "static" }));
+    assert.equal(response.status, 500);
+    assert.match((await json<{ error: string }>(response)).error, /ENOENT/);
   });
 });
 
@@ -412,7 +417,7 @@ describe("POST /sites — reverse proxy", () => {
 
   test("rejects a port claimed by a declaration, naming it", async () => {
     const response = await request("/sites", form({ hostname: "clash.lyly.dev", type: "reverse-proxy", port: "8788" }));
-    assert.equal(response.status, 500);
+    assert.equal(response.status, 400);
     assert.equal(
       (await json<{ error: string }>(response)).error,
       "Port 8788 is already claimed by palsave-api in lychee-resources.",
@@ -450,13 +455,13 @@ describe("POST /sites — reverse proxy", () => {
 
   test("rejects a port already used by another reverse-proxy site", async () => {
     const response = await request("/sites", form({ hostname: "clash.lyly.dev", type: "reverse-proxy", port: "4000" }));
-    assert.equal(response.status, 500);
+    assert.equal(response.status, 400);
     assert.match((await json<{ error: string }>(response)).error, /already used by api\.lyly\.dev/);
   });
 
   test("rejects a reserved port", async () => {
     const response = await request("/sites", form({ hostname: "clash.lyly.dev", type: "reverse-proxy", port: "2019" }));
-    assert.equal(response.status, 500);
+    assert.equal(response.status, 400);
     assert.match((await json<{ error: string }>(response)).error, /reserved/);
   });
 

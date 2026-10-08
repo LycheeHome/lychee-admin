@@ -69,6 +69,22 @@ describe("getFrameworkScaffold", () => {
       assert.ok(workflow.includes("${GITHUB_REPOSITORY,,}"));
       assert.ok(workflow.includes("org.opencontainers.image.source"));
     });
+
+    const REGEX_TEXT = String.raw`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`;
+
+    test("refuses any version that is not plain semver, before docker build", () => {
+      assert.ok(workflow.includes(REGEX_TEXT), "guard regex missing or its dots unescaped");
+      const guard = workflow.indexOf(REGEX_TEXT);
+      assert.ok(guard < workflow.indexOf("docker build"), "guard must precede docker build");
+      assert.ok(guard > workflow.indexOf('VERSION="'), "guard must follow VERSION");
+      assert.match(workflow, /exit 1/);
+    });
+
+    test("the guard's regex accepts X.Y.Z and rejects what the host would never offer", () => {
+      const re = new RegExp(REGEX_TEXT);
+      for (const ok of ["1.2.3", "0.10.0"]) assert.ok(re.test(ok), ok);
+      for (const bad of ["01.2.3", "1.2.3-rc1", "1.2"]) assert.ok(!re.test(bad), bad);
+    });
   });
 
   test("generates nothing that names a runner we do not have, the host, or compose", () => {

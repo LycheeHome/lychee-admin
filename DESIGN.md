@@ -1038,8 +1038,9 @@ stops the container, and when.
   sentence — status colors belong to pills, sub-lines, and error surfaces.
 - **Don't** use uppercase for emphasis inside a sentence; it marks structure
   only.
-- **Don't** show a live-looking indicator for something nothing checks. Hops
-  1–3 carry derived values and `manual step`, not invented health.
+- **Don't** show a live-looking indicator for something nothing checks. Hop 1
+  never carries live state; every indicator on hops 2–4 is something actually
+  checked, not invented health.
 - **Don't** auto-dismiss a banner that carries an unfinished manual action.
 - **Don't** drift toward the dark-SaaS-dashboard look (violet gradients,
   glassmorphism, KPI tiles) or toward terminal cosplay (scanlines, ASCII

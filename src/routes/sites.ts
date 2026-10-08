@@ -375,7 +375,11 @@ export function createSitesRouter(deps: Deps): Router {
     try {
       caddyfileContent = deps.fs.readFile(config.caddyfilePath);
       const existing = validateAgainstExisting(input, caddyfileContent, SITE_ENV, await readDeclaredPorts());
-      if (!existing.ok) throw new Error(existing.error);
+      if (!existing.ok) {
+        // Input conflict, answered before any step runs: nothing to report.
+        res.status(400).json({ error: existing.error });
+        return;
+      }
 
       tunnelContent = deps.fs.readFile(config.tunnelConfigPath);
 
@@ -469,8 +473,8 @@ export function createSitesRouter(deps: Deps): Router {
       }
 
       // The backup sentence must only appear when the backup step actually
-      // ran: every pre-step failure (duplicate hostname, reserved port, port
-      // conflict, either readFile) throws before report.run("backup", ...)
+      // ran: every pre-step failure that still throws (either readFile, the
+      // declared-ports read) throws before report.run("backup", ...)
       // ever executes, and asserting backups exist in that case would tell
       // the operator root-owned configs might be in a bad state when nothing
       // was ever touched.
