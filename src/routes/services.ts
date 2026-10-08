@@ -1,5 +1,6 @@
 import express from "express";
 import type { Deps } from "../deps";
+import { isSiteName } from "../lib/declarationWriter";
 import { readInventory } from "../lib/serviceInventory";
 import { buildBoard, findTimerUnit } from "../lib/serviceBoard";
 import { renderServicesPage } from "../views/html";
@@ -75,6 +76,50 @@ export function createServicesRouter(deps: Deps): express.Router {
     } catch (error) {
       logAction({ action: "deploy-service-failed", hostname: name, detail: String(error) });
       res.status(502).json({ ok: false, reason: `Could not request the deploy: ${String(error)}` });
+    }
+  });
+
+  // Deletes a retired site's declaration. The container must be confirmed down
+  // first: the inventory is the reconciler's own record, and an entry with no
+  // installed version and a settled result is what "down" looks like there.
+  // The writer re-checks `state: absent` against the freshly pulled file.
+  router.post("/resources/:name/prune", async (req, res) => {
+    const { name } = req.params;
+    const { logAction } = deps.logger;
+    try {
+      if (!isSiteName(name)) {
+        res.status(404).json({ ok: false, reason: `No site resource named ${name}.` });
+        return;
+      }
+      const declarations = await deps.commands.readDeclarations();
+      if (declarations === null) {
+        res.status(502).json({ ok: false, reason: "Could not read the declarations clone." });
+        return;
+      }
+      if (!declarations.some((d) => d.name === name)) {
+        res.status(404).json({ ok: false, reason: `No declaration named ${name}.` });
+        return;
+      }
+      const entry = readInventory(deps.fs).entries.find((e) => e.name === name);
+      if (!entry || entry.version || !entry.result || !["deployed", "awaiting-image"].includes(entry.result)) {
+        res.status(409).json({
+          ok: false,
+          reason: "the container hasn't been confirmed down yet; try after the next reconcile",
+        });
+        return;
+      }
+      const result = await deps.commands.pruneSiteDeclaration(name);
+      if (!result.ok) {
+        logAction({ action: "prune-declaration-failed", hostname: name, detail: result.reason });
+        const status = result.code === "not-absent" ? 409 : result.code === "missing" ? 404 : 502;
+        res.status(status).json({ ok: false, reason: result.reason });
+        return;
+      }
+      logAction({ action: "prune-declaration", hostname: name });
+      res.json({ ok: true });
+    } catch (error) {
+      logAction({ action: "prune-declaration-failed", hostname: name, detail: String(error) });
+      res.status(502).json({ ok: false, reason: `Could not prune the declaration: ${String(error)}` });
     }
   });
 

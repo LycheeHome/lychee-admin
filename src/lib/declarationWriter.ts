@@ -86,7 +86,7 @@ export interface WriterOptions {
   timeoutMs?: number;
 }
 
-function isSiteName(name: string): boolean {
+export function isSiteName(name: string): boolean {
   return name.length <= MAX_NAME_LENGTH && SITE_NAME_RE.test(name);
 }
 

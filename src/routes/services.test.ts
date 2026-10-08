@@ -324,3 +324,95 @@ describe("POST /services/:name/deploy", () => {
     assert.equal(writes, 0);
   });
 });
+
+describe("POST /resources/:name/prune", () => {
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  after(async () => {
+    await current?.close();
+  });
+  const SITE = "test-lyly-dev";
+  const DOWN = { name: SITE, kind: "container", container: SITE, group: "service", reconciled: true, result: "deployed" };
+  const DECL = [{ name: SITE, port: 3000, state: "absent", image: "ghcr.io/lycheehome/x" }];
+  const CONFIRM_REASON = "the container hasn't been confirmed down yet; try after the next reconcile";
+
+  async function post(inv: unknown[], overrides: Partial<SystemCommands>, name = SITE) {
+    await current?.close();
+    current = await serve(inventory(inv), overrides);
+    return fetch(`${current.base}/resources/${name}/prune`, { method: "POST", headers: { Authorization: AUTH } });
+  }
+  function spy(result: Awaited<ReturnType<SystemCommands["pruneSiteDeclaration"]>> = { ok: true }) {
+    const calls: string[] = [];
+    return { calls, overrides: { readDeclarations: () => Promise.resolve(DECL), pruneSiteDeclaration: (n: string) => (calls.push(n), Promise.resolve(result)) } };
+  }
+
+  test("requires authentication", async () => {
+    current = await serve(inventory([DOWN]), {});
+    const res = await fetch(`${current.base}/resources/${SITE}/prune`, { method: "POST" });
+    assert.equal(res.status, 401);
+  });
+
+  test("a confirmed-down retired site is pruned", async () => {
+    const { calls, overrides } = spy();
+    const res = await post([DOWN], overrides);
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { ok: true });
+    assert.deepEqual(calls, [SITE]);
+  });
+
+  test("awaiting-image counts as confirmed down", async () => {
+    const { calls, overrides } = spy();
+    const res = await post([{ ...DOWN, result: "awaiting-image" }], overrides);
+    assert.equal(res.status, 200);
+    assert.deepEqual(calls, [SITE]);
+  });
+
+  test("an installed version, a failed result or no inventory entry is a 409 and writes nothing", async () => {
+    const { calls, overrides } = spy();
+    for (const inv of [[{ ...DOWN, version: "v1" }], [{ ...DOWN, result: "failed" }], []]) {
+      const res = await post(inv, overrides);
+      assert.equal(res.status, 409);
+      assert.deepEqual(await res.json(), { ok: false, reason: CONFIRM_REASON });
+    }
+    assert.equal(calls.length, 0);
+  });
+
+  test("an unreadable clone is a 502", async () => {
+    const { calls, overrides } = spy();
+    const res = await post([DOWN], { ...overrides, readDeclarations: () => Promise.resolve(null) });
+    assert.equal(res.status, 502);
+    assert.equal(((await res.json()) as { ok: boolean }).ok, false);
+    assert.equal(calls.length, 0);
+  });
+
+  test("no such declaration is a 404", async () => {
+    const { calls, overrides } = spy();
+    const res = await post([DOWN], { ...overrides, readDeclarations: () => Promise.resolve([]) });
+    assert.equal(res.status, 404);
+    assert.equal(calls.length, 0);
+  });
+
+  test("writer refusals map: not-absent 409, missing 404, other 502", async () => {
+    const reason = "writer said no";
+    assert.equal((await post([DOWN], spy({ ok: false, reason, code: "not-absent" }).overrides)).status, 409);
+    assert.equal((await post([DOWN], spy({ ok: false, reason, code: "missing" }).overrides)).status, 404);
+    const res = await post([DOWN], spy({ ok: false, reason }).overrides);
+    assert.equal(res.status, 502);
+    assert.deepEqual(await res.json(), { ok: false, reason });
+  });
+
+  test("a writer that throws still answers with a reason", async () => {
+    const { overrides } = spy();
+    const res = await post([DOWN], { ...overrides, pruneSiteDeclaration: () => Promise.reject(new Error("boom")) });
+    assert.equal(res.status, 502);
+    assert.match(((await res.json()) as { reason: string }).reason, /boom/);
+  });
+
+  test("a non-site name is a 404 before anything is read", async () => {
+    let reads = 0;
+    const { calls, overrides } = spy();
+    const res = await post([DOWN], { ...overrides, readDeclarations: () => (reads++, Promise.resolve(DECL)) }, "palsave-api");
+    assert.equal(res.status, 404);
+    assert.equal(reads, 0);
+    assert.equal(calls.length, 0);
+  });
+});

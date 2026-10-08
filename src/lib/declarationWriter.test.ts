@@ -649,6 +649,24 @@ describe("pruneSiteDeclaration", () => {
     if (!result.ok) assert.equal(result.code, "not-absent");
   });
 
+  test("refuses a duplicated state: key, committing nothing", async () => {
+    seedClone({ "test-lyly-dev.yml": `${RETIRED}state: running\n` });
+    const result = await pruneSiteDeclaration("test-lyly-dev", opts());
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, "not-absent");
+    assert.equal(commits().length, 0);
+    assert.ok(exists());
+  });
+
+  test("refuses state: Absent (capital A), committing nothing", async () => {
+    seedClone({ "test-lyly-dev.yml": SITE_TAGLESS.replace("state: running   # flipped by Remove", "state: Absent") });
+    const result = await pruneSiteDeclaration("test-lyly-dev", opts());
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, "not-absent");
+    assert.equal(commits().length, 0);
+    assert.ok(exists());
+  });
+
   test("refuses a name that is not a site name, before touching git", async () => {
     const result = await pruneSiteDeclaration("palsave-api", opts());
     assert.equal(result.ok, false);

@@ -21,7 +21,9 @@ export interface AuditEntry {
     | "detach-site"
     | "detach-site-failed"
     | "change-repository"
-    | "change-repository-failed";
+    | "change-repository-failed"
+    | "prune-declaration"
+    | "prune-declaration-failed";
   /** The site's hostname, or for a service action the declaration's name. */
   hostname: string;
   detail?: string;
