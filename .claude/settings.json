@@ -14,8 +14,8 @@
   },
   "enabledPlugins": {
     "typescript-lsp@claude-plugins-official": true,
-    "playwright@claude-plugins-official": true,
     "impeccable@impeccable": true,
-    "superpowers@anthropic-plugin-directory": true
+    "superpowers@anthropic-plugin-directory": true,
+    "playwright@anthropic-plugin-directory": true
   }
 }
