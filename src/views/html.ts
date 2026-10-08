@@ -18,6 +18,7 @@ import {
   icon,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
+  BUTTON_SECONDARY_COMPACT,
   BUTTON_DANGER,
   INPUT,
   FORM_LABEL,
@@ -721,8 +722,8 @@ const mono = (value: string): string => `<span class="font-mono text-stone-50 br
 export function renderPruneControl(name: string): string {
   const safe = escapeHtml(name);
   return `<p class="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-prune-line>
-            <button type="button" class="${BUTTON_SECONDARY}" data-prune="${safe}">Prune old declaration</button>
-            <span class="font-mono text-[0.72rem] text-stone-400 break-all">deletes ${safe}.yml from lychee-resources · once its container is confirmed down</span>
+            <button type="button" class="${BUTTON_SECONDARY_COMPACT}" data-prune="${safe}">Prune old declaration</button>
+            <span class="font-mono text-[0.72rem] text-stone-400 break-all">deletes ${safe}.yml from lychee-resources&nbsp;<span class="whitespace-nowrap">· once its container is confirmed down</span></span>
           </p>`;
 }
 

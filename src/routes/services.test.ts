@@ -33,7 +33,7 @@ const SWEE = { name: "swee", unit: "swee.service", group: "service", reconciled:
 async function serve(
   inventoryJson: string | null,
   overrides: Partial<SystemCommands>,
-): Promise<{ base: string; get: (p: string) => Promise<Response>; close: () => Promise<void> }> {
+): Promise<{ base: string; get: (p: string) => Promise<Response>; actions: () => string[]; close: () => Promise<void> }> {
   const { createApp } = await import("../app");
   const { createBackup } = await import("../lib/backup");
   const { createLogger } = await import("../lib/logger");
@@ -54,6 +54,15 @@ async function serve(
   return {
     base,
     get: (p) => fetch(`${base}${p}`, { headers: { Authorization: AUTH } }),
+    actions: () => {
+      const file = process.env.LOG_FILE as string;
+      if (!fakes.fs.exists(file)) return [];
+      return fakes.fs
+        .readFile(file)
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => (JSON.parse(l) as { action: string }).action);
+    },
     close: async () => {
       server.close();
       await once(server, "close");
@@ -463,6 +472,29 @@ describe("POST /resources/:name/prune", () => {
     const res = await post([DOWN], { ...overrides, pruneSiteDeclaration: () => Promise.reject(new Error("boom")) });
     assert.equal(res.status, 502);
     assert.match(((await res.json()) as { reason: string }).reason, /boom/);
+  });
+
+  test("a success logs prune-declaration exactly once", async () => {
+    await post([DOWN], spy().overrides);
+    assert.deepEqual(current?.actions(), ["prune-declaration"]);
+  });
+
+  test("a 404 (no declaration) and a 409 (not confirmed down) each log one prune-declaration-refused with a reason", async () => {
+    await post([DOWN], { ...spy().overrides, readDeclarations: () => Promise.resolve([]) });
+    assert.deepEqual(current?.actions(), ["prune-declaration-refused"]);
+    await post([], spy().overrides);
+    assert.deepEqual(current?.actions(), ["prune-declaration-refused"]);
+    await post([DOWN], spy().overrides, "palsave-api");
+    assert.deepEqual(current?.actions(), ["prune-declaration-refused"]);
+  });
+
+  test("a writer refusal that maps to 409 or 404 logs once, as refused", async () => {
+    for (const code of ["not-absent", "missing", "tagged"] as const) {
+      await post([DOWN], spy({ ok: false, reason: "no", code }).overrides);
+      assert.deepEqual(current?.actions(), ["prune-declaration-refused"], code);
+    }
+    await post([DOWN], spy({ ok: false, reason: "disk" }).overrides);
+    assert.deepEqual(current?.actions(), ["prune-declaration-failed"]);
   });
 
   test("a non-site name is a 404 before anything is read", async () => {

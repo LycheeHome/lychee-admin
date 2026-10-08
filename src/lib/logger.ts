@@ -23,7 +23,8 @@ export interface AuditEntry {
     | "change-repository"
     | "change-repository-failed"
     | "prune-declaration"
-    | "prune-declaration-failed";
+    | "prune-declaration-failed"
+    | "prune-declaration-refused";
   /** The site's hostname, or for a service action the declaration's name. */
   hostname: string;
   detail?: string;
