@@ -857,6 +857,33 @@ document.querySelectorAll("[data-deploy]").forEach((button) => {
   });
 });
 
+// Prune, on a site page's detached warning and a retired row on the services
+// board. Only the name is sent: the route re-reads the declaration after a
+// fresh pull and asks the inventory whether the container is confirmed down,
+// so a refusal (409 most often: not confirmed down yet) carries the reason to
+// show. Success reloads, because the page it changes is server-rendered: the
+// site page drops the warning and the board drops the control. showBanner
+// writes textContent, so the server's reason is never parsed as markup.
+document.querySelectorAll("[data-prune]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const name = button.dataset.prune;
+    button.disabled = true;
+    showBanner(`Pruning ${name}.yml from lychee-resources…`, "info");
+    try {
+      const response = await fetch(`/resources/${encodeURIComponent(name)}/prune`, { method: "POST" });
+      const body = await response.json().catch(() => ({}));
+      if (response.status === 200 && body.ok) {
+        window.location.reload();
+        return;
+      }
+      showBanner(`${name}.yml was not pruned: ${body.reason ?? `HTTP ${response.status}`}`, "error");
+    } catch {
+      showBanner(`Could not reach the server to prune ${name}.yml.`, "error");
+    }
+    button.disabled = false;
+  });
+});
+
 // A Next.js site's Attach control. The server takes the port from the site's
 // own Caddyfile block, so only the repository name is sent. Success reloads the
 // page rather than patching it: the attached state (awaiting image, the

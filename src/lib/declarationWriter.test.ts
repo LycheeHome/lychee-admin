@@ -7,6 +7,7 @@ import { load } from "js-yaml";
 import {
   changeSiteRepository,
   createSiteDeclaration,
+  pruneSiteDeclaration,
   readDeclarations,
   refreshDeclarations,
   setDeclarationState,
@@ -83,9 +84,17 @@ function fakeGit(
       checkout(cwd, upstream);
     }
     if (verb === "add") staged.add(args[args.length - 1]);
+    if (verb === "rm") {
+      const file = args[args.length - 1];
+      fs.rmSync(path.join(cwd, file));
+      staged.add(file);
+    }
     if (verb === "commit") {
       const tree = workingTree(cwd);
-      for (const file of staged) head.set(file, tree.get(file) ?? "");
+      for (const file of staged) {
+        if (tree.has(file)) head.set(file, tree.get(file)!);
+        else head.delete(file);
+      }
       staged = new Set();
     }
     if (verb === "push") upstream = new Map(head);
@@ -589,6 +598,132 @@ describe("changeSiteRepository", () => {
     if (!result.ok) assert.match(result.reason, /rejected/);
     assert.deepEqual(resets().map((c) => c.args), [["reset", "--hard", "@{upstream}"]]);
     assert.equal(read(), SITE_TAGLESS);
+  });
+});
+
+describe("pruneSiteDeclaration", () => {
+  const opts = (git = fakeGit()) => ({ git, clonePath: clone, keyPath: key });
+  const RETIRED = SITE_TAGLESS.replace("state: running   # flipped by Remove", "state: absent");
+  const exists = (f = "test-lyly-dev.yml") => fs.existsSync(path.join(clone, f));
+
+  test("deletes a retired declaration in one commit and pushes", async () => {
+    seedClone({ "test-lyly-dev.yml": RETIRED });
+    const result = await pruneSiteDeclaration("test-lyly-dev", opts());
+    assert.deepEqual(result, { ok: true });
+    assert.equal(commits().length, 1);
+    assert.equal(commitMessage(), "test-lyly-dev: prune retired declaration");
+    assert.ok(calls.some((c) => c.args[0] === "rm" && c.args.join(" ") === "rm -- test-lyly-dev.yml"));
+    assert.ok(calls.some((c) => c.args[0] === "push"));
+    assert.ok(!exists());
+    assert.ok(!upstream.has("test-lyly-dev.yml"));
+  });
+
+  test("deletes exactly one file, leaving other declarations untouched", async () => {
+    seedClone({ "test-lyly-dev.yml": RETIRED, "other-lyly-dev.yml": SITE_TAGLESS });
+    await pruneSiteDeclaration("test-lyly-dev", opts());
+    assert.ok(exists("other-lyly-dev.yml"));
+    assert.ok(exists("palsave-api.yml"));
+    assert.deepEqual([...upstream.keys()].sort(), ["other-lyly-dev.yml", "palsave-api.yml"]);
+  });
+
+  test("refuses a declaration that is not absent, committing nothing", async () => {
+    seedClone({ "test-lyly-dev.yml": SITE_TAGLESS });
+    const result = await pruneSiteDeclaration("test-lyly-dev", opts());
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, "not-absent");
+    assert.equal(commits().length, 0);
+    assert.ok(exists());
+  });
+
+  test("allows a quoted, commented absent: the check is on the parsed value", async () => {
+    seedClone({ "test-lyly-dev.yml": SITE_TAGLESS.replace("state: running   # flipped by Remove", `state: "absent" # retired`) });
+    const result = await pruneSiteDeclaration("test-lyly-dev", opts());
+    assert.deepEqual(result, { ok: true });
+    assert.ok(!exists());
+  });
+
+  test("refuses a state that only looks absent in text", async () => {
+    seedClone({ "test-lyly-dev.yml": SITE_TAGLESS.replace("state: running", "state: running\n# state: absent") });
+    const result = await pruneSiteDeclaration("test-lyly-dev", opts());
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, "not-absent");
+  });
+
+  test("refuses a duplicated state: key, committing nothing", async () => {
+    seedClone({ "test-lyly-dev.yml": `${RETIRED}state: running\n` });
+    const result = await pruneSiteDeclaration("test-lyly-dev", opts());
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, "not-absent");
+    assert.equal(commits().length, 0);
+    assert.ok(exists());
+  });
+
+  test("refuses state: Absent (capital A), committing nothing", async () => {
+    seedClone({ "test-lyly-dev.yml": SITE_TAGLESS.replace("state: running   # flipped by Remove", "state: Absent") });
+    const result = await pruneSiteDeclaration("test-lyly-dev", opts());
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, "not-absent");
+    assert.equal(commits().length, 0);
+    assert.ok(exists());
+  });
+
+  test("refuses a name that is not a site name, before touching git", async () => {
+    const result = await pruneSiteDeclaration("palsave-api", opts());
+    assert.equal(result.ok, false);
+    assert.equal(calls.length, 0);
+  });
+
+  test("a missing file is code: missing", async () => {
+    seedClone();
+    const result = await pruneSiteDeclaration("test-lyly-dev", opts());
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, "missing");
+    assert.equal(commits().length, 0);
+  });
+
+  const RETIRED_TAGGED = RETIRED.replace("ghcr.io/lycheehome/test-site ", "ghcr.io/lycheehome/test-site:0.1.0 ");
+
+  test("requireTagless refuses a retired tagged declaration with code: tagged, committing nothing", async () => {
+    seedClone({ "test-lyly-dev.yml": RETIRED_TAGGED });
+    const result = await pruneSiteDeclaration("test-lyly-dev", opts(), { requireTagless: true });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, "tagged");
+    assert.equal(commits().length, 0);
+    assert.ok(!calls.some((c) => c.args[0] === "push"));
+    assert.ok(exists());
+  });
+
+  test("requireTagless refuses a tag YAML parses but the text hides", async () => {
+    seedClone({ "test-lyly-dev.yml": RETIRED.replace("ghcr.io/lycheehome/test-site ", `"ghcr.io/lycheehome/test-site\\x3a0.1.0" `) });
+    const result = await pruneSiteDeclaration("test-lyly-dev", opts(), { requireTagless: true });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, "tagged");
+    assert.equal(commits().length, 0);
+  });
+
+  test("requireTagless allows a retired tagless declaration", async () => {
+    seedClone({ "test-lyly-dev.yml": RETIRED });
+    const result = await pruneSiteDeclaration("test-lyly-dev", opts(), { requireTagless: true });
+    assert.deepEqual(result, { ok: true });
+    assert.equal(commits().length, 1);
+    assert.ok(!exists());
+  });
+
+  test("without requireTagless a retired tagged declaration is pruned (the deployed path)", async () => {
+    seedClone({ "test-lyly-dev.yml": RETIRED_TAGGED });
+    const result = await pruneSiteDeclaration("test-lyly-dev", opts());
+    assert.deepEqual(result, { ok: true });
+    assert.equal(commits().length, 1);
+    assert.ok(!exists());
+  });
+
+  test("a rejected push resets to the upstream and the file is back", async () => {
+    seedClone({ "test-lyly-dev.yml": RETIRED });
+    const result = await pruneSiteDeclaration("test-lyly-dev", opts(fakeGit({ failOn: "push" })));
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.match(result.reason, /rejected/);
+    assert.deepEqual(resets().map((c) => c.args), [["reset", "--hard", "@{upstream}"]]);
+    assert.equal(fs.readFileSync(path.join(clone, "test-lyly-dev.yml"), "utf8"), RETIRED);
   });
 });
 

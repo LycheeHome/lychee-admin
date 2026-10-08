@@ -78,8 +78,12 @@ claim.
   GitHub on GitHub's runners. The container itself is the reconciler's to
   pull, start and stop. This app **never invokes Docker** — it writes the
   request and the reconciler acts — and reads a container's state only
-  through a sudo-pinned status wrapper. Pruning a retired declaration is also
-  outside it: Remove retires, it never deletes the file.
+  through a sudo-pinned status wrapper. Remove retires, it never deletes the
+  file; pruning a retired declaration is a separate, deliberate request
+  (`POST /resources/:name/prune`), offered only for a site whose declaration is
+  `state: absent` and refused until the reconciler has confirmed its container
+  down. The reconciler then removes what it rendered and, on proof it owns
+  nothing, the site's account.
 - **Surfaces today**: the site list (`GET /`), a site's detail page
   (`GET /sites/:hostname`), add-site as its own page (`GET /sites/new`,
   `POST /sites`), which shows the exact Caddyfile block and tunnel route it is
@@ -90,19 +94,22 @@ claim.
   retiring an attached site's declaration (`POST /sites/:hostname/detach`)
   and deleting its files (`POST /sites/:hostname/delete-files`); attaching a
   Next.js site to its repository (`POST /sites/:hostname/attach`); and a
-  services board (`GET /services`) whose one action, Deploy a newer tag
-  (`POST /services/:name/deploy`), is reused on a site's own page. A global header band (wordmark
+  services board (`GET /services`) whose two actions, Deploy a newer tag
+  (`POST /services/:name/deploy`) and Prune a retired site declaration
+  (`POST /resources/:name/prune`), are each reused on a site's own page. A global header band (wordmark
   plus `sites`, `services` and `add site`) fronts every page; a site's detail
   page also carries a hostname dropdown on its breadcrumb for moving to another
   site without a round trip through the list. The list's cards carry a status
   pill for reverse-proxy sites.
-- **The services board reads, and requests one thing.** It shows every
+- **The services board reads, and requests two things.** It shows every
   declared long-lived process on the host — the reconciler, the services it
   deploys, the game server, Caddy and the sites tunnel — by joining a
   world-readable inventory the reconciler publishes each tick to live state.
-  Its one action is Deploy: writing a newer tag the reconciler itself
+  Its main action is Deploy: writing a newer tag the reconciler itself
   published as available into that resource's declaration, never a tag named
-  by the request. Attached sites appear there too, because the reconciler
+  by the request. Its other is Prune, on a site row whose declaration is
+  retired: deleting that file once the reconciler has confirmed the container
+  down. Attached sites appear there too, because the reconciler
   publishes them like any other resource, but their home is still the site's
   own page, which carries the same offer line and the same Deploy control so
   the two can never disagree about what is on offer. This is the one surface that can show a deploy

@@ -253,6 +253,40 @@ describe("GET /services", () => {
   });
 });
 
+describe("GET /services: Prune on retired site rows", () => {
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  after(async () => {
+    await current?.close();
+  });
+  const site = (name: string) => ({ name, kind: "container", container: name, group: "service", reconciled: true, result: "deployed" });
+  const PALSAVE = { name: "palsave-api", unit: "palsave-api.service", group: "service", reconciled: true, result: "deployed" };
+  const DECLS = [
+    { name: "gone-lyly-dev", port: 3400, state: "absent", image: "ghcr.io/lycheehome/gone" },
+    { name: "app-lyly-dev", port: 3200, state: "running", image: "ghcr.io/lycheehome/app:0.2.0" },
+    { name: "palsave-api", port: 8788, state: "absent", image: "ghcr.io/lycheehome/palsave-api" },
+  ];
+  async function board(readDeclarations: SystemCommands["readDeclarations"]): Promise<string> {
+    await current?.close();
+    current = await serve(inventory([site("gone-lyly-dev"), site("app-lyly-dev"), PALSAVE]), { readDeclarations });
+    const res = await current.get("/services");
+    assert.equal(res.status, 200);
+    return res.text();
+  }
+  const pruned = (html: string) => [...html.matchAll(/data-prune="([^"]+)"/g)].map((m) => m[1]);
+
+  test("only a site whose declaration is absent gets the control", async () => {
+    assert.deepEqual(pruned(await board(() => Promise.resolve(DECLS))), ["gone-lyly-dev"]);
+  });
+
+  test("an unreadable clone shows no control anywhere", async () => {
+    assert.deepEqual(pruned(await board(() => Promise.resolve(null))), []);
+  });
+
+  test("a declarations read that throws still renders the board, without the control", async () => {
+    assert.deepEqual(pruned(await board(() => Promise.reject(new Error("boom")))), []);
+  });
+});
+
 describe("POST /services/:name/deploy", () => {
   let current: Awaited<ReturnType<typeof serve>> | undefined;
   after(async () => {
@@ -322,5 +356,121 @@ describe("POST /services/:name/deploy", () => {
     const overrides = { writeDeclarationTag: () => (writes++, Promise.resolve({ ok: true as const })) };
     assert.equal((await post([{ ...NOTES, target: "v1.5.0" }], overrides)).status, 409);
     assert.equal(writes, 0);
+  });
+});
+
+describe("POST /resources/:name/prune", () => {
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  after(async () => {
+    await current?.close();
+  });
+  const SITE = "test-lyly-dev";
+  const DOWN = { name: SITE, kind: "container", container: SITE, group: "service", reconciled: true, result: "deployed" };
+  const DECL = [{ name: SITE, port: 3000, state: "absent", image: "ghcr.io/lycheehome/x" }];
+  const CONFIRM_REASON = "the container hasn't been confirmed down yet; try after the next reconcile";
+
+  async function post(inv: unknown[], overrides: Partial<SystemCommands>, name = SITE) {
+    await current?.close();
+    current = await serve(inventory(inv), overrides);
+    return fetch(`${current.base}/resources/${name}/prune`, { method: "POST", headers: { Authorization: AUTH } });
+  }
+  function spy(result: Awaited<ReturnType<SystemCommands["pruneSiteDeclaration"]>> = { ok: true }) {
+    const calls: string[] = [];
+    const opts: unknown[] = [];
+    return {
+      calls,
+      opts,
+      overrides: {
+        readDeclarations: () => Promise.resolve(DECL),
+        pruneSiteDeclaration: (n: string, o?: { requireTagless?: boolean }) => (calls.push(n), opts.push(o), Promise.resolve(result)),
+      },
+    };
+  }
+
+  test("requires authentication", async () => {
+    current = await serve(inventory([DOWN]), {});
+    const res = await fetch(`${current.base}/resources/${SITE}/prune`, { method: "POST" });
+    assert.equal(res.status, 401);
+  });
+
+  test("a confirmed-down retired site is pruned", async () => {
+    const { calls, overrides } = spy();
+    const res = await post([DOWN], overrides);
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { ok: true });
+    assert.deepEqual(calls, [SITE]);
+  });
+
+  test("awaiting-image counts as confirmed down, but only for a tagless declaration", async () => {
+    const { calls, opts, overrides } = spy();
+    const res = await post([{ ...DOWN, result: "awaiting-image" }], overrides);
+    assert.equal(res.status, 200);
+    assert.deepEqual(calls, [SITE]);
+    assert.deepEqual(opts, [{ requireTagless: true }]);
+  });
+
+  test("deployed does not ask the writer for a tagless declaration", async () => {
+    const { opts, overrides } = spy();
+    await post([DOWN], overrides);
+    assert.deepEqual(opts, [{ requireTagless: false }]);
+  });
+
+  test("awaiting-image with a writer tagged refusal is the not-confirmed-down 409", async () => {
+    const res = await post(
+      [{ ...DOWN, result: "awaiting-image" }],
+      spy({ ok: false, code: "tagged", reason: "test-lyly-dev.yml has a tag" }).overrides,
+    );
+    assert.equal(res.status, 409);
+    assert.deepEqual(await res.json(), { ok: false, reason: CONFIRM_REASON });
+  });
+
+  test("an installed version, a failed result or no inventory entry is a 409 and writes nothing", async () => {
+    const { calls, overrides } = spy();
+    for (const inv of [[{ ...DOWN, version: "v1" }], [{ ...DOWN, result: "failed" }], []]) {
+      const res = await post(inv, overrides);
+      assert.equal(res.status, 409);
+      assert.deepEqual(await res.json(), { ok: false, reason: CONFIRM_REASON });
+    }
+    assert.equal(calls.length, 0);
+  });
+
+  test("an unreadable clone is a 502", async () => {
+    const { calls, overrides } = spy();
+    const res = await post([DOWN], { ...overrides, readDeclarations: () => Promise.resolve(null) });
+    assert.equal(res.status, 502);
+    assert.equal(((await res.json()) as { ok: boolean }).ok, false);
+    assert.equal(calls.length, 0);
+  });
+
+  test("no such declaration is a 404", async () => {
+    const { calls, overrides } = spy();
+    const res = await post([DOWN], { ...overrides, readDeclarations: () => Promise.resolve([]) });
+    assert.equal(res.status, 404);
+    assert.equal(calls.length, 0);
+  });
+
+  test("writer refusals map: not-absent 409, missing 404, other 502", async () => {
+    const reason = "writer said no";
+    assert.equal((await post([DOWN], spy({ ok: false, reason, code: "not-absent" }).overrides)).status, 409);
+    assert.equal((await post([DOWN], spy({ ok: false, reason, code: "missing" }).overrides)).status, 404);
+    const res = await post([DOWN], spy({ ok: false, reason }).overrides);
+    assert.equal(res.status, 502);
+    assert.deepEqual(await res.json(), { ok: false, reason });
+  });
+
+  test("a writer that throws still answers with a reason", async () => {
+    const { overrides } = spy();
+    const res = await post([DOWN], { ...overrides, pruneSiteDeclaration: () => Promise.reject(new Error("boom")) });
+    assert.equal(res.status, 502);
+    assert.match(((await res.json()) as { reason: string }).reason, /boom/);
+  });
+
+  test("a non-site name is a 404 before anything is read", async () => {
+    let reads = 0;
+    const { calls, overrides } = spy();
+    const res = await post([DOWN], { ...overrides, readDeclarations: () => (reads++, Promise.resolve(DECL)) }, "palsave-api");
+    assert.equal(res.status, 404);
+    assert.equal(reads, 0);
+    assert.equal(calls.length, 0);
   });
 });

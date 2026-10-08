@@ -8,8 +8,11 @@ import { normalizeRepo, parseDeclaration, claimedPorts, SITE_SUFFIX, type Declar
  * `code: "tagged"` marks the one refusal a caller must tell apart from a failed
  * write: changeSiteRepository on a declaration that already carries a tag. It
  * is decided after the pull, so it is the remote's answer, not the page's.
+ * pruneSiteDeclaration adds two of the same kind: "not-absent" (the declaration
+ * is not retired) and "missing" (no such file), each also the remote's answer,
+ * and reuses "tagged" when asked for a tagless declaration and given a tagged one.
  */
-export type WriteResult = { ok: true } | { ok: false; reason: string; code?: "tagged" };
+export type WriteResult = { ok: true } | { ok: false; reason: string; code?: "tagged" | "not-absent" | "missing" };
 
 export type GitRunner = (
   args: string[],
@@ -84,12 +87,12 @@ export interface WriterOptions {
   timeoutMs?: number;
 }
 
-function isSiteName(name: string): boolean {
+export function isSiteName(name: string): boolean {
   return name.length <= MAX_NAME_LENGTH && SITE_NAME_RE.test(name);
 }
 
 /** What a write callback hands back: the file it changed and the commit message. */
-type Change = { file: string; message: string };
+type Change = { file: string; message: string; remove?: boolean };
 
 function describe(error: unknown): string {
   const err = error as { stderr?: string; message?: string };
@@ -181,7 +184,7 @@ async function withCloneUnqueued(
     if ("ok" in change) return change;
 
     try {
-      await inClone(["add", "--", change.file]);
+      await inClone(change.remove ? ["rm", "--", change.file] : ["add", "--", change.file]);
       await inClone([
         "-c", "user.name=lyly-admin",
         "-c", "user.email=lyly-admin@lychee.local",
@@ -358,6 +361,11 @@ export async function setDeclarationState(name: string, state: "absent", opts: W
 }
 
 /** A declaration's whole parsed mapping, or null for anything else. Never throws. */
+/** A parsed image with no tag or digest: its last path component has neither ":" nor "@". */
+function isTaglessImage(image: unknown): boolean {
+  return typeof image === "string" && image !== "" && !/[:@]/.test(image.slice(image.lastIndexOf("/") + 1));
+}
+
 function parsedFields(content: string): Record<string, unknown> | null {
   try {
     const doc = load(content);
@@ -449,6 +457,53 @@ export async function changeSiteRepository(name: string, repo: string, opts: Wri
     }
     fs.writeFileSync(target, updated);
     return { file, message: `${name}: change repository to ${image}` };
+  });
+}
+
+/**
+ * Deletes a retired site's declaration from lychee-resources: `git rm`, one
+ * commit, pushed. The only thing this app ever deletes there, and only when
+ * the file's PARSED `state` is `absent`, decided after the pull, so a quoted
+ * or commented value still counts and a declaration someone revived on the
+ * remote is refused. Refusals carry `code: "not-absent"` or `code: "missing"`.
+ * Site names only.
+ *
+ * `requireTagless` also refuses, with `code: "tagged"`, a declaration whose
+ * PARSED image carries a tag (or digest) after the pull. The prune route sets
+ * it when the inventory says `awaiting-image`, which is also what a running,
+ * never-deployed site publishes: if Deploy wrote a tag and a reconcile is
+ * bringing it up while the inventory still shows the previous tick, only the
+ * tag shows it. A tagless declaration can never have been brought up, and no
+ * writer in this app removes a tag, so a tagless file closes that race.
+ *
+ * Never throws and never forces (see withClone).
+ */
+export async function pruneSiteDeclaration(
+  name: string,
+  opts: WriterOptions,
+  { requireTagless = false }: { requireTagless?: boolean } = {},
+): Promise<WriteResult> {
+  if (!isSiteName(name)) {
+    return { ok: false, reason: `"${name}" is not a valid site resource name.` };
+  }
+  return withClone(opts, (clonePath) => {
+    const file = `${name}.yml`;
+    const target = path.join(clonePath, file);
+    if (!fs.existsSync(target)) {
+      return { ok: false, code: "missing", reason: `No declaration named ${file} in lychee-resources.` };
+    }
+    const fields = parsedFields(fs.readFileSync(target, "utf8"));
+    if (fields?.state !== "absent") {
+      return { ok: false, code: "not-absent", reason: `${file} is not retired (state is not absent); it can't be pruned.` };
+    }
+    if (requireTagless && !isTaglessImage(fields.image)) {
+      return {
+        ok: false,
+        code: "tagged",
+        reason: `${file} has an image tag, so a reconcile may still be bringing it up; it can't be pruned yet.`,
+      };
+    }
+    return { file, message: `${name}: prune retired declaration`, remove: true };
   });
 }
 

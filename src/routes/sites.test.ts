@@ -1005,14 +1005,16 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     const html = await page();
     assert.doesNotMatch(html, /awaiting image/);
     assert.match(html, /not deployed/);
-    assert.match(html, /prune/);
+    assert.match(html, /prune/i);
+    assert.match(html, /data-prune="test-lyly-dev"/);
     const button = html.match(/<button[^>]*type="submit"[^>]*>Attach repository/);
     assert.ok(button, "no Attach button");
     assert.doesNotMatch(button[0], /\sdisabled(?=[\s>/])/);
   });
 
-  // The reconciler never deletes a pruned site's status.json, so its entry
-  // outlives the declaration. A readable clone with no declaration is the
+  // The reconciler removes a pruned site's status.json only once it proves the
+  // site down (and not at all without that cleanup rule), so its entry can
+  // outlive the declaration. A readable clone with no declaration is the
   // authority: the site is not attached, and Attach is offered again.
   test("a readable clone with no declaration is not attached, whatever a stale inventory entry says", async () => {
     declarations([]);
@@ -1041,6 +1043,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     fakeCommands.readDeclarations = () => Promise.resolve(null);
     const html = await page();
     assert.match(html, /data-attach=/);
+    assert.doesNotMatch(html, /data-prune/);
   });
 
   test("awaiting with an entry and nothing available says no image was found, and offers to change the repository", async () => {

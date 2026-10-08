@@ -21,14 +21,20 @@ import type { TimerSchedule, UnitState } from "../lib/unitState";
  * app.lyly.dev is attached and running 0.2.0 with 0.3.0 on offer, and
  * broken.lyly.dev's first deploy failed: 0.1.0 is pinned and failing, nothing
  * is installed, and the fix, 0.1.1, is on offer beside the failure line.
+ * gone.lyly.dev ran, was removed, and has been added back: Remove deleted its
+ * old block and retired its declaration (state: absent), the reconciler has
+ * since taken the container down (its inventory entry shows a completed down
+ * with nothing installed), and the block here is the re-add. So its page shows
+ * the detached warning with Prune, and its board row carries Prune too.
  * Their declarations are SEEDED_DECLARATIONS below; their inventory entries
  * are in SEEDED_INVENTORY.
  *
- * Ports 4000, 3001, 3100, 3200 and 3300 leave 8787 (lyly-admin itself) and
- * 2019 (Caddy's admin API) free, so the reserved-port rejection can be
+ * Ports 4000, 3001, 3100, 3200, 3300 and 3400 leave 8787 (lyly-admin itself)
+ * and 2019 (Caddy's admin API) free, so the reserved-port rejection can be
  * triggered from the UI. 3000 is free too, so adding a Next.js site on the
- * obvious port works; 3100, 3200 and 3300 are claimed by declarations, so
- * add-site's declared-port refusal can be triggered on any of them.
+ * obvious port works; 3100, 3200, 3300 and 3400 are claimed by declarations
+ * (3400 by a retired one), so add-site's declared-port refusal can be
+ * triggered on any of them.
  */
 export const SEED_CADDYFILE = `{
 \tauto_https off
@@ -66,6 +72,12 @@ http://broken.lyly.dev {
 \treverse_proxy localhost:3300
 }
 
+http://gone.lyly.dev {
+\t# lyly-admin-framework: nextjs
+\t# lyly-admin-healthcheck: /
+\treverse_proxy localhost:3400
+}
+
 http://legacy.lyly.dev {
 \t# lyly-admin-framework: nextjs
 \treverse_proxy localhost:3001
@@ -94,6 +106,8 @@ ingress:
   - hostname: preview.lyly.dev
     service: http://localhost:80
   - hostname: broken.lyly.dev
+    service: http://localhost:80
+  - hostname: gone.lyly.dev
     service: http://localhost:80
   - service: http_status:404
 `;
@@ -168,6 +182,12 @@ export const SEEDED_INVENTORY = JSON.stringify(
         result: "failed", gate: "",
         failed_step: "Start the container: dependency failed to start: container broken-lyly-dev is unhealthy",
         last_run: "2026-10-02T04:58:02Z", failed_attempts: 1 },
+      // gone is retired and confirmed down: its last run was a completed
+      // `down` (result deployed) and nothing is installed, which is exactly
+      // what the prune route accepts. Its declaration is state: absent.
+      { name: "gone-lyly-dev", kind: "container", container: "gone-lyly-dev", group: "service", reconciled: true,
+        version: "", target: "", result: "deployed", gate: "",
+        last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
       { name: "caddy", unit: "caddy.service", group: "infrastructure", reconciled: false },
       { name: "cloudflared-sites", unit: "cloudflared-sites.service", group: "infrastructure", reconciled: false },
     ],
@@ -198,7 +218,8 @@ export const SEEDED_TIMER_SCHEDULE: TimerSchedule = {
 };
 
 /**
- * The lychee-resources declarations for the three attached sites, handed to
+ * The lychee-resources declarations for the three attached sites and the one
+ * retired site, handed to
  * createFakes by the dev server only — route tests start from an empty clone.
  * preview's image is tagless, as Attach writes it; app's and broken's carry
  * the tag their one deploy wrote (broken's is the one that failed).
@@ -207,6 +228,7 @@ export const SEEDED_DECLARATIONS: DeclarationSummary[] = [
   { name: "preview-lyly-dev", port: 3100, state: "running", image: "ghcr.io/lycheehome/preview-site" },
   { name: "app-lyly-dev", port: 3200, state: "running", image: "ghcr.io/lycheehome/app-site:0.2.0" },
   { name: "broken-lyly-dev", port: 3300, state: "running", image: "ghcr.io/lycheehome/broken-site:0.1.0" },
+  { name: "gone-lyly-dev", port: 3400, state: "absent", image: "ghcr.io/lycheehome/gone-site:0.1.0" },
 ];
 
 /**
@@ -219,6 +241,8 @@ export const SEEDED_DECLARATIONS: DeclarationSummary[] = [
 export const seededResourceContainers: Record<string, ContainerStatus> = {
   "app-lyly-dev": { state: "running", health: "healthy" },
   "broken-lyly-dev": { state: "exited" },
+  // Taken down by the reconciler: no container left, which reads not deployed.
+  "gone-lyly-dev": { state: "not-created" },
 };
 
 /**
