@@ -871,6 +871,14 @@ reads `not retrying (promote another tag, or rm …/.failed-tag)` — so the gat
 explains why and the offer is the thing you would do about it. Explanation, then
 action.
 
+A failed row carries the Repository Card's failure line, the same markup from
+the same function: the tag it tried, the reconciler's failed step in mono, and
+`journalctl -u lyly-reconcile` as a Command Block. It sits after the gate and
+directly above the offer, so the order stays explanation, then action. The facts
+line still reads `failed · N attempts`; the failure line is what says which tag
+and why, which a service with no site page (palsave-api) has nowhere else to
+say.
+
 **Applying is a state of the pill, not a colour.** While a declaration pins a
 version the host has not installed yet, the pill reads `applying` in the neutral
 tone and the facts line states both versions as one fact, `v0.2.0 → v0.3.0`,

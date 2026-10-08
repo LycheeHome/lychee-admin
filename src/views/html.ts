@@ -801,8 +801,15 @@ function gateLine(resource: SiteResourceView): string {
  * logged. Prose stays Smoke; the Scorch belongs to the status pill, and the
  * step is a machine fact, so it is mono like the gate line. Empty unless
  * `result` is failed, so `blocked` keeps showing only its gate.
+ *
+ * One markup for a site's repository card and a services board row, which is
+ * why it takes only the three facts both carry. The board passes a per-row
+ * `commandId`, since several failed rows can share one page and the copy
+ * button finds its command by id.
  */
-function failureLine(resource: SiteResourceView, extraClass = ""): string {
+type FailureFacts = { result?: string; target?: string; failedStep?: string };
+
+function failureLine(resource: FailureFacts, extraClass = "", commandId = "cmd-reconcile-log"): string {
   if (resource.result !== "failed") return "";
   const what = resource.target
     ? `Deploying ${mono(resource.target)} failed${resource.failedStep ? " at this step:" : "."}`
@@ -814,7 +821,7 @@ function failureLine(resource: SiteResourceView, extraClass = ""): string {
             <p class="${BODY}">${what}</p>
             ${step}
             <p class="${BODY}">The reconciler's journal has the whole run:</p>
-            ${commandBlock("cmd-reconcile-log", "journalctl -u lyly-reconcile", "Copy journal command")}
+            ${commandBlock(commandId, "journalctl -u lyly-reconcile", "Copy journal command")}
           </div>`;
 }
 
@@ -1211,6 +1218,13 @@ function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date): string
             // In full, on its own row: the retry-cap string carries the recovery
             // command, and a clamped string would hide the one thing to do.
             row.gate ? `<p class="${SERVICE_DETAIL} text-stone-300" data-gate>${escapeHtml(row.gate)}</p>` : ""
+          }
+          ${
+            // A failed deploy's tag, step and journal, as a site's page shows
+            // them: a service with no site page (palsave-api) has nowhere else
+            // to say which tag failed or why. Above the offer, so the failure
+            // is read before the way out.
+            failureLine(row, "mt-1.5", `cmd-reconcile-log-${escapeHtml(row.name)}`)
           }
           ${
             // Last, after the gate: a blocked service's gate string carries the

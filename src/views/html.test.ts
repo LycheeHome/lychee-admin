@@ -1635,10 +1635,53 @@ describe("renderServicesPage", () => {
     assert.ok(html.indexOf("data-gate") < html.indexOf("data-offer"));
   });
 
+  test("a failed row renders the failure line: the target, the escaped failed step and the journal", () => {
+    const html = offerBoard({ version: "v1.4.0", target: "v1.5.0", available: "v1.6.0", result: "failed", failedAttempts: 2,
+      failedStep: "Start the container: <exit 1> & gone" });
+    assert.match(html, /data-deploy-failed/);
+    assert.match(html, /Deploying <span[^>]*>v1\.5\.0<\/span> failed at this step:/);
+    assert.ok(html.includes("Start the container: &lt;exit 1&gt; &amp; gone"));
+    assert.ok(!html.includes("<exit 1>"));
+    assert.match(html, /journalctl -u lyly-reconcile/);
+    assert.ok(html.includes("v1.4.0 · failed · 2 attempts"));
+    assert.ok(html.indexOf("data-deploy-failed") < html.indexOf("data-offer"));
+  });
+
+  test("a failed row without a failed step still renders the failure line", () => {
+    const html = offerBoard({ version: "v1.4.0", target: "v1.5.0", result: "failed" });
+    assert.match(html, /data-deploy-failed/);
+    assert.match(html, /Deploying <span[^>]*>v1\.5\.0<\/span> failed\./);
+    assert.match(html, /journalctl -u lyly-reconcile/);
+    assert.ok(!html.includes("data-failed-step"));
+  });
+
+  test("rows that are not failed render no failure line", () => {
+    for (const result of ["deployed", "skipped", "blocked", "awaiting-image", undefined]) {
+      const html = offerBoard({ version: "v1.4.0", target: "v1.5.0", available: "v1.6.0", result, failedStep: "x" });
+      assert.ok(!html.includes("data-deploy-failed"), String(result));
+      assert.ok(!html.includes("journalctl"), String(result));
+    }
+  });
+
+  test("two failed rows get distinct journal command ids", () => {
+    const html = renderServicesPage(
+      {
+        inventoryAvailable: true, schedule: NO_SCHEDULE, timerUnit: null, generated: "2026-10-02T04:58:02Z",
+        groups: [{ group: "service", rows: ["a", "b"].map((name) => (
+          { name, kind: "container", container: name, group: "service", reconciled: true, target: "v1", result: "failed", status: "exited", since: null } as never
+        )) }],
+      },
+      NOW,
+    );
+    const ids = [...html.matchAll(/<pre id="([^"]+)"/g)].map((m) => m[1]);
+    assert.equal(ids.length, 2);
+    assert.notEqual(ids[0], ids[1]);
+  });
+
   test("a failed row never re-offers the tag that failed", () => {
     const html = offerBoard({ version: "v1.4.0", target: "v1.5.0", available: "v1.5.0", result: "failed", gate: "health check failed after install" });
     assert.ok(html.includes("health check failed after install"));
-    assert.ok(!html.includes("data-deploy"));
+    assert.ok(!html.includes('data-deploy="'));
   });
 
   test("a blocked row puts the offer after the gate", () => {
