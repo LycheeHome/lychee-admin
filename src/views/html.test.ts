@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { withoutHeader } from "../dev/testHelpers";
 import { offeredTag, renderPruneControl, renderServicesPage, renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
-import { formatAge, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, TYPE_PILL_PROXY } from "./shared";
+import { formatAge, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_SECONDARY_COMPACT, TYPE_PILL_PROXY } from "./shared";
 import { ADD_STEPS } from "../lib/stepReport";
 
 const STATIC_SITE: Site = { hostname: "blog.lyly.dev", type: "static", target: "/var/www/blog.lyly.dev" };
@@ -1744,6 +1744,27 @@ describe("Prune on the services board", () => {
     assert.doesNotMatch(rowOf(html, "app-lyly-dev"), /data-prune/);
   });
 
+  test("the prune button is the compact secondary on both surfaces: the offer's 32px, secondary's look", () => {
+    for (const markup of [renderPruneControl("gone-lyly-dev"), rowOf(renderServicesPage(board(["gone-lyly-dev"]), NOW, new Set(["gone-lyly-dev"])), "gone-lyly-dev")]) {
+      assert.ok(markup.includes(`class="${BUTTON_SECONDARY_COMPACT}"`));
+      assert.doesNotMatch(markup, /min-h-10/);
+    }
+    for (const sizing of ["min-h-8", "px-3", "py-1.5", "text-[0.8rem]"]) {
+      assert.ok(BUTTON_SECONDARY_COMPACT.split(" ").includes(sizing), sizing);
+      assert.ok(BUTTON_OFFER.split(" ").includes(sizing), sizing);
+    }
+    for (const gone of ["min-h-10", "px-4", "py-2.5", "text-sm"]) assert.ok(!BUTTON_SECONDARY_COMPACT.split(" ").includes(gone), gone);
+    for (const quiet of ["bg-stone-600", "text-stone-50", "hover:bg-stone-700", "border-none", "disabled:text-stone-500", "focus-visible:outline-rose-400"]) {
+      assert.ok(BUTTON_SECONDARY_COMPACT.split(" ").includes(quiet), quiet);
+    }
+  });
+
+  test("the caption joins with a non-breaking space and keeps the separator with what it introduces", () => {
+    const html = renderPruneControl("gone-lyly-dev");
+    assert.match(html, /lychee-resources&nbsp;<span class="whitespace-nowrap">· once its container is confirmed down<\/span>/);
+    assert.doesNotMatch(html, / · /);
+  });
+
   test("a non-site name gets no control even if it is named absent", () => {
     const html = renderServicesPage(board(["palsave-api"]), NOW, new Set(["palsave-api"]));
     assert.doesNotMatch(html, /data-prune/);
@@ -2018,7 +2039,7 @@ describe("renderSiteDetail from a repository", () => {
     assert.ok(button);
     assert.equal(button[1], "Prune old declaration");
     assert.match(button[0], /type="button"/);
-    assert.ok(button[0].includes(`class="${BUTTON_SECONDARY}"`));
+    assert.ok(button[0].includes(`class="${BUTTON_SECONDARY_COMPACT}"`));
     // After the warning it acts on, so the reason is read before the action.
     assert.ok(c.indexOf("data-prune=") > c.indexOf('id="attach-warning"'));
   });

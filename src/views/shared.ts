@@ -12,6 +12,17 @@ export const BUTTON_PRIMARY =
   "font-sans font-semibold text-sm bg-rose-400 text-stone-900 border-none rounded-md min-h-10 px-4 py-2.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-rose-300 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-rose-400/40 disabled:hover:bg-rose-400/40";
 export const BUTTON_SECONDARY =
   "font-sans font-semibold text-sm bg-stone-600 text-stone-50 border-none rounded-md min-h-10 px-4 py-2.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-stone-700 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-transparent disabled:hover:bg-transparent";
+/**
+ * Secondary's quiet look at the offer's size, for the prune control, which sits
+ * beside BUTTON_OFFER on the services board. Derived from the two so colours,
+ * hover, focus and disabled stay Secondary's and only the sizing is the
+ * offer's; the sizing classes all appear literally in BUTTON_OFFER, so
+ * Tailwind's source scan still sees them. A test pins that both replaces hit.
+ */
+export const BUTTON_SECONDARY_COMPACT = BUTTON_SECONDARY.replace("text-sm", "text-[0.8rem]").replace(
+  "min-h-10 px-4 py-2.5",
+  "min-h-8 px-3 py-1.5",
+);
 export const BUTTON_DANGER =
   "font-sans font-semibold text-[0.8rem] bg-transparent text-red-300 border border-red-800 rounded-md min-h-8 px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-red-900 hover:text-stone-50 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:border-stone-700 disabled:hover:bg-transparent disabled:hover:text-stone-500";
 /**

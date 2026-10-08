@@ -623,6 +623,11 @@ exceptions to it.
   for danger. Deploying a newer version is not destructive, so wearing the danger
   colour would have said the wrong thing at a glance; borrowing its size says the
   right one, because both are in-row controls subordinate to the row they sit in.
+- **Compact secondary:** Secondary's colours, hover, focus and disabled at the
+  offer's size (0.8rem, 6px by 12px padding, 32px minimum height). Used only for
+  the prune control, which sits on the services board beside the 32px offer; at
+  Secondary's 40px it was the tallest control in its row. Derived from
+  Secondary in `shared.ts`, so the two cannot drift apart.
   Hover fills to Ember Deep and lifts the label a step; disabled drops to Smoke
   Deep on a Hairline outline, because the control disables itself while its
   request is in flight and must stop reading as actionable.
@@ -880,7 +885,7 @@ and why, which a service with no site page (palsave-api) has nowhere else to
 say.
 
 **The prune line.** A site row whose declaration is retired (`state: absent`)
-and still in `lychee-resources` grows one more line, last: a secondary
+and still in `lychee-resources` grows one more line, last: a compact secondary
 `Prune old declaration` button and a mono caption naming the file it deletes and
 the condition it waits for — `deletes <name>.yml from lychee-resources · once
 its container is confirmed down`. The same markup, from the same function, sits

@@ -104,8 +104,14 @@ export function createServicesRouter(deps: Deps): express.Router {
     const { name } = req.params;
     const { logAction } = deps.logger;
     try {
+      // Every 404 and 409 is an audited refusal, exactly one entry per request
+      // (a writer refusal that maps to one is logged as refused, not failed).
+      const refuse = (status: 404 | 409, reason: string) => {
+        logAction({ action: "prune-declaration-refused", hostname: name, detail: reason });
+        res.status(status).json({ ok: false, reason });
+      };
       if (!isSiteName(name)) {
-        res.status(404).json({ ok: false, reason: `No site resource named ${name}.` });
+        refuse(404, `No site resource named ${name}.`);
         return;
       }
       const declarations = await deps.commands.readDeclarations();
@@ -114,26 +120,27 @@ export function createServicesRouter(deps: Deps): express.Router {
         return;
       }
       if (!declarations.some((d) => d.name === name)) {
-        res.status(404).json({ ok: false, reason: `No declaration named ${name}.` });
+        refuse(404, `No declaration named ${name}.`);
         return;
       }
       const entry = readInventory(deps.fs).entries.find((e) => e.name === name);
       if (!entry || entry.version || !entry.result || !["deployed", "awaiting-image"].includes(entry.result)) {
-        res.status(409).json({
-          ok: false,
-          reason: CONFIRM_DOWN_REASON,
-        });
+        refuse(409, CONFIRM_DOWN_REASON);
         return;
       }
       const result = await deps.commands.pruneSiteDeclaration(name, { requireTagless: entry.result === "awaiting-image" });
       if (!result.ok) {
-        logAction({ action: "prune-declaration-failed", hostname: name, detail: result.reason });
         if (result.code === "tagged") {
+          // Same refusal as an unconfirmed entry, so the same body; the log
+          // keeps the writer's own reason.
+          logAction({ action: "prune-declaration-refused", hostname: name, detail: result.reason });
           res.status(409).json({ ok: false, reason: CONFIRM_DOWN_REASON });
           return;
         }
-        const status = result.code === "not-absent" ? 409 : result.code === "missing" ? 404 : 502;
-        res.status(status).json({ ok: false, reason: result.reason });
+        if (result.code === "not-absent") return refuse(409, result.reason);
+        if (result.code === "missing") return refuse(404, result.reason);
+        logAction({ action: "prune-declaration-failed", hostname: name, detail: result.reason });
+        res.status(502).json({ ok: false, reason: result.reason });
         return;
       }
       logAction({ action: "prune-declaration", hostname: name });
