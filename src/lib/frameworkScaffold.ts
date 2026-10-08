@@ -56,7 +56,8 @@ Dockerfile
 // every action is code with a token that can write packages.
 const NEXTJS_RELEASE_WORKFLOW = `# Push a tag like v1.2.3 to build and publish ghcr.io/<owner>/<repo>:1.2.3.
 # The tag is plain X.Y.Z, which is the only form the host's reconciler
-# recognises. The source label links the package to this repo, so the
+# recognises; the build step refuses anything else. The
+# source label links the package to this repo, so the
 # package inherits the repo's access rather than needing its own.
 name: release
 
@@ -84,6 +85,10 @@ jobs:
         run: |
           IMAGE="ghcr.io/\${GITHUB_REPOSITORY,,}"
           VERSION="\${GITHUB_REF_NAME#v}"
+          if ! [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME is not deployable: only plain vX.Y.Z tags (no leading zeros, no pre-release suffix) are offered for deploy."
+            exit 1
+          fi
           docker build --label org.opencontainers.image.source="https://github.com/$GITHUB_REPOSITORY" -t "$IMAGE:$VERSION" .
           docker push "$IMAGE:$VERSION"
 `;
