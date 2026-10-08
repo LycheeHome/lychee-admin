@@ -9,7 +9,8 @@ import { normalizeRepo, parseDeclaration, claimedPorts, SITE_SUFFIX, type Declar
  * write: changeSiteRepository on a declaration that already carries a tag. It
  * is decided after the pull, so it is the remote's answer, not the page's.
  * pruneSiteDeclaration adds two of the same kind: "not-absent" (the declaration
- * is not retired) and "missing" (no such file), each also the remote's answer.
+ * is not retired) and "missing" (no such file), each also the remote's answer,
+ * and reuses "tagged" when asked for a tagless declaration and given a tagged one.
  */
 export type WriteResult = { ok: true } | { ok: false; reason: string; code?: "tagged" | "not-absent" | "missing" };
 
@@ -360,6 +361,11 @@ export async function setDeclarationState(name: string, state: "absent", opts: W
 }
 
 /** A declaration's whole parsed mapping, or null for anything else. Never throws. */
+/** A parsed image with no tag or digest: its last path component has neither ":" nor "@". */
+function isTaglessImage(image: unknown): boolean {
+  return typeof image === "string" && image !== "" && !/[:@]/.test(image.slice(image.lastIndexOf("/") + 1));
+}
+
 function parsedFields(content: string): Record<string, unknown> | null {
   try {
     const doc = load(content);
@@ -462,9 +468,21 @@ export async function changeSiteRepository(name: string, repo: string, opts: Wri
  * remote is refused. Refusals carry `code: "not-absent"` or `code: "missing"`.
  * Site names only.
  *
+ * `requireTagless` also refuses, with `code: "tagged"`, a declaration whose
+ * PARSED image carries a tag (or digest) after the pull. The prune route sets
+ * it when the inventory says `awaiting-image`, which is also what a running,
+ * never-deployed site publishes: if Deploy wrote a tag and a reconcile is
+ * bringing it up while the inventory still shows the previous tick, only the
+ * tag shows it. A tagless declaration can never have been brought up, and no
+ * writer in this app removes a tag, so a tagless file closes that race.
+ *
  * Never throws and never forces (see withClone).
  */
-export async function pruneSiteDeclaration(name: string, opts: WriterOptions): Promise<WriteResult> {
+export async function pruneSiteDeclaration(
+  name: string,
+  opts: WriterOptions,
+  { requireTagless = false }: { requireTagless?: boolean } = {},
+): Promise<WriteResult> {
   if (!isSiteName(name)) {
     return { ok: false, reason: `"${name}" is not a valid site resource name.` };
   }
@@ -474,8 +492,16 @@ export async function pruneSiteDeclaration(name: string, opts: WriterOptions): P
     if (!fs.existsSync(target)) {
       return { ok: false, code: "missing", reason: `No declaration named ${file} in lychee-resources.` };
     }
-    if (parsedFields(fs.readFileSync(target, "utf8"))?.state !== "absent") {
+    const fields = parsedFields(fs.readFileSync(target, "utf8"));
+    if (fields?.state !== "absent") {
       return { ok: false, code: "not-absent", reason: `${file} is not retired (state is not absent); it can't be pruned.` };
+    }
+    if (requireTagless && !isTaglessImage(fields.image)) {
+      return {
+        ok: false,
+        code: "tagged",
+        reason: `${file} has an image tag, so a reconcile may still be bringing it up; it can't be pruned yet.`,
+      };
     }
     return { file, message: `${name}: prune retired declaration`, remove: true };
   });

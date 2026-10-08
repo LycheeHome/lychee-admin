@@ -107,8 +107,12 @@ export interface SystemCommands {
   writeDeclarationTag(name: string, tag: string): Promise<WriteResult>;
   createSiteDeclaration(name: string, repo: string, port: number): Promise<WriteResult>;
   setDeclarationState(name: string, state: "absent"): Promise<WriteResult>;
-  /** Deletes a retired (parsed state absent) site declaration; refusals carry `code: "not-absent"` or `"missing"`. */
-  pruneSiteDeclaration(name: string): Promise<WriteResult>;
+  /**
+   * Deletes a retired (parsed state absent) site declaration; refusals carry
+   * `code: "not-absent"` or `"missing"`, and with `requireTagless` a tagged
+   * declaration is refused with `code: "tagged"`.
+   */
+  pruneSiteDeclaration(name: string, opts?: { requireTagless?: boolean }): Promise<WriteResult>;
   /** Tagless declarations only; a tagged one is refused with `code: "tagged"`. */
   changeSiteRepository(name: string, repo: string): Promise<WriteResult>;
   /** The local clone's declarations; null when the clone cannot be read. */
@@ -280,8 +284,8 @@ export const realSystemCommands: SystemCommands = {
     return setDeclarationState(name, state, { git: gitRunner });
   },
 
-  pruneSiteDeclaration(name) {
-    return pruneSiteDeclaration(name, { git: gitRunner });
+  pruneSiteDeclaration(name, opts) {
+    return pruneSiteDeclaration(name, { git: gitRunner }, opts);
   },
 
   changeSiteRepository(name, repo) {

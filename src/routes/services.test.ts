@@ -376,7 +376,15 @@ describe("POST /resources/:name/prune", () => {
   }
   function spy(result: Awaited<ReturnType<SystemCommands["pruneSiteDeclaration"]>> = { ok: true }) {
     const calls: string[] = [];
-    return { calls, overrides: { readDeclarations: () => Promise.resolve(DECL), pruneSiteDeclaration: (n: string) => (calls.push(n), Promise.resolve(result)) } };
+    const opts: unknown[] = [];
+    return {
+      calls,
+      opts,
+      overrides: {
+        readDeclarations: () => Promise.resolve(DECL),
+        pruneSiteDeclaration: (n: string, o?: { requireTagless?: boolean }) => (calls.push(n), opts.push(o), Promise.resolve(result)),
+      },
+    };
   }
 
   test("requires authentication", async () => {
@@ -393,11 +401,27 @@ describe("POST /resources/:name/prune", () => {
     assert.deepEqual(calls, [SITE]);
   });
 
-  test("awaiting-image counts as confirmed down", async () => {
-    const { calls, overrides } = spy();
+  test("awaiting-image counts as confirmed down, but only for a tagless declaration", async () => {
+    const { calls, opts, overrides } = spy();
     const res = await post([{ ...DOWN, result: "awaiting-image" }], overrides);
     assert.equal(res.status, 200);
     assert.deepEqual(calls, [SITE]);
+    assert.deepEqual(opts, [{ requireTagless: true }]);
+  });
+
+  test("deployed does not ask the writer for a tagless declaration", async () => {
+    const { opts, overrides } = spy();
+    await post([DOWN], overrides);
+    assert.deepEqual(opts, [{ requireTagless: false }]);
+  });
+
+  test("awaiting-image with a writer tagged refusal is the not-confirmed-down 409", async () => {
+    const res = await post(
+      [{ ...DOWN, result: "awaiting-image" }],
+      spy({ ok: false, code: "tagged", reason: "test-lyly-dev.yml has a tag" }).overrides,
+    );
+    assert.equal(res.status, 409);
+    assert.deepEqual(await res.json(), { ok: false, reason: CONFIRM_REASON });
   });
 
   test("an installed version, a failed result or no inventory entry is a 409 and writes nothing", async () => {

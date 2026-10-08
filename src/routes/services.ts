@@ -9,6 +9,7 @@ import type { ServiceStatus, TimerSchedule } from "../lib/unitState";
 // A function, not a shared constant: it lands on board.schedule, and a shared
 // mutable object is the shape readInventory's unavailable() exists to avoid.
 const noSchedule = (): TimerSchedule => ({ next: null, last: null });
+const CONFIRM_DOWN_REASON = "the container hasn't been confirmed down yet; try after the next reconcile";
 
 export function createServicesRouter(deps: Deps): express.Router {
   const router = express.Router();
@@ -90,6 +91,15 @@ export function createServicesRouter(deps: Deps): express.Router {
   // first: the inventory is the reconciler's own record, and an entry with no
   // installed version and a settled result is what "down" looks like there.
   // The writer re-checks `state: absent` against the freshly pulled file.
+  //
+  // `awaiting-image` alone is not proof: a running, never-deployed site
+  // publishes it too, and if Deploy wrote a tag and a reconcile is bringing the
+  // container up while the inventory still shows the previous tick, the entry
+  // would pass and the prune would orphan a running container. So on that path
+  // the writer must also find the declaration TAGLESS after its pull
+  // (`requireTagless`); a tagless declaration can never have been brought up,
+  // and nothing in this app removes a tag. A `tagged` refusal is the same 409
+  // as an unconfirmed entry. `deployed` with no version needs no such check.
   router.post("/resources/:name/prune", async (req, res) => {
     const { name } = req.params;
     const { logAction } = deps.logger;
@@ -111,13 +121,17 @@ export function createServicesRouter(deps: Deps): express.Router {
       if (!entry || entry.version || !entry.result || !["deployed", "awaiting-image"].includes(entry.result)) {
         res.status(409).json({
           ok: false,
-          reason: "the container hasn't been confirmed down yet; try after the next reconcile",
+          reason: CONFIRM_DOWN_REASON,
         });
         return;
       }
-      const result = await deps.commands.pruneSiteDeclaration(name);
+      const result = await deps.commands.pruneSiteDeclaration(name, { requireTagless: entry.result === "awaiting-image" });
       if (!result.ok) {
         logAction({ action: "prune-declaration-failed", hostname: name, detail: result.reason });
+        if (result.code === "tagged") {
+          res.status(409).json({ ok: false, reason: CONFIRM_DOWN_REASON });
+          return;
+        }
         const status = result.code === "not-absent" ? 409 : result.code === "missing" ? 404 : 502;
         res.status(status).json({ ok: false, reason: result.reason });
         return;

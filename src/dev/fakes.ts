@@ -175,8 +175,9 @@ export function createFakes(
       declarations.set(name, { ...decl, state });
       return Promise.resolve({ ok: true });
     },
-    // Site-only and absent-only, with the real writer's codes.
-    pruneSiteDeclaration: (name) => {
+    // Site-only and absent-only, with the real writer's codes, including the
+    // tagged refusal requireTagless asks for.
+    pruneSiteDeclaration: (name, opts) => {
       if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?-lyly-dev$/.test(name) || name.length > 63) {
         return Promise.resolve({ ok: false, reason: `"${name}" is not a valid site resource name.` });
       }
@@ -189,6 +190,13 @@ export function createFakes(
           ok: false,
           code: "not-absent",
           reason: `${name}.yml is not retired (state is not absent); it can't be pruned.`,
+        });
+      }
+      if (opts?.requireTagless && /[:@]/.test(decl.image.slice(decl.image.lastIndexOf("/") + 1))) {
+        return Promise.resolve({
+          ok: false,
+          code: "tagged",
+          reason: `${name}.yml has an image tag, so a reconcile may still be bringing it up; it can't be pruned yet.`,
         });
       }
       declarations.delete(name);

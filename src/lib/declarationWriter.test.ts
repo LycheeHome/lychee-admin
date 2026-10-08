@@ -681,6 +681,42 @@ describe("pruneSiteDeclaration", () => {
     assert.equal(commits().length, 0);
   });
 
+  const RETIRED_TAGGED = RETIRED.replace("ghcr.io/lycheehome/test-site ", "ghcr.io/lycheehome/test-site:0.1.0 ");
+
+  test("requireTagless refuses a retired tagged declaration with code: tagged, committing nothing", async () => {
+    seedClone({ "test-lyly-dev.yml": RETIRED_TAGGED });
+    const result = await pruneSiteDeclaration("test-lyly-dev", opts(), { requireTagless: true });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, "tagged");
+    assert.equal(commits().length, 0);
+    assert.ok(!calls.some((c) => c.args[0] === "push"));
+    assert.ok(exists());
+  });
+
+  test("requireTagless refuses a tag YAML parses but the text hides", async () => {
+    seedClone({ "test-lyly-dev.yml": RETIRED.replace("ghcr.io/lycheehome/test-site ", `"ghcr.io/lycheehome/test-site\\x3a0.1.0" `) });
+    const result = await pruneSiteDeclaration("test-lyly-dev", opts(), { requireTagless: true });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, "tagged");
+    assert.equal(commits().length, 0);
+  });
+
+  test("requireTagless allows a retired tagless declaration", async () => {
+    seedClone({ "test-lyly-dev.yml": RETIRED });
+    const result = await pruneSiteDeclaration("test-lyly-dev", opts(), { requireTagless: true });
+    assert.deepEqual(result, { ok: true });
+    assert.equal(commits().length, 1);
+    assert.ok(!exists());
+  });
+
+  test("without requireTagless a retired tagged declaration is pruned (the deployed path)", async () => {
+    seedClone({ "test-lyly-dev.yml": RETIRED_TAGGED });
+    const result = await pruneSiteDeclaration("test-lyly-dev", opts());
+    assert.deepEqual(result, { ok: true });
+    assert.equal(commits().length, 1);
+    assert.ok(!exists());
+  });
+
   test("a rejected push resets to the upstream and the file is back", async () => {
     seedClone({ "test-lyly-dev.yml": RETIRED });
     const result = await pruneSiteDeclaration("test-lyly-dev", opts(fakeGit({ failOn: "push" })));
