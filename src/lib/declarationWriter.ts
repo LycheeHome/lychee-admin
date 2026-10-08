@@ -360,12 +360,12 @@ export async function setDeclarationState(name: string, state: "absent", opts: W
   });
 }
 
-/** A declaration's whole parsed mapping, or null for anything else. Never throws. */
 /** A parsed image with no tag or digest: its last path component has neither ":" nor "@". */
 function isTaglessImage(image: unknown): boolean {
   return typeof image === "string" && image !== "" && !/[:@]/.test(image.slice(image.lastIndexOf("/") + 1));
 }
 
+/** A declaration's whole parsed mapping, or null for anything else. Never throws. */
 function parsedFields(content: string): Record<string, unknown> | null {
   try {
     const doc = load(content);
