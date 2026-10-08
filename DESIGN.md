@@ -871,6 +871,14 @@ reads `not retrying (promote another tag, or rm …/.failed-tag)` — so the gat
 explains why and the offer is the thing you would do about it. Explanation, then
 action.
 
+A failed row carries the Repository Card's failure line, the same markup from
+the same function: the tag it tried, the reconciler's failed step in mono, and
+`journalctl -u lyly-reconcile` as a Command Block. It sits after the gate and
+directly above the offer, so the order stays explanation, then action. The facts
+line still reads `failed · N attempts`; the failure line is what says which tag
+and why, which a service with no site page (palsave-api) has nowhere else to
+say.
+
 **Applying is a state of the pill, not a colour.** While a declaration pins a
 version the host has not installed yet, the pill reads `applying` in the neutral
 tone and the facts line states both versions as one fact, `v0.2.0 → v0.3.0`,
@@ -943,7 +951,11 @@ and failed: a Body sentence naming the tag it tried, the step that failed as
 the reconciler recorded it — mono, in Smoke Light, the gate line's own
 treatment — and `journalctl -u lyly-reconcile` as a single-line Command Block.
 It sits in step four before anything is installed and, after, in the
-collapsed card above the gate line. The Scorch is the status pill's alone
+collapsed card above the gate line. When a different, newer tag has been
+published, the offer line follows it in both places, exactly as a blocked row's
+follows its gate: the reconciler retries the failing pin every tick, so a newer
+tag is the way out, and the failure stays on screen beside it. The tag that
+failed is never offered again. The Scorch is the status pill's alone
 (`failed` before anything is installed; the container's own word after); the
 sentences stay Smoke, because status colors never go on prose.
 

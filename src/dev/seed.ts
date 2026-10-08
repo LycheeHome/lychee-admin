@@ -14,19 +14,21 @@ import type { TimerSchedule, UnitState } from "../lib/unitState";
  * and one deliberately unmanaged block. lychee.local must never appear in
  * the site list — it is the live check that isManagedHostname still filters.
  *
- * The three Next.js sites are the three states a site's "From a repository"
- * card has, so dev mode shows each without anyone attaching or deploying:
+ * The four Next.js sites are the states a site's "From a repository" card
+ * has, so dev mode shows each without anyone attaching or deploying:
  * legacy.lyly.dev is unattached (the full runbook and the Attach control),
  * preview.lyly.dev is attached and awaiting its first image (0.1.0 on offer),
- * app.lyly.dev is attached and running 0.2.0 with 0.3.0 on offer. Their
- * declarations are SEEDED_DECLARATIONS below; their inventory entries are in
- * SEEDED_INVENTORY.
+ * app.lyly.dev is attached and running 0.2.0 with 0.3.0 on offer, and
+ * broken.lyly.dev's first deploy failed: 0.1.0 is pinned and failing, nothing
+ * is installed, and the fix, 0.1.1, is on offer beside the failure line.
+ * Their declarations are SEEDED_DECLARATIONS below; their inventory entries
+ * are in SEEDED_INVENTORY.
  *
- * Ports 4000, 3001, 3100 and 3200 leave 8787 (lyly-admin itself) and 2019
- * (Caddy's admin API) free, so the reserved-port rejection can be triggered
- * from the UI. 3000 is free too, so adding a Next.js site on the obvious port
- * works; 3100 and 3200 are claimed by declarations, so add-site's
- * declared-port refusal can be triggered on either.
+ * Ports 4000, 3001, 3100, 3200 and 3300 leave 8787 (lyly-admin itself) and
+ * 2019 (Caddy's admin API) free, so the reserved-port rejection can be
+ * triggered from the UI. 3000 is free too, so adding a Next.js site on the
+ * obvious port works; 3100, 3200 and 3300 are claimed by declarations, so
+ * add-site's declared-port refusal can be triggered on any of them.
  */
 export const SEED_CADDYFILE = `{
 \tauto_https off
@@ -58,6 +60,12 @@ http://preview.lyly.dev {
 \treverse_proxy localhost:3100
 }
 
+http://broken.lyly.dev {
+\t# lyly-admin-framework: nextjs
+\t# lyly-admin-healthcheck: /api/health
+\treverse_proxy localhost:3300
+}
+
 http://legacy.lyly.dev {
 \t# lyly-admin-framework: nextjs
 \treverse_proxy localhost:3001
@@ -84,6 +92,8 @@ ingress:
   - hostname: legacy.lyly.dev
     service: http://localhost:80
   - hostname: preview.lyly.dev
+    service: http://localhost:80
+  - hostname: broken.lyly.dev
     service: http://localhost:80
   - service: http_status:404
 `;
@@ -136,7 +146,7 @@ export const SEEDED_INVENTORY = JSON.stringify(
         version: "v1.4.0", target: "v1.4.0", available: "v1.5.0",
         commit: "3c1d9e07b5a24f6e8d0a1b2c3d4e5f6071829304",
         result: "skipped", gate: "pin unchanged (v1.4.0)", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
-      // The two attached site resources (see SEED_CADDYFILE). preview is the
+      // Two of the attached site resources (see SEED_CADDYFILE). preview is the
       // tagless declaration after the reconciler's first look: no compose
       // action, nothing installed, the pushed tag discovered. "" is what the
       // producer writes for "no tag", and the parser normalises it away.
@@ -149,6 +159,15 @@ export const SEEDED_INVENTORY = JSON.stringify(
         version: "0.2.0", target: "0.2.0", available: "0.3.0",
         commit: "5b7e2a9c0d14f3e68a9b1c2d3e4f5061728394a5",
         result: "skipped", gate: "pin unchanged (0.2.0)", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
+      // broken's first deploy failed before the retry cap: 0.1.0 is pinned and
+      // retried every tick, nothing is installed, and the operator has since
+      // pushed 0.1.1. A failed first deploy publishes an empty gate, so the
+      // failed step is the only explanation the inventory carries.
+      { name: "broken-lyly-dev", kind: "container", container: "broken-lyly-dev", group: "service", reconciled: true,
+        version: "", target: "0.1.0", available: "0.1.1",
+        result: "failed", gate: "",
+        failed_step: "Start the container: dependency failed to start: container broken-lyly-dev is unhealthy",
+        last_run: "2026-10-02T04:58:02Z", failed_attempts: 1 },
       { name: "caddy", unit: "caddy.service", group: "infrastructure", reconciled: false },
       { name: "cloudflared-sites", unit: "cloudflared-sites.service", group: "infrastructure", reconciled: false },
     ],
@@ -179,23 +198,27 @@ export const SEEDED_TIMER_SCHEDULE: TimerSchedule = {
 };
 
 /**
- * The lychee-resources declarations for the two attached sites, handed to
+ * The lychee-resources declarations for the three attached sites, handed to
  * createFakes by the dev server only — route tests start from an empty clone.
- * preview's image is tagless, as Attach writes it; app's carries the tag its
- * one deploy wrote.
+ * preview's image is tagless, as Attach writes it; app's and broken's carry
+ * the tag their one deploy wrote (broken's is the one that failed).
  */
 export const SEEDED_DECLARATIONS: DeclarationSummary[] = [
   { name: "preview-lyly-dev", port: 3100, state: "running", image: "ghcr.io/lycheehome/preview-site" },
   { name: "app-lyly-dev", port: 3200, state: "running", image: "ghcr.io/lycheehome/app-site:0.2.0" },
+  { name: "broken-lyly-dev", port: 3300, state: "running", image: "ghcr.io/lycheehome/broken-site:0.1.0" },
 ];
 
 /**
- * Live container state for resources that have a container. Only app has one:
- * preview has never been deployed, and the board's lyly-docs and lyly-notes
- * rows stay "unknown", the neutral answer a container row must get right.
+ * Live container state for resources that have a container. app runs; broken's
+ * failed start left its container exited, which is what the board's row reads
+ * (its site page asks no container, since nothing is installed). preview has
+ * never been deployed, and the board's lyly-docs and lyly-notes rows stay
+ * "unknown", the neutral answer a container row must get right.
  */
 export const seededResourceContainers: Record<string, ContainerStatus> = {
   "app-lyly-dev": { state: "running", health: "healthy" },
+  "broken-lyly-dev": { state: "exited" },
 };
 
 /**

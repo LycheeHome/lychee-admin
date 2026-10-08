@@ -2,7 +2,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { withoutHeader } from "../dev/testHelpers";
-import { renderServicesPage, renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
+import { offeredTag, renderServicesPage, renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
 import { formatAge, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, TYPE_PILL_PROXY } from "./shared";
 import { ADD_STEPS } from "../lib/stepReport";
 
@@ -1626,10 +1626,62 @@ describe("renderServicesPage", () => {
     assert.ok(!html.includes("data-deploy"));
   });
 
-  test("a failed result shows the failed step, not a Deploy button", () => {
-    const html = offerBoard({ version: "v1.4.0", available: "v1.5.0", result: "failed", gate: "health check failed after install" });
+  test("a failed row with a newer tag shows its facts and gate, then the offer", () => {
+    const html = offerBoard({ version: "v1.4.0", target: "v1.5.0", available: "v1.6.0", result: "failed", gate: "health check failed after install" });
+    assert.ok(html.includes("v1.4.0 · failed"));
     assert.ok(html.includes("health check failed after install"));
-    assert.ok(!html.includes("data-deploy"));
+    assert.ok(html.includes("v1.6.0 available"));
+    assert.ok(html.includes('data-deploy="notes"'));
+    assert.ok(html.indexOf("data-gate") < html.indexOf("data-offer"));
+  });
+
+  test("a failed row renders the failure line: the target, the escaped failed step and the journal", () => {
+    const html = offerBoard({ version: "v1.4.0", target: "v1.5.0", available: "v1.6.0", result: "failed", failedAttempts: 2,
+      failedStep: "Start the container: <exit 1> & gone" });
+    assert.match(html, /data-deploy-failed/);
+    assert.match(html, /Deploying <span[^>]*>v1\.5\.0<\/span> failed at this step:/);
+    assert.ok(html.includes("Start the container: &lt;exit 1&gt; &amp; gone"));
+    assert.ok(!html.includes("<exit 1>"));
+    assert.match(html, /journalctl -u lyly-reconcile/);
+    assert.ok(html.includes("v1.4.0 · failed · 2 attempts"));
+    assert.ok(html.indexOf("data-deploy-failed") < html.indexOf("data-offer"));
+  });
+
+  test("a failed row without a failed step still renders the failure line", () => {
+    const html = offerBoard({ version: "v1.4.0", target: "v1.5.0", result: "failed" });
+    assert.match(html, /data-deploy-failed/);
+    assert.match(html, /Deploying <span[^>]*>v1\.5\.0<\/span> failed\./);
+    assert.match(html, /journalctl -u lyly-reconcile/);
+    assert.ok(!html.includes("data-failed-step"));
+  });
+
+  test("rows that are not failed render no failure line", () => {
+    for (const result of ["deployed", "skipped", "blocked", "awaiting-image", undefined]) {
+      const html = offerBoard({ version: "v1.4.0", target: "v1.5.0", available: "v1.6.0", result, failedStep: "x" });
+      assert.ok(!html.includes("data-deploy-failed"), String(result));
+      assert.ok(!html.includes("journalctl"), String(result));
+    }
+  });
+
+  test("two failed rows get distinct journal command ids", () => {
+    const html = renderServicesPage(
+      {
+        inventoryAvailable: true, schedule: NO_SCHEDULE, timerUnit: null, generated: "2026-10-02T04:58:02Z",
+        groups: [{ group: "service", rows: ["a", "b"].map((name) => (
+          { name, kind: "container", container: name, group: "service", reconciled: true, target: "v1", result: "failed", status: "exited", since: null } as never
+        )) }],
+      },
+      NOW,
+    );
+    const ids = [...html.matchAll(/<pre id="([^"]+)"/g)].map((m) => m[1]);
+    assert.equal(ids.length, 2);
+    assert.notEqual(ids[0], ids[1]);
+  });
+
+  test("a failed row never re-offers the tag that failed", () => {
+    const html = offerBoard({ version: "v1.4.0", target: "v1.5.0", available: "v1.5.0", result: "failed", gate: "health check failed after install" });
+    assert.ok(html.includes("health check failed after install"));
+    assert.ok(!html.includes('data-deploy="'));
   });
 
   test("a blocked row puts the offer after the gate", () => {
@@ -1995,17 +2047,46 @@ describe("renderSiteDetail from a repository", () => {
     }
   });
 
-  test("with a tag found but none on offer, the Deploy step shows the gate, not the push-v0.1.0 copy", () => {
+  test("a failed first deploy with a newer tag: the failure line, then the offer", () => {
     const c = card(
       renderSiteDetail(NEXT_SITE, {
         ...BASE,
-        resource: { ...RESOURCE, result: "failed", available: "0.1.0", gate: "health check failed after install" },
-        status: { kind: "awaiting-image" },
+        resource: { ...RESOURCE, result: "failed", target: "0.1.0", available: "0.1.1", failedStep: "Start the container: exit 1" },
+        status: { kind: "failed" },
       }),
     );
-    assert.match(c, /health check failed after install/);
+    assert.match(c, /data-deploy-failed/);
+    assert.match(c, /Start the container: exit 1/);
+    assert.match(c, /0\.1\.1 available/);
+    assert.match(c, /data-deploy="app-lyly-dev"/);
+    assert.match(c, /data-deploy-tag="0\.1\.1"/);
+    assert.ok(c.indexOf("data-deploy-failed") < c.indexOf("data-offer"));
     assert.doesNotMatch(c, /No tag found/);
-    assert.doesNotMatch(c, /data-deploy=/);
+  });
+
+  test("a failed redeploy with a newer tag: the failure line, then the offer", () => {
+    const c = card(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, version: "0.1.0", target: "0.2.0", available: "0.2.1", result: "failed", failedStep: "Start the container: exit 1" },
+        status: { kind: "container", state: "running" },
+      }),
+    );
+    assert.match(c, /data-deploy-failed/);
+    assert.match(c, /0\.2\.1 available/);
+    assert.match(c, /data-deploy="app-lyly-dev"/);
+    assert.ok(c.indexOf("data-deploy-failed") < c.indexOf("data-offer"));
+  });
+
+  test("a failed deploy whose only tag is the one that failed offers nothing", () => {
+    for (const resource of [
+      { ...RESOURCE, result: "failed", target: "0.1.0", available: "0.1.0" },
+      { ...RESOURCE, version: "0.1.0", target: "0.2.0", available: "0.2.0", result: "failed" },
+    ]) {
+      const c = card(renderSiteDetail(NEXT_SITE, { ...BASE, resource, status: { kind: "failed" } }));
+      assert.match(c, /data-deploy-failed/);
+      assert.doesNotMatch(c, /data-offer|data-deploy=/);
+    }
   });
 
   test("with no tag found, step 3 says so once, names both causes and offers the change; Deploy does not repeat it", () => {
@@ -2054,5 +2135,28 @@ describe("renderSiteDetail from a repository", () => {
     });
     assert.match(html, /docker compose -p app-lyly-dev logs/);
     assert.doesNotMatch(html, /in \/var\/www\/app\.lyly\.dev\//);
+  });
+});
+
+describe("offeredTag", () => {
+  test("a failed row offers a tag that is neither installed nor the one that failed", () => {
+    assert.equal(offeredTag({ version: "v1.4.0", target: "v1.5.0", available: "v1.6.0", result: "failed" }), "v1.6.0");
+    assert.equal(offeredTag({ target: "0.1.0", available: "0.1.1", result: "failed" }), "0.1.1");
+  });
+
+  test("a failed row never re-offers the tag that failed, nor the installed one", () => {
+    assert.equal(offeredTag({ version: "v1.4.0", target: "v1.5.0", available: "v1.5.0", result: "failed" }), null);
+    assert.equal(offeredTag({ target: "0.1.0", available: "0.1.0", result: "failed" }), null);
+    assert.equal(offeredTag({ version: "v1.4.0", target: "v1.5.0", available: "v1.4.0", result: "failed" }), null);
+  });
+
+  test("blocked, deployed and applying rows behave as before", () => {
+    assert.equal(offeredTag({ version: "v1.4.0", target: "v1.4.0", available: "v1.5.0", result: "blocked" }), "v1.5.0");
+    assert.equal(offeredTag({ version: "v1.4.0", target: "v1.5.0", available: "v1.5.0", result: "blocked" }), null);
+    assert.equal(offeredTag({ version: "v1.4.0", target: "v1.4.0", available: "v1.5.0", result: "deployed" }), "v1.5.0");
+    assert.equal(offeredTag({ version: "v1.4.0", target: "v1.4.0", available: "v1.4.0", result: "deployed" }), null);
+    // Applying: a clean run with a moved pin. Nothing is offered on top of it.
+    assert.equal(offeredTag({ version: "v1.4.0", target: "v1.5.0", available: "v1.6.0", result: "deployed" }), null);
+    assert.equal(offeredTag({ version: "v1.4.0", target: "v1.5.0", available: "v1.6.0", result: "skipped" }), null);
   });
 });
