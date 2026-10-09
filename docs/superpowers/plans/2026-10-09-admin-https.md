@@ -137,9 +137,10 @@ Two pieces are their own task files so the off-host suite can import them: the `
    - **Directory:** `ansible.builtin.file` creates `/etc/caddy/conf.d`, `0755`.
    - **File:** `ansible.builtin.template` renders `admin.caddy.j2` → `/etc/caddy/conf.d/admin.caddy`, root:root `0644`, with `validate: caddy validate --adapter caddyfile --config %s` (not run under `--check`). Register it.
    - **Import line:** `import_tasks: ensure_import.yml`.
-8. **Validate, then reload,** when any of step 6's copies, step 7's template or `admin_https_import` changed, and `not ansible_check_mode`:
+8. **Validate, then reload,** on every tick where the step 5 certificate exists and `not ansible_check_mode` (amended during review; the plan first had validate-on-change, see the spec's step 6):
+   - **Marker:** when any of step 6's copies, step 7's template or `admin_https_import` changed, touch `{{ ops_root }}/admin_https.reload-pending` (root:root `0600`).
    - **Validate:** `ansible.builtin.command` with argv `[caddy, validate, --config, "{{ admin_https_caddyfile }}"]` and `changed_when: false`. If it fails the task fails, so the next task never runs.
-   - **Reload:** `ansible.builtin.systemd` with `name: caddy`, `state: reloaded`.
+   - **Reload:** if the marker exists, `ansible.builtin.systemd` with `name: caddy`, `state: reloaded`, then remove the marker.
 9. **Expiry:** `import_tasks: check_expiry.yml` with `admin_https_cert_path: "{{ admin_https_cert_dir }}/fullchain.pem"`. Skip it under `--check` when the copy has not happened yet; the condition is the step 5 stat.
 10. **DNS:**
     - **Look up:** `ansible.builtin.command` with argv `[getent, ahosts, "{{ admin_hostname }}"]`, `changed_when: false`, `failed_when: false`, registered.

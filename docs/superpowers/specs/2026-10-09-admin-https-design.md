@@ -117,11 +117,19 @@ app repo; its value is in lychee-ops' `HOST.md`.
    - **Order:** this step runs only after steps 3–4 succeed, because Caddy
      rejects config that names a missing certificate.
 6. **Validate, then reload:**
-   - **Trigger:** a change in step 4 or 5.
-   - **Order:** run `caddy validate --config /etc/caddy/Caddyfile`, then
-     `systemctl reload caddy`.
-   - **If validation fails:** the tick fails and Caddy keeps its running
-     config. Never reload without a validate, as CLAUDE.md requires of the app.
+   - **Validate:** on every tick where the certificate exists (not under
+     `--check`), run `caddy validate --config /etc/caddy/Caddyfile`. A
+     failure fails the tick, every tick, until fixed.
+   - **Reload:** a change in step 4 or 5 leaves a marker,
+     `/var/lib/lychee-ops/admin_https.reload-pending`. After a successful
+     validate, if the marker is present, run `systemctl reload caddy` and then
+     remove the marker. A reload that failed or never ran is therefore retried
+     on the next tick, and a reload never happens without a validate just
+     before it, as CLAUDE.md requires of the app.
+   - **Why every tick, not only on change** (amended during review): with
+     validate-on-change, a failed validate left a broken Caddyfile on disk
+     while later ticks passed. Caddy keeps its running config, but the app's
+     own `caddy validate` and any Caddy restart would then fail.
    - **Run inline, not as a handler,** so the sequence completes within this
      role.
 7. **Expiry check:** `openssl x509 -checkend 1209600 -noout -in <copied
