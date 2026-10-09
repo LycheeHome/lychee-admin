@@ -216,6 +216,13 @@ describe("the suffix, pattern and label limit follow the domain", () => {
 
   test("maxSiteLabelLength is 63 minus the suffix", () => {
     assert.equal(maxSiteLabelLength("lychee.land"), 51);
+    assert.equal(maxSiteLabelLength("example.test"), 50);
+  });
+
+  test("siteNamePatternFor under a second domain refuses lychee.land names", () => {
+    const re = siteNamePatternFor("example.test");
+    assert.equal(re.test("blog-example-test"), true);
+    assert.equal(re.test("blog-lychee-land"), false);
   });
 
   test("siteNamePatternFor matches whole names under that suffix only", () => {

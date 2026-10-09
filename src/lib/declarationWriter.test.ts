@@ -937,4 +937,19 @@ describe("createSiteDeclaration under lychee.land", () => {
     const text = fs.readFileSync(path.join(clone, "blog-lychee-land.yml"), "utf8");
     assert.ok(text.split("\n")[0].includes("# Written by lyly-admin for blog.lychee.land."), text.split("\n")[0]);
   });
+
+  // A second domain, so the hostname in the comment is shown to come from
+  // opts.domain rather than from a lychee.land literal that happens to match.
+  test("names the hostname under a second domain too", async () => {
+    seedClone();
+    const result = await createSiteDeclaration("blog-example-test", "blog-site", 3000, {
+      git: fakeGit(),
+      clonePath: clone,
+      keyPath: key,
+      domain: "example.test",
+    });
+    assert.deepEqual(result, { ok: true });
+    const text = fs.readFileSync(path.join(clone, "blog-example-test.yml"), "utf8");
+    assert.equal(text.split("\n")[0], "# Written by lyly-admin for blog.example.test.");
+  });
 });
