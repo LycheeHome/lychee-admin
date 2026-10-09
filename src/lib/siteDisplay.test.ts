@@ -112,36 +112,36 @@ describe("describeStatus", () => {
 
 describe("splitHostnameForDisplay", () => {
   test("dims the managed domain suffix on a subdomain", () => {
-    assert.deepEqual(splitHostnameForDisplay("blog.lyly.dev", "lyly.dev"), {
+    assert.deepEqual(splitHostnameForDisplay("blog.lychee.land", "lychee.land"), {
       lead: "blog",
-      dimmed: ".lyly.dev",
+      dimmed: ".lychee.land",
     });
   });
 
   test("keeps a multi-level subdomain whole in the bright part", () => {
-    assert.deepEqual(splitHostnameForDisplay("a.b.lyly.dev", "lyly.dev"), {
+    assert.deepEqual(splitHostnameForDisplay("a.b.lychee.land", "lychee.land"), {
       lead: "a.b",
-      dimmed: ".lyly.dev",
+      dimmed: ".lychee.land",
     });
   });
 
   test("the apex domain has nothing to dim", () => {
-    assert.deepEqual(splitHostnameForDisplay("lyly.dev", "lyly.dev"), {
-      lead: "lyly.dev",
+    assert.deepEqual(splitHostnameForDisplay("lychee.land", "lychee.land"), {
+      lead: "lychee.land",
       dimmed: "",
     });
   });
 
   test("a hostname outside the managed domain is left alone", () => {
-    assert.deepEqual(splitHostnameForDisplay("lychee.local", "lyly.dev"), {
+    assert.deepEqual(splitHostnameForDisplay("lychee.local", "lychee.land"), {
       lead: "lychee.local",
       dimmed: "",
     });
   });
 
   test("a hostname that merely ends in the domain's letters is not split", () => {
-    assert.deepEqual(splitHostnameForDisplay("notlyly.dev", "lyly.dev"), {
-      lead: "notlyly.dev",
+    assert.deepEqual(splitHostnameForDisplay("notlychee.land", "lychee.land"), {
+      lead: "notlychee.land",
       dimmed: "",
     });
   });

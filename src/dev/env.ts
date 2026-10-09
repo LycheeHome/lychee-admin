@@ -19,3 +19,6 @@
  */
 process.env.ADMIN_USERNAME ??= "dev";
 process.env.ADMIN_PASSWORD_HASH ??= "$2b$12$X/UB7NklDWv8CQTaRZpFzOWt9lYBcJYK1UwtOG9EgG6wwegHeFmAS";
+// DOMAIN is required by config.ts with no default, so the dev server and the
+// seed (all *.lychee.land) need it set here the same way as the credentials.
+process.env.DOMAIN ??= "lychee.land";

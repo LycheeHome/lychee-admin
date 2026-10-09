@@ -15,7 +15,7 @@ export const config = {
   adminUsername: required("ADMIN_USERNAME"),
   adminPasswordHash: required("ADMIN_PASSWORD_HASH"),
 
-  domain: process.env.DOMAIN ?? "lyly.dev",
+  domain: required("DOMAIN"),
 
   caddyfilePath: process.env.CADDYFILE_PATH ?? "/etc/caddy/Caddyfile",
   // The "sites" tunnel's config — split off from the lychee-ssh tunnel, which

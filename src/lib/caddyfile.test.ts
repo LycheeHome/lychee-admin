@@ -6,16 +6,16 @@ const SAMPLE = `{
 	auto_https off
 }
 
-http://lyly.dev {
-	root * /var/www/lyly.dev
+http://lychee.land {
+	root * /var/www/lychee.land
 	file_server
 }
 
-http://api.lyly.dev {
+http://api.lychee.land {
 	reverse_proxy localhost:4000
 }
 
-http://app.lyly.dev {
+http://app.lychee.land {
 	# lyly-admin-framework: nextjs
 	# lyly-admin-healthcheck: /api/health
 	reverse_proxy localhost:3000
@@ -28,24 +28,24 @@ describe("parseSites", () => {
     assert.equal(sites.length, 3);
     assert.deepEqual(
       sites.map((s) => s.hostname),
-      ["lyly.dev", "api.lyly.dev", "app.lyly.dev"],
+      ["lychee.land", "api.lychee.land", "app.lychee.land"],
     );
   });
 
   test("reads a static site's root path", () => {
-    const site = parseSites(SAMPLE).find((s) => s.hostname === "lyly.dev");
-    assert.deepEqual(site, { hostname: "lyly.dev", type: "static", target: "/var/www/lyly.dev" });
+    const site = parseSites(SAMPLE).find((s) => s.hostname === "lychee.land");
+    assert.deepEqual(site, { hostname: "lychee.land", type: "static", target: "/var/www/lychee.land" });
   });
 
   test("reads a plain reverse proxy's port and sets no framework", () => {
-    const site = parseSites(SAMPLE).find((s) => s.hostname === "api.lyly.dev");
-    assert.deepEqual(site, { hostname: "api.lyly.dev", type: "reverse-proxy", target: "4000" });
+    const site = parseSites(SAMPLE).find((s) => s.hostname === "api.lychee.land");
+    assert.deepEqual(site, { hostname: "api.lychee.land", type: "reverse-proxy", target: "4000" });
   });
 
   test("reads the framework and healthcheck marker comments", () => {
-    const site = parseSites(SAMPLE).find((s) => s.hostname === "app.lyly.dev");
+    const site = parseSites(SAMPLE).find((s) => s.hostname === "app.lychee.land");
     assert.deepEqual(site, {
-      hostname: "app.lyly.dev",
+      hostname: "app.lychee.land",
       type: "reverse-proxy",
       target: "3000",
       framework: "nextjs",
@@ -58,12 +58,12 @@ describe("parseSites", () => {
   });
 
   test("reads the framework marker with no healthcheck comment (pre-healthcheck legacy shape)", () => {
-    const LEGACY_FRAMEWORK_ONLY = `http://legacy.lyly.dev {
+    const LEGACY_FRAMEWORK_ONLY = `http://legacy.lychee.land {
 \t# lyly-admin-framework: nextjs
 \treverse_proxy localhost:3001
 }
 `;
-    const site = parseSites(LEGACY_FRAMEWORK_ONLY).find((s) => s.hostname === "legacy.lyly.dev");
+    const site = parseSites(LEGACY_FRAMEWORK_ONLY).find((s) => s.hostname === "legacy.lychee.land");
     assert.equal(site?.framework, "nextjs");
     assert.equal(site?.healthcheckPath, undefined);
   });
@@ -72,23 +72,23 @@ describe("parseSites", () => {
 describe("appendSite", () => {
   test("appends a static block with root and file_server", () => {
     const result = appendSite(SAMPLE, {
-      hostname: "new.lyly.dev",
+      hostname: "new.lychee.land",
       type: "static",
-      target: "/var/www/new.lyly.dev",
+      target: "/var/www/new.lychee.land",
     });
-    assert.match(result, /http:\/\/new\.lyly\.dev \{\n\troot \* \/var\/www\/new\.lyly\.dev\n\tfile_server\n\}/);
+    assert.match(result, /http:\/\/new\.lychee\.land \{\n\troot \* \/var\/www\/new\.lychee\.land\n\tfile_server\n\}/);
     assert.equal(parseSites(result).length, 4);
   });
 
   test("appends a reverse-proxy block with no marker comments when no framework given", () => {
-    const result = appendSite(SAMPLE, { hostname: "new.lyly.dev", type: "reverse-proxy", target: "5000" });
-    assert.match(result, /http:\/\/new\.lyly\.dev \{\n\treverse_proxy localhost:5000\n\}/);
-    assert.doesNotMatch(result, /new\.lyly\.dev[\s\S]*lyly-admin-framework/);
+    const result = appendSite(SAMPLE, { hostname: "new.lychee.land", type: "reverse-proxy", target: "5000" });
+    assert.match(result, /http:\/\/new\.lychee\.land \{\n\treverse_proxy localhost:5000\n\}/);
+    assert.doesNotMatch(result, /new\.lychee\.land[\s\S]*lyly-admin-framework/);
   });
 
   test("writes both marker comments when a framework is given", () => {
     const result = appendSite(SAMPLE, {
-      hostname: "new.lyly.dev",
+      hostname: "new.lychee.land",
       type: "reverse-proxy",
       target: "5000",
       framework: "nextjs",
@@ -99,7 +99,7 @@ describe("appendSite", () => {
 
   test("defaults the healthcheck comment to / when a framework has no path", () => {
     const result = appendSite(SAMPLE, {
-      hostname: "new.lyly.dev",
+      hostname: "new.lychee.land",
       type: "reverse-proxy",
       target: "5000",
       framework: "nextjs",
@@ -108,7 +108,7 @@ describe("appendSite", () => {
   });
 
   test("ends with exactly one trailing newline", () => {
-    const result = appendSite(SAMPLE, { hostname: "new.lyly.dev", type: "reverse-proxy", target: "5000" });
+    const result = appendSite(SAMPLE, { hostname: "new.lychee.land", type: "reverse-proxy", target: "5000" });
     assert.match(result, /\}\n$/);
     assert.doesNotMatch(result, /\n\n$/);
   });
@@ -116,47 +116,47 @@ describe("appendSite", () => {
 
 describe("removeSite", () => {
   test("removes only the named block", () => {
-    const result = removeSite(SAMPLE, "api.lyly.dev");
-    assert.equal(hostnameExists(result, "api.lyly.dev"), false);
-    assert.equal(hostnameExists(result, "lyly.dev"), true);
-    assert.equal(hostnameExists(result, "app.lyly.dev"), true);
+    const result = removeSite(SAMPLE, "api.lychee.land");
+    assert.equal(hostnameExists(result, "api.lychee.land"), false);
+    assert.equal(hostnameExists(result, "lychee.land"), true);
+    assert.equal(hostnameExists(result, "app.lychee.land"), true);
   });
 
   test("collapses the blank lines the removal leaves behind", () => {
-    const result = removeSite(SAMPLE, "api.lyly.dev");
+    const result = removeSite(SAMPLE, "api.lychee.land");
     assert.doesNotMatch(result, /\n{3,}/);
   });
 
   test("throws for a hostname with no block", () => {
-    assert.throws(() => removeSite(SAMPLE, "absent.lyly.dev"), /No Caddyfile block found/);
+    assert.throws(() => removeSite(SAMPLE, "absent.lychee.land"), /No Caddyfile block found/);
   });
 });
 
 describe("hostnameExists", () => {
   test("is true for a present hostname and false for an absent one", () => {
-    assert.equal(hostnameExists(SAMPLE, "app.lyly.dev"), true);
-    assert.equal(hostnameExists(SAMPLE, "absent.lyly.dev"), false);
+    assert.equal(hostnameExists(SAMPLE, "app.lychee.land"), true);
+    assert.equal(hostnameExists(SAMPLE, "absent.lychee.land"), false);
   });
 });
 
 describe("computeFilesPath", () => {
   test("returns sitesRoot/hostname for a static site", () => {
-    const site = { hostname: "blog.lyly.dev", type: "static" as const, target: "/var/www/blog.lyly.dev" };
-    assert.equal(computeFilesPath(site, "/var/www"), "/var/www/blog.lyly.dev");
+    const site = { hostname: "blog.lychee.land", type: "static" as const, target: "/var/www/blog.lychee.land" };
+    assert.equal(computeFilesPath(site, "/var/www"), "/var/www/blog.lychee.land");
   });
 
   test("returns sitesRoot/hostname for a scaffolded reverse proxy", () => {
     const site = {
-      hostname: "app.lyly.dev",
+      hostname: "app.lychee.land",
       type: "reverse-proxy" as const,
       target: "3000",
       framework: "nextjs",
     };
-    assert.equal(computeFilesPath(site, "/var/www"), "/var/www/app.lyly.dev");
+    assert.equal(computeFilesPath(site, "/var/www"), "/var/www/app.lychee.land");
   });
 
   test("returns null for a reverse proxy with no framework", () => {
-    const site = { hostname: "api.lyly.dev", type: "reverse-proxy" as const, target: "4000" };
+    const site = { hostname: "api.lychee.land", type: "reverse-proxy" as const, target: "4000" };
     assert.equal(computeFilesPath(site, "/var/www"), null);
   });
 });

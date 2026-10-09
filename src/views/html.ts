@@ -89,7 +89,7 @@ const STATUS_SLOT = "flex justify-end sm:min-w-[9rem]";
 /**
  * A comma only a screen reader hears. A row's accessible name is computed from
  * its contents, so without these the four facts run together as
- * "api.lyly.dev localhost:4000 proxy not responding". Separators rather than an
+ * "api.lychee.land localhost:4000 proxy not responding". Separators rather than an
  * aria-label, deliberately: the name keeps deriving from the visible text, so
  * it cannot drift from what is on screen the way a hand-written label does.
  * `sr-only` is absolutely positioned, so it contributes nothing to the flex

@@ -22,7 +22,7 @@ describe("FileSystem.exists", () => {
     // fakes.ts imports config, which reads the environment when evaluated.
     process.env.ADMIN_USERNAME ??= "tester";
     process.env.ADMIN_PASSWORD_HASH ??= "x";
-    process.env.DOMAIN ??= "lyly.dev";
+    process.env.DOMAIN ??= "lychee.land";
     const { createInMemoryFileSystem } = await import("../dev/fakes");
     const mem = createInMemoryFileSystem();
     mem.writeFile("/var/www/a.txt", "x");

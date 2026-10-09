@@ -3,11 +3,11 @@ import { test } from "node:test";
 import { claimedPorts, normalizeRepo, parseDeclaration, resourceNameFor } from "./siteResource";
 
 test("maps a hostname to its resource name", () => {
-  assert.equal(resourceNameFor("test.lyly.dev", "lyly.dev"), "test-lyly-dev");
-  assert.equal(resourceNameFor("Test.lyly.dev", "lyly.dev"), "test-lyly-dev");
-  assert.equal(resourceNameFor("a.b.lyly.dev", "lyly.dev"), null);
-  assert.equal(resourceNameFor("x".repeat(55) + ".lyly.dev", "lyly.dev"), null);
-  assert.equal(resourceNameFor("x".repeat(54) + ".lyly.dev", "lyly.dev")?.length, 63);
+  assert.equal(resourceNameFor("test.lychee.land", "lychee.land"), "test-lychee-land");
+  assert.equal(resourceNameFor("Test.lychee.land", "lychee.land"), "test-lychee-land");
+  assert.equal(resourceNameFor("a.b.lychee.land", "lychee.land"), null);
+  assert.equal(resourceNameFor("x".repeat(52) + ".lychee.land", "lychee.land"), null);
+  assert.equal(resourceNameFor("x".repeat(51) + ".lychee.land", "lychee.land")?.length, 63);
 });
 
 test("normalizes a repository name", () => {
@@ -20,9 +20,9 @@ test("normalizes a repository name", () => {
 test("claimedPorts counts absent declarations too", () => {
   const m = claimedPorts([
     { name: "palsave-api", port: 8788, state: "running", image: "" },
-    { name: "old-lyly-dev", port: 3000, state: "absent", image: "" },
+    { name: "old-lychee-land", port: 3000, state: "absent", image: "" },
   ]);
-  assert.equal(m.get(3000), "old-lyly-dev");
+  assert.equal(m.get(3000), "old-lychee-land");
 });
 
 test("parseDeclaration tolerates garbage", () => {
