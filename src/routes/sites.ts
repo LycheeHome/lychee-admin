@@ -40,6 +40,7 @@ const SITE_ENV: SiteEnv = {
   caddyfilePath: config.caddyfilePath,
   tunnelConfigPath: config.tunnelConfigPath,
   reservedPorts: [config.port, CADDY_ADMIN_PORT],
+  reservedHostnames: config.reservedHostnames,
 };
 
 const PLACEHOLDER_INDEX_HTML = (hostname: string) =>

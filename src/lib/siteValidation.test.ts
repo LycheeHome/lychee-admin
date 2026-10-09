@@ -17,6 +17,7 @@ const ENV: SiteEnv = {
   caddyfilePath: "/etc/caddy/Caddyfile",
   tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
   reservedPorts: [8787, 2019],
+  reservedHostnames: ["admin.lychee.land"],
 };
 
 const NO_DECLARED = new Map<number, string>();
@@ -34,6 +35,15 @@ http://api.lychee.land {
 \treverse_proxy localhost:4000
 }
 `;
+
+describe("validateSiteInput reserved hostnames", () => {
+  test("refuses a hostname listed in reservedHostnames", () => {
+    assert.deepEqual(validateSiteInput({ hostname: "admin.lychee.land", type: "static", port: "" }, ENV), {
+      ok: false,
+      error: '"admin.lychee.land" is reserved',
+    });
+  });
+});
 
 describe("readSiteInput", () => {
   test("lowercases and trims the hostname, the way the add handler always has", () => {

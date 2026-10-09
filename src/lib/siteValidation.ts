@@ -21,6 +21,8 @@ export interface SiteEnv {
   tunnelConfigPath: string;
   /** lyly-admin's own port and Caddy's admin API, which no site may claim. */
   reservedPorts: readonly number[];
+  /** Hostnames served by config this app never parses; add-site refuses them. */
+  reservedHostnames: readonly string[];
 }
 
 export type Validation = { ok: true } | { ok: false; error: string };
@@ -90,6 +92,10 @@ export function readSiteInput(body: unknown): SiteInput {
 export function validateSiteInput(input: SiteInput, env: SiteEnv): Validation {
   if (!isValidHostname(input.hostname, env.domain)) {
     return { ok: false, error: `"${input.hostname}" must be a subdomain of ${env.domain}` };
+  }
+
+  if (env.reservedHostnames.includes(input.hostname)) {
+    return { ok: false, error: `"${input.hostname}" is reserved` };
   }
 
   if (input.type === "reverse-proxy" && (!input.port || Number(input.port) < 1 || Number(input.port) > 65535)) {

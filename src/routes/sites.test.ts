@@ -22,6 +22,7 @@ process.env.ADMIN_USERNAME = "tester";
 process.env.ADMIN_PASSWORD_HASH = bcrypt.hashSync(PASSWORD, 4);
 process.env.DOMAIN = "lychee.land";
 process.env.PORT = "8787";
+process.env.RESERVED_HOSTNAMES = "admin.lychee.land";
 process.env.LOG_FILE = LOG_FILE;
 process.env.CADDYFILE_PATH = CADDYFILE;
 process.env.TUNNEL_CONFIG_PATH = TUNNEL_CONFIG;
@@ -385,6 +386,24 @@ describe("POST /sites — static", () => {
     const response = await request("/sites", form({ hostname: "new.lychee.land", type: "static" }));
     assert.equal(response.status, 500);
     assert.match((await json<{ error: string }>(response)).error, /ENOENT/);
+  });
+});
+
+describe("reserved hostnames", () => {
+  test("the preview and the submit both refuse a reserved hostname, and the submit writes nothing", async () => {
+    const preview = await json<{ ready: boolean; error: string }>(
+      await request("/sites/preview", form({ hostname: "ADMIN.lychee.land", type: "static" })),
+    );
+    assert.equal(preview.ready, false);
+    assert.equal(preview.error, '"admin.lychee.land" is reserved');
+
+    const before = fakeFs.readFile(CADDYFILE);
+    const submit = await request("/sites", form({ hostname: "ADMIN.lychee.land", type: "static" }));
+    assert.equal(submit.status, 400);
+    assert.equal((await json<{ error: string }>(submit)).error, '"admin.lychee.land" is reserved');
+    assert.equal(fakeFs.readFile(CADDYFILE), before);
+    assert.equal(fakeFs.readFile(TUNNEL_CONFIG), SEED_TUNNEL);
+    assert.equal(createSiteDirectoryCalls.length, 0);
   });
 });
 

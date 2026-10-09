@@ -11,6 +11,7 @@ const ENV: SiteEnv = {
   caddyfilePath: "/etc/caddy/Caddyfile",
   tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
   reservedPorts: [8787, 2019],
+  reservedHostnames: [],
 };
 
 const CADDYFILE = `{
