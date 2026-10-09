@@ -59,10 +59,13 @@ app repo; its value is in lychee-ops' `HOST.md`.
 **Each tick, in order:**
 
 1. **Packages:** install `certbot` and `python3-certbot-dns-cloudflare` (apt).
-   The package cache is refreshed only on a tick where one of them is missing
-   (checked with a read-only `dpkg-query`), so an installed host never runs
-   `apt-get update` from the reconciler, and a mirror blip or the
-   unattended-upgrades lock can't fail a tick over nothing.
+   The role never refreshes the package lists; it installs from whatever
+   lists the host already has, which Ubuntu's apt-daily timer keeps current.
+   (Amended after the first host tick, 2026-10-09: the earlier "refresh only
+   when a package is missing" failed that very tick. `apt-get update` fails
+   as a whole when any one repository does, and Caddy's apt repository on
+   Cloudsmith was answering 402, while both packages were already in the
+   cached Ubuntu lists.)
 2. **Credential:**
    - The token gates only this step and step 3. Everything from step 4 on runs
      whenever `/etc/letsencrypt/live/{{ admin_hostname }}/fullchain.pem`

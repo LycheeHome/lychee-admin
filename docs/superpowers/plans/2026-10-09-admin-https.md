@@ -120,7 +120,7 @@ Two pieces are their own task files so the off-host suite can import them: the `
 
 `main.yml`, in this exact order:
 
-1. **Packages:** a read-only `dpkg-query` (`check_mode: false`) sees whether both are installed; `ansible.builtin.apt` installs `certbot` and `python3-certbot-dns-cloudflare`, with `update_cache` true only when one is missing. No `cache_valid_time`: it would run `apt-get update` as root every hour for packages already there.
+1. **Packages:** `ansible.builtin.apt` installs `certbot` and `python3-certbot-dns-cloudflare` with no `update_cache` at all; the host's apt-daily keeps the lists current. (Amended after the first host tick: refreshing when a package was missing failed because an unrelated third-party repository returned 402; see the spec's step 1.)
 2. **No token:** set `admin_https_has_token` from `cloudflare_dns_token | default('') | length > 0` and stat `live/{{ admin_hostname }}/fullchain.pem`. Without a token, print a debug line ("cloudflare_dns_token not set in /etc/lychee-ops/secrets.yml; admin.lychee.land certificate not managed", or "still served and checked, but not re-issued" when the certificate exists). `meta: end_role` only when there is no token and no certificate.
 3. **Credential** (only with a token): `ansible.builtin.copy` writes `/etc/letsencrypt/cloudflare-lychee-land.ini` with `content: "dns_cloudflare_api_token = {{ cloudflare_dns_token }}\n"`, root:root `0600`, `no_log: true`.
 4. **Issue** (only with a token): `ansible.builtin.command` with argv `[certbot, certonly, --non-interactive, --agree-tos, --register-unsafely-without-email, --dns-cloudflare, --dns-cloudflare-credentials, /etc/letsencrypt/cloudflare-lychee-land.ini, --cert-name, "{{ admin_hostname }}", -d, "{{ admin_hostname }}"]`.
