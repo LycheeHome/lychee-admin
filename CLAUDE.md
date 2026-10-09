@@ -32,6 +32,8 @@ The check that distinguishes them: the cache file's **modification time**, never
 
 `lyly-admin` is a small local web app that runs on a host named `lychee` (Ubuntu Server) and automates adding/removing subdomains for an existing Caddy + Cloudflare Tunnel setup. It replaces manually editing the Caddyfile and tunnel ingress config by hand.
 
+**The repository is `LycheeHome/lychee-admin`; the app is still `lyly-admin`.** The repo was renamed on 2026-10-09 to match `lychee-ops`, `lychee-resources` and the `lychee-sites` tunnel — `lychee-` plus what the thing does, named for the host rather than a domain, since naming it for `lyly.dev` is what made the old name go stale. Only the repository moved. Everything the app *is* on the host — the `lyly-admin` user, `lyly-admin.service`, `/opt/lyly-admin`, `/var/lib/lyly-admin`, `/etc/lyly-admin`, `/var/log/lyly-admin`, the sudoers drop-in and the `lyly-admin-*` wrappers it pins — keeps its name, as does the `package.json` name, because renaming those is a host migration with ownership, sudo and unit changes under a live reconciler, not part of a repo rename. So throughout this file, `lyly-admin` means the app and its host identity, never a repository to clone.
+
 **Tier 1 scope**: this app does not touch Cloudflare DNS. Creating a hostname's DNS record stays a manual, deliberate step (a proxied CNAME in the Cloudflare dashboard, or `cloudflared tunnel route dns` from a machine that has a Cloudflare login). The app only manages the local side: Caddy config, tunnel ingress config, `/var/www` directories, and service reloads/restarts.
 
 ## Stack
