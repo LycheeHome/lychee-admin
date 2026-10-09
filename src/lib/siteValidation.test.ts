@@ -5,6 +5,9 @@ import {
   validateSiteInput,
   validateAgainstExisting,
   isManagedHostname,
+  maxSiteLabelLength,
+  siteNamePatternFor,
+  siteSuffixFor,
   type SiteEnv,
 } from "./siteValidation";
 
@@ -192,5 +195,45 @@ describe("isManagedHostname", () => {
 
   test("excludes a block lyly-admin does not own", () => {
     assert.equal(isManagedHostname("lychee.local", "lyly.dev"), false);
+  });
+});
+
+describe("the suffix, pattern and label limit follow the domain", () => {
+  test("siteSuffixFor turns dots into dashes", () => {
+    assert.equal(siteSuffixFor("lychee.land"), "-lychee-land");
+    assert.equal(siteSuffixFor("example.co.uk"), "-example-co-uk");
+  });
+
+  test("maxSiteLabelLength is 63 minus the suffix", () => {
+    assert.equal(maxSiteLabelLength("lychee.land"), 51);
+  });
+
+  test("siteNamePatternFor matches whole names under that suffix only", () => {
+    const re = siteNamePatternFor("lychee.land");
+    assert.equal(re.test("blog-lychee-land"), true);
+    assert.equal(re.test("blog-lyly-dev"), false);
+    assert.equal(re.test("-lychee-land"), false);
+    assert.equal(re.test("xblog-lychee-landx"), false);
+    assert.equal(re.test("blog-lychee.land"), false);
+    assert.equal(re.test("blog-lycheexland"), false);
+  });
+
+  test("the Next.js label error names the limit for the configured domain", () => {
+    const env = { ...ENV, domain: "lychee.land" };
+    const long = validateSiteInput(
+      readSiteInput({ hostname: `${"a".repeat(52)}.lychee.land`, type: "reverse-proxy", port: "3000", framework: "nextjs" }),
+      env,
+    );
+    assert.equal(long.ok, false);
+    const error = long.ok ? "" : long.error;
+    assert.match(error, /at most 51 characters/);
+    assert.match(error, /<label>-lychee-land/);
+    assert.deepEqual(
+      validateSiteInput(
+        readSiteInput({ hostname: `${"a".repeat(51)}.lychee.land`, type: "reverse-proxy", port: "3000", framework: "nextjs" }),
+        env,
+      ),
+      { ok: true },
+    );
   });
 });

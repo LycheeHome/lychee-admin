@@ -1,4 +1,5 @@
 import express from "express";
+import { config } from "../config";
 import type { Deps } from "../deps";
 import { isSiteName } from "../lib/declarationWriter";
 import { readInventory } from "../lib/serviceInventory";
@@ -42,10 +43,10 @@ export function createServicesRouter(deps: Deps): express.Router {
       ]);
       const board = buildBoard(inventory, states, schedule, Object.fromEntries(statuses));
       const prunable = new Set(
-        (declarations ?? []).filter((d) => d.state === "absent" && isSiteName(d.name)).map((d) => d.name),
+        (declarations ?? []).filter((d) => d.state === "absent" && isSiteName(d.name, config.domain)).map((d) => d.name),
       );
 
-      res.type("html").send(renderServicesPage(board, new Date(), prunable));
+      res.type("html").send(renderServicesPage(board, new Date(), prunable, config.domain));
     } catch (error) {
       res.status(500).type("text/plain").send(`Could not render services: ${String(error)}`);
     }
@@ -110,7 +111,7 @@ export function createServicesRouter(deps: Deps): express.Router {
         logAction({ action: "prune-declaration-refused", hostname: name, detail: reason });
         res.status(status).json({ ok: false, reason });
       };
-      if (!isSiteName(name)) {
+      if (!isSiteName(name, config.domain)) {
         refuse(404, `No site resource named ${name}.`);
         return;
       }

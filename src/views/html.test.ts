@@ -1480,7 +1480,7 @@ describe("renderServicesPage", () => {
   const NOW = new Date("2026-10-02T05:00:00Z");
 
   test("an unavailable inventory renders an explanation, not an empty page", () => {
-    const html = renderServicesPage({ groups: [], schedule: NO_SCHEDULE, timerUnit: null, generated: null, inventoryAvailable: false }, NOW);
+    const html = renderServicesPage({ groups: [], schedule: NO_SCHEDULE, timerUnit: null, generated: null, inventoryAvailable: false }, NOW, new Set(), "lyly.dev");
     assert.ok(html.includes("inventory"));
     assert.ok(!html.includes("undefined"));
     assert.ok(!html.includes("NaN"));
@@ -1497,7 +1497,7 @@ describe("renderServicesPage", () => {
             reconciled: false, status: "running", since: null },
         ] }],
       },
-      NOW,
+      NOW, new Set(), "lyly.dev",
     );
     assert.ok(html.includes("palworld"));
     assert.ok(html.includes("Inventory written 2 minutes ago"));
@@ -1512,7 +1512,7 @@ describe("renderServicesPage", () => {
   test("an available inventory with no recognised groups explains itself rather than rendering a bare frame", () => {
     const html = renderServicesPage(
       { groups: [], schedule: NO_SCHEDULE, timerUnit: null, generated: "2026-10-02T04:58:00Z", inventoryAvailable: true },
-      NOW,
+      NOW, new Set(), "lyly.dev",
     );
     assert.ok(html.includes('id="inventory-unavailable"'));
   });
@@ -1529,7 +1529,7 @@ describe("renderServicesPage", () => {
             reconciled: false, status: "running", since: null },
         ] }],
       },
-      NOW,
+      NOW, new Set(), "lyly.dev",
     );
     assert.ok(!html.includes("next run"));
     assert.ok(html.includes("last run 2 minutes ago"));
@@ -1547,7 +1547,7 @@ describe("renderServicesPage", () => {
             version: "v0.2.0", result: "blocked", failedAttempts: 3, gate, status: "unknown", since: null },
         ] }],
       },
-      NOW,
+      NOW, new Set(), "lyly.dev",
     );
     assert.ok(html.includes("v0.2.0 · blocked · 3 attempts"));
     assert.ok(html.includes(gate));
@@ -1569,7 +1569,7 @@ describe("renderServicesPage", () => {
             status: "running", since: null, ...extra } as never,
         ] }],
       },
-      NOW,
+      NOW, new Set(), "lyly.dev",
     );
   }
 
@@ -1671,7 +1671,7 @@ describe("renderServicesPage", () => {
           { name, kind: "container", container: name, group: "service", reconciled: true, target: "v1", result: "failed", status: "exited", since: null } as never
         )) }],
       },
-      NOW,
+      NOW, new Set(), "lyly.dev",
     );
     const ids = [...html.matchAll(/<pre id="([^"]+)"/g)].map((m) => m[1]);
     assert.equal(ids.length, 2);
@@ -1699,7 +1699,7 @@ describe("renderServicesPage", () => {
           { name: "x", kind: "unit", unit: "x.service", group: "service", reconciled: false, status, since: null },
         ] }],
       },
-      NOW,
+      NOW, new Set(), "lyly.dev",
     );
   }
 
@@ -1739,13 +1739,13 @@ describe("Prune on the services board", () => {
   };
 
   test("a row whose site declaration is absent carries the same control as the site page", () => {
-    const html = renderServicesPage(board(["gone-lyly-dev", "app-lyly-dev"]), NOW, new Set(["gone-lyly-dev"]));
+    const html = renderServicesPage(board(["gone-lyly-dev", "app-lyly-dev"]), NOW, new Set(["gone-lyly-dev"]), "lyly.dev");
     assert.ok(rowOf(html, "gone-lyly-dev").includes(renderPruneControl("gone-lyly-dev")));
     assert.doesNotMatch(rowOf(html, "app-lyly-dev"), /data-prune/);
   });
 
   test("the prune button is the compact secondary on both surfaces: the offer's 32px, secondary's look", () => {
-    for (const markup of [renderPruneControl("gone-lyly-dev"), rowOf(renderServicesPage(board(["gone-lyly-dev"]), NOW, new Set(["gone-lyly-dev"])), "gone-lyly-dev")]) {
+    for (const markup of [renderPruneControl("gone-lyly-dev"), rowOf(renderServicesPage(board(["gone-lyly-dev"]), NOW, new Set(["gone-lyly-dev"]), "lyly.dev"), "gone-lyly-dev")]) {
       assert.ok(markup.includes(`class="${BUTTON_SECONDARY_COMPACT}"`));
       assert.doesNotMatch(markup, /min-h-10/);
     }
@@ -1766,13 +1766,13 @@ describe("Prune on the services board", () => {
   });
 
   test("a non-site name gets no control even if it is named absent", () => {
-    const html = renderServicesPage(board(["palsave-api"]), NOW, new Set(["palsave-api"]));
+    const html = renderServicesPage(board(["palsave-api"]), NOW, new Set(["palsave-api"]), "lyly.dev");
     assert.doesNotMatch(html, /data-prune/);
   });
 
   test("with nothing named absent (or the clone unreadable) no row carries the control", () => {
-    assert.doesNotMatch(renderServicesPage(board(["gone-lyly-dev"]), NOW), /data-prune/);
-    assert.doesNotMatch(renderServicesPage(board(["gone-lyly-dev"]), NOW, new Set()), /data-prune/);
+    assert.doesNotMatch(renderServicesPage(board(["gone-lyly-dev"]), NOW, new Set(), "lyly.dev"), /data-prune/);
+    assert.doesNotMatch(renderServicesPage(board(["gone-lyly-dev"]), NOW, new Set(), "lyly.dev"), /data-prune/);
   });
 });
 
@@ -1973,7 +1973,7 @@ describe("renderSiteDetail from a repository", () => {
         generated: null,
         inventoryAvailable: true,
       },
-      new Date("2026-10-05T00:00:00Z"),
+      new Date("2026-10-05T00:00:00Z"), new Set(), "lyly.dev",
     );
     const site = renderSiteDetail(NEXT_SITE, {
       ...BASE,

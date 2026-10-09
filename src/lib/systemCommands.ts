@@ -1,5 +1,6 @@
 import { execFile as execFileCb, spawn } from "node:child_process";
 import { promisify } from "node:util";
+import { config } from "../config";
 import {
   changeSiteRepository,
   createSiteDeclaration,
@@ -273,23 +274,23 @@ export const realSystemCommands: SystemCommands = {
    * that acts on it; see declarationWriter.ts.
    */
   writeDeclarationTag(name, tag) {
-    return writeDeclarationTag(name, tag, { git: gitRunner });
+    return writeDeclarationTag(name, tag, { git: gitRunner, domain: config.domain });
   },
 
   createSiteDeclaration(name, repo, port) {
-    return createSiteDeclaration(name, repo, port, { git: gitRunner });
+    return createSiteDeclaration(name, repo, port, { git: gitRunner, domain: config.domain });
   },
 
   setDeclarationState(name, state) {
-    return setDeclarationState(name, state, { git: gitRunner });
+    return setDeclarationState(name, state, { git: gitRunner, domain: config.domain });
   },
 
   pruneSiteDeclaration(name, opts) {
-    return pruneSiteDeclaration(name, { git: gitRunner }, opts);
+    return pruneSiteDeclaration(name, { git: gitRunner, domain: config.domain }, opts);
   },
 
   changeSiteRepository(name, repo) {
-    return changeSiteRepository(name, repo, { git: gitRunner });
+    return changeSiteRepository(name, repo, { git: gitRunner, domain: config.domain });
   },
 
   /** The local clone as last pulled; no git, no network. null when unreadable. */
@@ -312,7 +313,7 @@ export const realSystemCommands: SystemCommands = {
     });
     try {
       await Promise.race([
-        refreshDeclarations({ git: gitRunner, timeoutMs: DECLARATION_REFRESH_TIMEOUT_MS }),
+        refreshDeclarations({ git: gitRunner, domain: config.domain, timeoutMs: DECLARATION_REFRESH_TIMEOUT_MS }),
         deadline,
       ]);
     } finally {

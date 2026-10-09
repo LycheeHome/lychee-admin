@@ -1193,7 +1193,7 @@ function renderOfferLine(name: string, tag: string): string {
           </p>`;
 }
 
-function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date, prunable: ReadonlySet<string>): string {
+function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date, prunable: ReadonlySet<string>, domain: string): string {
   // `target` is what the reconciler has been asked to run; `version` is what
   // it last confirmed running. "Applying" means the reconciler last ran
   // cleanly (`deployed` or `skipped`) and the pin has since moved, so the next
@@ -1260,7 +1260,7 @@ function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date, prunabl
             // A retired site's declaration, still in lychee-resources. Site
             // names only: a hand-declared resource (palsave-api) is never
             // pruned from here, whatever the caller passed.
-            prunable.has(row.name) && isSiteName(row.name) ? renderPruneControl(row.name) : ""
+            prunable.has(row.name) && isSiteName(row.name, domain) ? renderPruneControl(row.name) : ""
           }
         </div>
       </li>`;
@@ -1275,7 +1275,8 @@ function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date, prunabl
 export function renderServicesPage(
   board: ServiceBoard,
   now: Date = new Date(),
-  prunable: ReadonlySet<string> = new Set(),
+  prunable: ReadonlySet<string>,
+  domain: string,
 ): string {
   const written = formatAge(board.generated, now);
   const freshness = board.inventoryAvailable
@@ -1289,7 +1290,7 @@ export function renderServicesPage(
       (g) => `
     <section aria-labelledby="group-${g.group}">
       <h3 id="group-${g.group}" class="${GROUP_LABEL}">${GROUP_LABELS[g.group]}</h3>
-      <ul class="list-none m-0 p-0 flex flex-col">${g.rows.map((r) => renderServiceRow(r, board, now, prunable)).join("")}
+      <ul class="list-none m-0 p-0 flex flex-col">${g.rows.map((r) => renderServiceRow(r, board, now, prunable, domain)).join("")}
       </ul>
     </section>`,
     )

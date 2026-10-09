@@ -38,3 +38,10 @@ test("parseDeclaration reads a declaration", () => {
     image: "ghcr.io/a/b:1",
   });
 });
+
+test("resourceNameFor derives the suffix from the domain", () => {
+  assert.equal(resourceNameFor("blog.lychee.land", "lychee.land"), "blog-lychee-land");
+  assert.equal(resourceNameFor("blog.example.test", "example.test"), "blog-example-test");
+  assert.equal(resourceNameFor("x".repeat(52) + ".lychee.land", "lychee.land"), null);
+  assert.equal(resourceNameFor("x".repeat(51) + ".lychee.land", "lychee.land")?.length, 63);
+});
