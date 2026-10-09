@@ -168,16 +168,53 @@ drifting apart.
 3. **Merge the lychee-admin PR.** Once CI is green, the next tick deploys it
    and restarts the app with the new `DOMAIN` and the reservation.
 
-**Window: don't add sites between step 2 and the step 3 deploy.** For those few
-minutes, the running app still makes `lyly.dev` names that lychee-ops now
-rejects:
-- **Static add:** fails at `create-site-dir` and rolls back.
-- **Next.js attach:** writes a declaration the validator rejects, which pauses
-  every container resource for that tick.
+**Before step 2, the operator checks that nothing is named for the old
+domain** (amended after the whole-branch review). The cutover is hard: after
+step 2 the reconciler no longer treats a `-lyly-dev` name as a site, so one left
+over would be handled as a plain resource or rejected outright. The first
+command should print nothing (no site accounts), and the two listings should
+show only `palsave-api`:
 
-Both fail closed. The reverse order (app first) is worse: the app would make
-`-lychee-land` names that the old validator doesn't recognise as sites, and
-would accept them without the site profile.
+```
+getent passwd | grep -- '-lyly-dev:'
+sudo ls /etc/lychee-resources /var/lib/lychee-resources
+ls /var/lib/lyly-admin/lychee-resources
+```
+
+**Window: add or attach no sites from step 1 until the step 3 deploy is
+confirmed, and don't restart lyly-admin in between** (amended after the
+whole-branch review; this paragraph first opened the window at step 2 and
+called both failures fail-closed, and neither was true). The window opens at
+step 1, not step 2. The running app on `main` reads `DOMAIN` for validation
+but hardcodes `-lyly-dev` and `.lyly.dev` when it names a declaration. So if
+lyly-admin restarts after step 1 and before the step 3 deploy — a reboot, a
+crash, or the old ops deploying some other `main` commit — old code runs with
+`DOMAIN=lychee.land`: it accepts `x.lychee.land` and names it `x-lyly-dev`, a
+mix that neither side's code expects. Within the window, with the old process
+still running, adds go wrong in three ways:
+
+- **Static add:** fails at `create-site-dir` once step 2 has landed, and rolls
+  back. This one is fail-closed.
+- **Reverse-proxy add** (plain, or a Next.js site before Attach): succeeds,
+  because it writes only the Caddyfile block and the ingress rule. After step
+  3, `isManagedHostname` hides `x.lyly.dev`, so its block and rule are
+  orphaned: the new app can neither list nor remove them, and they have to be
+  taken out by hand.
+- **Next.js attach:** writes `x-lyly-dev.yml`, which the new validator rejects
+  on **every** tick, not one. Its errors stop `can_apply`, so `palsave-api` and
+  every other resource stay frozen until it is gone. The new app can't prune it
+  either (`isSiteName` is false for it), so only a hand commit to
+  `lychee-resources` clears it.
+
+The reverse order (app first) is worse: the app would make `-lychee-land` names
+that the old validator doesn't recognise as sites, and would accept them
+without the site profile.
+
+**A mismatched `.env` shows `blocked`, not `skipped`** (amended after the
+whole-branch review). Once step 2 has landed, a `.env` whose `DOMAIN` or
+`RESERVED_HOSTNAMES` doesn't match blocks the app deploy, and the status file
+reads `blocked` with that gate string on every tick, not only the first, until
+`.env` is fixed.
 
 ## Verification
 
@@ -204,8 +241,21 @@ would accept them without the site profile.
 
 ## Rollback
 
-Revert both PRs and set `.env` back to `DOMAIN=lyly.dev`. There's no data
-either way.
+In this order (amended after the whole-branch review, which found the order
+matters):
+
+1. **Revert the lychee-ops PR.** The new ops blocks every app deploy while
+   `.env` doesn't say `lychee.land`, so it has to go first, or step 3 would
+   never install.
+2. **Set `.env` back to `DOMAIN=lyly.dev`**, and drop `RESERVED_HOSTNAMES`.
+   **No restart**, for the same reason as cutover step 1.
+3. **Revert the lychee-admin PR.** The next tick deploys it and restarts the
+   app with `lyly.dev`.
+
+The same window applies between steps 1 and 3: add or attach no sites, and
+don't restart lyly-admin. Any site added under `lychee.land` before the
+rollback should be removed first, since the old app's `isManagedHostname` will
+hide it. Otherwise there's no data either way.
 
 ## Later, not here
 
