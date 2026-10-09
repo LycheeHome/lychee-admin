@@ -20,8 +20,9 @@ const PASSWORD = "test-password";
 
 process.env.ADMIN_USERNAME = "tester";
 process.env.ADMIN_PASSWORD_HASH = bcrypt.hashSync(PASSWORD, 4);
-process.env.DOMAIN = "lyly.dev";
+process.env.DOMAIN = "lychee.land";
 process.env.PORT = "8787";
+process.env.RESERVED_HOSTNAMES = "admin.lychee.land";
 process.env.LOG_FILE = LOG_FILE;
 process.env.CADDYFILE_PATH = CADDYFILE;
 process.env.TUNNEL_CONFIG_PATH = TUNNEL_CONFIG;
@@ -32,12 +33,12 @@ const SEED_CADDYFILE = `{
 \tauto_https off
 }
 
-http://blog.lyly.dev {
-\troot * ${SITES_ROOT}/blog.lyly.dev
+http://blog.lychee.land {
+\troot * ${SITES_ROOT}/blog.lychee.land
 \tfile_server
 }
 
-http://api.lyly.dev {
+http://api.lychee.land {
 \treverse_proxy localhost:4000
 }
 
@@ -49,9 +50,9 @@ http://lychee.local {
 
 const SEED_TUNNEL = `tunnel: 11111111-2222-3333-4444-555555555555
 ingress:
-  - hostname: blog.lyly.dev
+  - hostname: blog.lychee.land
     service: http://localhost:80
-  - hostname: api.lyly.dev
+  - hostname: api.lychee.land
     service: http://localhost:80
   - service: http_status:404
 `;
@@ -163,8 +164,8 @@ describe("GET /", () => {
     // links on every page, so matching the whole body would no longer prove
     // a card rendered — it would pass off the header alone.
     const page = withoutHeader(body);
-    assert.match(page, /blog\.lyly\.dev/);
-    assert.match(page, /api\.lyly\.dev/);
+    assert.match(page, /blog\.lychee\.land/);
+    assert.match(page, /api\.lychee\.land/);
   });
 
   test("omits hostnames outside the managed domain", async () => {
@@ -173,7 +174,7 @@ describe("GET /", () => {
   });
 
   test("states the DNS reminder after a removal", async () => {
-    const response = await request("/?removed=blog.lyly.dev");
+    const response = await request("/?removed=blog.lychee.land");
     const html = await response.text();
     assert.match(html, /id="page-notice"/);
     assert.match(html, /Remember to remove the DNS record/);
@@ -193,7 +194,7 @@ describe("status on the site list", () => {
   // pill's accessible name.
   test("reports each proxy site's status", async () => {
     const page = withoutHeader(await (await request("/")).text());
-    // api.lyly.dev is the seeded plain proxy on port 4000. Nothing listens
+    // api.lychee.land is the seeded plain proxy on port 4000. Nothing listens
     // there during the test, so the tcp check resolves either way — the
     // assertion is that a canonical status word reached the card at all.
     assert.match(page, /<span aria-hidden="true">&#9679;<\/span> (responding|not responding)/);
@@ -201,7 +202,7 @@ describe("status on the site list", () => {
 
   test("says nothing about a static site's liveness", async () => {
     const page = withoutHeader(await (await request("/")).text());
-    const card = page.match(/<a href="\/sites\/blog\.lyly\.dev"[\s\S]*?<\/a>/)?.[0] ?? "";
+    const card = page.match(/<a href="\/sites\/blog\.lychee\.land"[\s\S]*?<\/a>/)?.[0] ?? "";
     assert.ok(card, "expected a card for the static site");
     assert.doesNotMatch(card, /&#9679;/);
   });
@@ -230,7 +231,7 @@ describe("GET / when the Caddyfile can't be read", () => {
   test("still states the DNS reminder even though the list itself can't render", async () => {
     fakeFs.rmRecursive(CADDYFILE);
 
-    const response = await request("/?removed=blog.lyly.dev");
+    const response = await request("/?removed=blog.lychee.land");
 
     assert.equal(response.status, 500);
     const body = await response.text();
@@ -262,8 +263,8 @@ describe("GET /sites/new", () => {
     // hostnames, so this doesn't change what the assertion below proves, but
     // it keeps this test consistent with the others that strip it.
     const page = withoutHeader(body);
-    // 4000 is api.lyly.dev in the fixture; 8787 is lyly-admin's own PORT.
-    assert.match(page, /api\.lyly\.dev/);
+    // 4000 is api.lychee.land in the fixture; 8787 is lyly-admin's own PORT.
+    assert.match(page, /api\.lychee\.land/);
     assert.match(page, /8787/);
   });
 
@@ -275,7 +276,7 @@ describe("GET /sites/new", () => {
 
 describe("refreshing the lychee-resources clone", () => {
   const NEXT = `${SEED_CADDYFILE}
-http://test.lyly.dev {
+http://test.lychee.land {
 \t# lyly-admin-framework: nextjs
 \t# lyly-admin-healthcheck: /
 \treverse_proxy localhost:3000
@@ -304,13 +305,13 @@ http://test.lyly.dev {
   });
 
   test("a Next.js site's page refreshes the clone before reading its declaration", async () => {
-    assert.equal((await request("/sites/test.lyly.dev")).status, 200);
+    assert.equal((await request("/sites/test.lychee.land")).status, 200);
     assert.equal(refreshes, 1);
   });
 
   test("the preview, which runs per keystroke, and the submit never refresh", async () => {
-    await request("/sites/preview", form({ hostname: "docs.lyly.dev", type: "reverse-proxy", port: "3300" }));
-    await request("/sites", form({ hostname: "docs.lyly.dev", type: "reverse-proxy", port: "3300" }));
+    await request("/sites/preview", form({ hostname: "docs.lychee.land", type: "reverse-proxy", port: "3300" }));
+    await request("/sites", form({ hostname: "docs.lychee.land", type: "reverse-proxy", port: "3300" }));
     assert.equal(refreshes, 0);
   });
 
@@ -318,7 +319,7 @@ http://test.lyly.dev {
   test("a refresh that fails still renders both pages", async () => {
     fakeCommands.refreshDeclarations = () => Promise.reject(new Error("network down"));
     assert.equal((await request("/sites/new")).status, 200);
-    const response = await request("/sites/test.lyly.dev");
+    const response = await request("/sites/test.lychee.land");
     assert.equal(response.status, 200);
     assert.match(await response.text(), /From a repository/);
   });
@@ -335,13 +336,13 @@ describe("POST /sites — static", () => {
   ];
 
   test("adds a Caddyfile block, an ingress rule, a directory, and a placeholder page", async () => {
-    const response = await request("/sites", form({ hostname: "new.lyly.dev", type: "static" }));
+    const response = await request("/sites", form({ hostname: "new.lychee.land", type: "static" }));
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), {
       added: true,
-      hostname: "new.lyly.dev",
+      hostname: "new.lychee.land",
       type: "static",
-      target: `${SITES_ROOT}/new.lyly.dev`,
+      target: `${SITES_ROOT}/new.lychee.land`,
       framework: "none",
       // Derived from the seeded tunnel config's `tunnel:` key, not from an
       // environment variable that could drift from it.
@@ -349,17 +350,17 @@ describe("POST /sites — static", () => {
       steps: OK_ADD_STEPS,
     });
 
-    assert.match(fakeFs.readFile(CADDYFILE), /http:\/\/new\.lyly\.dev \{/);
-    assert.match(fakeFs.readFile(TUNNEL_CONFIG), /hostname: new\.lyly\.dev/);
-    assert.equal(fakeFs.hasDir(path.join(SITES_ROOT, "new.lyly.dev")), true);
+    assert.match(fakeFs.readFile(CADDYFILE), /http:\/\/new\.lychee\.land \{/);
+    assert.match(fakeFs.readFile(TUNNEL_CONFIG), /hostname: new\.lychee\.land/);
+    assert.equal(fakeFs.hasDir(path.join(SITES_ROOT, "new.lychee.land")), true);
     assert.match(
-      fakeFs.readFile(path.join(SITES_ROOT, "new.lyly.dev", "index.html")),
+      fakeFs.readFile(path.join(SITES_ROOT, "new.lychee.land", "index.html")),
       /Site created by lyly-admin/,
     );
   });
 
   test("a static site reports every step as ok", async () => {
-    const response = await request("/sites", form({ hostname: "new.lyly.dev", type: "static" }));
+    const response = await request("/sites", form({ hostname: "new.lychee.land", type: "static" }));
     const body = await json<{ steps: { status: string }[] }>(response);
     assert.ok(body.steps.every((step) => step.status === "ok"));
   });
@@ -367,11 +368,11 @@ describe("POST /sites — static", () => {
   test("rejects a hostname outside the managed domain", async () => {
     const response = await request("/sites", form({ hostname: "evil.example.com", type: "static" }));
     assert.equal(response.status, 400);
-    assert.match((await json<{ error: string }>(response)).error, /must be a subdomain of lyly\.dev/);
+    assert.match((await json<{ error: string }>(response)).error, /must be a subdomain of lychee\.land/);
   });
 
   test("rejects a hostname that already exists", async () => {
-    const response = await request("/sites", form({ hostname: "blog.lyly.dev", type: "static" }));
+    const response = await request("/sites", form({ hostname: "blog.lychee.land", type: "static" }));
     assert.equal(response.status, 400);
     const body = await json<{ error: string }>(response);
     assert.match(body.error, /already exists in the Caddyfile/);
@@ -382,9 +383,27 @@ describe("POST /sites — static", () => {
 
   test("an unreadable Caddyfile is still a 500, not an input error", async () => {
     fakeFs.rmRecursive(CADDYFILE);
-    const response = await request("/sites", form({ hostname: "new.lyly.dev", type: "static" }));
+    const response = await request("/sites", form({ hostname: "new.lychee.land", type: "static" }));
     assert.equal(response.status, 500);
     assert.match((await json<{ error: string }>(response)).error, /ENOENT/);
+  });
+});
+
+describe("reserved hostnames", () => {
+  test("the preview and the submit both refuse a reserved hostname, and the submit writes nothing", async () => {
+    const preview = await json<{ ready: boolean; error: string }>(
+      await request("/sites/preview", form({ hostname: "ADMIN.lychee.land", type: "static" })),
+    );
+    assert.equal(preview.ready, false);
+    assert.equal(preview.error, '"admin.lychee.land" is reserved');
+
+    const before = fakeFs.readFile(CADDYFILE);
+    const submit = await request("/sites", form({ hostname: "ADMIN.lychee.land", type: "static" }));
+    assert.equal(submit.status, 400);
+    assert.equal((await json<{ error: string }>(submit)).error, '"admin.lychee.land" is reserved');
+    assert.equal(fakeFs.readFile(CADDYFILE), before);
+    assert.equal(fakeFs.readFile(TUNNEL_CONFIG), SEED_TUNNEL);
+    assert.equal(createSiteDirectoryCalls.length, 0);
   });
 });
 
@@ -392,7 +411,7 @@ describe("POST /sites — reverse proxy", () => {
   test("a Next.js site writes both marker comments and nothing to the host", async () => {
     const response = await request(
       "/sites",
-      form({ hostname: "app.lyly.dev", type: "reverse-proxy", port: "3000", framework: "nextjs", healthcheckPath: "/api/health" }),
+      form({ hostname: "app.lychee.land", type: "reverse-proxy", port: "3000", framework: "nextjs", healthcheckPath: "/api/health" }),
     );
     assert.equal(response.status, 200);
     const body = await json<{ framework: string; steps: { id: string; status: string }[] }>(response);
@@ -403,7 +422,7 @@ describe("POST /sites — reverse proxy", () => {
     assert.match(caddyfile, /# lyly-admin-framework: nextjs/);
     assert.match(caddyfile, /# lyly-admin-healthcheck: \/api\/health/);
 
-    const siteDir = path.join(SITES_ROOT, "app.lyly.dev");
+    const siteDir = path.join(SITES_ROOT, "app.lychee.land");
     assert.equal(fakeFs.hasDir(siteDir), false);
     assert.equal(fakeFs.hasFile(path.join(siteDir, "Dockerfile")), false);
     assert.equal(fakeFs.hasFile(path.join(siteDir, ".github/workflows/release.yml")), false);
@@ -411,12 +430,12 @@ describe("POST /sites — reverse proxy", () => {
   });
 
   test("a static site still creates its directory", async () => {
-    await request("/sites", form({ hostname: "static.lyly.dev", type: "static" }));
-    assert.deepEqual(createSiteDirectoryCalls, ["static.lyly.dev"]);
+    await request("/sites", form({ hostname: "static.lychee.land", type: "static" }));
+    assert.deepEqual(createSiteDirectoryCalls, ["static.lychee.land"]);
   });
 
   test("rejects a port claimed by a declaration, naming it", async () => {
-    const response = await request("/sites", form({ hostname: "clash.lyly.dev", type: "reverse-proxy", port: "8788" }));
+    const response = await request("/sites", form({ hostname: "clash.lychee.land", type: "reverse-proxy", port: "8788" }));
     assert.equal(response.status, 400);
     assert.equal(
       (await json<{ error: string }>(response)).error,
@@ -428,7 +447,7 @@ describe("POST /sites — reverse proxy", () => {
     const original = fakeCommands.readDeclarations;
     fakeCommands.readDeclarations = () => Promise.resolve(null);
     try {
-      const response = await request("/sites", form({ hostname: "ok.lyly.dev", type: "reverse-proxy", port: "8788" }));
+      const response = await request("/sites", form({ hostname: "ok.lychee.land", type: "reverse-proxy", port: "8788" }));
       assert.equal(response.status, 200);
     } finally {
       fakeCommands.readDeclarations = original;
@@ -436,46 +455,46 @@ describe("POST /sites — reverse proxy", () => {
   });
 
   test("refuses a Next.js site on a privileged port", async () => {
-    const response = await request("/sites", form({ hostname: "low.lyly.dev", type: "reverse-proxy", port: "80", framework: "nextjs" }));
+    const response = await request("/sites", form({ hostname: "low.lychee.land", type: "reverse-proxy", port: "80", framework: "nextjs" }));
     assert.equal(response.status, 400);
   });
 
   test("creates no directory for a reverse proxy with no framework", async () => {
-    const response = await request("/sites", form({ hostname: "plain.lyly.dev", type: "reverse-proxy", port: "5000" }));
+    const response = await request("/sites", form({ hostname: "plain.lychee.land", type: "reverse-proxy", port: "5000" }));
     assert.equal(response.status, 200);
-    assert.equal(fakeFs.hasDir(path.join(SITES_ROOT, "plain.lyly.dev")), false);
+    assert.equal(fakeFs.hasDir(path.join(SITES_ROOT, "plain.lychee.land")), false);
   });
 
   test("a plain reverse-proxy site skips the directory step rather than failing it", async () => {
-    const response = await request("/sites", form({ hostname: "new.lyly.dev", type: "reverse-proxy", port: "4100" }));
+    const response = await request("/sites", form({ hostname: "new.lychee.land", type: "reverse-proxy", port: "4100" }));
     const body = await json<{ steps: { id: string; status: string }[] }>(response);
     const files = body.steps.find((step) => step.id === "files");
     assert.equal(files?.status, "skipped");
   });
 
   test("rejects a port already used by another reverse-proxy site", async () => {
-    const response = await request("/sites", form({ hostname: "clash.lyly.dev", type: "reverse-proxy", port: "4000" }));
+    const response = await request("/sites", form({ hostname: "clash.lychee.land", type: "reverse-proxy", port: "4000" }));
     assert.equal(response.status, 400);
-    assert.match((await json<{ error: string }>(response)).error, /already used by api\.lyly\.dev/);
+    assert.match((await json<{ error: string }>(response)).error, /already used by api\.lychee\.land/);
   });
 
   test("rejects a reserved port", async () => {
-    const response = await request("/sites", form({ hostname: "clash.lyly.dev", type: "reverse-proxy", port: "2019" }));
+    const response = await request("/sites", form({ hostname: "clash.lychee.land", type: "reverse-proxy", port: "2019" }));
     assert.equal(response.status, 400);
     assert.match((await json<{ error: string }>(response)).error, /reserved/);
   });
 
   test("rejects a missing or out-of-range port", async () => {
-    const missing = await request("/sites", form({ hostname: "clash.lyly.dev", type: "reverse-proxy" }));
+    const missing = await request("/sites", form({ hostname: "clash.lychee.land", type: "reverse-proxy" }));
     assert.equal(missing.status, 400);
-    const tooBig = await request("/sites", form({ hostname: "clash.lyly.dev", type: "reverse-proxy", port: "70000" }));
+    const tooBig = await request("/sites", form({ hostname: "clash.lychee.land", type: "reverse-proxy", port: "70000" }));
     assert.equal(tooBig.status, 400);
   });
 
   test("rejects a malformed healthcheck path", async () => {
     const response = await request(
       "/sites",
-      form({ hostname: "app.lyly.dev", type: "reverse-proxy", port: "3000", framework: "nextjs", healthcheckPath: "no-leading-slash" }),
+      form({ hostname: "app.lychee.land", type: "reverse-proxy", port: "3000", framework: "nextjs", healthcheckPath: "no-leading-slash" }),
     );
     assert.equal(response.status, 400);
     assert.match((await json<{ error: string }>(response)).error, /is not a valid healthcheck path/);
@@ -491,7 +510,7 @@ describe("POST /sites/:hostname/delete", () => {
   ];
 
   test("removes the Caddyfile block and the ingress rule", async () => {
-    const response = await request("/sites/blog.lyly.dev/delete", form({}));
+    const response = await request("/sites/blog.lychee.land/delete", form({}));
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), {
       removed: true,
@@ -499,31 +518,31 @@ describe("POST /sites/:hostname/delete", () => {
       steps: OK_REMOVE_STEPS,
     });
 
-    assert.doesNotMatch(fakeFs.readFile(CADDYFILE), /http:\/\/blog\.lyly\.dev \{/);
-    assert.doesNotMatch(fakeFs.readFile(TUNNEL_CONFIG), /hostname: blog\.lyly\.dev/);
+    assert.doesNotMatch(fakeFs.readFile(CADDYFILE), /http:\/\/blog\.lychee\.land \{/);
+    assert.doesNotMatch(fakeFs.readFile(TUNNEL_CONFIG), /hostname: blog\.lychee\.land/);
   });
 
   test("reports the path to confirm when file deletion was requested", async () => {
-    const response = await request("/sites/blog.lyly.dev/delete", form({ deleteFiles: "on" }));
+    const response = await request("/sites/blog.lychee.land/delete", form({ deleteFiles: "on" }));
     assert.deepEqual(await response.json(), {
       removed: true,
       needsFileConfirm: true,
-      sitePath: `${SITES_ROOT}/blog.lyly.dev`,
+      sitePath: `${SITES_ROOT}/blog.lychee.land`,
       steps: OK_REMOVE_STEPS,
     });
   });
 
   test("does not delete files as part of the same request", async () => {
-    fakeFs.mkdir(path.join(SITES_ROOT, "blog.lyly.dev"));
-    fakeFs.writeFile(path.join(SITES_ROOT, "blog.lyly.dev", "index.html"), "content");
+    fakeFs.mkdir(path.join(SITES_ROOT, "blog.lychee.land"));
+    fakeFs.writeFile(path.join(SITES_ROOT, "blog.lychee.land", "index.html"), "content");
 
-    await request("/sites/blog.lyly.dev/delete", form({ deleteFiles: "on" }));
+    await request("/sites/blog.lychee.land/delete", form({ deleteFiles: "on" }));
 
-    assert.equal(fakeFs.hasFile(path.join(SITES_ROOT, "blog.lyly.dev", "index.html")), true);
+    assert.equal(fakeFs.hasFile(path.join(SITES_ROOT, "blog.lychee.land", "index.html")), true);
   });
 
   test("a successful removal reports all four steps as ok", async () => {
-    const response = await request("/sites/blog.lyly.dev/delete", form({}));
+    const response = await request("/sites/blog.lychee.land/delete", form({}));
     const body = await json<{ steps: { id: string; status: string }[] }>(response);
     assert.deepEqual(
       body.steps.map((step) => [step.id, step.status]),
@@ -585,7 +604,7 @@ describe("POST /sites/:hostname/delete", () => {
 
     try {
       const formInit = form({});
-      const response = await fetch(`${localBaseUrl}/sites/blog.lyly.dev/delete`, {
+      const response = await fetch(`${localBaseUrl}/sites/blog.lychee.land/delete`, {
         ...formInit,
         headers: { Authorization: AUTH, ...formInit.headers },
       });
@@ -605,14 +624,14 @@ describe("POST /sites/:hostname/delete", () => {
 
 describe("POST /sites/:hostname/delete-files", () => {
   test("removes the site directory", async () => {
-    fakeFs.mkdir(path.join(SITES_ROOT, "blog.lyly.dev"));
-    fakeFs.writeFile(path.join(SITES_ROOT, "blog.lyly.dev", "index.html"), "content");
+    fakeFs.mkdir(path.join(SITES_ROOT, "blog.lychee.land"));
+    fakeFs.writeFile(path.join(SITES_ROOT, "blog.lychee.land", "index.html"), "content");
 
-    const response = await request("/sites/blog.lyly.dev/delete-files", form({}));
+    const response = await request("/sites/blog.lychee.land/delete-files", form({}));
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { deleted: true });
-    assert.equal(fakeFs.hasDir(path.join(SITES_ROOT, "blog.lyly.dev")), false);
-    assert.equal(fakeFs.hasFile(path.join(SITES_ROOT, "blog.lyly.dev", "index.html")), false);
+    assert.equal(fakeFs.hasDir(path.join(SITES_ROOT, "blog.lychee.land")), false);
+    assert.equal(fakeFs.hasFile(path.join(SITES_ROOT, "blog.lychee.land", "index.html")), false);
   });
 
   test("refuses a hostname outside the managed domain", async () => {
@@ -628,7 +647,7 @@ describe("rollback", () => {
     writeFixtures(SEED_CADDYFILE, "tunnel: 11111111-2222-3333-4444-555555555555\n");
     const before = fakeFs.readFile(CADDYFILE);
 
-    const response = await request("/sites", form({ hostname: "new.lyly.dev", type: "static" }));
+    const response = await request("/sites", form({ hostname: "new.lychee.land", type: "static" }));
 
     assert.equal(response.status, 500);
     assert.equal(fakeFs.readFile(CADDYFILE), before);
@@ -710,7 +729,7 @@ describe("rollback", () => {
 
     try {
       const formInit = form({});
-      const response = await fetch(`${localBaseUrl}/sites/blog.lyly.dev/delete`, {
+      const response = await fetch(`${localBaseUrl}/sites/blog.lychee.land/delete`, {
         ...formInit,
         headers: { Authorization: AUTH, ...formInit.headers },
       });
@@ -763,14 +782,14 @@ describe("rollback", () => {
     const localBaseUrl = `http://127.0.0.1:${address.port}`;
 
     try {
-      const formInit = form({ hostname: "new.lyly.dev", type: "static" });
+      const formInit = form({ hostname: "new.lychee.land", type: "static" });
       const response = await fetch(`${localBaseUrl}/sites`, {
         ...formInit,
         headers: { Authorization: AUTH, ...formInit.headers },
       });
 
       assert.equal(response.status, 500);
-      assert.match(fakes.fs.readFile(CADDYFILE), /http:\/\/new\.lyly\.dev \{/);
+      assert.match(fakes.fs.readFile(CADDYFILE), /http:\/\/new\.lychee\.land \{/);
     } finally {
       localServer.close();
       await once(localServer, "close");
@@ -780,13 +799,13 @@ describe("rollback", () => {
 
 describe("POST /sites/preview", () => {
   test("returns the Caddyfile block that POST /sites would append", async () => {
-    const response = await request("/sites/preview", form({ hostname: "docs.lyly.dev", type: "static" }));
+    const response = await request("/sites/preview", form({ hostname: "docs.lychee.land", type: "static" }));
     assert.equal(response.status, 200);
     const body = await json<{ ready: boolean; preview: { caddy: { added: string[] } } }>(response);
     assert.equal(body.ready, true);
     assert.deepEqual(body.preview.caddy.added, [
-      "http://docs.lyly.dev {",
-      `\troot * ${SITES_ROOT}/docs.lyly.dev`,
+      "http://docs.lychee.land {",
+      `\troot * ${SITES_ROOT}/docs.lychee.land`,
       "\tfile_server",
       "}",
     ]);
@@ -795,24 +814,24 @@ describe("POST /sites/preview", () => {
   test("writes nothing — the Caddyfile is byte-identical afterwards", async () => {
     const before = fakeFs.readFile(CADDYFILE);
     const beforeTunnel = fakeFs.readFile(TUNNEL_CONFIG);
-    await request("/sites/preview", form({ hostname: "docs.lyly.dev", type: "static" }));
+    await request("/sites/preview", form({ hostname: "docs.lychee.land", type: "static" }));
     assert.equal(fakeFs.readFile(CADDYFILE), before);
     assert.equal(fakeFs.readFile(TUNNEL_CONFIG), beforeTunnel);
   });
 
   test("creates no site directory", async () => {
-    await request("/sites/preview", form({ hostname: "docs.lyly.dev", type: "static" }));
+    await request("/sites/preview", form({ hostname: "docs.lychee.land", type: "static" }));
     // hasDir/hasFile, not exists — the in-memory fake exposes those two
     // (src/dev/fakes.ts), and the static-add test above already uses hasDir.
-    assert.equal(fakeFs.hasDir(path.join(SITES_ROOT, "docs.lyly.dev")), false);
-    assert.equal(fakeFs.hasFile(path.join(SITES_ROOT, "docs.lyly.dev", "index.html")), false);
+    assert.equal(fakeFs.hasDir(path.join(SITES_ROOT, "docs.lychee.land")), false);
+    assert.equal(fakeFs.hasFile(path.join(SITES_ROOT, "docs.lychee.land", "index.html")), false);
   });
 
   // The handler is async (it awaits the declared ports), so an unguarded
   // throw would hang the request and crash the process under Express 4.
   test("an unreadable Caddyfile answers with an error, rather than hanging", async () => {
     fakeFs.rmRecursive(CADDYFILE);
-    const response = await request("/sites/preview", form({ hostname: "docs.lyly.dev", type: "static" }));
+    const response = await request("/sites/preview", form({ hostname: "docs.lychee.land", type: "static" }));
     assert.equal(response.status, 200);
     const body = await json<{ ready: boolean; error: string }>(response);
     assert.equal(body.ready, false);
@@ -828,24 +847,24 @@ describe("POST /sites/preview", () => {
   });
 
   test("reports a duplicate hostname before submit, in the submit's own words", async () => {
-    const response = await request("/sites/preview", form({ hostname: "blog.lyly.dev", type: "static" }));
+    const response = await request("/sites/preview", form({ hostname: "blog.lychee.land", type: "static" }));
     const body = await json<{ ready: boolean; error: string }>(response);
     assert.equal(body.ready, false);
-    assert.equal(body.error, "blog.lyly.dev already exists in the Caddyfile");
+    assert.equal(body.error, "blog.lychee.land already exists in the Caddyfile");
   });
 
   test("reports a port conflict with the same string the submit would return", async () => {
     const preview = await json<{ error: string }>(
-      await request("/sites/preview", form({ hostname: "docs.lyly.dev", type: "reverse-proxy", port: "4000" })),
+      await request("/sites/preview", form({ hostname: "docs.lychee.land", type: "reverse-proxy", port: "4000" })),
     );
     const submit = await json<{ error: string }>(
-      await request("/sites", form({ hostname: "docs.lyly.dev", type: "reverse-proxy", port: "4000" })),
+      await request("/sites", form({ hostname: "docs.lychee.land", type: "reverse-proxy", port: "4000" })),
     );
     assert.equal(preview.error, submit.error);
   });
 
   test("rejects a declared port with the same string the submit returns", async () => {
-    const fields = { hostname: "docs.lyly.dev", type: "reverse-proxy", port: "8788" };
+    const fields = { hostname: "docs.lychee.land", type: "reverse-proxy", port: "8788" };
     const preview = await json<{ ready: boolean; error: string }>(await request("/sites/preview", form(fields)));
     const submit = await json<{ error: string }>(await request("/sites", form(fields)));
     assert.equal(preview.ready, false);
@@ -856,7 +875,7 @@ describe("POST /sites/preview", () => {
   test("a Next.js preview offers the files for the repository, not /var/www", async () => {
     const response = await request(
       "/sites/preview",
-      form({ hostname: "docs.lyly.dev", type: "reverse-proxy", port: "4100", framework: "nextjs" }),
+      form({ hostname: "docs.lychee.land", type: "reverse-proxy", port: "4100", framework: "nextjs" }),
     );
     const body = await json<{ preview: { files: { path: string; creates: string[]; destination: string } } }>(response);
     assert.equal(body.preview.files.destination, "repository");
@@ -867,7 +886,7 @@ describe("POST /sites/preview", () => {
   test("marks the directory step as not running for a plain reverse proxy", async () => {
     const response = await request(
       "/sites/preview",
-      form({ hostname: "docs.lyly.dev", type: "reverse-proxy", port: "4100" }),
+      form({ hostname: "docs.lychee.land", type: "reverse-proxy", port: "4100" }),
     );
     const body = await json<{ preview: { steps: { id: string; willRun: boolean }[] } }>(response);
     const skipped = body.preview.steps.filter((step) => !step.willRun).map((step) => step.id);
@@ -878,7 +897,7 @@ describe("POST /sites/preview", () => {
     const response = await fetch(`${baseUrl}/sites/preview`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ hostname: "docs.lyly.dev" }).toString(),
+      body: new URLSearchParams({ hostname: "docs.lychee.land" }).toString(),
     });
     assert.equal(response.status, 401);
   });
@@ -886,11 +905,11 @@ describe("POST /sites/preview", () => {
 
 describe("audit log", () => {
   test("records a line for a successful add", async () => {
-    await request("/sites", form({ hostname: "new.lyly.dev", type: "static" }));
+    await request("/sites", form({ hostname: "new.lychee.land", type: "static" }));
     const log = fakeFs.readFile(LOG_FILE);
     const entry = JSON.parse(log.trim().split("\n").at(-1)!);
     assert.equal(entry.action, "add-site");
-    assert.equal(entry.hostname, "new.lyly.dev");
+    assert.equal(entry.hostname, "new.lychee.land");
     assert.ok(entry.timestamp);
   });
 });
@@ -900,7 +919,7 @@ describe("audit log", () => {
 const INVENTORY = "/var/lib/lychee-inventory/services.json";
 
 const NEXT_CADDYFILE = `${SEED_CADDYFILE}
-http://test.lyly.dev {
+http://test.lychee.land {
 \t# lyly-admin-framework: nextjs
 \t# lyly-admin-healthcheck: /
 \treverse_proxy localhost:3000
@@ -912,10 +931,10 @@ function writeInventory(services: unknown[]): void {
 }
 
 function siteEntry(fields: Record<string, unknown>): Record<string, unknown> {
-  return { name: "test-lyly-dev", container: "test-lyly-dev", kind: "container", group: "service", reconciled: true, ...fields };
+  return { name: "test-lychee-land", container: "test-lychee-land", kind: "container", group: "service", reconciled: true, ...fields };
 }
 
-const TEST_DECLARATION = { name: "test-lyly-dev", port: 3000, state: "running", image: "ghcr.io/lycheehome/test-site" };
+const TEST_DECLARATION = { name: "test-lychee-land", port: 3000, state: "running", image: "ghcr.io/lycheehome/test-site" };
 
 describe("GET /sites/:hostname — a Next.js site's resource", () => {
   type Commands = import("../lib/systemCommands").SystemCommands;
@@ -946,7 +965,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
   }
 
   async function page(): Promise<string> {
-    const response = await request("/sites/test.lyly.dev");
+    const response = await request("/sites/test.lychee.land");
     assert.equal(response.status, 200);
     return withoutHeader(await response.text());
   }
@@ -977,7 +996,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     writeInventory([siteEntry({ result: "awaiting-image", available: "0.1.0" })]);
     const html = await page();
     assert.match(html, /awaiting image/);
-    assert.match(html, /data-deploy="test-lyly-dev"/);
+    assert.match(html, /data-deploy="test-lychee-land"/);
     assert.match(html, /data-deploy-tag="0\.1\.0"/);
     assert.match(html, /0\.1\.0 available/);
     assert.doesNotMatch(html, /data-attach=/);
@@ -987,14 +1006,14 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     declarations([TEST_DECLARATION]);
     writeInventory([siteEntry({ result: "deployed", version: "0.1.0", target: "0.1.0" })]);
     const html = await page();
-    assert.deepEqual(calls.resource, ["test-lyly-dev"]);
+    assert.deepEqual(calls.resource, ["test-lychee-land"]);
     assert.match(html, /running · healthy/);
   });
 
   test("legacy: a Next.js site with an old directory and no declaration still offers Attach", async () => {
     declarations([]);
-    fakeFs.mkdir("/var/www/test.lyly.dev");
-    fakeFs.writeFile("/var/www/test.lyly.dev/docker-compose.yml", "services: {}\n");
+    fakeFs.mkdir("/var/www/test.lychee.land");
+    fakeFs.writeFile("/var/www/test.lychee.land/docker-compose.yml", "services: {}\n");
     const html = await page();
     assert.match(html, /data-attach=/);
   });
@@ -1006,7 +1025,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     assert.doesNotMatch(html, /awaiting image/);
     assert.match(html, /not deployed/);
     assert.match(html, /prune/i);
-    assert.match(html, /data-prune="test-lyly-dev"/);
+    assert.match(html, /data-prune="test-lychee-land"/);
     const button = html.match(/<button[^>]*type="submit"[^>]*>Attach repository/);
     assert.ok(button, "no Attach button");
     assert.doesNotMatch(button[0], /\sdisabled(?=[\s>/])/);
@@ -1019,7 +1038,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
   test("a readable clone with no declaration is not attached, whatever a stale inventory entry says", async () => {
     declarations([]);
     writeInventory([siteEntry({ result: "deployed", version: "", target: "0.2.0" })]);
-    const response = await request("/sites/test.lyly.dev");
+    const response = await request("/sites/test.lychee.land");
     const raw = await response.text();
     const html = withoutHeader(raw);
     assert.match(html, /data-attach=/);
@@ -1031,7 +1050,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
   test("an unreadable clone falls back to the inventory: an entry means attached", async () => {
     fakeCommands.readDeclarations = () => Promise.resolve(null);
     writeInventory([siteEntry({ result: "awaiting-image", available: "0.1.0" })]);
-    const response = await request("/sites/test.lyly.dev");
+    const response = await request("/sites/test.lychee.land");
     const raw = await response.text();
     const html = withoutHeader(raw);
     assert.doesNotMatch(html, /data-attach=/);
@@ -1051,7 +1070,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     writeInventory([siteEntry({ result: "awaiting-image" })]);
     const html = await page();
     assert.match(html, /No image found at <span[^>]*>ghcr\.io\/lycheehome\/test-site<\/span> yet/);
-    assert.match(html, /data-change-repository="test\.lyly\.dev"/);
+    assert.match(html, /data-change-repository="test\.lychee\.land"/);
     assert.match(html, /<input[^>]*name="repo"[^>]*value="test-site"/);
     assert.match(html, />Change repository</);
     assert.doesNotMatch(html, /data-attach=/);
@@ -1134,16 +1153,16 @@ describe("POST /sites/:hostname/attach", () => {
   });
 
   test("writes the declaration with the site's own Caddy port", async () => {
-    const response = await request("/sites/test.lyly.dev/attach", form({ repo: "Test-Site", port: "9999" }));
+    const response = await request("/sites/test.lychee.land/attach", form({ repo: "Test-Site", port: "9999" }));
     assert.equal(response.status, 200);
     assert.deepEqual(await json(response), { ok: true });
-    assert.deepEqual(created, [["test-lyly-dev", "test-site", 3000]]);
+    assert.deepEqual(created, [["test-lychee-land", "test-site", 3000]]);
     const entry = JSON.parse(fakeFs.readFile(LOG_FILE).trim().split("\n").at(-1)!);
     assert.equal(entry.action, "attach-site");
   });
 
   test("a bad repository is a 400 and writes nothing", async () => {
-    const response = await request("/sites/test.lyly.dev/attach", form({ repo: "LycheeHome/test site" }));
+    const response = await request("/sites/test.lychee.land/attach", form({ repo: "LycheeHome/test site" }));
     assert.equal(response.status, 400);
     const body = await json<{ ok: boolean; reason: string }>(response);
     assert.equal(body.ok, false);
@@ -1153,19 +1172,19 @@ describe("POST /sites/:hostname/attach", () => {
 
   test("a refused write is a 502 carrying the writer's reason", async () => {
     fakeCommands.createSiteDeclaration = () =>
-      Promise.resolve({ ok: false, reason: "test-lyly-dev.yml already exists with state: absent; prune it first." });
-    const response = await request("/sites/test.lyly.dev/attach", form({ repo: "test-site" }));
+      Promise.resolve({ ok: false, reason: "test-lychee-land.yml already exists with state: absent; prune it first." });
+    const response = await request("/sites/test.lychee.land/attach", form({ repo: "test-site" }));
     assert.equal(response.status, 502);
     assert.deepEqual(await json(response), {
       ok: false,
-      reason: "test-lyly-dev.yml already exists with state: absent; prune it first.",
+      reason: "test-lychee-land.yml already exists with state: absent; prune it first.",
     });
     const entry = JSON.parse(fakeFs.readFile(LOG_FILE).trim().split("\n").at(-1)!);
     assert.equal(entry.action, "attach-site-failed");
   });
 
   test("an unknown site or a site that is not Next.js is a 404", async () => {
-    for (const hostname of ["nope.lyly.dev", "api.lyly.dev", "blog.lyly.dev"]) {
+    for (const hostname of ["nope.lychee.land", "api.lychee.land", "blog.lychee.land"]) {
       const response = await request(`/sites/${hostname}/attach`, form({ repo: "test-site" }));
       assert.equal(response.status, 404, hostname);
     }
@@ -1195,17 +1214,17 @@ describe("POST /sites/:hostname/repository", () => {
   const lastLog = () => JSON.parse(fakeFs.readFile(LOG_FILE).trim().split("\n").at(-1)!);
 
   test("changes the repository, normalized, for the site's own resource name", async () => {
-    const response = await request("/sites/test.lyly.dev/repository", form({ repo: " Test-App ", name: "other-lyly-dev", port: "9999" }));
+    const response = await request("/sites/test.lychee.land/repository", form({ repo: " Test-App ", name: "other-lychee-land", port: "9999" }));
     assert.equal(response.status, 200);
     assert.deepEqual(await json(response), { ok: true });
-    assert.deepEqual(changed, [["test-lyly-dev", "test-app"]]);
+    assert.deepEqual(changed, [["test-lychee-land", "test-app"]]);
     const entry = lastLog();
     assert.equal(entry.action, "change-repository");
     assert.match(entry.detail, /ghcr\.io\/lycheehome\/test-app/);
   });
 
   test("a bad repository is a 400 and writes nothing", async () => {
-    const response = await request("/sites/test.lyly.dev/repository", form({ repo: "LycheeHome/test app" }));
+    const response = await request("/sites/test.lychee.land/repository", form({ repo: "LycheeHome/test app" }));
     assert.equal(response.status, 400);
     const body = await json<{ ok: boolean; reason: string }>(response);
     assert.equal(body.ok, false);
@@ -1214,9 +1233,9 @@ describe("POST /sites/:hostname/repository", () => {
   });
 
   test("a tagged declaration is a 409 carrying the writer's reason", async () => {
-    const reason = "test-lyly-dev.yml already has a tag: deployed images can't change repository; remove the site instead.";
+    const reason = "test-lychee-land.yml already has a tag: deployed images can't change repository; remove the site instead.";
     fakeCommands.changeSiteRepository = () => Promise.resolve({ ok: false, code: "tagged", reason });
-    const response = await request("/sites/test.lyly.dev/repository", form({ repo: "test-app" }));
+    const response = await request("/sites/test.lychee.land/repository", form({ repo: "test-app" }));
     assert.equal(response.status, 409);
     assert.deepEqual(await json(response), { ok: false, reason });
     assert.equal(lastLog().action, "change-repository-failed");
@@ -1224,7 +1243,7 @@ describe("POST /sites/:hostname/repository", () => {
 
   test("a refused write is a 502 carrying the writer's reason", async () => {
     fakeCommands.changeSiteRepository = () => Promise.resolve({ ok: false, reason: "Push was rejected: fetch first" });
-    const response = await request("/sites/test.lyly.dev/repository", form({ repo: "test-app" }));
+    const response = await request("/sites/test.lychee.land/repository", form({ repo: "test-app" }));
     assert.equal(response.status, 502);
     assert.deepEqual(await json(response), { ok: false, reason: "Push was rejected: fetch first" });
     assert.equal(lastLog().action, "change-repository-failed");
@@ -1232,13 +1251,13 @@ describe("POST /sites/:hostname/repository", () => {
 
   test("a writer that throws is a 502, not a crash", async () => {
     fakeCommands.changeSiteRepository = () => Promise.reject(new Error("boom"));
-    const response = await request("/sites/test.lyly.dev/repository", form({ repo: "test-app" }));
+    const response = await request("/sites/test.lychee.land/repository", form({ repo: "test-app" }));
     assert.equal(response.status, 502);
     assert.equal(lastLog().action, "change-repository-failed");
   });
 
   test("an unknown site or a site that is not Next.js is a 404", async () => {
-    for (const hostname of ["nope.lyly.dev", "api.lyly.dev", "blog.lyly.dev"]) {
+    for (const hostname of ["nope.lychee.land", "api.lychee.land", "blog.lychee.land"]) {
       const response = await request(`/sites/${hostname}/repository`, form({ repo: "test-app" }));
       assert.equal(response.status, 404, hostname);
     }
@@ -1264,7 +1283,7 @@ describe("removing a Next.js site: the confirm dialog", () => {
   }
 
   async function dialog(): Promise<string> {
-    const response = await request("/sites/test.lyly.dev");
+    const response = await request("/sites/test.lychee.land");
     assert.equal(response.status, 200);
     const match = (await response.text()).match(/<dialog id="confirm-remove-dialog"[\s\S]*?<\/dialog>/);
     assert.ok(match, "no confirm-remove dialog was rendered");
@@ -1292,9 +1311,9 @@ describe("removing a Next.js site: the confirm dialog", () => {
     assert.doesNotMatch(await dialog(), /id="confirm-remove-delete-files"/);
   });
 
-  test("test.lyly.dev's legacy directory still gets one", async () => {
+  test("test.lychee.land's legacy directory still gets one", async () => {
     declarations([]);
-    fakeFs.mkdir("/var/www/test.lyly.dev");
+    fakeFs.mkdir("/var/www/test.lychee.land");
     assert.match(await dialog(), /id="confirm-remove-delete-files"/);
   });
 });
@@ -1324,23 +1343,23 @@ describe("POST /sites/:hostname/detach", () => {
   }
 
   test("sets the declaration to absent", async () => {
-    const response = await request("/sites/test.lyly.dev/detach", form({}));
+    const response = await request("/sites/test.lychee.land/detach", form({}));
     assert.equal(response.status, 200);
     assert.deepEqual(await json(response), { ok: true });
-    assert.deepEqual(retired, [["test-lyly-dev", "absent"]]);
+    assert.deepEqual(retired, [["test-lychee-land", "absent"]]);
     assert.equal(lastLogEntry().action, "detach-site");
   });
 
   test("works after the Caddy block is gone, so a failed retirement can be retried", async () => {
     writeFixtures(SEED_CADDYFILE);
-    const response = await request("/sites/test.lyly.dev/detach", form({}));
+    const response = await request("/sites/test.lychee.land/detach", form({}));
     assert.equal(response.status, 200);
-    assert.deepEqual(retired, [["test-lyly-dev", "absent"]]);
+    assert.deepEqual(retired, [["test-lychee-land", "absent"]]);
   });
 
   test("no declaration is a 404 and calls nothing", async () => {
     fakeCommands.readDeclarations = () => Promise.resolve([]);
-    const response = await request("/sites/test.lyly.dev/detach", form({}));
+    const response = await request("/sites/test.lychee.land/detach", form({}));
     assert.equal(response.status, 404);
     assert.equal(((await json<{ ok: boolean }>(response)).ok), false);
     assert.deepEqual(retired, []);
@@ -1354,7 +1373,7 @@ describe("POST /sites/:hostname/detach", () => {
 
   test("a refused write is a 502 carrying the writer's reason, and is logged", async () => {
     fakeCommands.setDeclarationState = () => Promise.resolve({ ok: false, reason: "push rejected" });
-    const response = await request("/sites/test.lyly.dev/detach", form({}));
+    const response = await request("/sites/test.lychee.land/detach", form({}));
     assert.equal(response.status, 502);
     assert.deepEqual(await json(response), { ok: false, reason: "push rejected" });
     assert.equal(lastLogEntry().action, "detach-site-failed");
@@ -1362,7 +1381,7 @@ describe("POST /sites/:hostname/detach", () => {
 
   test("an unreadable clone is a 502 saying so, not a 404 claiming nothing is declared", async () => {
     fakeCommands.readDeclarations = () => Promise.resolve(null);
-    const response = await request("/sites/test.lyly.dev/detach", form({}));
+    const response = await request("/sites/test.lychee.land/detach", form({}));
     assert.equal(response.status, 502);
     assert.match((await json<{ reason: string }>(response)).reason, /could not read the local lychee-resources clone/i);
     assert.deepEqual(retired, []);

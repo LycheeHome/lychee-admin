@@ -3,6 +3,7 @@ import { config } from "../config";
 import { toRowStatus } from "../lib/containerStatus";
 import type { FileSystem } from "../lib/fileSystem";
 import type { DeclarationSummary } from "../lib/siteResource";
+import { siteNamePatternFor } from "../lib/siteValidation";
 import type { SystemCommands } from "../lib/systemCommands";
 import { SEEDED_TIMER_SCHEDULE, seededResourceContainers, seededUnitStates } from "./seed";
 
@@ -178,7 +179,7 @@ export function createFakes(
     // Site-only and absent-only, with the real writer's codes, including the
     // tagged refusal requireTagless asks for.
     pruneSiteDeclaration: (name, opts) => {
-      if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?-lyly-dev$/.test(name) || name.length > 63) {
+      if (!siteNamePatternFor(config.domain).test(name) || name.length > 63) {
         return Promise.resolve({ ok: false, reason: `"${name}" is not a valid site resource name.` });
       }
       const decl = declarations.get(name);

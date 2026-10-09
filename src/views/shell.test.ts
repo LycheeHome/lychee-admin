@@ -5,14 +5,14 @@ import { withoutHeader } from "../dev/testHelpers";
 import { renderSiteList, renderSiteDetail, renderAddSite, renderSiteNotFound } from "./html";
 
 const SITES: Site[] = [
-  { hostname: "blog.lyly.dev", type: "static", target: "/var/www/blog.lyly.dev" },
-  { hostname: "api.lyly.dev", type: "reverse-proxy", target: "4000" },
-  { hostname: "app.lyly.dev", type: "reverse-proxy", target: "3000", framework: "nextjs" },
+  { hostname: "blog.lychee.land", type: "static", target: "/var/www/blog.lychee.land" },
+  { hostname: "api.lychee.land", type: "reverse-proxy", target: "4000" },
+  { hostname: "app.lychee.land", type: "reverse-proxy", target: "3000", framework: "nextjs" },
 ];
 
 const DETAIL_OPTS = {
   sitesRoot: "/var/www",
-  domain: "lyly.dev",
+  domain: "lychee.land",
   tunnelId: "11111111-2222-3333-4444-555555555555",
   tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
   caddyfilePath: "/etc/caddy/Caddyfile",
@@ -29,7 +29,7 @@ function header(html: string): string {
 
 describe("the header band", () => {
   test("renders on the site list", () => {
-    assert.match(header(renderSiteList(SITES, {}, "lyly.dev")), /href="\/sites\/new"/);
+    assert.match(header(renderSiteList(SITES, {}, "lychee.land")), /href="\/sites\/new"/);
   });
 
   test("renders on a site detail page", () => {
@@ -37,20 +37,20 @@ describe("the header band", () => {
   });
 
   test("carries the wordmark at its documented Display size", () => {
-    const block = header(renderSiteList(SITES, {}, "lyly.dev"));
+    const block = header(renderSiteList(SITES, {}, "lychee.land"));
     assert.match(block, /font-display text-2xl/);
     assert.match(block, /lyly<span class="text-rose-400">\.<\/span>admin/);
   });
 
   test("marks sites current on the list page only", () => {
-    const list = header(renderSiteList(SITES, {}, "lyly.dev"));
+    const list = header(renderSiteList(SITES, {}, "lychee.land"));
     assert.match(list, /href="\/"[^>]*aria-current="page"/);
     const detail = header(renderSiteDetail(SITES[0], DETAIL_OPTS));
     assert.doesNotMatch(detail, /aria-current="page"/);
   });
 
   test("marks add site current on the add-site page", () => {
-    const block = header(renderAddSite(SITES, "lyly.dev", PORT_OWNERS, PATHS));
+    const block = header(renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS));
     assert.match(block, /href="\/sites\/new"[^>]*aria-current="page"/);
   });
 
@@ -60,7 +60,7 @@ describe("the header band", () => {
   });
 
   test("does not offset the page for a rail that no longer exists", () => {
-    const html = renderSiteList(SITES, {}, "lyly.dev");
+    const html = renderSiteList(SITES, {}, "lychee.land");
     assert.doesNotMatch(html, /id="site-nav"/);
     assert.doesNotMatch(html, /calc\(50% \+ 110px\)/);
     assert.match(html, /id="flash-banner"[^>]*left-1\/2/);
@@ -69,7 +69,7 @@ describe("the header band", () => {
 
 describe("the flash toast", () => {
   test("carries a hidden action button, so a failure can offer its own recovery", () => {
-    const html = renderSiteList(SITES, {}, "lyly.dev");
+    const html = renderSiteList(SITES, {}, "lychee.land");
     const toast = html.match(/<div id="flash-banner"[\s\S]*?<\/div>/)?.[0] ?? "";
     const action = toast.match(/<button[^>]*id="flash-banner-action"[^>]*>/)?.[0];
     assert.ok(action, "no #flash-banner-action in the toast");
@@ -79,7 +79,7 @@ describe("the flash toast", () => {
   });
 });
 
-const PORT_OWNERS = { "8787": "reserved (lyly-admin itself)", "4000": "api.lyly.dev" };
+const PORT_OWNERS = { "8787": "reserved (lyly-admin itself)", "4000": "api.lychee.land" };
 const PATHS = {
   caddyfilePath: "/etc/caddy/Caddyfile",
   tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
@@ -87,7 +87,7 @@ const PATHS = {
 
 describe("the add-site page", () => {
   test("renders the fields that used to live in the dialog", () => {
-    const html = renderAddSite(SITES, "lyly.dev", PORT_OWNERS, PATHS);
+    const html = renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS);
     assert.match(html, /name="hostname"/);
     assert.match(html, /name="type"[^>]*value="static"/);
     assert.match(html, /name="type"[^>]*value="reverse-proxy"/);
@@ -108,17 +108,17 @@ describe("the add-site page", () => {
   });
 
   test("posts to the unchanged endpoint", () => {
-    assert.match(renderAddSite(SITES, "lyly.dev", PORT_OWNERS, PATHS), /action="\/sites"/);
+    assert.match(renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS), /action="\/sites"/);
   });
 
   test("marks Add site current, and All sites not", () => {
-    const html = header(renderAddSite(SITES, "lyly.dev", PORT_OWNERS, PATHS));
+    const html = header(renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS));
     assert.match(html, /href="\/sites\/new"[^>]*aria-current="page"/);
     assert.doesNotMatch(html, /href="\/"[^>]*aria-current="page"/);
   });
 
   test("the list page no longer carries the dialog", () => {
-    const html = renderSiteList(SITES, {}, "lyly.dev");
+    const html = renderSiteList(SITES, {}, "lychee.land");
     assert.doesNotMatch(html, /add-site-dialog/);
     assert.doesNotMatch(html, /id="add-site-form"/);
   });
@@ -128,7 +128,7 @@ describe("the add-site page", () => {
     // so this must assert against the page body with the header removed —
     // otherwise it passes on the header's item whether or not the primary
     // button was ever converted.
-    const body = withoutHeader(renderSiteList(SITES, {}, "lyly.dev"));
+    const body = withoutHeader(renderSiteList(SITES, {}, "lychee.land"));
     assert.match(body, /<a href="\/sites\/new"[^>]*>(?:(?!<\/a>)[\s\S])*Add site<\/a>/);
     assert.doesNotMatch(body, /data-open-dialog="add-site-dialog"/);
   });
@@ -144,11 +144,11 @@ describe("the shell's h1", () => {
   const countH1 = (html: string) => (html.match(/<h1[\s>]/g) ?? []).length;
 
   test("renders exactly one on the site list", () => {
-    assert.equal(countH1(renderSiteList(SITES, {}, "lyly.dev")), 1);
+    assert.equal(countH1(renderSiteList(SITES, {}, "lychee.land")), 1);
   });
 
   test("renders exactly one on the add-site page", () => {
-    assert.equal(countH1(renderAddSite(SITES, "lyly.dev", PORT_OWNERS, PATHS)), 1);
+    assert.equal(countH1(renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS)), 1);
   });
 
   test("renders exactly one on a site detail page", () => {
@@ -156,11 +156,11 @@ describe("the shell's h1", () => {
   });
 
   test("renders exactly one on the not-found page", () => {
-    assert.equal(countH1(renderSiteNotFound("nope.lyly.dev")), 1);
+    assert.equal(countH1(renderSiteNotFound("nope.lychee.land")), 1);
   });
 
   test("wraps the wordmark home link, not a page topic heading", () => {
-    const html = header(renderSiteList(SITES, {}, "lyly.dev"));
+    const html = header(renderSiteList(SITES, {}, "lychee.land"));
     assert.match(
       html,
       /<h1[^>]*>\s*<a href="\/"[^>]*>lyly<span class="text-rose-400">\.<\/span>admin<\/a>\s*<\/h1>/,

@@ -6,11 +6,11 @@ import { offeredTag, renderPruneControl, renderServicesPage, renderAddSite, rend
 import { formatAge, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_SECONDARY_COMPACT, TYPE_PILL_PROXY } from "./shared";
 import { ADD_STEPS } from "../lib/stepReport";
 
-const STATIC_SITE: Site = { hostname: "blog.lyly.dev", type: "static", target: "/var/www/blog.lyly.dev" };
-const APEX_SITE: Site = { hostname: "lyly.dev", type: "static", target: "/var/www/lyly.dev" };
-const PROXY_SITE: Site = { hostname: "api.lyly.dev", type: "reverse-proxy", target: "4000" };
+const STATIC_SITE: Site = { hostname: "blog.lychee.land", type: "static", target: "/var/www/blog.lychee.land" };
+const APEX_SITE: Site = { hostname: "lychee.land", type: "static", target: "/var/www/lychee.land" };
+const PROXY_SITE: Site = { hostname: "api.lychee.land", type: "reverse-proxy", target: "4000" };
 const NEXT_SITE: Site = {
-  hostname: "app.lyly.dev",
+  hostname: "app.lychee.land",
   type: "reverse-proxy",
   target: "3000",
   framework: "nextjs",
@@ -19,7 +19,7 @@ const NEXT_SITE: Site = {
 
 const OPTS = {
   sitesRoot: "/var/www",
-  domain: "lyly.dev",
+  domain: "lychee.land",
   tunnelId: "11111111-2222-3333-4444-555555555555",
   tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
   caddyfilePath: "/etc/caddy/Caddyfile",
@@ -114,7 +114,7 @@ function sectionById(html: string, id: string): string {
 
 describe("renderAddSite heading", () => {
   test("the add-site page's heading is a documented ramp step", () => {
-    const html = renderAddSite([], "lyly.dev", {}, PATHS);
+    const html = renderAddSite([], "lychee.land", {}, PATHS);
     assert.match(html, /<h2 class="font-mono text-\[1\.7rem\]/);
     assert.doesNotMatch(html, /text-\[1\.35rem\]/);
   });
@@ -122,9 +122,9 @@ describe("renderAddSite heading", () => {
 
 describe("the hostname field", () => {
   test("the hostname field affixes the domain instead of hiding it in a placeholder", () => {
-    const html = renderAddSite(SITES, "lyly.dev", {}, PATHS);
+    const html = renderAddSite(SITES, "lychee.land", {}, PATHS);
     const input = tagById(html, "hostname-field");
-    assert.match(html, /id="hostname-suffix"[^>]*>\.lyly\.dev</);
+    assert.match(html, /id="hostname-suffix"[^>]*>\.lychee\.land</);
     assert.match(input, /aria-describedby="[^"]*hostname-suffix/);
   });
 
@@ -137,7 +137,7 @@ describe("the hostname field", () => {
     // ring relocated to the row wrapper via focus-within, so it encloses
     // both pieces as one control — same 2px rose outline, same offset,
     // relocated rather than duplicated.
-    const html = renderAddSite(SITES, "lyly.dev", {}, PATHS);
+    const html = renderAddSite(SITES, "lychee.land", {}, PATHS);
     const row = tagById(html, "hostname-row");
     assert.match(row, /focus-within:outline\b/);
     assert.match(row, /focus-within:outline-2\b/);
@@ -150,22 +150,22 @@ describe("the hostname field", () => {
 
 describe("accessible status and error wiring", () => {
   test("the port field points at the message that explains a conflict", () => {
-    const input = tagById(renderAddSite(SITES, "lyly.dev", {}, PATHS), "port-field");
+    const input = tagById(renderAddSite(SITES, "lychee.land", {}, PATHS), "port-field");
     assert.match(input, /aria-describedby="port-error"/);
   });
 
   test("the port conflict message is the element the field names", () => {
-    const span = tagById(renderAddSite(SITES, "lyly.dev", {}, PATHS), "port-error");
+    const span = tagById(renderAddSite(SITES, "lychee.land", {}, PATHS), "port-error");
     assert.match(span, /class="[^"]*port-error/);
   });
 
   test("a port conflict is announced, not just shown", () => {
-    const error = tagById(renderAddSite(SITES, "lyly.dev", {}, PATHS), "port-error");
+    const error = tagById(renderAddSite(SITES, "lychee.land", {}, PATHS), "port-error");
     assert.match(error, /aria-live="polite"/);
   });
 
   test("a failed submit is announced, not only shown", () => {
-    const p = tagById(renderAddSite(SITES, "lyly.dev", {}, PATHS), "add-site-error");
+    const p = tagById(renderAddSite(SITES, "lychee.land", {}, PATHS), "add-site-error");
     assert.match(p, /role="alert"/);
   });
 
@@ -177,7 +177,7 @@ describe("accessible status and error wiring", () => {
   });
 
   test("the live region is on every page the shell renders, not only the detail page", () => {
-    const span = tagById(renderSiteList(SITES, {}, "lyly.dev"), "copy-status");
+    const span = tagById(renderSiteList(SITES, {}, "lychee.land"), "copy-status");
     assert.match(span, /aria-live="polite"/);
   });
 });
@@ -192,18 +192,18 @@ describe("renderSiteDetail header", () => {
 
   test("dims the managed domain suffix on a subdomain", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
-    assert.match(html, /blog<span class="text-stone-500">\.lyly\.dev<\/span>/);
+    assert.match(html, /blog<span class="text-stone-500">\.lychee\.land<\/span>/);
   });
 
   test("leaves the apex domain undimmed — it has no subdomain", () => {
     const html = renderSiteDetail(APEX_SITE, OPTS);
-    assert.match(html, /id="site-hostname"[^>]*>lyly\.dev</);
+    assert.match(html, /id="site-hostname"[^>]*>lychee\.land</);
     assert.doesNotMatch(html, /<span class="text-stone-500"><\/span>/);
   });
 
   test("offers Visit as the primary action, opening the real hostname safely", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
-    assert.match(html, /href="https:\/\/blog\.lyly\.dev"/);
+    assert.match(html, /href="https:\/\/blog\.lychee\.land"/);
     assert.match(html, /rel="noopener noreferrer"/);
   });
 
@@ -263,7 +263,7 @@ describe("the hostname switcher", () => {
 
   test("tells a screen reader what the trigger does, not just where it is", () => {
     const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
-    assert.match(block, /<summary[^>]*aria-label="Switch site[^"]*blog\.lyly\.dev"/);
+    assert.match(block, /<summary[^>]*aria-label="Switch site[^"]*blog\.lychee\.land"/);
   });
 
   test("never truncates a hostname — the control exists to pick one", () => {
@@ -300,7 +300,7 @@ describe("the hostname switcher", () => {
 });
 
 /** An attached site with a version installed: the only state with a container to read logs from. */
-const RUNNING_RESOURCE = { name: "app-lyly-dev", repo: "app-site", version: "0.2.0", result: "deployed" };
+const RUNNING_RESOURCE = { name: "app-lychee-land", repo: "app-site", version: "0.2.0", result: "deployed" };
 
 describe("renderSiteDetail request path", () => {
   test("names all four hops", () => {
@@ -398,7 +398,7 @@ describe("renderSiteDetail request path", () => {
   });
 
   test("a legacy site with no healthcheck comment shows no healthcheck row", () => {
-    const legacy: Site = { hostname: "legacy.lyly.dev", type: "reverse-proxy", target: "3001", framework: "nextjs" };
+    const legacy: Site = { hostname: "legacy.lychee.land", type: "reverse-proxy", target: "3001", framework: "nextjs" };
     const html = renderSiteDetail(legacy, { ...OPTS, status: { kind: "container", state: "running" } });
     assert.doesNotMatch(html, /healthcheck/);
     assert.match(html, /Next\.js/);
@@ -417,7 +417,7 @@ describe("renderSiteDetail request path", () => {
     // Remediation sits with the failure, not as a numbered setup step that
     // appears and disappears with container state.
     assert.match(card, /id="cmd-logs"/);
-    assert.match(card, /docker compose -p app-lyly-dev logs/);
+    assert.match(card, /docker compose -p app-lychee-land logs/);
     const steps = html.split("Manual steps</h3>")[1].split("</section>")[0];
     assert.doesNotMatch(steps, /cmd-logs/);
   });
@@ -443,7 +443,7 @@ describe("renderSiteDetail manual steps", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     assert.match(
       html,
-      /cloudflared tunnel route dns 11111111-2222-3333-4444-555555555555 blog\.lyly\.dev/,
+      /cloudflared tunnel route dns 11111111-2222-3333-4444-555555555555 blog\.lychee\.land/,
     );
     assert.match(html, /id="cmd-dns"/);
     assert.match(html, /data-copy-target="cmd-dns"/);
@@ -503,7 +503,7 @@ describe("renderSiteDetail manual steps", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     // add-site writes a placeholder index.html, so the site works immediately
     // and nothing otherwise prompts the user to notice what is actually live.
-    assert.match(html, /Put your site's files in \/var\/www\/blog\.lyly\.dev\//);
+    assert.match(html, /Put your site's files in \/var\/www\/blog\.lychee\.land\//);
     assert.match(html, /placeholder index\.html/);
   });
 
@@ -552,7 +552,7 @@ describe("renderSiteDetail manual steps", () => {
 
   test("a broken container adds the logs step", () => {
     const html = renderSiteDetail(NEXT_SITE, { ...OPTS, resource: RUNNING_RESOURCE, status: { kind: "container", state: "exited" } });
-    assert.match(html, /docker compose -p app-lyly-dev logs/);
+    assert.match(html, /docker compose -p app-lychee-land logs/);
     assert.match(html, /id="cmd-logs"/);
   });
 
@@ -699,7 +699,7 @@ describe("renderSiteDetail danger zone", () => {
     const labelled = (attr: string, label: string) =>
       new RegExp(`${attr}(?:(?!<\\/button>)[\\s\\S])*${label}<\\/button>`);
     assert.match(html, labelled('data-open-dialog="confirm-remove-dialog"', "Remove site"));
-    assert.match(html, labelled('id="confirm-remove-submit"', "Remove blog\\.lyly\\.dev"));
+    assert.match(html, labelled('id="confirm-remove-submit"', "Remove blog\\.lychee\\.land"));
     // The old confirm button said just "Remove".
     assert.doesNotMatch(html, />Remove<\/button>/);
   });
@@ -755,7 +755,7 @@ describe("renderSiteDetail danger zone", () => {
 
   test("a site with files offers the delete checkbox naming the exact path", () => {
     const html = renderSiteDetail(STATIC_SITE, { ...OPTS, filesExist: true });
-    assert.match(html, /id="confirm-remove-delete-files"[\s\S]{0,200}?\/var\/www\/blog\.lyly\.dev/);
+    assert.match(html, /id="confirm-remove-delete-files"[\s\S]{0,200}?\/var\/www\/blog\.lychee\.land/);
   });
 
   test("a plain proxy has no directory, so no delete checkbox", () => {
@@ -774,7 +774,7 @@ describe("renderSiteDetail danger zone", () => {
       filesExist: true,
       status: { kind: "container", state: "running", health: "healthy" },
     });
-    assert.match(html, /id="confirm-remove-delete-files"[\s\S]{0,200}?\/var\/www\/app\.lyly\.dev/);
+    assert.match(html, /id="confirm-remove-delete-files"[\s\S]{0,200}?\/var\/www\/app\.lychee\.land/);
     assert.match(html, /docker compose down/);
     assert.match(html, /won't stop it/);
   });
@@ -789,14 +789,14 @@ describe("renderSiteDetail danger zone", () => {
   test("an attached site lists retiring its declaration fifth, and says what that does", () => {
     const html = renderSiteDetail(NEXT_SITE, {
       ...OPTS,
-      resource: { name: "app-lyly-dev", repo: "app-site", version: "0.2.0", result: "deployed" },
+      resource: { name: "app-lychee-land", repo: "app-site", version: "0.2.0", result: "deployed" },
       status: { kind: "container", state: "running", health: "healthy" },
     });
     const dialog = html.match(/<dialog id="confirm-remove-dialog"[\s\S]*?<\/dialog>/)?.[0] ?? "";
     assert.match(dialog, /<dialog[^>]*data-attached="true"/);
     const list = listById(html, "confirm-remove-steps");
     assert.deepEqual([...list.matchAll(/data-step-id="([a-z]+)"/g)].map((m) => m[1]), ["caddyfile", "tunnel", "caddy", "cloudflared", "declaration"]);
-    assert.match(list, />5\.<\/span><span>app-lyly-dev\.yml set to state: absent<\/span>/);
+    assert.match(list, />5\.<\/span><span>app-lychee-land\.yml set to state: absent<\/span>/);
     assert.match(dialog, /reconciler takes the container down on its next run/);
     assert.doesNotMatch(dialog, /docker compose/);
   });
@@ -837,7 +837,7 @@ describe("remove dialog accessibility", () => {
     const html = renderSiteDetail(PROXY_SITE, OPTS);
     const button = html.match(/<button[^>]*id="confirm-remove-submit"[\s\S]*?<\/button>/);
     assert.ok(button, "no confirm button was rendered");
-    assert.match(button[0], /Remove api\.lyly\.dev/);
+    assert.match(button[0], /Remove api\.lychee\.land/);
     // The trigger keeps the generic label; only the confirm is specific. A
     // fixed-length window here would be brittle: the trash icon's inline SVG
     // sits between the attribute and the text and alone runs past 200 chars,
@@ -856,7 +856,7 @@ describe("renderSiteDetail escaping", () => {
     // explicitly unvalidated on this read path (see src/routes/sites.ts). This
     // locks in the spec's no-exceptions escaping rule across both fields.
     const hostileSite: Site = {
-      hostname: "<script>alert(1)</script>.lyly.dev",
+      hostname: "<script>alert(1)</script>.lychee.land",
       type: "reverse-proxy",
       target: "3000",
       framework: "nextjs",
@@ -897,7 +897,7 @@ function toast(html: string): string {
 describe("the ?created=1 notice", () => {
   test("a static site is told its placeholder is already live", () => {
     const html = renderSiteDetail(STATIC_SITE, { ...OPTS, created: true });
-    assert.match(notice(html), /Added blog\.lyly\.dev/);
+    assert.match(notice(html), /Added blog\.lychee\.land/);
     assert.match(notice(html), /serving the placeholder page it created/);
     assert.match(notice(html), /Manual steps has the DNS record/);
   });
@@ -950,10 +950,10 @@ describe("the removal notice on the site list", () => {
     const html = renderSiteList(
       [],
       {},
-      "lyly.dev",
+      "lychee.land",
       undefined,
       { page: "sites" },
-      "Removed blog.lyly.dev. Remember to remove the DNS record in Cloudflare manually.",
+      "Removed blog.lychee.land. Remember to remove the DNS record in Cloudflare manually.",
     );
     const notice = tagById(html, "page-notice");
     assert.ok(notice);
@@ -963,14 +963,14 @@ describe("the removal notice on the site list", () => {
   });
 
   test("no notice renders without one", () => {
-    const html = renderSiteList([], {}, "lyly.dev", undefined, { page: "sites" });
+    const html = renderSiteList([], {}, "lychee.land", undefined, { page: "sites" });
     assert.doesNotMatch(html, /id="page-notice"/);
   });
 });
 
 describe("the site list heading", () => {
   test("one destination has one name", () => {
-    const body = withoutHeader(renderSiteList(SITES, {}, "lyly.dev"));
+    const body = withoutHeader(renderSiteList(SITES, {}, "lychee.land"));
     assert.doesNotMatch(body, /Existing sites/);
     assert.match(body, /<h2[^>]*>Sites<\/h2>/);
   });
@@ -984,7 +984,7 @@ describe("status on the site list", () => {
   // hop's plain-text sub-line uses the literal "●" character. Both are wrapped
   // in their own aria-hidden span so the dot never joins the accessible name.
   test("a proxy site's card carries its canonical status word", () => {
-    const html = renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lyly.dev");
+    const html = renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lychee.land");
     assert.match(html, /<span aria-hidden="true">&#9679;<\/span> responding/);
   });
 
@@ -992,7 +992,7 @@ describe("status on the site list", () => {
     const html = renderSiteList(
       [NEXT_SITE],
       { [NEXT_SITE.hostname]: { kind: "container", state: "running", health: "unhealthy" } },
-      "lyly.dev",
+      "lychee.land",
     );
     assert.match(html, /<span aria-hidden="true">&#9679;<\/span> unhealthy/);
   });
@@ -1001,24 +1001,24 @@ describe("status on the site list", () => {
     const html = renderSiteList(
       [NEXT_SITE],
       { [NEXT_SITE.hostname]: { kind: "container", state: "running", health: "starting" } },
-      "lyly.dev",
+      "lychee.land",
     );
     assert.match(html, /text-stone-300[^"]*"[^>]*><span aria-hidden="true">&#9679;<\/span> starting/);
     assert.doesNotMatch(html, /text-red-300[^"]*"[^>]*><span aria-hidden="true">&#9679;<\/span> starting/);
   });
 
   test("a static site gets no status pill — nothing checks one", () => {
-    const html = renderSiteList([STATIC_SITE], {}, "lyly.dev");
+    const html = renderSiteList([STATIC_SITE], {}, "lychee.land");
     assert.doesNotMatch(html, /&#9679;/);
   });
 
   test("a site with no status entry renders no pill rather than a guess", () => {
-    const html = renderSiteList([PROXY_SITE], {}, "lyly.dev");
+    const html = renderSiteList([PROXY_SITE], {}, "lychee.land");
     assert.doesNotMatch(html, /&#9679;/);
   });
 
   test("the status dot is not part of any accessible name", () => {
-    const html = renderSiteList(SITES, { "api.lyly.dev": { kind: "tcp", responding: false } }, "lyly.dev");
+    const html = renderSiteList(SITES, { "api.lychee.land": { kind: "tcp", responding: false } }, "lychee.land");
     const dots = [...html.matchAll(/<span[^>]*>&#9679;/g)];
     assert.ok(dots.length > 0, "no status dot was rendered");
     for (const dot of dots) {
@@ -1029,28 +1029,28 @@ describe("status on the site list", () => {
 
 describe("the site list's ledger rows", () => {
   test("a subdomain's shared suffix is dimmed, as it already is on the detail page", () => {
-    const cell = hostnameCell(rowFor(renderSiteList([STATIC_SITE], {}, "lyly.dev"), "blog.lyly.dev"));
-    assert.match(cell, /^blog<span [^>]*>\.lyly\.dev<\/span>$/);
+    const cell = hostnameCell(rowFor(renderSiteList([STATIC_SITE], {}, "lychee.land"), "blog.lychee.land"));
+    assert.match(cell, /^blog<span [^>]*>\.lychee\.land<\/span>$/);
   });
 
   test("the apex domain has no shared suffix to dim, so it stays whole", () => {
-    const cell = hostnameCell(rowFor(renderSiteList([APEX_SITE], {}, "lyly.dev"), "lyly.dev"));
-    assert.equal(cell, "lyly.dev");
+    const cell = hostnameCell(rowFor(renderSiteList([APEX_SITE], {}, "lychee.land"), "lychee.land"));
+    assert.equal(cell, "lychee.land");
   });
 
   test("a static row states its path with no key label in front of it", () => {
-    const row = rowFor(renderSiteList([STATIC_SITE], {}, "lyly.dev"), "blog.lyly.dev");
-    assert.match(row, /\/var\/www\/blog\.lyly\.dev/);
+    const row = rowFor(renderSiteList([STATIC_SITE], {}, "lychee.land"), "blog.lychee.land");
+    assert.match(row, /\/var\/www\/blog\.lychee\.land/);
     assert.doesNotMatch(row, /path:/);
   });
 
   test("a proxy row states one unbroken local address", () => {
-    const row = rowFor(renderSiteList([PROXY_SITE], {}, "lyly.dev"), "api.lyly.dev");
+    const row = rowFor(renderSiteList([PROXY_SITE], {}, "lychee.land"), "api.lychee.land");
     assert.match(row, /localhost:4000/);
   });
 
   test("a framework proxy row still names its framework", () => {
-    const row = rowFor(renderSiteList([NEXT_SITE], {}, "lyly.dev"), "app.lyly.dev");
+    const row = rowFor(renderSiteList([NEXT_SITE], {}, "lychee.land"), "app.lychee.land");
     assert.match(row, /localhost:3000/);
     assert.match(row, /Next\.js/);
   });
@@ -1059,10 +1059,10 @@ describe("the site list's ledger rows", () => {
   // A static row has no status to show, but it must still occupy the column,
   // or its type pill slides into the position a proxy row's status pill holds.
   test("a status-less row still reserves the status column so the pills align", () => {
-    const staticRow = rowFor(renderSiteList([STATIC_SITE], {}, "lyly.dev"), "blog.lyly.dev");
+    const staticRow = rowFor(renderSiteList([STATIC_SITE], {}, "lychee.land"), "blog.lychee.land");
     const proxyRow = rowFor(
-      renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lyly.dev"),
-      "api.lyly.dev",
+      renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lychee.land"),
+      "api.lychee.land",
     );
     assert.match(staticRow, /data-status-slot/);
     assert.match(proxyRow, /data-status-slot/);
@@ -1074,7 +1074,7 @@ describe("the site list's ledger rows", () => {
   // measured at 380px, the pills held 215px while the hostname got 97 and the
   // address wrapped — so the reservation starts at sm and not before.
   test("the reserved status column starts at the sm floor, not below it", () => {
-    const row = rowFor(renderSiteList([STATIC_SITE], {}, "lyly.dev"), "blog.lyly.dev");
+    const row = rowFor(renderSiteList([STATIC_SITE], {}, "lychee.land"), "blog.lychee.land");
     const slot = row.slice(row.indexOf("data-status-slot") - 200, row.indexOf("data-status-slot"));
     assert.match(slot, /sm:min-w-/);
     assert.doesNotMatch(slot, /(?<!sm:)\bmin-w-\[9rem\]/);
@@ -1082,8 +1082,8 @@ describe("the site list's ledger rows", () => {
 
   test("both pills share one right-hand group, so the row has two halves not three", () => {
     const row = rowFor(
-      renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lyly.dev"),
-      "api.lyly.dev",
+      renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lychee.land"),
+      "api.lychee.land",
     );
     const at = row.indexOf("data-row-side");
     assert.notEqual(at, -1, "no element carrying data-row-side was rendered in the row");
@@ -1109,27 +1109,27 @@ function accessibleName(markup: string): string {
 }
 
 describe("what a site row announces", () => {
-  // "api.lyly.dev localhost:4000 proxy not responding" is serviceable but runs
+  // "api.lychee.land localhost:4000 proxy not responding" is serviceable but runs
   // four separate facts together. The separators are sr-only rather than an
   // aria-label so the name still derives from the visible text and cannot
   // drift from it.
   test("a proxy row's four facts are separated rather than run together", () => {
     const row = rowFor(
-      renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lyly.dev"),
-      "api.lyly.dev",
+      renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lychee.land"),
+      "api.lychee.land",
     );
-    assert.equal(accessibleName(row), "api.lyly.dev, localhost:4000, proxy, responding");
+    assert.equal(accessibleName(row), "api.lychee.land, localhost:4000, proxy, responding");
   });
 
   test("a status-less row ends after its type, with no trailing separator", () => {
-    const row = rowFor(renderSiteList([STATIC_SITE], {}, "lyly.dev"), "blog.lyly.dev");
-    assert.equal(accessibleName(row), "blog.lyly.dev, /var/www/blog.lyly.dev, static");
+    const row = rowFor(renderSiteList([STATIC_SITE], {}, "lychee.land"), "blog.lychee.land");
+    assert.equal(accessibleName(row), "blog.lychee.land, /var/www/blog.lychee.land, static");
   });
 
   test("the status dot is still absent from the name", () => {
     const row = rowFor(
-      renderSiteList([NEXT_SITE], { [NEXT_SITE.hostname]: { kind: "container", state: "exited" } }, "lyly.dev"),
-      "app.lyly.dev",
+      renderSiteList([NEXT_SITE], { [NEXT_SITE.hostname]: { kind: "container", state: "exited" } }, "lychee.land"),
+      "app.lychee.land",
     );
     assert.doesNotMatch(accessibleName(row), /&#9679;|●/);
     assert.match(accessibleName(row), /, exited$/);
@@ -1140,7 +1140,7 @@ describe("the not-found page", () => {
   // Same bug the site list's error banner had: mx-auto on a child of the
   // shell's flex-column <main> shrink-wraps instead of centring a block.
   test("the not-found wrapper spans its column instead of shrink-wrapping", () => {
-    const html = renderSiteNotFound("nope.lyly.dev");
+    const html = renderSiteNotFound("nope.lychee.land");
     const wrapper = html.match(/<div class="[^"]*max-w-\[640px\][^"]*"/);
     assert.ok(wrapper, "no width-capped wrapper rendered");
     assert.match(wrapper[0], /\bw-full\b/);
@@ -1155,28 +1155,28 @@ describe("the site list's error banner", () => {
   // aligned to the page. DETAIL_WIDTH pairs mx-auto with w-full for exactly
   // this reason; the banner simply never did.
   test("the error banner spans the content column instead of shrink-wrapping", () => {
-    const html = renderSiteList([], {}, "lyly.dev", "caddy validate failed");
+    const html = renderSiteList([], {}, "lychee.land", "caddy validate failed");
     const banner = html.match(/<p class="[^"]*bg-red-950[^"]*"/);
     assert.ok(banner, "no error banner rendered");
     assert.doesNotMatch(banner[0], /\bmx-auto\b/);
   });
 
   test("the error banner still renders its message", () => {
-    const html = renderSiteList([], {}, "lyly.dev", "caddy validate failed");
+    const html = renderSiteList([], {}, "lychee.land", "caddy validate failed");
     assert.match(html, /caddy validate failed/);
   });
 });
 
 describe("the site list with no sites", () => {
   test("the empty state carries the call to action rather than stranding it in the header", () => {
-    const html = renderSiteList([], {}, "lyly.dev");
+    const html = renderSiteList([], {}, "lychee.land");
     assert.doesNotMatch(html, /No sites configured yet/);
     assert.match(tagById(html, "empty-state-cta"), /href="\/sites\/new"/);
   });
 
   test("the empty state explains what a site is", () => {
-    const html = renderSiteList([], {}, "lyly.dev");
-    assert.match(html, /lyly\.dev/);
+    const html = renderSiteList([], {}, "lychee.land");
+    assert.match(html, /lychee\.land/);
     assert.ok(tagById(html, "empty-state"));
   });
 
@@ -1185,30 +1185,30 @@ describe("the site list with no sites", () => {
   // twice and make neither the obvious one, so the section header yields its
   // button to the empty state rather than sitting beside it.
   test("an empty page offers its one action once, not twice", () => {
-    const body = withoutHeader(renderSiteList([], {}, "lyly.dev"));
+    const body = withoutHeader(renderSiteList([], {}, "lychee.land"));
     const ctas = [...body.matchAll(/href="\/sites\/new"/g)];
     assert.equal(ctas.length, 1, "the section header and the empty state both offered Add site");
   });
 
   test("the section header keeps its button once there are sites to sit above", () => {
-    const body = withoutHeader(renderSiteList(SITES, {}, "lyly.dev"));
+    const body = withoutHeader(renderSiteList(SITES, {}, "lychee.land"));
     assert.match(body, /href="\/sites\/new"[^>]*>(?:(?!<\/a>)[\s\S])*Add site<\/a>/);
   });
 });
 
 describe("hardening: browser defaults never carry the design", () => {
   test("every interactive element the design draws gets the project focus ring", () => {
-    const list = renderSiteList(SITES, {}, "lyly.dev");
-    const card = list.match(/<a href="\/sites\/api\.lyly\.dev"[^>]*>/);
+    const list = renderSiteList(SITES, {}, "lychee.land");
+    const card = list.match(/<a href="\/sites\/api\.lychee\.land"[^>]*>/);
     assert.ok(card, "no site-card link rendered");
     assert.match(card[0], /focus-visible:outline-rose-400/);
 
-    const notFound = renderSiteNotFound("nope.lyly.dev");
+    const notFound = renderSiteNotFound("nope.lychee.land");
     const back = notFound.match(/<a href="\/"[^>]*>/);
     assert.ok(back, "no back link rendered");
     assert.match(back[0], /focus-visible:outline-rose-400/);
 
-    const add = renderAddSite(SITES, "lyly.dev", {}, PATHS);
+    const add = renderAddSite(SITES, "lychee.land", {}, PATHS);
     for (const value of ["static", "reverse-proxy"]) {
       const radio = add.match(new RegExp(`<input type="radio"[^>]*value="${value}"[^>]*>`));
       assert.ok(radio, `no ${value} radio rendered`);
@@ -1217,7 +1217,7 @@ describe("hardening: browser defaults never carry the design", () => {
   });
 
   test("a radio's accessible name is its option, not its explanation", () => {
-    const add = renderAddSite(SITES, "lyly.dev", {}, PATHS);
+    const add = renderAddSite(SITES, "lychee.land", {}, PATHS);
     const radio = add.match(/<input type="radio"[^>]*value="static"[^>]*>/);
     assert.ok(radio);
     // The paragraph stays announced, as a description rather than a name.
@@ -1234,8 +1234,8 @@ describe("hardening: browser defaults never carry the design", () => {
   });
 
   test("no transition escapes the reduced-motion gate", () => {
-    const add = renderAddSite(SITES, "lyly.dev", {}, PATHS);
-    const list = renderSiteList(SITES, {}, "lyly.dev");
+    const add = renderAddSite(SITES, "lychee.land", {}, PATHS);
+    const list = renderSiteList(SITES, {}, "lychee.land");
     for (const html of [add, list]) {
       assert.doesNotMatch(html, /(?<!motion-safe:)transition-colors/);
     }
@@ -1375,7 +1375,7 @@ describe("small-text ramp", () => {
   });
 
   test("status pills clear the 11px floor", () => {
-    const html = renderSiteList(SITES, { "api.lyly.dev": { kind: "tcp", responding: false } }, "lyly.dev");
+    const html = renderSiteList(SITES, { "api.lychee.land": { kind: "tcp", responding: false } }, "lychee.land");
     assert.match(html, /inline-flex items-center gap-1 shrink-0 font-mono text-\[0\.6875rem\] uppercase/);
   });
 
@@ -1397,7 +1397,7 @@ describe("small-text ramp", () => {
   });
 
   test("the type-option description clears AA on its raised card", () => {
-    const html = renderAddSite(SITES, "lyly.dev", {}, PATHS);
+    const html = renderAddSite(SITES, "lychee.land", {}, PATHS);
     // Anchored to the two type-option <label> cards themselves, not the whole
     // document — a document-wide regex here would also catch the header
     // nav's unrelated bg-stone-700/text-stone-400 pairing and pass vacuously.
@@ -1411,7 +1411,7 @@ describe("small-text ramp", () => {
 
 describe("renderAddSite step list", () => {
   test("the add form states its steps in execution order", () => {
-    const html = renderAddSite(SITES, "lyly.dev", {}, PATHS);
+    const html = renderAddSite(SITES, "lychee.land", {}, PATHS);
     const list = listById(html, "add-site-steps");
     for (const id of ["backup", "caddyfile", "files", "tunnel", "caddy", "cloudflared"]) {
       assert.match(list, new RegExp(`data-step-id="${id}"`));
@@ -1422,7 +1422,7 @@ describe("renderAddSite step list", () => {
 });
 
 describe("the add-site preview panel", () => {
-  const html = renderAddSite(SITES, "lyly.dev", {}, PATHS);
+  const html = renderAddSite(SITES, "lychee.land", {}, PATHS);
 
   test("takes the 1080px frame rather than the 760px reading column", () => {
     const body = withoutHeader(html);
@@ -1480,7 +1480,7 @@ describe("renderServicesPage", () => {
   const NOW = new Date("2026-10-02T05:00:00Z");
 
   test("an unavailable inventory renders an explanation, not an empty page", () => {
-    const html = renderServicesPage({ groups: [], schedule: NO_SCHEDULE, timerUnit: null, generated: null, inventoryAvailable: false }, NOW);
+    const html = renderServicesPage({ groups: [], schedule: NO_SCHEDULE, timerUnit: null, generated: null, inventoryAvailable: false }, NOW, new Set(), "lychee.land");
     assert.ok(html.includes("inventory"));
     assert.ok(!html.includes("undefined"));
     assert.ok(!html.includes("NaN"));
@@ -1497,7 +1497,7 @@ describe("renderServicesPage", () => {
             reconciled: false, status: "running", since: null },
         ] }],
       },
-      NOW,
+      NOW, new Set(), "lychee.land",
     );
     assert.ok(html.includes("palworld"));
     assert.ok(html.includes("Inventory written 2 minutes ago"));
@@ -1512,7 +1512,7 @@ describe("renderServicesPage", () => {
   test("an available inventory with no recognised groups explains itself rather than rendering a bare frame", () => {
     const html = renderServicesPage(
       { groups: [], schedule: NO_SCHEDULE, timerUnit: null, generated: "2026-10-02T04:58:00Z", inventoryAvailable: true },
-      NOW,
+      NOW, new Set(), "lychee.land",
     );
     assert.ok(html.includes('id="inventory-unavailable"'));
   });
@@ -1529,7 +1529,7 @@ describe("renderServicesPage", () => {
             reconciled: false, status: "running", since: null },
         ] }],
       },
-      NOW,
+      NOW, new Set(), "lychee.land",
     );
     assert.ok(!html.includes("next run"));
     assert.ok(html.includes("last run 2 minutes ago"));
@@ -1547,7 +1547,7 @@ describe("renderServicesPage", () => {
             version: "v0.2.0", result: "blocked", failedAttempts: 3, gate, status: "unknown", since: null },
         ] }],
       },
-      NOW,
+      NOW, new Set(), "lychee.land",
     );
     assert.ok(html.includes("v0.2.0 · blocked · 3 attempts"));
     assert.ok(html.includes(gate));
@@ -1569,7 +1569,7 @@ describe("renderServicesPage", () => {
             status: "running", since: null, ...extra } as never,
         ] }],
       },
-      NOW,
+      NOW, new Set(), "lychee.land",
     );
   }
 
@@ -1671,7 +1671,7 @@ describe("renderServicesPage", () => {
           { name, kind: "container", container: name, group: "service", reconciled: true, target: "v1", result: "failed", status: "exited", since: null } as never
         )) }],
       },
-      NOW,
+      NOW, new Set(), "lychee.land",
     );
     const ids = [...html.matchAll(/<pre id="([^"]+)"/g)].map((m) => m[1]);
     assert.equal(ids.length, 2);
@@ -1699,7 +1699,7 @@ describe("renderServicesPage", () => {
           { name: "x", kind: "unit", unit: "x.service", group: "service", reconciled: false, status, since: null },
         ] }],
       },
-      NOW,
+      NOW, new Set(), "lychee.land",
     );
   }
 
@@ -1739,13 +1739,13 @@ describe("Prune on the services board", () => {
   };
 
   test("a row whose site declaration is absent carries the same control as the site page", () => {
-    const html = renderServicesPage(board(["gone-lyly-dev", "app-lyly-dev"]), NOW, new Set(["gone-lyly-dev"]));
-    assert.ok(rowOf(html, "gone-lyly-dev").includes(renderPruneControl("gone-lyly-dev")));
-    assert.doesNotMatch(rowOf(html, "app-lyly-dev"), /data-prune/);
+    const html = renderServicesPage(board(["gone-lychee-land", "app-lychee-land"]), NOW, new Set(["gone-lychee-land"]), "lychee.land");
+    assert.ok(rowOf(html, "gone-lychee-land").includes(renderPruneControl("gone-lychee-land")));
+    assert.doesNotMatch(rowOf(html, "app-lychee-land"), /data-prune/);
   });
 
   test("the prune button is the compact secondary on both surfaces: the offer's 32px, secondary's look", () => {
-    for (const markup of [renderPruneControl("gone-lyly-dev"), rowOf(renderServicesPage(board(["gone-lyly-dev"]), NOW, new Set(["gone-lyly-dev"])), "gone-lyly-dev")]) {
+    for (const markup of [renderPruneControl("gone-lychee-land"), rowOf(renderServicesPage(board(["gone-lychee-land"]), NOW, new Set(["gone-lychee-land"]), "lychee.land"), "gone-lychee-land")]) {
       assert.ok(markup.includes(`class="${BUTTON_SECONDARY_COMPACT}"`));
       assert.doesNotMatch(markup, /min-h-10/);
     }
@@ -1760,19 +1760,19 @@ describe("Prune on the services board", () => {
   });
 
   test("the caption joins with a non-breaking space and keeps the separator with what it introduces", () => {
-    const html = renderPruneControl("gone-lyly-dev");
+    const html = renderPruneControl("gone-lychee-land");
     assert.match(html, /lychee-resources&nbsp;<span class="whitespace-nowrap">· once its container is confirmed down<\/span>/);
     assert.doesNotMatch(html, / · /);
   });
 
   test("a non-site name gets no control even if it is named absent", () => {
-    const html = renderServicesPage(board(["palsave-api"]), NOW, new Set(["palsave-api"]));
+    const html = renderServicesPage(board(["palsave-api"]), NOW, new Set(["palsave-api"]), "lychee.land");
     assert.doesNotMatch(html, /data-prune/);
   });
 
   test("with nothing named absent (or the clone unreadable) no row carries the control", () => {
-    assert.doesNotMatch(renderServicesPage(board(["gone-lyly-dev"]), NOW), /data-prune/);
-    assert.doesNotMatch(renderServicesPage(board(["gone-lyly-dev"]), NOW, new Set()), /data-prune/);
+    assert.doesNotMatch(renderServicesPage(board(["gone-lychee-land"]), NOW, new Set(), "lychee.land"), /data-prune/);
+    assert.doesNotMatch(renderServicesPage(board(["gone-lychee-land"]), NOW, new Set(), "lychee.land"), /data-prune/);
   });
 });
 
@@ -1875,7 +1875,7 @@ describe("renderSiteDetail from a repository", () => {
     { name: ".github/workflows/release.yml", content: "on:\n  push:\n    tags: ['v*.*.*']\n" },
   ];
   const BASE = { ...OPTS, scaffold: { buildCommand: "npm run build", runCommand: "npm start" }, scaffoldFiles: FILES };
-  const RESOURCE = { name: "app-lyly-dev", repo: "app-site" };
+  const RESOURCE = { name: "app-lychee-land", repo: "app-site" };
 
   function card(html: string): string {
     const [, after] = withoutHeader(html).split(">From a repository</h3>");
@@ -1897,7 +1897,7 @@ describe("renderSiteDetail from a repository", () => {
   test("not attached: the attach control fixes the ghcr prefix beside the input and is the page's ember action", () => {
     const html = renderSiteDetail(NEXT_SITE, { ...BASE, status: { kind: "container", state: "not-created" } });
     const c = card(html);
-    assert.match(c, /data-attach="app\.lyly\.dev"/);
+    assert.match(c, /data-attach="app\.lychee\.land"/);
     assert.match(c, />ghcr\.io\/lycheehome\/</);
     assert.match(c, /name="repo"/);
     assert.ok(c.includes(BUTTON_PRIMARY), "Attach should be the primary button");
@@ -1929,7 +1929,7 @@ describe("renderSiteDetail from a repository", () => {
   test("attached: resource and image join the request path's detail rows", () => {
     const html = renderSiteDetail(NEXT_SITE, { ...BASE, resource: RESOURCE, status: { kind: "awaiting-image" } });
     const path = html.split("Request path</h3>")[1].split("</section>")[0];
-    assert.match(path, /resource<\/span><span[^>]*>app-lyly-dev</);
+    assert.match(path, /resource<\/span><span[^>]*>app-lychee-land</);
     assert.match(path, /image<\/span><span[^>]*>ghcr\.io\/lycheehome\/app-site</);
   });
 
@@ -1950,7 +1950,7 @@ describe("renderSiteDetail from a repository", () => {
     const offer = c.match(/<p[^>]*data-offer>[\s\S]*?<\/p>/);
     assert.ok(offer, "expected the offer line");
     assert.match(offer[0], /0\.1\.0 available/);
-    assert.ok(offer[0].includes(`class="${BUTTON_OFFER}" data-deploy="app-lyly-dev" data-deploy-tag="0.1.0">Deploy 0.1.0</button>`));
+    assert.ok(offer[0].includes(`class="${BUTTON_OFFER}" data-deploy="app-lychee-land" data-deploy-tag="0.1.0">Deploy 0.1.0</button>`));
     assert.ok(c.lastIndexOf("data-offer") > c.indexOf("ghcr.io/lycheehome/app-site"), "the offer comes after the attach step");
     // Not in the page header: Visit stays the header's one ember control.
     const header = withoutHeader(html).split("Request path</h3>")[0];
@@ -1964,7 +1964,7 @@ describe("renderSiteDetail from a repository", () => {
           {
             group: "service",
             rows: [
-              { kind: "container", container: "app-lyly-dev", name: "app-lyly-dev", group: "service", reconciled: true, version: "0.2.0", available: "0.3.0", result: "deployed", status: "running", since: null },
+              { kind: "container", container: "app-lychee-land", name: "app-lychee-land", group: "service", reconciled: true, version: "0.2.0", available: "0.3.0", result: "deployed", status: "running", since: null },
             ],
           },
         ],
@@ -1973,7 +1973,7 @@ describe("renderSiteDetail from a repository", () => {
         generated: null,
         inventoryAvailable: true,
       },
-      new Date("2026-10-05T00:00:00Z"),
+      new Date("2026-10-05T00:00:00Z"), new Set(), "lychee.land",
     );
     const site = renderSiteDetail(NEXT_SITE, {
       ...BASE,
@@ -2018,7 +2018,7 @@ describe("renderSiteDetail from a repository", () => {
     const html = renderSiteDetail(NEXT_SITE, { ...BASE, detached: true, status: { kind: "container", state: "not-created" } });
     const c = card(html);
     assert.doesNotMatch(html, /awaiting image/);
-    assert.match(c, /app-lyly-dev\.yml/);
+    assert.match(c, /app-lychee-land\.yml/);
     assert.match(c, /Prune it to re-attach/);
     assert.doesNotMatch(c, /before re-attaching/);
     const button = c.match(/<button[^>]*type="submit"[^>]*>/);
@@ -2034,8 +2034,8 @@ describe("renderSiteDetail from a repository", () => {
 
   test("detached: the warning carries the Prune control for the site's resource", () => {
     const c = card(renderSiteDetail(NEXT_SITE, { ...BASE, detached: true, status: { kind: "container", state: "not-created" } }));
-    assert.ok(c.includes(renderPruneControl("app-lyly-dev")));
-    const button = c.match(/<button[^>]*data-prune="app-lyly-dev"[^>]*>([^<]*)<\/button>/);
+    assert.ok(c.includes(renderPruneControl("app-lychee-land")));
+    const button = c.match(/<button[^>]*data-prune="app-lychee-land"[^>]*>([^<]*)<\/button>/);
     assert.ok(button);
     assert.equal(button[1], "Prune old declaration");
     assert.match(button[0], /type="button"/);
@@ -2137,7 +2137,7 @@ describe("renderSiteDetail from a repository", () => {
     assert.match(c, /data-deploy-failed/);
     assert.match(c, /Start the container: exit 1/);
     assert.match(c, /0\.1\.1 available/);
-    assert.match(c, /data-deploy="app-lyly-dev"/);
+    assert.match(c, /data-deploy="app-lychee-land"/);
     assert.match(c, /data-deploy-tag="0\.1\.1"/);
     assert.ok(c.indexOf("data-deploy-failed") < c.indexOf("data-offer"));
     assert.doesNotMatch(c, /No tag found/);
@@ -2153,7 +2153,7 @@ describe("renderSiteDetail from a repository", () => {
     );
     assert.match(c, /data-deploy-failed/);
     assert.match(c, /0\.2\.1 available/);
-    assert.match(c, /data-deploy="app-lyly-dev"/);
+    assert.match(c, /data-deploy="app-lychee-land"/);
     assert.ok(c.indexOf("data-deploy-failed") < c.indexOf("data-offer"));
   });
 
@@ -2182,7 +2182,7 @@ describe("renderSiteDetail from a repository", () => {
     assert.match(c, /repository name is wrong/);
     assert.doesNotMatch(c, /No tag found/);
     assert.match(c, /no image yet/);
-    const form = c.match(/<form[^>]*data-change-repository="app\.lyly\.dev"[\s\S]*?<\/form>/);
+    const form = c.match(/<form[^>]*data-change-repository="app\.lychee\.land"[\s\S]*?<\/form>/);
     assert.ok(form, "no change-repository form");
     const input = form[0].match(/<input[^>]*>/);
     assert.ok(input);
@@ -2212,8 +2212,8 @@ describe("renderSiteDetail from a repository", () => {
       resource: { ...RESOURCE, version: "0.2.0", result: "deployed" },
       status: { kind: "container", state: "exited" },
     });
-    assert.match(html, /docker compose -p app-lyly-dev logs/);
-    assert.doesNotMatch(html, /in \/var\/www\/app\.lyly\.dev\//);
+    assert.match(html, /docker compose -p app-lychee-land logs/);
+    assert.doesNotMatch(html, /in \/var\/www\/app\.lychee\.land\//);
   });
 });
 

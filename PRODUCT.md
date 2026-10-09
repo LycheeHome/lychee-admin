@@ -9,7 +9,7 @@ web
 ## Users
 
 One user: the owner and administrator of `lychee`, the Ubuntu Server box at
-`192.168.1.10` that hosts every `*.lyly.dev` site. Not a customer, not an
+`192.168.1.10` that hosts every `*.lychee.land` site. Not a customer, not an
 operator following a runbook someone else wrote — the person who built the
 Caddy + Cloudflare Tunnel setup this app edits, and who will be the one
 debugging it at 11pm when a site is down.
@@ -139,10 +139,10 @@ claim.
   `failed` is a first deploy the reconciler attempted and could not complete.
 - **Terminology that must stay stable**: managed hostname; static vs
   reverse-proxy site; framework scaffold; healthcheck path; hop; attach /
-  attached; site resource (`<label>-lyly-dev`); declaration; awaiting image; *the sites
+  attached; site resource (`<label>-lychee-land`); declaration; awaiting image; *the sites
   tunnel* (`cloudflared-sites`) as distinct from the SSH tunnel this app must
   never touch.
-- **Hostnames are validated as `*.lyly.dev`.** Reverse-proxy ports are
+- **Hostnames are validated as `*.lychee.land`.** Reverse-proxy ports are
   rejected on conflict with another site, with a port claimed by a declaration
   in `lychee-resources` (in any state, retired included), or with a reserved
   port (the app's own, and Caddy's admin API on 2019).
@@ -164,7 +164,7 @@ claim.
 
 ## Brand Commitments
 
-Product name: `lyly-admin`. Managed domain: `lyly.dev`; every managed
+Product name: `lyly-admin`. Managed domain: `lychee.land`; every managed
 hostname is a subdomain of it.
 
 Voice, as already practiced and worth preserving: copy states the mechanism

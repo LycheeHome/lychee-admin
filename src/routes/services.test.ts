@@ -9,7 +9,7 @@ import type { SystemCommands } from "../lib/systemCommands";
 const PASSWORD = "test-password";
 process.env.ADMIN_USERNAME = "tester";
 process.env.ADMIN_PASSWORD_HASH = bcrypt.hashSync(PASSWORD, 4);
-process.env.DOMAIN = "lyly.dev";
+process.env.DOMAIN = "lychee.land";
 process.env.PORT = "8787";
 process.env.LOG_FILE = "/var/log/lyly-admin/actions.log";
 process.env.CADDYFILE_PATH = "/etc/caddy/Caddyfile";
@@ -270,13 +270,13 @@ describe("GET /services: Prune on retired site rows", () => {
   const site = (name: string) => ({ name, kind: "container", container: name, group: "service", reconciled: true, result: "deployed" });
   const PALSAVE = { name: "palsave-api", unit: "palsave-api.service", group: "service", reconciled: true, result: "deployed" };
   const DECLS = [
-    { name: "gone-lyly-dev", port: 3400, state: "absent", image: "ghcr.io/lycheehome/gone" },
-    { name: "app-lyly-dev", port: 3200, state: "running", image: "ghcr.io/lycheehome/app:0.2.0" },
+    { name: "gone-lychee-land", port: 3400, state: "absent", image: "ghcr.io/lycheehome/gone" },
+    { name: "app-lychee-land", port: 3200, state: "running", image: "ghcr.io/lycheehome/app:0.2.0" },
     { name: "palsave-api", port: 8788, state: "absent", image: "ghcr.io/lycheehome/palsave-api" },
   ];
   async function board(readDeclarations: SystemCommands["readDeclarations"]): Promise<string> {
     await current?.close();
-    current = await serve(inventory([site("gone-lyly-dev"), site("app-lyly-dev"), PALSAVE]), { readDeclarations });
+    current = await serve(inventory([site("gone-lychee-land"), site("app-lychee-land"), PALSAVE]), { readDeclarations });
     const res = await current.get("/services");
     assert.equal(res.status, 200);
     return res.text();
@@ -284,7 +284,7 @@ describe("GET /services: Prune on retired site rows", () => {
   const pruned = (html: string) => [...html.matchAll(/data-prune="([^"]+)"/g)].map((m) => m[1]);
 
   test("only a site whose declaration is absent gets the control", async () => {
-    assert.deepEqual(pruned(await board(() => Promise.resolve(DECLS))), ["gone-lyly-dev"]);
+    assert.deepEqual(pruned(await board(() => Promise.resolve(DECLS))), ["gone-lychee-land"]);
   });
 
   test("an unreadable clone shows no control anywhere", async () => {
@@ -373,7 +373,7 @@ describe("POST /resources/:name/prune", () => {
   after(async () => {
     await current?.close();
   });
-  const SITE = "test-lyly-dev";
+  const SITE = "test-lychee-land";
   const DOWN = { name: SITE, kind: "container", container: SITE, group: "service", reconciled: true, result: "deployed" };
   const DECL = [{ name: SITE, port: 3000, state: "absent", image: "ghcr.io/lycheehome/x" }];
   const CONFIRM_REASON = "the container hasn't been confirmed down yet; try after the next reconcile";
@@ -427,7 +427,7 @@ describe("POST /resources/:name/prune", () => {
   test("awaiting-image with a writer tagged refusal is the not-confirmed-down 409", async () => {
     const res = await post(
       [{ ...DOWN, result: "awaiting-image" }],
-      spy({ ok: false, code: "tagged", reason: "test-lyly-dev.yml has a tag" }).overrides,
+      spy({ ok: false, code: "tagged", reason: "test-lychee-land.yml has a tag" }).overrides,
     );
     assert.equal(res.status, 409);
     assert.deepEqual(await res.json(), { ok: false, reason: CONFIRM_REASON });

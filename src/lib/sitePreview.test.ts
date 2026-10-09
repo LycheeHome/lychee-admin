@@ -6,26 +6,27 @@ import { addIngressRule } from "./tunnelConfig";
 import { buildSitePreview, diffInserted } from "./sitePreview";
 
 const ENV: SiteEnv = {
-  domain: "lyly.dev",
+  domain: "lychee.land",
   sitesRoot: "/var/www",
   caddyfilePath: "/etc/caddy/Caddyfile",
   tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
   reservedPorts: [8787, 2019],
+  reservedHostnames: [],
 };
 
 const CADDYFILE = `{
 \tauto_https off
 }
 
-http://blog.lyly.dev {
-\troot * /var/www/blog.lyly.dev
+http://blog.lychee.land {
+\troot * /var/www/blog.lychee.land
 \tfile_server
 }
 `;
 
 const TUNNEL = `tunnel: 11111111-2222-3333-4444-555555555555
 ingress:
-  - hostname: blog.lyly.dev
+  - hostname: blog.lychee.land
     service: http://localhost:80
   - service: http_status:404
 `;
@@ -51,28 +52,28 @@ describe("diffInserted", () => {
 });
 
 describe("buildSitePreview — static", () => {
-  const preview = buildSitePreview(readSiteInput({ hostname: "docs.lyly.dev" }), EXISTING, ENV);
+  const preview = buildSitePreview(readSiteInput({ hostname: "docs.lychee.land" }), EXISTING, ENV);
 
   test("the Caddyfile lines it reports are exactly what appendSite would write", () => {
     const after = appendSite(CADDYFILE, {
-      hostname: "docs.lyly.dev",
+      hostname: "docs.lychee.land",
       type: "static",
-      target: "/var/www/docs.lyly.dev",
+      target: "/var/www/docs.lychee.land",
     });
     assert.ok(after.includes(preview.caddy.added.join("\n")));
     assert.deepEqual(preview.caddy.added, [
-      "http://docs.lyly.dev {",
-      "\troot * /var/www/docs.lyly.dev",
+      "http://docs.lychee.land {",
+      "\troot * /var/www/docs.lychee.land",
       "\tfile_server",
       "}",
     ]);
   });
 
   test("the ingress lines it reports are exactly what addIngressRule would write", () => {
-    const after = addIngressRule(TUNNEL, "docs.lyly.dev", "http://localhost:80");
+    const after = addIngressRule(TUNNEL, "docs.lychee.land", "http://localhost:80");
     assert.ok(after.includes(preview.tunnel.added.join("\n")));
     assert.deepEqual(preview.tunnel.added, [
-      "  - hostname: docs.lyly.dev",
+      "  - hostname: docs.lychee.land",
       "    service: http://localhost:80",
     ]);
   });
@@ -82,7 +83,7 @@ describe("buildSitePreview — static", () => {
   });
 
   test("a static site creates its directory and a placeholder page", () => {
-    assert.deepEqual(preview.files, { path: "/var/www/docs.lyly.dev", creates: ["index.html"] });
+    assert.deepEqual(preview.files, { path: "/var/www/docs.lychee.land", creates: ["index.html"] });
   });
 
   test("every step runs for a static site", () => {
@@ -97,14 +98,14 @@ describe("buildSitePreview — static", () => {
 
 describe("buildSitePreview — plain reverse proxy", () => {
   const preview = buildSitePreview(
-    readSiteInput({ hostname: "docs.lyly.dev", type: "reverse-proxy", port: "4100" }),
+    readSiteInput({ hostname: "docs.lychee.land", type: "reverse-proxy", port: "4100" }),
     EXISTING,
     ENV,
   );
 
   test("writes a reverse_proxy block with no marker comments", () => {
     assert.deepEqual(preview.caddy.added, [
-      "http://docs.lyly.dev {",
+      "http://docs.lychee.land {",
       "\treverse_proxy localhost:4100",
       "}",
     ]);
@@ -120,7 +121,7 @@ describe("buildSitePreview — plain reverse proxy", () => {
 describe("buildSitePreview — Next.js reverse proxy", () => {
   const preview = buildSitePreview(
     readSiteInput({
-      hostname: "docs.lyly.dev",
+      hostname: "docs.lychee.land",
       type: "reverse-proxy",
       port: "4100",
       framework: "nextjs",
@@ -132,7 +133,7 @@ describe("buildSitePreview — Next.js reverse proxy", () => {
 
   test("records both marker comments inside the block", () => {
     assert.deepEqual(preview.caddy.added, [
-      "http://docs.lyly.dev {",
+      "http://docs.lychee.land {",
       "\t# lyly-admin-framework: nextjs",
       "\t# lyly-admin-healthcheck: /api/health",
       "\treverse_proxy localhost:4100",

@@ -16,12 +16,12 @@ import type { TimerSchedule, UnitState } from "../lib/unitState";
  *
  * The four Next.js sites are the states a site's "From a repository" card
  * has, so dev mode shows each without anyone attaching or deploying:
- * legacy.lyly.dev is unattached (the full runbook and the Attach control),
- * preview.lyly.dev is attached and awaiting its first image (0.1.0 on offer),
- * app.lyly.dev is attached and running 0.2.0 with 0.3.0 on offer, and
- * broken.lyly.dev's first deploy failed: 0.1.0 is pinned and failing, nothing
+ * legacy.lychee.land is unattached (the full runbook and the Attach control),
+ * preview.lychee.land is attached and awaiting its first image (0.1.0 on offer),
+ * app.lychee.land is attached and running 0.2.0 with 0.3.0 on offer, and
+ * broken.lychee.land's first deploy failed: 0.1.0 is pinned and failing, nothing
  * is installed, and the fix, 0.1.1, is on offer beside the failure line.
- * gone.lyly.dev ran, was removed, and has been added back: Remove deleted its
+ * gone.lychee.land ran, was removed, and has been added back: Remove deleted its
  * old block and retired its declaration (state: absent), the reconciler has
  * since taken the container down (its inventory entry shows a completed down
  * with nothing installed), and the block here is the re-add. So its page shows
@@ -40,45 +40,45 @@ export const SEED_CADDYFILE = `{
 \tauto_https off
 }
 
-http://lyly.dev {
-\troot * /var/www/lyly.dev
+http://lychee.land {
+\troot * /var/www/lychee.land
 \tfile_server
 }
 
-http://blog.lyly.dev {
-\troot * /var/www/blog.lyly.dev
+http://blog.lychee.land {
+\troot * /var/www/blog.lychee.land
 \tfile_server
 }
 
-http://api.lyly.dev {
+http://api.lychee.land {
 \treverse_proxy localhost:4000
 }
 
-http://app.lyly.dev {
+http://app.lychee.land {
 \t# lyly-admin-framework: nextjs
 \t# lyly-admin-healthcheck: /api/health
 \treverse_proxy localhost:3200
 }
 
-http://preview.lyly.dev {
+http://preview.lychee.land {
 \t# lyly-admin-framework: nextjs
 \t# lyly-admin-healthcheck: /
 \treverse_proxy localhost:3100
 }
 
-http://broken.lyly.dev {
+http://broken.lychee.land {
 \t# lyly-admin-framework: nextjs
 \t# lyly-admin-healthcheck: /api/health
 \treverse_proxy localhost:3300
 }
 
-http://gone.lyly.dev {
+http://gone.lychee.land {
 \t# lyly-admin-framework: nextjs
 \t# lyly-admin-healthcheck: /
 \treverse_proxy localhost:3400
 }
 
-http://legacy.lyly.dev {
+http://legacy.lychee.land {
 \t# lyly-admin-framework: nextjs
 \treverse_proxy localhost:3001
 }
@@ -93,21 +93,21 @@ http://lychee.local {
 export const SEED_TUNNEL_CONFIG = `tunnel: 11111111-2222-3333-4444-555555555555
 credentials-file: /etc/cloudflared/11111111-2222-3333-4444-555555555555.json
 ingress:
-  - hostname: lyly.dev
+  - hostname: lychee.land
     service: http://localhost:80
-  - hostname: blog.lyly.dev
+  - hostname: blog.lychee.land
     service: http://localhost:80
-  - hostname: api.lyly.dev
+  - hostname: api.lychee.land
     service: http://localhost:80
-  - hostname: app.lyly.dev
+  - hostname: app.lychee.land
     service: http://localhost:80
-  - hostname: legacy.lyly.dev
+  - hostname: legacy.lychee.land
     service: http://localhost:80
-  - hostname: preview.lyly.dev
+  - hostname: preview.lychee.land
     service: http://localhost:80
-  - hostname: broken.lyly.dev
+  - hostname: broken.lychee.land
     service: http://localhost:80
-  - hostname: gone.lyly.dev
+  - hostname: gone.lychee.land
     service: http://localhost:80
   - service: http_status:404
 `;
@@ -164,12 +164,12 @@ export const SEEDED_INVENTORY = JSON.stringify(
       // tagless declaration after the reconciler's first look: no compose
       // action, nothing installed, the pushed tag discovered. "" is what the
       // producer writes for "no tag", and the parser normalises it away.
-      { name: "preview-lyly-dev", kind: "container", container: "preview-lyly-dev", group: "service", reconciled: true,
+      { name: "preview-lychee-land", kind: "container", container: "preview-lychee-land", group: "service", reconciled: true,
         version: "", target: "", available: "0.1.0",
         result: "awaiting-image", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
       // app is settled on 0.2.0 with a newer tag pushed, so its page shows the
       // installed card with the board's own offer line.
-      { name: "app-lyly-dev", kind: "container", container: "app-lyly-dev", group: "service", reconciled: true,
+      { name: "app-lychee-land", kind: "container", container: "app-lychee-land", group: "service", reconciled: true,
         version: "0.2.0", target: "0.2.0", available: "0.3.0",
         commit: "5b7e2a9c0d14f3e68a9b1c2d3e4f5061728394a5",
         result: "skipped", gate: "pin unchanged (0.2.0)", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
@@ -177,15 +177,15 @@ export const SEEDED_INVENTORY = JSON.stringify(
       // retried every tick, nothing is installed, and the operator has since
       // pushed 0.1.1. A failed first deploy publishes an empty gate, so the
       // failed step is the only explanation the inventory carries.
-      { name: "broken-lyly-dev", kind: "container", container: "broken-lyly-dev", group: "service", reconciled: true,
+      { name: "broken-lychee-land", kind: "container", container: "broken-lychee-land", group: "service", reconciled: true,
         version: "", target: "0.1.0", available: "0.1.1",
         result: "failed", gate: "",
-        failed_step: "Start the container: dependency failed to start: container broken-lyly-dev is unhealthy",
+        failed_step: "Start the container: dependency failed to start: container broken-lychee-land is unhealthy",
         last_run: "2026-10-02T04:58:02Z", failed_attempts: 1 },
       // gone is retired and confirmed down: its last run was a completed
       // `down` (result deployed) and nothing is installed, which is exactly
       // what the prune route accepts. Its declaration is state: absent.
-      { name: "gone-lyly-dev", kind: "container", container: "gone-lyly-dev", group: "service", reconciled: true,
+      { name: "gone-lychee-land", kind: "container", container: "gone-lychee-land", group: "service", reconciled: true,
         version: "", target: "", result: "deployed", gate: "",
         last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
       { name: "caddy", unit: "caddy.service", group: "infrastructure", reconciled: false },
@@ -225,10 +225,10 @@ export const SEEDED_TIMER_SCHEDULE: TimerSchedule = {
  * the tag their one deploy wrote (broken's is the one that failed).
  */
 export const SEEDED_DECLARATIONS: DeclarationSummary[] = [
-  { name: "preview-lyly-dev", port: 3100, state: "running", image: "ghcr.io/lycheehome/preview-site" },
-  { name: "app-lyly-dev", port: 3200, state: "running", image: "ghcr.io/lycheehome/app-site:0.2.0" },
-  { name: "broken-lyly-dev", port: 3300, state: "running", image: "ghcr.io/lycheehome/broken-site:0.1.0" },
-  { name: "gone-lyly-dev", port: 3400, state: "absent", image: "ghcr.io/lycheehome/gone-site:0.1.0" },
+  { name: "preview-lychee-land", port: 3100, state: "running", image: "ghcr.io/lycheehome/preview-site" },
+  { name: "app-lychee-land", port: 3200, state: "running", image: "ghcr.io/lycheehome/app-site:0.2.0" },
+  { name: "broken-lychee-land", port: 3300, state: "running", image: "ghcr.io/lycheehome/broken-site:0.1.0" },
+  { name: "gone-lychee-land", port: 3400, state: "absent", image: "ghcr.io/lycheehome/gone-site:0.1.0" },
 ];
 
 /**
@@ -239,19 +239,19 @@ export const SEEDED_DECLARATIONS: DeclarationSummary[] = [
  * "unknown", the neutral answer a container row must get right.
  */
 export const seededResourceContainers: Record<string, ContainerStatus> = {
-  "app-lyly-dev": { state: "running", health: "healthy" },
-  "broken-lyly-dev": { state: "exited" },
+  "app-lychee-land": { state: "running", health: "healthy" },
+  "broken-lychee-land": { state: "exited" },
   // Taken down by the reconciler: no container left, which reads not deployed.
-  "gone-lyly-dev": { state: "not-created" },
+  "gone-lychee-land": { state: "not-created" },
 };
 
 /**
  * The directories that exist on a real host: both static sites', and the
  * legacy Next.js site's, from when scaffolds were still written to /var/www.
- * app.lyly.dev deliberately has none — the remove dialog offers to delete
+ * app.lychee.land deliberately has none — the remove dialog offers to delete
  * files only where they exist, and dev mode should show both cases.
  */
-const SEEDED_SITE_DIRS = ["lyly.dev", "blog.lyly.dev", "legacy.lyly.dev"];
+const SEEDED_SITE_DIRS = ["lychee.land", "blog.lychee.land", "legacy.lychee.land"];
 
 export function applySeed(fs: FileSystem): void {
   for (const hostname of SEEDED_SITE_DIRS) fs.mkdir(path.posix.join(config.sitesRoot, hostname));

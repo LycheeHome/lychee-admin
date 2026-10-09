@@ -296,7 +296,7 @@ test("failed_step is read into failedStep", () => {
   const inv = parseInventory(JSON.stringify({
     generated: "x",
     services: [{
-      name: "test-lyly-dev", kind: "container", container: "test-lyly-dev", group: "service", reconciled: true,
+      name: "test-lychee-land", kind: "container", container: "test-lychee-land", group: "service", reconciled: true,
       result: "failed", version: "", target: "0.1.0", gate: "", failed_step: "Pull the image: manifest unknown",
     }],
   }));

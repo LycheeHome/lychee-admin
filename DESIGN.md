@@ -288,7 +288,7 @@ carry a verdict.
   Hearth Lift (1.99:1) — the same token reads completely differently depending
   on how much of it there is.
 - **Smoke Deep** (`stone-500`): Structure, not prose. Arrows between routing
-  hops, the breadcrumb's `/`, and the trailing `.lyly.dev` of a hostname at
+  hops, the breadcrumb's `/`, and the trailing `.lychee.land` of a hostname at
   Headline size. It measures 3.64:1 on Hearth and 3.16:1 on Hearth Lift, so it
   clears WCAG AA for large text and fails it for everything smaller — see The
   Dim-Text Rule.
@@ -360,7 +360,7 @@ placement moves, and the row's shape decides it, never habit or symmetry with
 the other page.
 
 **The Dim-Text Rule.** Dim text is Smoke, not Smoke Deep. Smoke Deep carries
-readable text in exactly one role — the `.lyly.dev` suffix on a Headline,
+readable text in exactly one role — the `.lychee.land` suffix on a Headline,
 which at 27px is WCAG large text and clears the 3:1 that applies there. At any
 smaller size it fails the 4.5:1 that applies instead (3.16:1 on a card), so
 every label, key, caption, and hop sub-line takes Smoke. When a new
@@ -401,7 +401,7 @@ says its own name and names a site.
   `lyly` + an Ember period + `admin`.
 - **Headline** (DM Mono, 1.7rem, line-height 1.2, tracking -0.01em): A site's
   hostname on the page that owns it — its detail page, and the add-site page
-  while that hostname is being composed — with the shared `.lyly.dev` suffix
+  while that hostname is being composed — with the shared `.lychee.land` suffix
   dropped to Smoke Deep so the subdomain reads first. Legible there because
   27px is large text, and nowhere else. Slight negative tracking because mono
   at display size otherwise sprawls.
@@ -703,7 +703,7 @@ exceptions to it.
   encloses both pieces and the affix reads as part of the control; the affix
   is also tied to the input through `aria-describedby`, so it is announced
   with it. Add-site's hostname field carries the domain as a suffix
-  (`.lyly.dev`); the attach control carries the registry as a prefix
+  (`.lychee.land`); the attach control carries the registry as a prefix
   (`ghcr.io/lycheehome/`), because the reconciler accepts no other path and
   the only thing left to type is the repository's name.
 

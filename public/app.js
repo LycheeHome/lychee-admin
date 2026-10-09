@@ -417,12 +417,12 @@ let previewTimer;
 // The field only carries the subdomain label; the domain is rendered as a
 // fixed affix beside it (see #hostname-suffix and #composed-hostname's
 // data-domain in html.ts) so the managed domain is structural rather than
-// only a placeholder. Someone pasting a full hostname (e.g. "blog.lyly.dev")
+// only a placeholder. Someone pasting a full hostname (e.g. "blog.lychee.land")
 // into the label field must not have the domain doubled onto it, and
 // trailing "."s from a copy-pasted FQDN must not survive to become
-// "blog..lyly.dev". The doubling check compares case-insensitively (the
+// "blog..lychee.land". The doubling check compares case-insensitively (the
 // server lowercases before validating, so a pasted "BLOG.LYLY.DEV" must be
-// recognized as already-full the same as "blog.lyly.dev" would be) while
+// recognized as already-full the same as "blog.lychee.land" would be) while
 // composing with the label's original casing, since the server normalizes
 // case anyway. Both the preview and the submit handler call this so they can
 // never derive two different hostnames from the same input.
@@ -607,7 +607,7 @@ addSiteForm?.addEventListener("submit", async (event) => {
     // Native `required` only rejects a zero-length value, so a whitespace-only
     // entry (e.g. a single space) still passes it; composeHostname trims and
     // returns "" for that case too. Stop here rather than composing a bare
-    // ".lyly.dev" and letting the server reject it with a less legible error.
+    // ".lychee.land" and letting the server reject it with a less legible error.
     resetSteps("add-site-steps");
     if (addSiteError) {
       addSiteError.classList.remove("hidden");

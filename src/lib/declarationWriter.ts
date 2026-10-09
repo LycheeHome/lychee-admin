@@ -2,7 +2,8 @@ import { isDeepStrictEqual } from "node:util";
 import fs from "node:fs";
 import path from "node:path";
 import { load } from "js-yaml";
-import { normalizeRepo, parseDeclaration, claimedPorts, SITE_SUFFIX, type DeclarationSummary } from "./siteResource";
+import { normalizeRepo, parseDeclaration, claimedPorts, siteSuffixFor, type DeclarationSummary } from "./siteResource";
+import { siteNamePatternFor } from "./siteValidation";
 
 /**
  * `code: "tagged"` marks the one refusal a caller must tell apart from a failed
@@ -54,11 +55,10 @@ const TAGLESS_IMAGE_LINE_RE = /^(\s*image:\s*["']?ghcr\.io\/[^\s"'#:]+)(["']?)(.
 // after it — a trailing comment — are carried over byte for byte.
 const SITE_TAGLESS_IMAGE_RE = /^(\s*image:\s*["']?ghcr\.io\/lycheehome\/)([^\s"'#:/]+)(["']?)(.*)$/;
 
-// A site's resource name: a DNS-label-shaped site label plus SITE_SUFFIX,
-// capped at 63 like every resource name. Narrower than NAME_RE on purpose:
-// creating and retiring are reachable only for sites, never for a declaration
-// such as palsave-api that this app did not write.
-const SITE_NAME_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?-lyly-dev$/;
+// A site's resource name: a DNS-label-shaped site label plus the domain's
+// suffix (siteNamePatternFor), capped at 63 like every resource name. Narrower
+// than NAME_RE on purpose: creating and retiring are reachable only for sites,
+// never for a declaration such as palsave-api that this app did not write.
 const MAX_NAME_LENGTH = 63;
 
 // One `state:` line with a bare or quoted word and an optional comment. The
@@ -80,6 +80,9 @@ const RESERVED_PORTS: readonly number[] = [8787, 2019];
 
 export interface WriterOptions {
   git: GitRunner;
+  /** The managed domain; decides which names are sites and what hostname a
+   *  site's name stands for. */
+  domain: string;
   clonePath?: string;
   keyPath?: string;
   /** Kills each git call after this long. Unset for writes, which wait; set
@@ -87,8 +90,8 @@ export interface WriterOptions {
   timeoutMs?: number;
 }
 
-export function isSiteName(name: string): boolean {
-  return name.length <= MAX_NAME_LENGTH && SITE_NAME_RE.test(name);
+export function isSiteName(name: string, domain: string): boolean {
+  return name.length <= MAX_NAME_LENGTH && siteNamePatternFor(domain).test(name);
 }
 
 /** What a write callback hands back: the file it changed and the commit message. */
@@ -274,7 +277,7 @@ export async function createSiteDeclaration(
   port: number,
   opts: WriterOptions,
 ): Promise<WriteResult> {
-  if (!isSiteName(name)) {
+  if (!isSiteName(name, opts.domain)) {
     return { ok: false, reason: `"${name}" is not a valid site resource name.` };
   }
   const normalized = normalizeRepo(repo);
@@ -289,7 +292,7 @@ export async function createSiteDeclaration(
     return { ok: false, reason: `Port ${port} is reserved (lyly-admin itself or Caddy's admin API) and cannot be declared.` };
   }
   const image = `${IMAGE_PREFIX}${normalized.repo}`;
-  const hostname = `${name.slice(0, -SITE_SUFFIX.length)}.lyly.dev`;
+  const hostname = `${name.slice(0, -siteSuffixFor(opts.domain).length)}.${opts.domain}`;
 
   return withClone(opts, (clonePath) => {
     const file = `${name}.yml`;
@@ -334,7 +337,7 @@ export async function setDeclarationState(name: string, state: "absent", opts: W
   if (state !== "absent") {
     return { ok: false, reason: `"${String(state)}" is not a state this app writes.` };
   }
-  if (!isSiteName(name)) {
+  if (!isSiteName(name, opts.domain)) {
     return { ok: false, reason: `"${name}" is not a valid site resource name.` };
   }
   return withClone(opts, (clonePath) => {
@@ -394,7 +397,7 @@ function parsedFields(content: string): Record<string, unknown> | null {
  * Never throws and never forces (see withClone).
  */
 export async function changeSiteRepository(name: string, repo: string, opts: WriterOptions): Promise<WriteResult> {
-  if (!isSiteName(name)) {
+  if (!isSiteName(name, opts.domain)) {
     return { ok: false, reason: `"${name}" is not a valid site resource name.` };
   }
   const normalized = normalizeRepo(repo);
@@ -483,7 +486,7 @@ export async function pruneSiteDeclaration(
   opts: WriterOptions,
   { requireTagless = false }: { requireTagless?: boolean } = {},
 ): Promise<WriteResult> {
-  if (!isSiteName(name)) {
+  if (!isSiteName(name, opts.domain)) {
     return { ok: false, reason: `"${name}" is not a valid site resource name.` };
   }
   return withClone(opts, (clonePath) => {

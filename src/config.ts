@@ -8,6 +8,14 @@ function required(name: string): string {
   return value;
 }
 
+/** Comma-separated hostnames: trimmed, lowercased, empty entries dropped. */
+export function parseHostnameList(raw: string | undefined): string[] {
+  return (raw ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry !== "");
+}
+
 export const config = {
   host: process.env.HOST ?? "127.0.0.1",
   port: Number(process.env.PORT ?? 8787),
@@ -15,7 +23,11 @@ export const config = {
   adminUsername: required("ADMIN_USERNAME"),
   adminPasswordHash: required("ADMIN_PASSWORD_HASH"),
 
-  domain: process.env.DOMAIN ?? "lyly.dev",
+  domain: required("DOMAIN"),
+  // Hostnames add-site must refuse: ones served by config this app never
+  // parses (admin.<domain> lives in its own Caddy file), which its duplicate
+  // check therefore cannot see.
+  reservedHostnames: parseHostnameList(process.env.RESERVED_HOSTNAMES),
 
   caddyfilePath: process.env.CADDYFILE_PATH ?? "/etc/caddy/Caddyfile",
   // The "sites" tunnel's config — split off from the lychee-ssh tunnel, which

@@ -1,20 +1,20 @@
 import { load } from "js-yaml";
-import { isValidHostname, MAX_SITE_LABEL_LENGTH, SITE_SUFFIX } from "./siteValidation";
+import { isValidHostname, maxSiteLabelLength, siteSuffixFor } from "./siteValidation";
 
 // Defined beside the validator that refuses an over-long Next.js label, so the
 // refusal at add-site and the null here can never disagree about the limit.
-export { SITE_SUFFIX };
+export { siteSuffixFor, maxSiteLabelLength };
 
 /**
- * `test.lyly.dev` -> `test-lyly-dev`. Null for anything that is not a
+ * `test.lychee.land` -> `test-lychee-land`. Null for anything that is not a
  * single-label hostname under the managed domain, or whose label is too long
  * for the resulting name to fit.
  */
 export function resourceNameFor(hostname: string, domain: string): string | null {
   if (!isValidHostname(hostname, domain)) return null;
   const label = hostname.slice(0, hostname.length - domain.length - 1).toLowerCase();
-  if (label.length > MAX_SITE_LABEL_LENGTH) return null;
-  return `${label}${SITE_SUFFIX}`;
+  if (label.length > maxSiteLabelLength(domain)) return null;
+  return `${label}${siteSuffixFor(domain)}`;
 }
 
 const REPO_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
