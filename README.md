@@ -1,4 +1,4 @@
-# lyly-admin
+# lychee-admin
 
 A small local admin app for managing `*.lychee.land` subdomains on `lychee`, an existing Caddy + Cloudflare Tunnel setup. It replaces manually editing the Caddyfile and tunnel ingress config by hand with a web UI to list, add, and remove sites.
 

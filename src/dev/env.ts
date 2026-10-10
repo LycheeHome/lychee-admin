@@ -4,7 +4,7 @@
  * This is a known throwaway password ("dev") for an app that binds
  * 127.0.0.1, and this whole directory ships to neither dist/ nor lychee —
  * see tsconfig.build.json and the rsync excludes in lychee-ops'
- * lyly_admin_app role. Production reads its own .env through
+ * lychee_admin_app role. Production reads its own .env through
  * src/server.ts, which never imports this file.
  *
  * This module exists separately from src/dev/server.ts because src/config.ts

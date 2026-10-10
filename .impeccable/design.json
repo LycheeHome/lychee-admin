@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-10-08T00:00:00Z",
-  "title": "Design System: lyly-admin",
+  "title": "Design System: lychee-admin",
   "extensions": {
     "colorMeta": {
       "ember": {
@@ -369,7 +369,7 @@
       "kind": "custom",
       "refersTo": "input",
       "description": "How a consequential choice is presented: a bordered row per option, each with a title and the sentence explaining what it commits you to. Checked state via :has(:checked).",
-      "html": "<fieldset class=\"ds-options\"><legend class=\"ds-options__legend\">Type</legend><label class=\"ds-option\"><span class=\"ds-option__title\"><input type=\"radio\" name=\"ds-type\" class=\"ds-option__radio\" checked />Static site</span><span class=\"ds-option__hint\">Serves plain files from /var/www/&lt;hostname&gt;, which lyly-admin creates for you with a placeholder page &mdash; no process to run yourself.</span></label><label class=\"ds-option ds-option--proxy\"><span class=\"ds-option__title\"><input type=\"radio\" name=\"ds-type\" class=\"ds-option__radio ds-option__radio--proxy\" />Reverse proxy</span><span class=\"ds-option__hint\">Routes to a process you already run and manage yourself on a local port. lyly-admin only wires up the routing.</span></label></fieldset>",
+      "html": "<fieldset class=\"ds-options\"><legend class=\"ds-options__legend\">Type</legend><label class=\"ds-option\"><span class=\"ds-option__title\"><input type=\"radio\" name=\"ds-type\" class=\"ds-option__radio\" checked />Static site</span><span class=\"ds-option__hint\">Serves plain files from /var/www/&lt;hostname&gt;, which lychee-admin creates for you with a placeholder page &mdash; no process to run yourself.</span></label><label class=\"ds-option ds-option--proxy\"><span class=\"ds-option__title\"><input type=\"radio\" name=\"ds-type\" class=\"ds-option__radio ds-option__radio--proxy\" />Reverse proxy</span><span class=\"ds-option__hint\">Routes to a process you already run and manage yourself on a local port. lychee-admin only wires up the routing.</span></label></fieldset>",
       "css": ".ds-options { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; } .ds-options__legend { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: oklch(70.9% 0.01 56.259); padding: 0; margin-bottom: 8px; } .ds-option { display: flex; flex-direction: column; gap: 4px; border: 1px solid oklch(37.4% 0.01 67.558); border-radius: 6px; padding: 10px 12px; cursor: pointer; transition: background 150ms, border-color 150ms; } .ds-option:hover { background: oklch(26.8% 0.007 34.298 / 0.4); } .ds-option:has(:checked) { background: oklch(37.4% 0.01 67.558); border-color: oklch(44.4% 0.011 73.639); } .ds-option--proxy:has(:checked) { background: oklch(27.1% 0.105 12.094 / 0.5); border-color: oklch(45.5% 0.188 13.697 / 0.7); } .ds-option__title { display: flex; align-items: center; gap: 8px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.9rem; font-weight: 600; color: oklch(98.5% 0.001 106.423); } .ds-option__radio { accent-color: oklch(86.9% 0.005 56.366); } .ds-option__radio--proxy { accent-color: oklch(71.2% 0.194 13.428); } .ds-option__hint { font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; line-height: 1.375; color: oklch(70.9% 0.01 56.259); padding-left: 1.55rem; }"
     },
     {
