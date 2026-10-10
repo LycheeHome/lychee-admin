@@ -522,7 +522,7 @@ describe("renderSiteDetail manual steps", () => {
     assert.doesNotMatch(html, /cmd-logs|compose -p/);
   });
 
-  test("a plain proxy gets no docker step — lyly-admin scaffolded nothing", () => {
+  test("a plain proxy gets no docker step — lychee-admin scaffolded nothing", () => {
     const html = renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: false } });
     assert.doesNotMatch(html, /docker compose/);
   });

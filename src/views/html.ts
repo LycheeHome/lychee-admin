@@ -233,7 +233,7 @@ export function renderAddSite(
                 <input type="radio" name="type" value="static" checked aria-label="Static site" aria-describedby="type-static-description" class="accent-stone-300 ${FOCUS_RING}" />
                 Static site
               </span>
-              <span id="type-static-description" class="text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]">Serves plain files from <code class="font-mono">/var/www/&lt;hostname&gt;</code>, which lyly-admin creates for you with a placeholder page — no process to run yourself.</span>
+              <span id="type-static-description" class="text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]">Serves plain files from <code class="font-mono">/var/www/&lt;hostname&gt;</code>, which lychee-admin creates for you with a placeholder page — no process to run yourself.</span>
             </label>
 
             <label class="flex flex-col gap-1 rounded-md border border-stone-700 bg-transparent px-3 py-2.5 cursor-pointer motion-safe:transition-colors hover:bg-stone-800/40 has-[:checked]:bg-rose-950/50 has-[:checked]:border-rose-800/70">
@@ -241,7 +241,7 @@ export function renderAddSite(
                 <input type="radio" name="type" value="reverse-proxy" aria-label="Reverse proxy" aria-describedby="type-proxy-description" class="accent-rose-400 ${FOCUS_RING}" />
                 Reverse proxy
               </span>
-              <span id="type-proxy-description" class="text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]">Routes to a process you already run and manage yourself on a local port (e.g. <code class="font-mono">next start</code>). lyly-admin only wires up the routing — it won't start, stop, or restart that process for you.</span>
+              <span id="type-proxy-description" class="text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]">Routes to a process you already run and manage yourself on a local port (e.g. <code class="font-mono">next start</code>). lychee-admin only wires up the routing — it won't start, stop, or restart that process for you.</span>
             </label>
           </fieldset>
 
@@ -546,7 +546,7 @@ function renderStep(step: ManualStep, index: number): string {
 }
 
 /**
- * The steps lyly-admin deliberately does not take. DNS is Tier 1 scope — the
+ * The steps lychee-admin deliberately does not take. DNS is Tier 1 scope — the
  * app never touches Cloudflare DNS — and it never starts, stops, or rebuilds
  * a container. Both used to be one-shot flash banners that vanished on
  * reload; a missing DNS record is permanent state, so it needs a permanent
@@ -564,7 +564,7 @@ function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
   // CNAME leads and the command is a fallback for a machine that has a login.
   const dnsStep: ManualStep = opts.tunnelId
     ? {
-        html: `Create the DNS record, once per hostname: in the Cloudflare dashboard, add a proxied CNAME named <code class="${INLINE_CODE}">${escapeHtml(recordName)}</code> pointing at the target below. Until it exists this page still reports the site running, because lyly-admin only checks localhost.`,
+        html: `Create the DNS record, once per hostname: in the Cloudflare dashboard, add a proxied CNAME named <code class="${INLINE_CODE}">${escapeHtml(recordName)}</code> pointing at the target below. Until it exists this page still reports the site running, because lychee-admin only checks localhost.`,
         command: {
           id: "cmd-dns-target",
           value: `${opts.tunnelId}.cfargotunnel.com`,
@@ -580,17 +580,17 @@ function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
         },
       }
     : {
-        text: "Create the DNS record, once per hostname — add a CNAME for this hostname to your tunnel from the Cloudflare dashboard. Until it exists this page still reports the site running, because lyly-admin only checks localhost.",
+        text: "Create the DNS record, once per hostname — add a CNAME for this hostname to your tunnel from the Cloudflare dashboard. Until it exists this page still reports the site running, because lychee-admin only checks localhost.",
       };
   const steps: ManualStep[] = [dnsStep];
 
   // A static site is already serving — add-site created the directory and wrote
   // a placeholder index.html into it — so nothing prompts the user to notice
   // that what is live is a placeholder. This is the same category as the other
-  // steps: something lyly-admin deliberately does not do for you.
+  // steps: something lychee-admin deliberately does not do for you.
   if (site.type === "static" && filesPath) {
     steps.push({
-      text: `Put your site's files in ${filesPath}/. lyly-admin created a placeholder index.html there, which Caddy serves until you replace it.`,
+      text: `Put your site's files in ${filesPath}/. lychee-admin created a placeholder index.html there, which Caddy serves until you replace it.`,
     });
   }
 
