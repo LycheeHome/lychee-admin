@@ -14,5 +14,5 @@ const deps: Deps = {
 };
 
 createApp(deps).listen(config.port, config.host, () => {
-  console.log(`lyly-admin listening on http://${config.host}:${config.port}`);
+  console.log(`lychee-admin listening on http://${config.host}:${config.port}`);
 });

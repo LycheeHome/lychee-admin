@@ -16,13 +16,34 @@ http://api.lychee.land {
 }
 
 http://app.lychee.land {
-	# lyly-admin-framework: nextjs
-	# lyly-admin-healthcheck: /api/health
+	# lychee-admin-framework: nextjs
+	# lychee-admin-healthcheck: /api/health
 	reverse_proxy localhost:3000
 }
 `;
 
 describe("parseSites", () => {
+  test("old lyly-admin markers and new lychee-admin markers parse identically", () => {
+    const block = (prefix: string) =>
+      `http://x.lychee.land {\n\t# ${prefix}-framework: nextjs\n\t# ${prefix}-healthcheck: /api/health\n\treverse_proxy localhost:3000\n}\n`;
+    const legacy = parseSites(block("lyly-admin"));
+    const current = parseSites(block("lychee-admin"));
+    assert.equal(legacy[0].framework, "nextjs");
+    assert.equal(legacy[0].healthcheckPath, "/api/health");
+    assert.deepEqual(legacy, current);
+  });
+
+  test("appendSite emits only the new marker form", () => {
+    const result = appendSite(SAMPLE, {
+      hostname: "new.lychee.land",
+      type: "reverse-proxy",
+      target: "5000",
+      framework: "nextjs",
+    });
+    assert.match(result, /# lychee-admin-framework:/);
+    assert.doesNotMatch(result, /lyly-admin/);
+  });
+
   test("skips the global options block and returns one entry per site", () => {
     const sites = parseSites(SAMPLE);
     assert.equal(sites.length, 3);
@@ -59,7 +80,7 @@ describe("parseSites", () => {
 
   test("reads the framework marker with no healthcheck comment (pre-healthcheck legacy shape)", () => {
     const LEGACY_FRAMEWORK_ONLY = `http://legacy.lychee.land {
-\t# lyly-admin-framework: nextjs
+\t# lychee-admin-framework: nextjs
 \treverse_proxy localhost:3001
 }
 `;
@@ -83,7 +104,7 @@ describe("appendSite", () => {
   test("appends a reverse-proxy block with no marker comments when no framework given", () => {
     const result = appendSite(SAMPLE, { hostname: "new.lychee.land", type: "reverse-proxy", target: "5000" });
     assert.match(result, /http:\/\/new\.lychee\.land \{\n\treverse_proxy localhost:5000\n\}/);
-    assert.doesNotMatch(result, /new\.lychee\.land[\s\S]*lyly-admin-framework/);
+    assert.doesNotMatch(result, /new\.lychee\.land[\s\S]*lychee-admin-framework/);
   });
 
   test("writes both marker comments when a framework is given", () => {
@@ -94,7 +115,7 @@ describe("appendSite", () => {
       framework: "nextjs",
       healthcheckPath: "/healthz",
     });
-    assert.match(result, /\t# lyly-admin-framework: nextjs\n\t# lyly-admin-healthcheck: \/healthz\n/);
+    assert.match(result, /\t# lychee-admin-framework: nextjs\n\t# lychee-admin-healthcheck: \/healthz\n/);
   });
 
   test("defaults the healthcheck comment to / when a framework has no path", () => {
@@ -104,7 +125,7 @@ describe("appendSite", () => {
       target: "5000",
       framework: "nextjs",
     });
-    assert.match(result, /\t# lyly-admin-healthcheck: \/\n/);
+    assert.match(result, /\t# lychee-admin-healthcheck: \/\n/);
   });
 
   test("ends with exactly one trailing newline", () => {

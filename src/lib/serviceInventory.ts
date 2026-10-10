@@ -1,7 +1,7 @@
 import type { FileSystem } from "./fileSystem";
 
 /**
- * The inventory lyly-admin reads is published by lychee-ops on every reconcile
+ * The inventory lychee-admin reads is published by lychee-ops on every reconcile
  * tick (roles/inventory). It is the DECLARED set — what should be running —
  * and carries deploy state where a service has any.
  *
@@ -107,7 +107,7 @@ function knownVersion(value: unknown): string | undefined {
  *  no shell, no sudo, root-owned source), but it costs one regex. */
 const UNIT_NAME = /^[A-Za-z0-9:_.@][A-Za-z0-9:_.@-]*\.(service|timer|socket|target|mount|path)$/;
 
-/** A compose project name, matching what lyly-admin-resource-status accepts:
+/** A compose project name, matching what lychee-admin-resource-status accepts:
  *  [a-z0-9-], no leading "-", at most 63 characters. Validated here as well as
  *  in the wrapper so a malformed name is dropped rather than passed to sudo. */
 const CONTAINER_NAME = /^[a-z0-9][a-z0-9-]{0,62}$/;

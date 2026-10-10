@@ -20,15 +20,15 @@ export type GitRunner = (
   options: { cwd: string; env: NodeJS.ProcessEnv; timeoutMs?: number },
 ) => Promise<{ stdout: string; stderr: string }>;
 
-export const RESOURCES_CLONE = "/var/lib/lyly-admin/lychee-resources";
-export const RESOURCES_KEY = "/etc/lyly-admin/id_lychee_resources";
+export const RESOURCES_CLONE = "/var/lib/lychee-admin/lychee-resources";
+export const RESOURCES_KEY = "/etc/lychee-admin/id_lychee_resources";
 // Not ~/.ssh/known_hosts, which is where ssh would look and where a reader will
-// want to put it: lyly-admin was created without a home directory, so $HOME is
+// want to put it: lychee-admin was created without a home directory, so $HOME is
 // not something to depend on. Without a known_hosts file ssh's default
 // StrictHostKeyChecking=ask fails non-interactively with "Host key verification
-// failed", which reads like a network or auth fault. /etc/lyly-admin is 0700 and
+// failed", which reads like a network or auth fault. /etc/lychee-admin is 0700 and
 // owned by the app user, so the file can be written there regardless of $HOME.
-export const RESOURCES_KNOWN_HOSTS = "/etc/lyly-admin/known_hosts";
+export const RESOURCES_KNOWN_HOSTS = "/etc/lychee-admin/known_hosts";
 const RESOURCES_REMOTE = "git@github.com:LycheeHome/lychee-resources.git";
 
 // A tag this app writes must be a tag. This is the app's own invariant, not a
@@ -72,7 +72,7 @@ const IMAGE_PREFIX = "ghcr.io/lycheehome/";
 const MIN_SITE_PORT = 1024;
 const MAX_PORT = 65535;
 
-// lyly-admin's own PORT and Caddy's admin API. Mirrors RESERVED_PORTS in
+// lychee-admin's own PORT and Caddy's admin API. Mirrors RESERVED_PORTS in
 // lychee-ops' validate_declarations.py, for the same reason as MIN_SITE_PORT:
 // this is the last guard before a declaration the validator would refuse, and
 // a refused declaration freezes the whole set for the tick, not just this site.
@@ -141,7 +141,7 @@ async function withCloneUnqueued(
   // and without it another valid deploy key is offered and GitHub answers
   // "Repository not found", which reads as a missing repo, not a wrong key.
   // StrictHostKeyChecking=yes: GitHub's host keys are declared in lychee-ops
-  // (/etc/lyly-admin/known_hosts), so there is no first-contact window to
+  // (/etc/lychee-admin/known_hosts), so there is no first-contact window to
   // accommodate and an unknown or changed host key is a real anomaly that must
   // fail. accept-new would not have pinned anything here anyway: the service
   // cannot write that directory, so ssh could never record a key it learned.
@@ -189,8 +189,8 @@ async function withCloneUnqueued(
     try {
       await inClone(change.remove ? ["rm", "--", change.file] : ["add", "--", change.file]);
       await inClone([
-        "-c", "user.name=lyly-admin",
-        "-c", "user.email=lyly-admin@lychee.local",
+        "-c", "user.name=lychee-admin",
+        "-c", "user.email=lychee-admin@lychee.local",
         "commit", "-m", change.message,
       ]);
     } catch (error) {
@@ -289,7 +289,7 @@ export async function createSiteDeclaration(
     return { ok: false, reason: `Sites may not use privileged ports; ${port} is below ${MIN_SITE_PORT}.` };
   }
   if (RESERVED_PORTS.includes(port)) {
-    return { ok: false, reason: `Port ${port} is reserved (lyly-admin itself or Caddy's admin API) and cannot be declared.` };
+    return { ok: false, reason: `Port ${port} is reserved (lychee-admin itself or Caddy's admin API) and cannot be declared.` };
   }
   const image = `${IMAGE_PREFIX}${normalized.repo}`;
   const hostname = `${name.slice(0, -siteSuffixFor(opts.domain).length)}.${opts.domain}`;
@@ -314,7 +314,7 @@ export async function createSiteDeclaration(
     fs.writeFileSync(
       target,
       [
-        `# Written by lyly-admin for ${hostname}.`,
+        `# Written by lychee-admin for ${hostname}.`,
         "# The image stays tagless until the first Deploy writes a tag.",
         `name: ${name}`,
         `image: ${image}`,

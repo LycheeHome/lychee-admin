@@ -1,5 +1,5 @@
 {
-  "name": "lyly-admin",
+  "name": "lychee-admin",
   "version": "0.1.0",
   "private": true,
   "description": "Local admin app for managing Caddy + Cloudflare Tunnel sites on lychee",

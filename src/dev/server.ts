@@ -18,6 +18,6 @@ const deps: Deps = {
 };
 
 createApp(deps).listen(config.port, config.host, () => {
-  console.log(`lyly-admin (dev — in-memory, no host changes) on http://${config.host}:${config.port}`);
+  console.log(`lychee-admin (dev — in-memory, no host changes) on http://${config.host}:${config.port}`);
   console.log("Sign in with dev / dev. State resets on every restart.");
 });

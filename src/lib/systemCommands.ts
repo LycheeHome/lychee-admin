@@ -91,7 +91,7 @@ async function run(
 }
 
 /**
- * The privileged operations lyly-admin performs on its host. Injected rather
+ * The privileged operations lychee-admin performs on its host. Injected rather
  * than imported directly so the dev entry point can substitute fakes — see
  * src/dev/fakes.ts.
  */
@@ -135,7 +135,7 @@ export const realSystemCommands: SystemCommands = {
 
   /**
    * Restarts cloudflared-sites, not the box's original cloudflared.service —
-   * lyly-admin only manages hostnames on the split-off "sites" tunnel
+   * lychee-admin only manages hostnames on the split-off "sites" tunnel
    * (see lychee-ops' cloudflared-sites.service). The split was drawn so this
    * could never interrupt ssh.lyly.dev; that tunnel is retired and host
    * access is Tailscale now, but the scope stays exactly as narrow as it was.
@@ -146,25 +146,25 @@ export const realSystemCommands: SystemCommands = {
 
   /**
    * Creates /var/www/<hostname> owned web:webdeploy with the setgid bit so new
-   * files inherit the group, via lychee-ops' lyly-admin-create-site-dir.sh. That
+   * files inherit the group, via lychee-ops' lychee-admin-create-site-dir.sh. That
    * script (not sudoers) validates the hostname and hardcodes the owner/group —
    * sudoers can't safely restrict install(1)'s arguments to "some path under
    * /var/www" without wildcards, which aren't supported on every sudo build.
    */
   createSiteDirectory(hostname) {
-    return run("sudo", ["/usr/local/sbin/lyly-admin-create-site-dir", hostname]);
+    return run("sudo", ["/usr/local/sbin/lychee-admin-create-site-dir", hostname]);
   },
 
   /**
    * Writes `content` to a root-owned config file (the Caddyfile or the tunnel
-   * config.yml) by piping it into lychee-ops' lyly-admin-write-config.sh via sudo.
+   * config.yml) by piping it into lychee-ops' lychee-admin-write-config.sh via sudo.
    * That script only accepts these two exact paths — see sudoers.example.
    * Needed because /etc/caddy and /etc/cloudflared are root:root 755, so the
    * dedicated low-privilege app user has no direct write access to either file.
    */
   writeManagedConfig(targetPath, content) {
     return new Promise((resolve, reject) => {
-      const child = spawn("sudo", ["/usr/local/sbin/lyly-admin-write-config", targetPath]);
+      const child = spawn("sudo", ["/usr/local/sbin/lychee-admin-write-config", targetPath]);
 
       let stderr = "";
       child.stderr.on("data", (chunk) => {
@@ -177,7 +177,7 @@ export const realSystemCommands: SystemCommands = {
         if (code === 0) {
           resolve();
         } else {
-          reject(new CommandError(`lyly-admin-write-config exited with code ${code}`, "", stderr));
+          reject(new CommandError(`lychee-admin-write-config exited with code ${code}`, "", stderr));
         }
       });
 
@@ -211,7 +211,7 @@ export const realSystemCommands: SystemCommands = {
 
   /**
    * One declared container service's state, via lychee-ops'
-   * lyly-admin-resource-status (sudo-pinned: docker is not world-usable). Empty
+   * lychee-admin-resource-status (sudo-pinned: docker is not world-usable). Empty
    * output means no compose file there, which the shared parser reads as
    * not-created. Output goes through containerStatus.ts, the one parser for
    * compose output; a second would be a second thing to keep correct against
@@ -222,7 +222,7 @@ export const realSystemCommands: SystemCommands = {
     try {
       const { stdout } = await run(
         "sudo",
-        ["/usr/local/sbin/lyly-admin-resource-status", project],
+        ["/usr/local/sbin/lychee-admin-resource-status", project],
         { timeoutMs: STATUS_READ_TIMEOUT_MS },
       );
       return parseComposePsOutput(stdout);
