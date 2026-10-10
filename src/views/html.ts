@@ -1274,7 +1274,7 @@ function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date, prunabl
  */
 export function renderServicesPage(
   board: ServiceBoard,
-  now: Date = new Date(),
+  now: Date,
   prunable: ReadonlySet<string>,
   domain: string,
 ): string {

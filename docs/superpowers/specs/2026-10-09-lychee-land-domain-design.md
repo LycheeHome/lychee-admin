@@ -244,6 +244,12 @@ reads `blocked` with that gate string on every tick, not only the first, until
 In this order (amended after the whole-branch review, which found the order
 matters):
 
+0. **Remove any site added under `lychee.land`, while the new lychee-ops is
+   still running.** Remove it in the app, and prune its declaration if it was a
+   Next.js site, then wait for the reconciler to clean up its project, status
+   and account. That cleanup only recognises `-lychee-land` names under the new
+   lychee-ops, and the old app's `isManagedHostname` would hide the site
+   entirely, so after step 1 neither side could remove it.
 1. **Revert the lychee-ops PR.** The new ops blocks every app deploy while
    `.env` doesn't say `lychee.land`, so it has to go first, or step 3 would
    never install.
@@ -253,9 +259,8 @@ matters):
    app with `lyly.dev`.
 
 The same window applies between steps 1 and 3: add or attach no sites, and
-don't restart lyly-admin. Any site added under `lychee.land` before the
-rollback should be removed first, since the old app's `isManagedHostname` will
-hide it. Otherwise there's no data either way.
+don't restart lyly-admin. Apart from step 0's sites, there's no data either
+way.
 
 ## Later, not here
 

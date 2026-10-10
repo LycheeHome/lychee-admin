@@ -1772,7 +1772,6 @@ describe("Prune on the services board", () => {
 
   test("with nothing named absent (or the clone unreadable) no row carries the control", () => {
     assert.doesNotMatch(renderServicesPage(board(["gone-lychee-land"]), NOW, new Set(), "lychee.land"), /data-prune/);
-    assert.doesNotMatch(renderServicesPage(board(["gone-lychee-land"]), NOW, new Set(), "lychee.land"), /data-prune/);
   });
 });
 
