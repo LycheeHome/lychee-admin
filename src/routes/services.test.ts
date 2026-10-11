@@ -25,8 +25,8 @@ function inventory(services: unknown[]): string {
 }
 
 const RECONCILER = [
-  { name: "lyly-reconcile-timer", unit: "lyly-reconcile.timer", group: "reconciler", reconciled: false },
-  { name: "lyly-reconcile", unit: "lyly-reconcile.service", group: "reconciler", reconciled: false },
+  { name: "lychee-reconcile-timer", unit: "lychee-reconcile.timer", group: "reconciler", reconciled: false },
+  { name: "lychee-reconcile", unit: "lychee-reconcile.service", group: "reconciler", reconciled: false },
 ];
 const SWEE = { name: "swee", unit: "swee.service", group: "service", reconciled: true, result: "skipped" };
 
@@ -112,8 +112,8 @@ describe("GET /services", () => {
     assert.equal(res.status, 200);
     const html = await res.text();
     assert.equal(stateCalls, 1);
-    assert.deepEqual(requested, ["lyly-reconcile.timer", "lyly-reconcile.service", "swee.service"]);
-    assert.deepEqual(timers, ["lyly-reconcile.timer"]);
+    assert.deepEqual(requested, ["lychee-reconcile.timer", "lychee-reconcile.service", "swee.service"]);
+    assert.deepEqual(timers, ["lychee-reconcile.timer"]);
     assert.match(html, /next run in 3 minutes/);
     assert.deepEqual(pills(html).slice(-1), ["running"]);
   });
