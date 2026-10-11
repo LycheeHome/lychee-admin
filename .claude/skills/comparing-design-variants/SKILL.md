@@ -1,13 +1,13 @@
 ---
 name: comparing-design-variants
-description: Use when a lyly-admin UI or UX decision has more than one reasonable answer — layout, density, list vs grid, component shape, a new surface, a restyle — or when the user asks for references, Mobbin precedents, prior art, mockups, options, variants, or versions to pick between.
+description: Use when a lychee-admin UI or UX decision has more than one reasonable answer — layout, density, list vs grid, component shape, a new surface, a restyle — or when the user asks for references, Mobbin precedents, prior art, mockups, options, variants, or versions to pick between.
 ---
 
 # Comparing design variants
 
 ## Overview
 
-lyly-admin UI decisions are made from rendered comparisons, not from prose. Describing two layouts hides the exact trade-offs a picture makes obvious: the 2026-08-25 sites-list change (card grid to row list) turned on misaligned status pills that no written description had surfaced.
+lychee-admin UI decisions are made from rendered comparisons, not from prose. Describing two layouts hides the exact trade-offs a picture makes obvious: the 2026-08-25 sites-list change (card grid to row list) turned on misaligned status pills that no written description had surfaced.
 
 This runs alongside `impeccable`, which still owns the visual system. `DESIGN.md` and `.impeccable/design.json` stay normative — this skill feeds their tokens into the variants rather than reopening their decisions.
 
