@@ -37,12 +37,17 @@ function headerItem(href: string, label: string, current: boolean): string {
  * "add site" is here as well as on the list page's primary button. Same label
  * in both places, quiet here and ember there: this one navigates, that one
  * acts, and with zero sites that button is the entire call to action.
+ *
+ * The wordmark is "lychee" in the display face with "admin" as a quiet mono
+ * qualifier, and no dot between them: the first site row is lychee.land in
+ * the same face, and a dotted mark directly above it read as another
+ * hostname. The aria-label restores the name the visual gap leaves out.
  */
 function renderHeader(nav: Nav): string {
   return `
   <header id="site-header" class="max-w-[1080px] mx-auto flex items-center gap-6 py-4">
     <h1 class="m-0 text-base font-normal leading-none">
-      <a href="/" class="font-display text-2xl font-semibold tracking-wide text-stone-50 m-0 no-underline ${FOCUS_RING}">lyly<span class="text-rose-400">.</span>admin</a>
+      <a href="/" aria-label="lychee-admin" class="font-display text-2xl tracking-wide text-stone-50 m-0 no-underline ${FOCUS_RING}">lychee<span class="font-mono text-[0.85rem] tracking-[0.02em] text-stone-300 ml-[0.35em]">admin</span></a>
     </h1>
     <nav class="flex items-center gap-1" aria-label="Sections">
       ${headerItem("/", "sites", nav.page === "sites")}

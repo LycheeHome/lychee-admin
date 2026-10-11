@@ -39,7 +39,14 @@ describe("the header band", () => {
   test("carries the wordmark at its documented Display size", () => {
     const block = header(renderSiteList(SITES, {}, "lychee.land"));
     assert.match(block, /font-display text-2xl/);
-    assert.match(block, /lyly<span class="text-rose-400">\.<\/span>admin/);
+    assert.match(block, />lychee<span class="font-mono[^"]*">admin<\/span><\/a>/);
+    assert.match(block, /aria-label="lychee-admin"/);
+  });
+
+  // Poetsen One ships one weight; requesting 600 makes the browser fake a bold.
+  test("never requests a weight the display face does not ship", () => {
+    const block = header(renderSiteList(SITES, {}, "lychee.land"));
+    assert.doesNotMatch(block, /font-display[^"]*font-(semibold|bold)/);
   });
 
   test("marks sites current on the list page only", () => {
@@ -163,7 +170,7 @@ describe("the shell's h1", () => {
     const html = header(renderSiteList(SITES, {}, "lychee.land"));
     assert.match(
       html,
-      /<h1[^>]*>\s*<a href="\/"[^>]*>lyly<span class="text-rose-400">\.<\/span>admin<\/a>\s*<\/h1>/,
+      /<h1[^>]*>\s*<a href="\/"[^>]*>lychee<span [^>]*>admin<\/span><\/a>\s*<\/h1>/,
     );
   });
 });

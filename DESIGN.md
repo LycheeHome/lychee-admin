@@ -398,7 +398,13 @@ says its own name and names a site.
 ### Hierarchy
 
 - **Display** (Poetsen One, 1.5rem, tracking 0.025em): The wordmark only —
-  `lyly` + an Ember period + `admin`.
+  `lychee`, followed by `admin` as a qualifier in DM Mono 0.85rem (the nav
+  items' size), Smoke Light, 0.35em after it on the same baseline. `admin` is mono because
+  `lychee-admin` is the service's name, a machine fact. There is no dot
+  between the two parts: the first row of the site list is `lychee.land` in
+  the same face, and a dotted wordmark directly above it read as another
+  hostname. The link's accessible name is `lychee-admin`. (Until 2026-10-11 it
+  was `lyly` + an Ember period + `admin`.)
 - **Headline** (DM Mono, 1.7rem, line-height 1.2, tracking -0.01em): A site's
   hostname on the page that owns it — its detail page, and the add-site page
   while that hostname is being composed — with the shared `.lychee.land` suffix
@@ -727,7 +733,7 @@ Two tiers, each scoped to what it navigates.
 
 **The header band** is a 1080px centred band with no background and no bottom
 rule, aligned to the same container as the content below it: the
-`lyly.admin` wordmark as a home link at Display 1.5rem, then flat items —
+`lychee` `admin` wordmark as a home link at Display 1.5rem, then flat items —
 `sites`, `services` and `add site` — at 0.85rem mono, Smoke going Chalk on
 hover. The two destinations sit adjacent and the single action goes last; that
 ordering is a judgement rather than a rule, and is recorded in `shell.ts`.
