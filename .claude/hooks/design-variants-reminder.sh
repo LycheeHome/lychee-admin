@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# UserPromptSubmit hook: route lyly-admin UI/design-decision prompts through the
+# UserPromptSubmit hook: route lychee-admin UI/design-decision prompts through the
 # comparing-design-variants skill. Advisory context only — never blocks a prompt.
 #
 # Precision matters more than recall here: a hook that fires on half of all
@@ -40,7 +40,7 @@ fi
 
 if [ "$fire" = yes ]; then
   cat <<'JSON'
-{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"This prompt looks like a lyly-admin UI/design decision. Invoke the `comparing-design-variants` skill before answering and follow its deliverable contract: Mobbin reference row, four named variants, one labelled control screenshotted live, a cost line per variant, implicit decisions named. If this is a literal typo, a pure copy fix, or a behavior/logic question with no visual decision in it, say so in one line and skip the skill."}}
+{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"This prompt looks like a lychee-admin UI/design decision. Invoke the `comparing-design-variants` skill before answering and follow its deliverable contract: Mobbin reference row, four named variants, one labelled control screenshotted live, a cost line per variant, implicit decisions named. If this is a literal typo, a pure copy fix, or a behavior/logic question with no visual decision in it, say so in one line and skip the skill."}}
 JSON
 fi
 exit 0

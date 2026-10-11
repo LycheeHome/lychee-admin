@@ -153,10 +153,10 @@ export const SEEDED_INVENTORY = JSON.stringify(
       // A container with no status file yet: reconciled false, no version. Dev
       // fakes answer "unknown" for every container, so this is the neutral,
       // not-red row, which is the case a container row must get right.
-      { name: "lyly-docs", kind: "container", container: "lyly-docs", group: "service", reconciled: false },
+      { name: "lychee-docs", kind: "container", container: "lychee-docs", group: "service", reconciled: false },
       // Installed behind what the registry offers, so the board shows an
       // upgradeable row and not only settled ones.
-      { name: "lyly-notes", kind: "container", container: "lyly-notes", group: "service", reconciled: true,
+      { name: "lychee-notes", kind: "container", container: "lychee-notes", group: "service", reconciled: true,
         version: "v1.4.0", target: "v1.4.0", available: "v1.5.0",
         commit: "3c1d9e07b5a24f6e8d0a1b2c3d4e5f6071829304",
         result: "skipped", gate: "pin unchanged (v1.4.0)", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
@@ -235,7 +235,7 @@ export const SEEDED_DECLARATIONS: DeclarationSummary[] = [
  * Live container state for resources that have a container. app runs; broken's
  * failed start left its container exited, which is what the board's row reads
  * (its site page asks no container, since nothing is installed). preview has
- * never been deployed, and the board's lyly-docs and lyly-notes rows stay
+ * never been deployed, and the board's lychee-docs and lychee-notes rows stay
  * "unknown", the neutral answer a container row must get right.
  */
 export const seededResourceContainers: Record<string, ContainerStatus> = {
