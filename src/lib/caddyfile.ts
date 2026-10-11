@@ -63,8 +63,9 @@ export function parseSites(content: string): Site[] {
   return splitBlocks(content).map((block) => {
     const proxyMatch = /reverse_proxy\s+localhost:(\d+)/.exec(block.body);
     if (proxyMatch) {
-      const frameworkMatch = /#\s*lyly-admin-framework:\s*(\S+)/.exec(block.body);
-      const healthcheckMatch = /#\s*lyly-admin-healthcheck:\s*(\S+)/.exec(block.body);
+      // "lyly-admin-" is the legacy marker written before the host identity rename; still parsed.
+      const frameworkMatch = /#\s*(?:lyly|lychee)-admin-framework:\s*(\S+)/.exec(block.body);
+      const healthcheckMatch = /#\s*(?:lyly|lychee)-admin-healthcheck:\s*(\S+)/.exec(block.body);
       return {
         hostname: block.hostname,
         type: "reverse-proxy",
@@ -85,7 +86,7 @@ function renderStaticBlock(hostname: string, sitePath: string): string {
 
 function renderReverseProxyBlock(hostname: string, port: string, framework?: string, healthcheckPath?: string): string {
   const frameworkComment = framework
-    ? `\t# lyly-admin-framework: ${framework}\n\t# lyly-admin-healthcheck: ${healthcheckPath ?? "/"}\n`
+    ? `\t# lychee-admin-framework: ${framework}\n\t# lychee-admin-healthcheck: ${healthcheckPath ?? "/"}\n`
     : "";
   return `http://${hostname} {\n${frameworkComment}\treverse_proxy localhost:${port}\n}\n`;
 }

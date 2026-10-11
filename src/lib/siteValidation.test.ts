@@ -161,7 +161,7 @@ describe("validateAgainstExisting", () => {
     const input = readSiteInput({ hostname: "x.lychee.land", type: "reverse-proxy", port: "2019" });
     assert.deepEqual(validateAgainstExisting(input, CADDYFILE, ENV, NO_DECLARED), {
       ok: false,
-      error: "Port 2019 is reserved (used by lyly-admin itself or Caddy's admin API)",
+      error: "Port 2019 is reserved (used by lychee-admin itself or Caddy's admin API)",
     });
   });
 
@@ -203,7 +203,7 @@ describe("isManagedHostname", () => {
     assert.equal(isManagedHostname("blog.lychee.land", "lychee.land"), true);
   });
 
-  test("excludes a block lyly-admin does not own", () => {
+  test("excludes a block lychee-admin does not own", () => {
     assert.equal(isManagedHostname("lychee.local", "lychee.land"), false);
   });
 });

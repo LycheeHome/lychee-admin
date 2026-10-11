@@ -44,13 +44,13 @@ const SITE_ENV: SiteEnv = {
 };
 
 const PLACEHOLDER_INDEX_HTML = (hostname: string) =>
-  `<!doctype html>\n<html><head><title>${hostname}</title></head><body><h1>${hostname}</h1><p>Site created by lyly-admin. Replace this file with your content.</p></body></html>\n`;
+  `<!doctype html>\n<html><head><title>${hostname}</title></head><body><h1>${hostname}</h1><p>Site created by lychee-admin. Replace this file with your content.</p></body></html>\n`;
 
 // Ports already spoken for, so the add-site form can flag a conflict
 // client-side as the user types instead of only on submit.
 function computePortOwners(sites: Site[]): Record<string, string> {
   const portOwners: Record<string, string> = {
-    [String(config.port)]: "reserved (lyly-admin itself)",
+    [String(config.port)]: "reserved (lychee-admin itself)",
     [String(CADDY_ADMIN_PORT)]: "reserved (Caddy admin API)",
   };
   for (const site of sites) {

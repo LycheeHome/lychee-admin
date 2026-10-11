@@ -79,7 +79,7 @@ describe("the flash toast", () => {
   });
 });
 
-const PORT_OWNERS = { "8787": "reserved (lyly-admin itself)", "4000": "api.lychee.land" };
+const PORT_OWNERS = { "8787": "reserved (lychee-admin itself)", "4000": "api.lychee.land" };
 const PATHS = {
   caddyfilePath: "/etc/caddy/Caddyfile",
   tunnelConfigPath: "/etc/cloudflared/sites-config.yml",

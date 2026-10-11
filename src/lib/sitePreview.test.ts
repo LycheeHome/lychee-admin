@@ -134,8 +134,8 @@ describe("buildSitePreview — Next.js reverse proxy", () => {
   test("records both marker comments inside the block", () => {
     assert.deepEqual(preview.caddy.added, [
       "http://docs.lychee.land {",
-      "\t# lyly-admin-framework: nextjs",
-      "\t# lyly-admin-healthcheck: /api/health",
+      "\t# lychee-admin-framework: nextjs",
+      "\t# lychee-admin-healthcheck: /api/health",
       "\treverse_proxy localhost:4100",
       "}",
     ]);

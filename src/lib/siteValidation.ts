@@ -19,7 +19,7 @@ export interface SiteEnv {
   sitesRoot: string;
   caddyfilePath: string;
   tunnelConfigPath: string;
-  /** lyly-admin's own port and Caddy's admin API, which no site may claim. */
+  /** lychee-admin's own port and Caddy's admin API, which no site may claim. */
   reservedPorts: readonly number[];
   /** Hostnames served by config this app never parses; add-site refuses them. */
   reservedHostnames: readonly string[];
@@ -58,7 +58,7 @@ export function isValidHostname(hostname: string, domain: string): boolean {
 }
 
 /**
- * Caddyfile blocks lyly-admin doesn't own (e.g. a manually added local-LAN
+ * Caddyfile blocks lychee-admin doesn't own (e.g. a manually added local-LAN
  * block like lychee.local) must never show up as a managed site, since
  * removing them here would still delete their local directory or tunnel
  * ingress rule.
@@ -145,7 +145,7 @@ export function validateAgainstExisting(
   if (env.reservedPorts.includes(Number(input.port))) {
     return {
       ok: false,
-      error: `Port ${input.port} is reserved (used by lyly-admin itself or Caddy's admin API)`,
+      error: `Port ${input.port} is reserved (used by lychee-admin itself or Caddy's admin API)`,
     };
   }
 

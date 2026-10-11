@@ -1,5 +1,5 @@
 ---
-name: lyly-admin
+name: lychee-admin
 description: A warm terminal for one operator — mono facts on stone, one ember accent.
 colors:
   ember: "oklch(71.2% 0.194 13.428)"
@@ -209,7 +209,7 @@ components:
     padding: "0 10px"
 ---
 
-# Design System: lyly-admin
+# Design System: lychee-admin
 
 ## Overview
 

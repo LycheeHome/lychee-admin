@@ -22,7 +22,7 @@ export function basicAuth(req: Request, res: Response, next: NextFunction): void
     bcrypt.compareSync(credentials.password, config.adminPasswordHash);
 
   if (!isValid) {
-    res.setHeader("WWW-Authenticate", 'Basic realm="lyly-admin"');
+    res.setHeader("WWW-Authenticate", 'Basic realm="lychee-admin"');
     res.status(401).send("Authentication required");
     return;
   }

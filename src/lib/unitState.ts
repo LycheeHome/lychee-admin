@@ -3,9 +3,9 @@
  *
  * Deliberately NOT `systemctl status`: that renders recent journal lines and
  * therefore needs journal access, which is why `systemctl status caddy
- * --no-pager` is one of lyly-admin's eight sudo-pinned commands. `show` and
+ * --no-pager` is one of lychee-admin's eight sudo-pinned commands. `show` and
  * `is-active` are world-readable — verified on lychee 2026-10-02, where
- * `sudo -u lyly-admin systemctl is-active <four units>` answered without sudo.
+ * `sudo -u lychee-admin systemctl is-active <four units>` answered without sudo.
  */
 
 /** What a systemd unit can be: a subset of the board's vocabulary (see

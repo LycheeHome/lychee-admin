@@ -34,11 +34,11 @@ export const config = {
   // carried ssh.lyly.dev until that tunnel was retired. Still its own file and
   // service, and this path must keep pointing at the sites tunnel's config.
   tunnelConfigPath: process.env.TUNNEL_CONFIG_PATH ?? "/etc/cloudflared/sites-config.yml",
-  // Must stay "/var/www" — lychee-ops' lyly-admin-create-site-dir.sh hardcodes
+  // Must stay "/var/www" — lychee-ops' lychee-admin-create-site-dir.sh hardcodes
   // this path (and the web:webdeploy owner/group) rather than taking it as
   // an argument, since sudoers can't safely wildcard-match arbitrary paths.
   sitesRoot: process.env.SITES_ROOT ?? "/var/www",
 
-  backupDir: process.env.BACKUP_DIR ?? "/etc/lyly-admin/backups",
-  logFile: process.env.LOG_FILE ?? "/var/log/lyly-admin/actions.log",
+  backupDir: process.env.BACKUP_DIR ?? "/etc/lychee-admin/backups",
+  logFile: process.env.LOG_FILE ?? "/var/log/lychee-admin/actions.log",
 };

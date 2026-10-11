@@ -1,7 +1,7 @@
 import fs from "node:fs";
 
 /**
- * The filesystem operations lyly-admin performs, narrowed to exactly what
+ * The filesystem operations lychee-admin performs, narrowed to exactly what
  * the app uses. Injected rather than imported directly so the dev entry
  * point can substitute an in-memory implementation — see src/dev/fakes.ts.
  *

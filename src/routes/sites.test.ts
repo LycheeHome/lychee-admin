@@ -15,7 +15,7 @@ import { withoutHeader } from "../dev/testHelpers";
 const CADDYFILE = "/etc/caddy/Caddyfile";
 const TUNNEL_CONFIG = "/etc/cloudflared/sites-config.yml";
 const SITES_ROOT = "/var/www";
-const LOG_FILE = "/var/log/lyly-admin/actions.log";
+const LOG_FILE = "/var/log/lychee-admin/actions.log";
 const PASSWORD = "test-password";
 
 process.env.ADMIN_USERNAME = "tester";
@@ -27,7 +27,7 @@ process.env.LOG_FILE = LOG_FILE;
 process.env.CADDYFILE_PATH = CADDYFILE;
 process.env.TUNNEL_CONFIG_PATH = TUNNEL_CONFIG;
 process.env.SITES_ROOT = SITES_ROOT;
-process.env.BACKUP_DIR = "/etc/lyly-admin/backups";
+process.env.BACKUP_DIR = "/etc/lychee-admin/backups";
 
 const SEED_CADDYFILE = `{
 \tauto_https off
@@ -263,7 +263,7 @@ describe("GET /sites/new", () => {
     // hostnames, so this doesn't change what the assertion below proves, but
     // it keeps this test consistent with the others that strip it.
     const page = withoutHeader(body);
-    // 4000 is api.lychee.land in the fixture; 8787 is lyly-admin's own PORT.
+    // 4000 is api.lychee.land in the fixture; 8787 is lychee-admin's own PORT.
     assert.match(page, /api\.lychee\.land/);
     assert.match(page, /8787/);
   });
@@ -277,8 +277,8 @@ describe("GET /sites/new", () => {
 describe("refreshing the lychee-resources clone", () => {
   const NEXT = `${SEED_CADDYFILE}
 http://test.lychee.land {
-\t# lyly-admin-framework: nextjs
-\t# lyly-admin-healthcheck: /
+\t# lychee-admin-framework: nextjs
+\t# lychee-admin-healthcheck: /
 \treverse_proxy localhost:3000
 }
 `;
@@ -355,7 +355,7 @@ describe("POST /sites — static", () => {
     assert.equal(fakeFs.hasDir(path.join(SITES_ROOT, "new.lychee.land")), true);
     assert.match(
       fakeFs.readFile(path.join(SITES_ROOT, "new.lychee.land", "index.html")),
-      /Site created by lyly-admin/,
+      /Site created by lychee-admin/,
     );
   });
 
@@ -419,8 +419,8 @@ describe("POST /sites — reverse proxy", () => {
     assert.equal(body.steps.find((step) => step.id === "files")?.status, "skipped");
 
     const caddyfile = fakeFs.readFile(CADDYFILE);
-    assert.match(caddyfile, /# lyly-admin-framework: nextjs/);
-    assert.match(caddyfile, /# lyly-admin-healthcheck: \/api\/health/);
+    assert.match(caddyfile, /# lychee-admin-framework: nextjs/);
+    assert.match(caddyfile, /# lychee-admin-healthcheck: \/api\/health/);
 
     const siteDir = path.join(SITES_ROOT, "app.lychee.land");
     assert.equal(fakeFs.hasDir(siteDir), false);
@@ -920,8 +920,8 @@ const INVENTORY = "/var/lib/lychee-inventory/services.json";
 
 const NEXT_CADDYFILE = `${SEED_CADDYFILE}
 http://test.lychee.land {
-\t# lyly-admin-framework: nextjs
-\t# lyly-admin-healthcheck: /
+\t# lychee-admin-framework: nextjs
+\t# lychee-admin-healthcheck: /
 \treverse_proxy localhost:3000
 }
 `;

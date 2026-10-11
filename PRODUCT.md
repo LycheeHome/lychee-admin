@@ -120,7 +120,7 @@ claim.
   branch. Sudoers scope, wrapper-script validation, real `caddy validate`,
   and `web:webdeploy` ownership are only verifiable on `lychee`.
 - **Audit trail**: every mutating action is appended to a local log
-  (`/var/log/lyly-admin/actions.log`).
+  (`/var/log/lychee-admin/actions.log`).
 
 ## Capabilities and Constraints
 
@@ -164,7 +164,7 @@ claim.
 
 ## Brand Commitments
 
-Product name: `lyly-admin`. Managed domain: `lychee.land`; every managed
+Product name: `lychee-admin`. Managed domain: `lychee.land`; every managed
 hostname is a subdomain of it.
 
 Voice, as already practiced and worth preserving: copy states the mechanism

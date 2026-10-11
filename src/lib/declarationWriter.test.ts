@@ -112,7 +112,7 @@ function seedClone(extra: Record<string, string> = {}) {
   for (const [file, content] of upstream) fs.writeFileSync(path.join(clone, file), content);
 }
 
-const SITE_TAGLESS = `# Written by lyly-admin for test.lychee.land.
+const SITE_TAGLESS = `# Written by lychee-admin for test.lychee.land.
 name: test-lychee-land
 image: ghcr.io/lycheehome/test-site   # tag written by Deploy
 state: running   # flipped by Remove
@@ -212,6 +212,14 @@ describe("writeDeclarationTag", () => {
     }
   });
 
+  test("commits are authored as lychee-admin", async () => {
+    seedClone();
+    await writeDeclarationTag("palsave-api", "sha-new", { git: fakeGit(), clonePath: clone, keyPath: key, domain: "lychee.land" });
+    const args = commits()[0].args.join(" ");
+    assert.ok(args.includes("user.email=lychee-admin@lychee.local"), args);
+    assert.ok(args.includes("user.name=lychee-admin"), args);
+  });
+
   test("ssh is told its key, its known_hosts and how to treat a new host, without relying on $HOME", async () => {
     seedClone();
     await writeDeclarationTag("palsave-api", "sha-new", { git: fakeGit(), clonePath: clone, keyPath: key, domain: "lychee.land" });
@@ -221,7 +229,7 @@ describe("writeDeclarationTag", () => {
       assert.ok(sshCommand.includes(`-i ${key}`), `missing -i key: ${sshCommand}`);
       assert.ok(sshCommand.includes("-o IdentitiesOnly=yes"), `missing IdentitiesOnly: ${sshCommand}`);
       assert.ok(
-        sshCommand.includes("-o UserKnownHostsFile=/etc/lyly-admin/known_hosts"),
+        sshCommand.includes("-o UserKnownHostsFile=/etc/lychee-admin/known_hosts"),
         `missing UserKnownHostsFile: ${sshCommand}`,
       );
       assert.ok(
@@ -245,7 +253,7 @@ describe("createSiteDeclaration", () => {
       port: 3000,
       bind: "127.0.0.1",
     });
-    assert.match(text, /^# .*lyly-admin.*test\.lychee\.land/);
+    assert.match(text, /^# .*lychee-admin.*test\.lychee\.land/);
     assert.match(text.split("\n")[1], /^# .*tagless.*Deploy/);
     assert.equal(commitMessage(), "test-lychee-land: attach ghcr.io/lycheehome/test-site");
     const push = calls.find((c) => c.args[0] === "push");
@@ -935,7 +943,7 @@ describe("createSiteDeclaration under lychee.land", () => {
     });
     assert.deepEqual(result, { ok: true });
     const text = fs.readFileSync(path.join(clone, "blog-lychee-land.yml"), "utf8");
-    assert.ok(text.split("\n")[0].includes("# Written by lyly-admin for blog.lychee.land."), text.split("\n")[0]);
+    assert.ok(text.split("\n")[0].includes("# Written by lychee-admin for blog.lychee.land."), text.split("\n")[0]);
   });
 
   // A second domain, so the hostname in the comment is shown to come from
@@ -950,6 +958,6 @@ describe("createSiteDeclaration under lychee.land", () => {
     });
     assert.deepEqual(result, { ok: true });
     const text = fs.readFileSync(path.join(clone, "blog-example-test.yml"), "utf8");
-    assert.equal(text.split("\n")[0], "# Written by lyly-admin for blog.example.test.");
+    assert.equal(text.split("\n")[0], "# Written by lychee-admin for blog.example.test.");
   });
 });
