@@ -24,7 +24,7 @@
   - the home `/home/lychee-admin`;
   - sudoers `/etc/sudoers.d/lychee-admin`;
   - the wrappers `/usr/local/sbin/lychee-admin-write-config`, `lychee-admin-create-site-dir`, `lychee-admin-resource-status`;
-  - root's fetch key `/root/.ssh/id_lychee_admin`;
+  - *not* root's fetch key: it stays `/root/.ssh/id_lyly_admin` (amended by ruling — root's hand-placed `/root/.ssh/config` names it under an alias the reconciler does not own; renamed by hand with follow-up C);
   - lychee-ops' clone `{{ ops_root }}/src/lychee-admin`.
 - **The uid and gid never change, and nothing is `chown`ed.** The rename is `usermod -l … -d … -m` plus `groupmod -n`.
 - **Every migration and bridge step is guarded by the state of its own path or account,** so a partial run resumes on the next tick. A conflict (old and new both real) fails the tick and changes nothing.
@@ -98,7 +98,7 @@
   - `app_install_dir: /opt/lychee-admin`, `app_user: lychee-admin`;
   - `status_file: /var/lib/lychee-admin/deploy-status.json`;
   - `host_accounts`: rename the `lyly-admin` group and user entries to `lychee-admin`, with the same numbers and home `/home/lychee-admin`.
-- **Modify:** `roles/lychee_admin_app/defaults/main.yml` (`lychee_admin_app_deploy_key: /root/.ssh/id_lychee_admin`).
+- **Leave** `roles/lychee_admin_app/defaults/main.yml`'s `lychee_admin_app_deploy_key` at `/root/.ssh/id_lyly_admin` (amended by ruling: the key is not moved; see Global Constraints).
 - **Rename and edit:** `files/lyly-admin.service` → `files/lychee-admin.service`:
   - `Description`, `User`, `WorkingDirectory`, `EnvironmentFile` and `ExecStart` under `/opt/lychee-admin`;
   - `ReadWritePaths` with `/etc/lychee-admin/backups`, `/var/lib/lychee-admin`, `/var/log/lychee-admin`;
@@ -114,7 +114,7 @@
 - **Modify `README.md` and `HOST.md`:** new paths and names, and a dated note on the rename.
 
 **`migrate_identity.yml`, in order:**
-1. **Read inputs, with `check_mode: false`:** `getent passwd`; and `stat` of the four directory pairs `/opt`, `/var/lib`, `/etc` and `/var/log` `/<from>` vs `/<to>`, plus `/root/.ssh/id_<from with - as _>` vs `…<to>` and `{{ ops_root }}/src/<from>` vs `…<to>`. Then build `identity_migration_paths` and `import_tasks: decide_identity_migration.yml`.
+1. **Read inputs, with `check_mode: false`:** `getent passwd`; and `stat` of the four directory pairs `/opt`, `/var/lib`, `/etc` and `/var/log` `/<from>` vs `/<to>`, plus `{{ ops_root }}/src/<from>` vs `…<to>` (root's fetch key was dropped from this list by ruling; it is not moved), plus `/home/<from>` vs `/home/<to>` as a conflict-only pair (added in review: never moved, since `usermod -m` moves the home, but a `/home/<to>` that exists while the account rename is pending fails the tick before the stop). Then build `identity_migration_paths` and `import_tasks: decide_identity_migration.yml`.
 2. **`fail`** when `identity_migration_conflicts` is non-empty, listing them, before anything changes.
 3. **When `identity_migration_rename_account`:**
    - `systemd` stop and disable `<from>.service`;
@@ -209,9 +209,10 @@
 
 **Files:**
 - **Delete** `roles/lychee_admin_host/tasks/bridge.yml` and its import.
-- **Create** `roles/lychee_admin_host/tasks/retire_old_identity.yml`, imported after the wrapper installs:
+- **Create** `roles/lychee_admin_host/tasks/retire_old_identity.yml`, imported after `accounts.yml` and before the unit and sudoers installs (moved in review; originally after the wrapper installs):
   - for the seven old paths: `stat`; `file: state=absent` **only when** the stat says it is a link; a `fail` naming any old path that is a real directory or regular file (nothing deleted);
   - `getent` and a `fail` if a user or group named `identity_migration_from` exists. It never deletes.
+  - (added in review) before any delete, a refusal if a non-comment line of `{{ app_install_dir }}/.env` names `/<from>/` or `{{ app_install_dir }}/dist` names `/usr/local/sbin/<from>-`, decided in `decide_retire_old_identity.yml` and tested off-host; the import moves ahead of the unit and sudoers installs so the refusal also keeps the old wrapper grants.
 - **Modify `sudoers.example`:** remove the three old wrapper paths and their comment.
 - **Modify `run.sh`:** the sudoers checks now assert the old path is **absent**.
 - **Modify `HOST.md` / `README.md`:** the bridge is gone.
@@ -228,8 +229,9 @@
 ## Operator sequence
 
 The spec's "Verification on lychee" steps, run by the controller with the operator:
-1. **Merge PR 1.** Verify after its tick.
+1. **Merge PR 1.** Verify after its tick. Its tick does not health-check the app (the app SHA does not move); this step's `401` check is what does.
 2. **Merge PR 2.** Verify after its deploy.
-3. **Merge PR 3.** Verify after its tick.
+3. **Before PR 3, fix the `.env`:** `sudo grep -E '^(BACKUP_DIR|LOG_FILE)=' /opt/lychee-admin/.env`. Remove any line it prints (the defaults are the new paths) or change it to `/etc/lychee-admin/backups` / `/var/log/lychee-admin/actions.log`, then `sudo systemctl restart lychee-admin`. PR 3's tick refuses to retire the old names while a non-comment `.env` line names `/lyly-admin/`.
+4. **Merge PR 3.** Verify after its tick.
 
 The next PR is never merged until the previous one's checks pass.

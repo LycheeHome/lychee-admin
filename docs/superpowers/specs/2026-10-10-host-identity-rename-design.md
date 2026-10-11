@@ -24,7 +24,7 @@ now follow it. Nothing gains functionally, so the bar is safety:
   - home `/home/lyly-admin` → `/home/lychee-admin`;
   - `/etc/sudoers.d/lyly-admin` → `…/lychee-admin`;
   - wrappers `/usr/local/sbin/lyly-admin-{write-config,create-site-dir,resource-status}` → `lychee-admin-…`;
-  - root's app-fetch key `/root/.ssh/id_lyly_admin` → `id_lychee_admin`;
+  - *not* root's app-fetch key, `/root/.ssh/id_lyly_admin`: amended during implementation. Root's hand-placed `/root/.ssh/config` names that file under a host alias the reconciler does not own, so moving the key would silently break the alias. It keeps its name, `lychee_admin_app_deploy_key` stays `/root/.ssh/id_lyly_admin`, and the key and the config entry are renamed together by hand in a follow-up (follow-up C);
   - lychee-ops' app clone `…/src/lyly-admin` → `…/src/lychee-admin`.
 - **Names the app writes into data:**
   - Caddyfile markers `# lyly-admin-framework:` and `# lyly-admin-healthcheck:`;
@@ -67,7 +67,7 @@ now follow it. Nothing gains functionally, so the bar is safety:
 **Steps, each guarded so a partial run resumes on the next tick:**
 1. **Stop and disable** the old service. `usermod` refuses to rename a user with running processes.
 2. **Rename the account:** `usermod -l <to> -d /home/<to> -m <from>`, then `groupmod -n <to> <from>`. The uid and gid are unchanged, so every file keeps its owner. No `chown` anywhere.
-3. **Move the four directories:** `/opt`, `/var/lib`, `/etc` and `/var/log` `<from>` → `<to>`. Each move happens only when the old path is a real directory and the new path is absent. `.env`, `.deployed-sha`, `.failed-sha`, the backups, the write key, `known_hosts` and the declarations clone all move with them. The same applies to root's fetch key and lychee-ops' clone directory.
+3. **Move the four directories:** `/opt`, `/var/lib`, `/etc` and `/var/log` `<from>` → `<to>`. Each move happens only when the old path is a real directory and the new path is absent. `.env`, `.deployed-sha`, `.failed-sha`, the backups, the write key, `known_hosts` and the declarations clone all move with them. The same applies to lychee-ops' clone directory. Root's fetch key is not moved (see Scope).
 4. **Leave symlinks at the old paths** pointing to the new ones: the four directories and the three wrapper paths. The unchanged app keeps working through them.
 
 **The rest of the role then runs under the new names:**
@@ -76,7 +76,7 @@ now follow it. Nothing gains functionally, so the bar is safety:
 - **sudo:** `/etc/sudoers.d/lychee-admin` for user `lychee-admin` grants the new wrapper paths **and the old ones**, installed through `visudo -csf`. The old sudoers file names the old user and is declared absent.
 - **The wrappers:** installed at the new paths.
 - **Inventory:** the services board lists `lychee-admin.service`.
-- **The app role** starts and health-checks `lychee-admin.service` as on any deploy.
+- **The app is not health-checked by this tick.** The app role health-checks only when the app repo's SHA moves, and PR 1 does not move it; the `Restart lychee-admin` handler (and the start safety net behind it) start the renamed unit, and the operator's step-1 check under Verification (`lychee-admin.service` active and answering `401`) is what confirms it came back.
 
 **Failure handling:** if the migration fails partway, the app stays down and the tick fails and alerts. The next tick resumes from the first unfinished step.
 
@@ -115,13 +115,14 @@ now follow it. Nothing gains functionally, so the bar is safety:
 
 **Merge it only after PR 2 has deployed.** It then:
 - **Removes the seven old-path symlinks,** each only if it is a symlink. A real directory at an old path fails the tick and nothing is deleted.
+- **Refuses, deleting nothing, while anything still needs the bridge** (added in review): a non-comment line of `/opt/lychee-admin/.env` naming `/lyly-admin/`, or a deployed `dist/` that still names `/usr/local/sbin/lyly-admin-*`. The refusal comes before the new sudoers drop-in is installed, so the old wrapper grants also stay until it clears. A refusal over `dist/` cannot clear itself — the tick stops before the app role that would deploy PR 2 — so PR 3 is reverted until PR 2 has deployed.
 - **Drops the old wrapper paths** from sudoers.
 - **Keeps the old names absent from now on:** the old unit and sudoers files and the wrapper paths. It also checks that no `lyly-admin` user or group exists; that check only reports, it never deletes.
 
 ## Verification on lychee
 
 1. **After PR 1:**
-   - **The migration:** ran once, `id lychee-admin` shows the unchanged uid and gid, the directories and the key moved, the old paths are symlinks, and the old unit and sudoers files are gone.
+   - **The migration:** ran once, `id lychee-admin` shows the unchanged uid and gid, the directories moved (root's fetch key deliberately did not), the old paths are symlinks, and the old unit and sudoers files are gone.
    - **The app:** `lychee-admin.service` is active and answers `401`.
    - **The operator** runs `sudo -l -U lychee-admin` (both path sets listed) and adds and removes a static site.
    - **The next tick:** skips the migration.
@@ -131,6 +132,7 @@ now follow it. Nothing gains functionally, so the bar is safety:
    - **Static site:** add and remove one, through the new wrappers.
    - **Next.js:** a site page or `/sites/new` pulls with the moved key.
    - **Optional:** an attach-and-prune cycle shows commits authored by `lychee-admin`.
+   - **Before merging PR 3, the `.env`:** run `sudo grep -E '^(BACKUP_DIR|LOG_FILE)=' /opt/lychee-admin/.env`. The old `.env.example` set both to `lyly-admin` paths, and nothing automated rewrites `.env`, so the bridge has been hiding them. Remove those lines (the defaults are the new paths) or change them to `/etc/lychee-admin/backups` and `/var/log/lychee-admin/actions.log`, then `sudo systemctl restart lychee-admin`. Without this, PR 3's tick refuses to retire the old names; if it did not, every add and remove would fail closed on a read-only old path while the `401` health check stayed green.
 3. **After PR 3:**
    - **Old names gone:** no `lyly-admin` paths, and no `lyly-admin` user or group.
    - **sudo:** lists only the new paths.
