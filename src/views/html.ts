@@ -844,7 +844,7 @@ function failureLine(resource: FailureFacts, extraClass = "", commandId = "cmd-r
             <p class="${BODY}">${what}</p>
             ${step}
             <p class="${BODY}">The reconciler's journal has the whole run:</p>
-            ${commandBlock(commandId, "journalctl -u lyly-reconcile", "Copy journal command")}
+            ${commandBlock(commandId, "journalctl -u lychee-reconcile", "Copy journal command")}
           </div>`;
 }
 

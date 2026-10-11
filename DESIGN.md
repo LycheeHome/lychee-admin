@@ -878,7 +878,7 @@ action.
 
 A failed row carries the Repository Card's failure line, the same markup from
 the same function: the tag it tried, the reconciler's failed step in mono, and
-`journalctl -u lyly-reconcile` as a Command Block. It sits after the gate and
+`journalctl -u lychee-reconcile` as a Command Block. It sits after the gate and
 directly above the offer, so the order stays explanation, then action. The facts
 line still reads `failed · N attempts`; the failure line is what says which tag
 and why, which a service with no site page (palsave-api) has nowhere else to
@@ -970,7 +970,7 @@ a tagged declaration.
 **The failure line** replaces "requested" when the reconciler tried a deploy
 and failed: a Body sentence naming the tag it tried, the step that failed as
 the reconciler recorded it — mono, in Smoke Light, the gate line's own
-treatment — and `journalctl -u lyly-reconcile` as a single-line Command Block.
+treatment — and `journalctl -u lychee-reconcile` as a single-line Command Block.
 It sits in step four before anything is installed and, after, in the
 collapsed card above the gate line. When a different, newer tag has been
 published, the offer line follows it in both places, exactly as a blocked row's

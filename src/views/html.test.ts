@@ -1522,10 +1522,10 @@ describe("renderServicesPage", () => {
       {
         inventoryAvailable: true,
         schedule: { next: new Date("2026-10-02T04:59:00Z"), last: new Date("2026-10-02T04:58:00Z") },
-        timerUnit: "lyly-reconcile.timer",
+        timerUnit: "lychee-reconcile.timer",
         generated: "2026-10-02T04:58:02Z",
         groups: [{ group: "reconciler", rows: [
-          { name: "lyly-reconcile-timer", kind: "unit", unit: "lyly-reconcile.timer", group: "reconciler",
+          { name: "lychee-reconcile-timer", kind: "unit", unit: "lychee-reconcile.timer", group: "reconciler",
             reconciled: false, status: "running", since: null },
         ] }],
       },
@@ -1642,7 +1642,7 @@ describe("renderServicesPage", () => {
     assert.match(html, /Deploying <span[^>]*>v1\.5\.0<\/span> failed at this step:/);
     assert.ok(html.includes("Start the container: &lt;exit 1&gt; &amp; gone"));
     assert.ok(!html.includes("<exit 1>"));
-    assert.match(html, /journalctl -u lyly-reconcile/);
+    assert.match(html, /journalctl -u lychee-reconcile/);
     assert.ok(html.includes("v1.4.0 · failed · 2 attempts"));
     assert.ok(html.indexOf("data-deploy-failed") < html.indexOf("data-offer"));
   });
@@ -1651,7 +1651,7 @@ describe("renderServicesPage", () => {
     const html = offerBoard({ version: "v1.4.0", target: "v1.5.0", result: "failed" });
     assert.match(html, /data-deploy-failed/);
     assert.match(html, /Deploying <span[^>]*>v1\.5\.0<\/span> failed\./);
-    assert.match(html, /journalctl -u lyly-reconcile/);
+    assert.match(html, /journalctl -u lychee-reconcile/);
     assert.ok(!html.includes("data-failed-step"));
   });
 
@@ -2066,7 +2066,7 @@ describe("renderSiteDetail from a repository", () => {
     assert.match(c, /data-deploy-failed/);
     assert.match(c, /0\.1\.0/);
     assert.match(c, /Pull the image: &lt;manifest&gt; unknown/);
-    assert.match(c, /journalctl -u lyly-reconcile/);
+    assert.match(c, /journalctl -u lychee-reconcile/);
     assert.doesNotMatch(c, /0\.1\.0 requested/);
     assert.doesNotMatch(c, /data-deploy=/);
     assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> failed<\/span>/);
@@ -2081,7 +2081,7 @@ describe("renderSiteDetail from a repository", () => {
       }),
     );
     assert.match(c, /data-deploy-failed/);
-    assert.match(c, /journalctl -u lyly-reconcile/);
+    assert.match(c, /journalctl -u lychee-reconcile/);
     assert.doesNotMatch(c, /data-failed-step/);
   });
 
@@ -2096,7 +2096,7 @@ describe("renderSiteDetail from a repository", () => {
     assert.match(c, /data-deploy-failed/);
     assert.match(c, /0\.2\.0/);
     assert.match(c, /Start the container: exit 1/);
-    assert.match(c, /journalctl -u lyly-reconcile/);
+    assert.match(c, /journalctl -u lychee-reconcile/);
   });
 
   test("blocked shows its gate and no failure line", () => {

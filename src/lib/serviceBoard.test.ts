@@ -8,16 +8,16 @@ const inv: ServiceInventory = {
   generated: "2026-10-02T04:58:02Z",
   available: true,
   entries: [
-    { name: "lyly-reconcile-timer", kind: "unit", unit: "lyly-reconcile.timer", group: "reconciler", reconciled: false },
-    { name: "lyly-reconcile", kind: "unit", unit: "lyly-reconcile.service", group: "reconciler", reconciled: false },
+    { name: "lychee-reconcile-timer", kind: "unit", unit: "lychee-reconcile.timer", group: "reconciler", reconciled: false },
+    { name: "lychee-reconcile", kind: "unit", unit: "lychee-reconcile.service", group: "reconciler", reconciled: false },
     { name: "swee", kind: "unit", unit: "swee.service", group: "service", reconciled: true, version: "v2.11.4" },
     { name: "caddy", kind: "unit", unit: "caddy.service", group: "infrastructure", reconciled: false },
   ],
 };
 
 const states: Record<string, UnitState> = {
-  "lyly-reconcile.timer": { status: "running", since: null },
-  "lyly-reconcile.service": { status: "exited", since: null },
+  "lychee-reconcile.timer": { status: "running", since: null },
+  "lychee-reconcile.service": { status: "exited", since: null },
   "swee.service": { status: "running", since: "Fri 2026-10-02 02:47:38 UTC" },
   "caddy.service": { status: "running", since: "Sat 2026-09-26 11:00:00 UTC" },
 };
@@ -109,11 +109,11 @@ test("a container row reads its own state, keyed by project name, with since nul
 });
 
 test("findTimerUnit ignores container entries", () => {
-  const onlyContainer: ServiceInventory = { ...inv, entries: [container("lyly-reconcile", "reconciler")] };
+  const onlyContainer: ServiceInventory = { ...inv, entries: [container("lychee-reconcile", "reconciler")] };
   assert.equal(findTimerUnit(onlyContainer), null);
   // A container listed ahead of the timer must not hide it or throw on .unit.
-  const both: ServiceInventory = { ...inv, entries: [container("lyly-reconcile", "reconciler"), inv.entries[0]] };
-  assert.equal(findTimerUnit(both), "lyly-reconcile.timer");
+  const both: ServiceInventory = { ...inv, entries: [container("lychee-reconcile", "reconciler"), inv.entries[0]] };
+  assert.equal(findTimerUnit(both), "lychee-reconcile.timer");
 });
 
 test("the board renders unit and container rows in the same groups", () => {

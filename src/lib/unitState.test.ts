@@ -61,25 +61,25 @@ test("an unrecognised ActiveState reads unknown rather than throwing", () => {
 
 test("a timer and a service both parse to liveness only; no schedule fields", () => {
   const raw = [
-    "Id=lyly-reconcile.timer",
+    "Id=lychee-reconcile.timer",
     "ActiveState=active",
     "SubState=waiting",
     "LoadState=loaded",
     "ActiveEnterTimestamp=Fri 2026-10-02 00:00:00 UTC",
     "",
-    "Id=lyly-reconcile.service",
+    "Id=lychee-reconcile.service",
     "ActiveState=inactive",
     "SubState=dead",
     "LoadState=loaded",
     "ActiveEnterTimestamp=Fri 2026-10-02 04:57:56 UTC",
   ].join("\n");
   const states = parseUnitShowOutput(raw);
-  assert.deepEqual(states["lyly-reconcile.timer"], { status: "running", since: "Fri 2026-10-02 00:00:00 UTC" });
-  assert.equal(states["lyly-reconcile.service"].status, "exited");
+  assert.deepEqual(states["lychee-reconcile.timer"], { status: "running", since: "Fri 2026-10-02 00:00:00 UTC" });
+  assert.equal(states["lychee-reconcile.service"].status, "exited");
 });
 
 const REAL_TIMERS =
-  '[{"next":1790964685639426,"left":1790964685639426,"last":1790964385637936,"passed":440826018386,"unit":"lyly-reconcile.timer","activates":"lyly-reconcile.service"}]';
+  '[{"next":1790964685639426,"left":1790964685639426,"last":1790964385637936,"passed":440826018386,"unit":"lychee-reconcile.timer","activates":"lychee-reconcile.service"}]';
 
 test("list-timers JSON parses to two Dates from epoch microseconds", () => {
   const { next, last } = parseTimerSchedule(REAL_TIMERS);

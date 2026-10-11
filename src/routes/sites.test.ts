@@ -1118,7 +1118,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     const { TONE_PILL } = await import("../views/shared");
     assert.equal(pill[1].includes(TONE_PILL.bad), true);
     assert.match(html, /Pull the image: manifest unknown/);
-    assert.match(html, /journalctl -u lyly-reconcile/);
+    assert.match(html, /journalctl -u lychee-reconcile/);
     assert.deepEqual(calls.resource, []);
   });
 
@@ -1129,7 +1129,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> running/);
     assert.match(html, /Start the container: exit 1/);
     assert.match(html, /0\.2\.0/);
-    assert.match(html, /journalctl -u lyly-reconcile/);
+    assert.match(html, /journalctl -u lychee-reconcile/);
   });
 });
 
