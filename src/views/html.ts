@@ -859,7 +859,7 @@ function firstDeploy(resource: SiteResourceView | undefined): string {
     return `<p class="${BODY}">Once the repository is attached and ${mono("v0.1.0")} is built, ${mono("0.1.0")} is offered here. Deploying writes the tag into the declaration; the reconciler starts the container on its next run.</p>`;
   }
   if (resource.result === undefined) {
-    return `<p class="${BODY}">Attached. The reconciler looks for the image on its next run, within five minutes, and offers the newest tag here; reload to see it.</p>`;
+    return `<p class="${BODY}">Attached. The reconciler looks for the image on its next run, usually within two minutes, and offers the newest tag here; reload to see it.</p>`;
   }
   // Not "requested": the reconciler already tried, and will not simply pull it
   // next time. Explanation first, then a newer tag if one has been published:
@@ -1099,7 +1099,7 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       <p class="text-stone-400 text-[0.75rem] leading-snug m-0 ${attachedName ? "mb-2" : "mb-4"}">If a step fails, the ones after it don't run.</p>${
         attachedName
           ? `
-      <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mb-4">Step 5 is what stops the container: it writes <span class="font-mono text-stone-50">state: absent</span> to <span class="font-mono text-stone-50">${escapeHtml(attachedName)}.yml</span> in lychee-resources, and the reconciler takes the container down on its next run, within five minutes.</p>`
+      <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mb-4">Step 5 is what stops the container: it writes <span class="font-mono text-stone-50">state: absent</span> to <span class="font-mono text-stone-50">${escapeHtml(attachedName)}.yml</span> in lychee-resources, and the reconciler takes the container down on its next run, usually within two minutes.</p>`
           : ""
       }
       <div id="confirm-remove-outcome" class="hidden font-mono text-[0.72rem] text-stone-400 leading-snug m-0 mb-4 flex items-start gap-2" role="status" aria-live="polite"><span id="confirm-remove-progress" class="hidden shrink-0 mt-[0.4em] h-1.5 w-1.5 rounded-full bg-stone-400 motion-safe:animate-pulse" aria-hidden="true"></span><span id="confirm-remove-outcome-text" class="whitespace-pre-wrap"></span></div>
@@ -1219,7 +1219,8 @@ function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date, prunabl
   const changed = formatAge(row.since, now);
   if (changed) facts.push(`changed ${changed}`);
 
-  // The reconciler's one timer carries the schedule, as the board does.
+  // The full-run timer carries the schedule, as the board does; the watcher's
+  // timer row shows only its state.
   if (row.kind === "unit" && row.unit === board.timerUnit) {
     // Only a future time is a "next run". A timer that has just fired or not
     // yet computed its next elapse is normal, and a past "next" would render

@@ -909,7 +909,7 @@ toast, rather than the page's to predict.
 version the host has not installed yet, the pill reads `applying` in the neutral
 tone and the facts line states both versions as one fact, `v0.2.0 → v0.3.0`,
 rather than two. Neutral and never Scorch, under The Three-Tone Status Rule: the
-reconciler runs every five minutes, so a pending deploy is ordinary operation,
+reconciler acts within a couple of minutes, so a pending deploy is ordinary operation,
 and a board that paints it as failure cries wolf on every deploy. The pill only
 says `applying` when the last reconcile actually succeeded; a blocked or failed
 row keeps its real state, because a pin that moved and then stopped is not in

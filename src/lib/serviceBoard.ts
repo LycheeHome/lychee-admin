@@ -10,8 +10,10 @@ export type BoardRow = InventoryEntry & {
 
 export interface ServiceBoard {
   groups: Array<{ group: ServiceGroup; rows: BoardRow[] }>;
-  /** The reconciler timer's schedule. One timer, so one schedule on the board
-   *  rather than a field every row would carry and only one could fill. */
+  /** The reconciler timer's schedule: the full run's, the first reconciler
+   *  timer the inventory declares. The watcher's 30s timer also gets a row but
+   *  no schedule, since "next run in 20s" would be noise. One schedule on the
+   *  board rather than a field every row would carry and only one could fill. */
   schedule: TimerSchedule;
   /** The unit that owns `schedule`, decided once here so the route that reads
    *  the schedule and the row that shows it cannot disagree. Null: none declared. */
