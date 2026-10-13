@@ -1,7 +1,7 @@
 import path from "node:path";
 import { config } from "../config";
 import { toRowStatus } from "../lib/containerStatus";
-import { IMAGE_PREFIX } from "../lib/platform";
+import { IMAGE_PREFIX, MAX_RESOURCE_NAME_LENGTH } from "../lib/platform";
 import type { FileSystem } from "../lib/fileSystem";
 import type { DeclarationSummary } from "../lib/siteResource";
 import { siteNamePatternFor } from "../lib/siteValidation";
@@ -180,7 +180,7 @@ export function createFakes(
     // Site-only and absent-only, with the real writer's codes, including the
     // tagged refusal requireTagless asks for.
     pruneSiteDeclaration: (name, opts) => {
-      if (!siteNamePatternFor(config.domain).test(name) || name.length > 63) {
+      if (!siteNamePatternFor(config.domain).test(name) || name.length > MAX_RESOURCE_NAME_LENGTH) {
         return Promise.resolve({ ok: false, reason: `"${name}" is not a valid site resource name.` });
       }
       const decl = declarations.get(name);

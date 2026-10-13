@@ -54,11 +54,6 @@ export const SITE_TAGLESS_IMAGE_RE = new RegExp(
   `^(\\s*image:\\s*["']?${escapeRegex(IMAGE_PREFIX)})([^\\s"'#:/]+)(["']?)(.*)$`,
 );
 
-// A site's resource name: a DNS-label-shaped site label plus the domain's
-// suffix (siteNamePatternFor), capped at 63 like every resource name. Narrower
-// than NAME_RE on purpose: creating and retiring are reachable only for sites,
-// never for a declaration such as palsave-api that this app did not write.
-
 // One `state:` line with a bare or quoted word and an optional comment. The
 // value is the only thing replaced, so the comment survives.
 const STATE_LINE_RE = /^(\s*state:[ \t]*)(["']?[A-Za-z_-]+["']?)([ \t]*(?:#.*)?)$/;
@@ -77,6 +72,11 @@ export interface WriterOptions {
   timeoutMs?: number;
 }
 
+// A site's resource name: a DNS-label-shaped site label plus the domain's
+// suffix (siteNamePatternFor), capped at MAX_RESOURCE_NAME_LENGTH like every
+// resource name. Narrower than NAME_RE on purpose: creating and retiring are
+// reachable only for sites, never for a declaration such as palsave-api that
+// this app did not write.
 export function isSiteName(name: string, domain: string): boolean {
   return name.length <= MAX_RESOURCE_NAME_LENGTH && siteNamePatternFor(domain).test(name);
 }

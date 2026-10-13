@@ -72,6 +72,7 @@ describe("carried-over constants match the contract", () => {
 });
 
 describe("SITE_TAGLESS_IMAGE_RE", () => {
+  // Frozen on purpose: the old SITE_TAGLESS_IMAGE_RE literal, kept verbatim as the baseline. Do not "fix" it.
   const today = /^(\s*image:\s*["']?ghcr\.io\/lycheehome\/)([^\s"'#:/]+)(["']?)(.*)$/;
   test("matches exactly what the literal it replaced matched", () => {
     const lines = [
