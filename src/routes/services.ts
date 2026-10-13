@@ -2,7 +2,7 @@ import express from "express";
 import { config } from "../config";
 import type { Deps } from "../deps";
 import { isSiteName } from "../lib/declarationWriter";
-import { readCheckedActionState, requestAction } from "../lib/hostOperations";
+import { isHostAction, readCheckedActionState, requestAction } from "../lib/hostOperations";
 import { readInventory } from "../lib/serviceInventory";
 import { buildBoard, findTimerUnit } from "../lib/serviceBoard";
 import { renderServicesPage } from "../views/html";
@@ -57,11 +57,13 @@ export function createServicesRouter(deps: Deps): express.Router {
   // operator. A refusal is always JSON, never a redirect, like the routes below.
   router.post("/services/:name/actions/:action", async (req, res) => {
     const { name, action } = req.params;
+    // The raw string is checked before anything, the audit log included, reads it.
+    if (!isHostAction(action)) return res.status(404).json({ ok: false, reason: `no action ${action}` });
     try {
       const result = await requestAction(deps, name, action, { kind: "operator" });
       if (!result.ok) return res.status(result.status).json({ ok: false, reason: result.message });
       if (String(req.headers.accept ?? "").includes("application/json")) {
-        return res.status(202).json(result.state);
+        return res.status(202).json({ ok: true, state: result.state });
       }
       return res.redirect(303, "/services");
     } catch (error) {
@@ -74,7 +76,7 @@ export function createServicesRouter(deps: Deps): express.Router {
     try {
       const result = await readCheckedActionState(deps, name, action, { kind: "operator" });
       if (!result.ok) return res.status(result.status).json({ ok: false, reason: result.message });
-      return res.json(result.state);
+      return res.json({ ok: true, state: result.state });
     } catch (error) {
       return res.status(502).json({ ok: false, reason: `could not read ${name}'s ${action}: ${String(error)}` });
     }

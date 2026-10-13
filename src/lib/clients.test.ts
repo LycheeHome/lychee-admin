@@ -267,9 +267,12 @@ describe("a client socket server cannot crash the process", () => {
     const { createApiApp } = await import("../api/router");
     const server = await listenClientSocket(createApiApp(await makeDeps(), { kind: "client", name: "swee", grants: {} }), sock, c.log);
     assert.ok(server);
-    assert.doesNotThrow(() => server.emit("error", new Error("EMFILE: too many open files")));
-    assert.equal(c.lines.length, 1);
-    assert.match(c.lines[0], /EMFILE/);
-    await closeAll([server]);
+    try {
+      assert.doesNotThrow(() => server.emit("error", new Error("EMFILE: too many open files")));
+      assert.equal(c.lines.length, 1);
+      assert.match(c.lines[0], /EMFILE/);
+    } finally {
+      await closeAll([server]);
+    }
   });
 });

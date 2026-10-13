@@ -30,7 +30,7 @@ const SWEE = { name: "swee", unit: "swee.service", group: "service", reconciled:
 async function serve(
   inventoryJson: string | null,
   overrides: Partial<SystemCommands>,
-): Promise<{ base: string; get: (p: string) => Promise<Response>; actions: () => string[]; close: () => Promise<void> }> {
+): Promise<{ base: string; get: (p: string) => Promise<Response>; actions: () => string[]; audit: () => Record<string, unknown>[]; close: () => Promise<void> }> {
   const { createApp } = await import("../app");
   const { createBackup } = await import("../lib/backup");
   const { createLogger } = await import("../lib/logger");
@@ -51,6 +51,11 @@ async function serve(
   return {
     base,
     get: (p) => fetch(`${base}${p}`, { headers: { Authorization: AUTH } }),
+    audit: () => {
+      const file = process.env.LOG_FILE as string;
+      if (!fakes.fs.exists(file)) return [];
+      return fakes.fs.readFile(file).split("\n").filter(Boolean).map((l) => JSON.parse(l) as Record<string, unknown>);
+    },
     actions: () => {
       const file = process.env.LOG_FILE as string;
       if (!fakes.fs.exists(file)) return [];
@@ -552,14 +557,26 @@ describe("host actions on the board", () => {
     const s = await start();
     const res = await post(s, actionRoute(PAL, "update"), { Accept: "application/json" });
     assert.equal(res.status, 202);
-    assert.deepEqual(await res.json(), { unit: PAL, action: "update", state: "running", logTail: "" });
+    assert.deepEqual(await res.json(), { ok: true, state: { unit: PAL, action: "update", state: "running", logTail: "" } });
     assert.deepEqual(starts, [[PAL, "update"]]);
   });
 
   test("POST is audited as the operator", async () => {
     const s = await start();
     await post(s, actionRoute(PAL, "stop"));
-    assert.match(s.actions().join(","), /host/);
+    const lines = s.audit();
+    assert.equal(lines.length, 1);
+    assert.equal(lines[0].caller, "operator");
+    assert.equal(lines[0].unit, PAL);
+    assert.equal(lines[0].hostAction, "stop");
+    assert.equal(lines[0].outcome, "started");
+  });
+
+  test("an unknown action is refused 404 and never reaches the audit log", async () => {
+    const s = await start();
+    const res = await post(s, actionRoute(PAL, "rm -rf"));
+    assert.equal(res.status, 404);
+    assert.deepEqual(s.audit(), []);
   });
 
   test("refusals are JSON {ok:false, reason}, never a redirect: unknown unit, unknown action, unlisted action", async () => {
@@ -630,10 +647,11 @@ describe("host actions on the board", () => {
     });
     const res = await s.get(stateRoute(PAL, "restart"));
     assert.equal(res.status, 200);
-    const body = (await res.json()) as { unit: string; action: string; state: string };
-    assert.equal(body.unit, PAL);
-    assert.equal(body.action, "restart");
-    assert.equal(body.state, "succeeded");
+    const body = (await res.json()) as { ok: boolean; state: { unit: string; action: string; state: string } };
+    assert.equal(body.ok, true);
+    assert.equal(body.state.unit, PAL);
+    assert.equal(body.state.action, "restart");
+    assert.equal(body.state.state, "succeeded");
   });
 
   test("GET state: unknown unit, unknown action, unlisted action and a bad name are 404 JSON", async () => {

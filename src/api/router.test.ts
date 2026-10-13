@@ -262,12 +262,15 @@ describe("GET /v1/units/:unit/actions/:action", () => {
 describe("a malformed percent-escape", () => {
   test("answers 400 with no stack, on GET and POST", async () => {
     const s = await serveApi(ALL);
-    for (const method of ["GET", "POST"]) {
-      const r = await s.call(method, "/v1/units/%E0%A4%A/actions/start");
-      assert.equal(r.status, 400, method);
-      assert.deepEqual(r.json(), { error: "bad request" }, method);
+    try {
+      for (const method of ["GET", "POST"]) {
+        const r = await s.call(method, "/v1/units/%E0%A4%A/actions/start");
+        assert.equal(r.status, 400, method);
+        assert.deepEqual(r.json(), { error: "bad request" }, method);
+      }
+      assert.deepEqual(s.starts, []);
+    } finally {
+      await s.close();
     }
-    assert.deepEqual(s.starts, []);
-    await s.close();
   });
 });
