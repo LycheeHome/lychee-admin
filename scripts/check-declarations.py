@@ -9,7 +9,7 @@ import json
 import subprocess
 import sys
 
-MIN_VALID = 3
+EXPECTED = {"app-lychee-land", "blog-lychee-land", "old-lychee-land"}
 
 proc = subprocess.run(
     [
@@ -26,10 +26,18 @@ proc = subprocess.run(
 if proc.returncode != 0:
     print(proc.stdout, proc.stderr, file=sys.stderr)
     sys.exit(f"validator crashed (exit {proc.returncode})")
-valid, errors = json.loads(proc.stdout)
-print(f"valid: {valid}")
+try:
+    parsed = json.loads(proc.stdout)
+    if not (isinstance(parsed, list) and len(parsed) == 2):
+        raise ValueError("not a 2-element [valid, errors] list")
+    valid, errors = parsed
+    names = {d["name"] for d in valid}
+except (ValueError, KeyError, TypeError) as exc:
+    print(proc.stdout, proc.stderr, file=sys.stderr)
+    sys.exit(f"unexpected validator output: {exc}")
+print(f"valid: {sorted(names)}")
 print(f"errors: {errors}")
 if errors:
     sys.exit("declaration validation failed")
-if len(valid) < MIN_VALID:
-    sys.exit(f"expected at least {MIN_VALID} valid declarations, got {len(valid)}")
+if names != EXPECTED or len(valid) != len(EXPECTED):
+    sys.exit(f"valid declarations {sorted(names)} != expected {sorted(EXPECTED)}")

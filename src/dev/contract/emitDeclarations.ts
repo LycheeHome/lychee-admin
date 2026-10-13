@@ -5,6 +5,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import yaml from "js-yaml";
 import {
   changeSiteRepository,
   createSiteDeclaration,
@@ -19,6 +20,8 @@ const outDir = path.join(process.cwd(), ".contract-out");
 const constants = JSON.parse(
   fs.readFileSync(path.join(process.cwd(), ".contract", "constants.json"), "utf8"),
 ) as { domain: string };
+
+const EXPECTED_FILES = ["app-lychee-land.yml", "blog-lychee-land.yml", "old-lychee-land.yml"];
 
 const git: GitRunner = async () => ({ stdout: "", stderr: "" });
 
@@ -44,9 +47,27 @@ async function main(): Promise<void> {
 
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
-  for (const f of fs.readdirSync(clonePath).filter((n) => n.endsWith(".yml")).sort()) {
+  const emitted = fs.readdirSync(clonePath).filter((n) => n.endsWith(".yml")).sort();
+  for (const f of emitted) {
     fs.copyFileSync(path.join(clonePath, f), path.join(outDir, f));
     console.log(`emitted ${f}`);
+  }
+  if (JSON.stringify(emitted) !== JSON.stringify(EXPECTED_FILES)) {
+    throw new Error(`emitted ${JSON.stringify(emitted)}, expected ${JSON.stringify(EXPECTED_FILES)}`);
+  }
+
+  const read = (f: string) => yaml.load(fs.readFileSync(path.join(outDir, f), "utf8")) as Record<string, unknown>;
+  const blog = read("blog-lychee-land.yml");
+  if (typeof blog.image !== "string" || !blog.image.endsWith(":1.0.0")) {
+    throw new Error(`blog image should end with :1.0.0, got ${String(blog.image)}`);
+  }
+  const app = read("app-lychee-land.yml");
+  if (app.image !== "ghcr.io/lycheehome/app2") {
+    throw new Error(`app image should name repo app2, got ${String(app.image)}`);
+  }
+  const old = read("old-lychee-land.yml");
+  if (old.state !== "absent") {
+    throw new Error(`old state should be absent, got ${String(old.state)}`);
   }
   fs.rmSync(scratch, { recursive: true, force: true });
 }
