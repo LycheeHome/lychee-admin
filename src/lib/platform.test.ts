@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { loadContractJson } from "../dev/contract";
-import { FLOATING_TAGS, IMAGE_PREFIX, isValidTag, MAX_RESOURCE_NAME_LENGTH, PATHS, RESERVED_PORTS, SITE_MIN_PORT } from "./platform";
+import { CLIENTS_FILE, clientSocketPath, HOST_ACTIONS, opUnitName, FLOATING_TAGS, IMAGE_PREFIX, isValidTag, MAX_RESOURCE_NAME_LENGTH, PATHS, RESERVED_PORTS, SITE_MIN_PORT } from "./platform";
 import { SITE_TAGLESS_IMAGE_RE } from "./declarationWriter";
 import { siteNamePatternFor, siteSuffixFor } from "./siteValidation";
+import { SUDO } from "./sudoCommands";
 import { INVENTORY_PATH } from "./serviceInventory";
 
 interface Constants {
@@ -17,6 +18,11 @@ interface Constants {
   site_suffix: string;
   site_name_pattern: string;
   paths: Record<string, string>;
+  host_actions: string[];
+  op_unit_pattern: string;
+  op_sudo_argv: string[];
+  client_socket_path: string;
+  clients_file: string;
 }
 const constants = loadContractJson<Constants>("constants.json");
 
@@ -91,5 +97,34 @@ describe("SITE_TAGLESS_IMAGE_RE", () => {
     }
     assert.ok(SITE_TAGLESS_IMAGE_RE.test(lines[0]));
     assert.ok(!SITE_TAGLESS_IMAGE_RE.test(lines[6]));
+  });
+});
+
+describe("host operations constants", () => {
+  test("HOST_ACTIONS and CLIENTS_FILE", () => {
+    assert.deepEqual([...HOST_ACTIONS], constants.host_actions);
+    assert.equal(CLIENTS_FILE, constants.clients_file);
+  });
+
+  test("clientSocketPath fills the contract pattern", () => {
+    assert.equal(clientSocketPath("swee"), constants.client_socket_path.replace("{client}", "swee"));
+  });
+
+  test("opUnitName fills op_unit_pattern for every action", () => {
+    for (const a of HOST_ACTIONS) {
+      assert.equal(opUnitName("palworld-palchuds", a), constants.op_unit_pattern.replace("{unit}", "palworld-palchuds").replace("{action}", a));
+    }
+  });
+
+  test("opUnitName refuses names that are not a bare unit name", () => {
+    for (const bad of ["Palworld", "a.b", "-x", "x y", "a".repeat(64), ""]) {
+      assert.throws(() => opUnitName(bad, "start"), bad);
+    }
+    assert.doesNotThrow(() => opUnitName("a".repeat(63), "start"));
+  });
+
+  test("SUDO.startOp is op_sudo_argv with the op unit substituted", () => {
+    const expected = constants.op_sudo_argv.map((a) => a.replace("{op_unit}", opUnitName("swee", "restart")));
+    assert.deepEqual(SUDO.startOp("swee", "restart"), expected);
   });
 });

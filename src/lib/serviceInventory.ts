@@ -1,5 +1,5 @@
 import type { FileSystem } from "./fileSystem";
-import { PATHS } from "./platform";
+import { HOST_ACTIONS, type HostAction, PATHS } from "./platform";
 
 /**
  * The inventory lychee-admin reads is published by lychee-ops on every reconcile
@@ -48,6 +48,8 @@ interface InventoryEntryBase {
 export interface UnitEntry extends InventoryEntryBase {
   kind: "unit";
   unit: string;
+  /** Host operations the reconciler declares for this unit. */
+  actions?: HostAction[];
 }
 
 /** A compose project, read through the sudo-pinned service-status wrapper.
@@ -132,6 +134,10 @@ function toEntry(raw: Record<string, unknown>): InventoryEntry | null {
     const unit = typeof raw.unit === "string" ? raw.unit : "";
     if (!UNIT_NAME.test(unit)) return null;
     entry = { ...base, kind: "unit", unit };
+    const actions = Array.isArray(raw.actions)
+      ? HOST_ACTIONS.filter((a) => (raw.actions as unknown[]).includes(a))
+      : undefined;
+    if (actions !== undefined) entry.actions = actions;
   } else if (kind === "container") {
     const container = typeof raw.container === "string" ? raw.container : "";
     if (!CONTAINER_NAME.test(container)) return null;

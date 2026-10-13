@@ -34,3 +34,23 @@ export const PATHS = {
   tunnelConfig: "/etc/cloudflared/sites-config.yml",
   sitesRoot: "/var/www",
 } as const;
+
+export const HOST_ACTIONS = ["start", "stop", "restart", "update"] as const;
+export type HostAction = (typeof HOST_ACTIONS)[number];
+
+const OP_UNIT_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
+/** The one-shot unit that performs `action` on the inventory entry named
+ *  `unit` (its bare name, never its `unit` value). Throws on anything but a
+ *  bare name: the result becomes part of a root command line. */
+export function opUnitName(unit: string, action: HostAction): string {
+  if (!OP_UNIT_RE.test(unit)) throw new Error(`not a valid unit name: ${JSON.stringify(unit)}`);
+  if (!HOST_ACTIONS.includes(action)) throw new Error(`not a host action: ${JSON.stringify(action)}`);
+  return `lychee-op-${unit}-${action}.service`;
+}
+
+export function clientSocketPath(client: string): string {
+  return `/run/lychee-admin/clients/${client}/api.sock`;
+}
+
+export const CLIENTS_FILE = "/etc/lychee-admin/clients.json";
