@@ -53,6 +53,17 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+export function isHostAction(action: string): action is HostAction {
+  return (HOST_ACTIONS as readonly string[]).includes(action);
+}
+
+/** Own properties only: a unit named like an Object.prototype member must
+ *  never read back an inherited value as a grant, however the grants object
+ *  was built. */
+function grantedActions(caller: Extract<Caller, { kind: "client" }>, unit: string): readonly string[] {
+  return Object.hasOwn(caller.grants, unit) ? caller.grants[unit] : [];
+}
+
 export async function requestAction(
   deps: Deps,
   unit: string,
@@ -76,7 +87,7 @@ export async function requestAction(
 
   // 2. A client must be granted it. A grant the inventory does not back never
   //    gets here: it was a 404 above.
-  if (caller.kind === "client" && !(caller.grants[unit] ?? []).includes(hostAction)) {
+  if (caller.kind === "client" && !grantedActions(caller, unit).includes(hostAction)) {
     return refuse(403, `${callerLabel(caller)} is not granted ${action} on ${unit}`);
   }
 
@@ -154,4 +165,42 @@ export async function readActionState(deps: Deps, unit: string, action: HostActi
   if (s?.startedAt) result.startedAt = s.startedAt;
   if (s?.finishedAt && result.state !== "running") result.finishedAt = s.finishedAt;
   return result;
+}
+
+export type StateResult =
+  | { ok: true; state: ActionState }
+  | { ok: false; status: 403 | 404 | 502; message: string };
+
+/**
+ * A read with the same checks requestAction makes, in the same order, shared
+ * by the board and the client sockets: the raw action is a host action, the
+ * inventory lists it for an entry of that bare name, a client is granted it.
+ * Then the two ways readActionState throws are told apart without parsing a
+ * message: a name opUnitName refuses is 404, systemd not answering is 502.
+ * Never throws.
+ */
+export async function readCheckedActionState(
+  deps: Deps,
+  unit: string,
+  rawAction: string,
+  caller: Caller,
+): Promise<StateResult> {
+  if (!isHostAction(rawAction)) return { ok: false, status: 404, message: `no action ${rawAction}` };
+  const action = rawAction;
+  const entry = readInventory(deps.fs).entries.find((e) => e.name === unit);
+  if (!entry || entry.kind !== "unit") return { ok: false, status: 404, message: `no unit named ${unit}` };
+  if (!(entry.actions ?? []).includes(action)) return { ok: false, status: 404, message: `${unit} has no action ${action}` };
+  if (caller.kind === "client" && !grantedActions(caller, unit).includes(action)) {
+    return { ok: false, status: 403, message: `${callerLabel(caller)} is not granted ${action} on ${unit}` };
+  }
+  try {
+    opUnitName(unit, action);
+  } catch {
+    return { ok: false, status: 404, message: `${unit} is not a valid unit name` };
+  }
+  try {
+    return { ok: true, state: await readActionState(deps, unit, action) };
+  } catch (error) {
+    return { ok: false, status: 502, message: `could not read ${unit}'s actions: ${errorText(error)}` };
+  }
 }

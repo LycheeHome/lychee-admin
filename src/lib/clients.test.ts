@@ -256,3 +256,20 @@ describe("startClientSockets", () => {
     await closeAll(servers);
   });
 });
+
+describe("a client socket server cannot crash the process", () => {
+  test("a later server error is logged, not thrown", async () => {
+    const { listenClientSocket } = await import("./clients");
+    const root = freshDir();
+    fs.mkdirSync(path.join(root, "swee"));
+    const sock = path.join(root, "swee", "api.sock");
+    const c = collect();
+    const { createApiApp } = await import("../api/router");
+    const server = await listenClientSocket(createApiApp(await makeDeps(), { kind: "client", name: "swee", grants: {} }), sock, c.log);
+    assert.ok(server);
+    assert.doesNotThrow(() => server.emit("error", new Error("EMFILE: too many open files")));
+    assert.equal(c.lines.length, 1);
+    assert.match(c.lines[0], /EMFILE/);
+    await closeAll([server]);
+  });
+});

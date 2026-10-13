@@ -35,7 +35,9 @@ const DEV_CLIENTS: ClientConfig[] = [
 const socketRoot = nodeFs.mkdtempSync(path.join(os.tmpdir(), "lychee-admin-"));
 for (const client of DEV_CLIENTS) nodeFs.mkdirSync(path.join(socketRoot, client.name));
 const socketPathFor = (client: string) => path.join(socketRoot, client, "api.sock");
-void startClientSockets(deps, DEV_CLIENTS, socketPathFor).then((servers) => {
-  for (const client of DEV_CLIENTS) console.log(`client ${client.name}: ${socketPathFor(client.name)}`);
-  console.log(`(${servers.length} client socket(s) serving)`);
-});
+void startClientSockets(deps, DEV_CLIENTS, socketPathFor)
+  .then((servers) => {
+    for (const client of DEV_CLIENTS) console.log(`client ${client.name}: ${socketPathFor(client.name)}`);
+    console.log(`(${servers.length} client socket(s) serving)`);
+  })
+  .catch((error: unknown) => console.error("client sockets failed to start:", error));

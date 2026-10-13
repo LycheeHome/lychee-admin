@@ -120,6 +120,9 @@ export async function listenClientSocket(
       server.once("error", reject);
       server.listen(socketPath, () => {
         server.off("error", reject);
+        // After listen, an error (EMFILE on accept, say) must be logged, not
+        // thrown: an unhandled 'error' would take the operator's app down.
+        server.on("error", (e) => log(`lychee-admin: client socket ${socketPath}: ${e.message}`));
         resolve();
       });
     });

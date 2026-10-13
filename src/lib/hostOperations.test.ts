@@ -446,3 +446,16 @@ describe("dev fakes run an action through a full cycle", () => {
     assert.equal((await readActionState(deps, PAL, "update")).state, "failed");
   });
 });
+
+describe("requestAction grants are own properties", () => {
+  test("a unit named like an Object.prototype member never reads an inherited grant", async () => {
+    const { requestAction } = await import("./hostOperations");
+    const h = await harness({
+      services: [{ name: "constructor", unit: "constructor.service", group: "service", reconciled: false, actions: ["start"] }],
+    });
+    const r = await requestAction(h.deps, "constructor", "start", { kind: "client", name: "swee", grants: {} });
+    assert.equal(r.ok, false);
+    if (!r.ok) assert.equal(r.status, 403);
+    assert.deepEqual(h.starts, []);
+  });
+});
