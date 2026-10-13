@@ -2238,3 +2238,164 @@ describe("offeredTag", () => {
     assert.equal(offeredTag({ version: "v1.4.0", target: "v1.5.0", available: "v1.6.0", result: "skipped" }), null);
   });
 });
+
+describe("host actions on the services board", () => {
+  const NOW = new Date("2026-10-02T05:00:00Z");
+  const PAL = "palworld-palchuds";
+  type Run = Parameters<typeof renderServicesPage>[4];
+
+  function board(row: Record<string, unknown>, lastRuns: Run = {}): string {
+    return withoutHeader(
+      renderServicesPage(
+        {
+          inventoryAvailable: true,
+          schedule: { next: null, last: null },
+          timerUnit: null,
+          generated: "2026-10-02T04:58:02Z",
+          groups: [{ group: "service", rows: [
+            { name: PAL, kind: "unit", unit: `${PAL}.service`, group: "service", reconciled: false,
+              status: "running", since: null, actions: ["start", "stop", "restart", "update"], ...row } as never,
+          ] }],
+        },
+        NOW, new Set(), "lychee.land", lastRuns,
+      ),
+    );
+  }
+
+  /** The opening tag of each action button, keyed by action. */
+  const buttons = (html: string): Record<string, string> =>
+    Object.fromEntries([...html.matchAll(/<button [^>]*data-host-action="([a-z]+)"[^>]*>/g)].map((m) => [m[1], m[0]]));
+  const pills = (html: string): string[] => [...html.matchAll(/&#9679;<\/span> ([a-z ]+)<\/span>/g)].map((m) => m[1]);
+  const elementWith = (html: string, attr: string): string => {
+    const m = html.match(new RegExp(`<[a-z]+ [^>]*${attr}[^>]*>`));
+    assert.ok(m, `no element with ${attr}`);
+    return m[0];
+  };
+
+  test("a row whose entry lists no actions has no action controls", () => {
+    const html = board({ actions: undefined });
+    assert.deepEqual(buttons(html), {});
+    assert.ok(!html.includes("data-host-actions"));
+    const empty = board({ actions: [] });
+    assert.deepEqual(buttons(empty), {});
+  });
+
+  test("only the listed actions get buttons", () => {
+    assert.deepEqual(Object.keys(buttons(board({ actions: ["restart"] }))), ["restart"]);
+  });
+
+  test("a running unit offers Restart, Update and Stop, and no Start", () => {
+    const b = buttons(board({ status: "running" }));
+    assert.deepEqual(Object.keys(b), ["restart", "update", "stop"]);
+    assert.ok(b.stop.includes(BUTTON_DANGER));
+    assert.ok(b.restart.includes(BUTTON_OFFER));
+    assert.ok(b.update.includes(BUTTON_OFFER));
+  });
+
+  test("a stopped unit offers Start, Restart and Update, and no Stop", () => {
+    const b = buttons(board({ status: "exited" }));
+    assert.deepEqual(Object.keys(b), ["start", "restart", "update"]);
+    assert.ok(b.start.includes(BUTTON_OFFER));
+  });
+
+  test("stop, restart and update each confirm inline with their own copy; start does not", () => {
+    const html = board({ status: "running" });
+    const confirms = [...html.matchAll(/data-action-confirm="([a-z]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(confirms.sort(), ["restart", "stop", "update"]);
+    assert.ok(html.includes(`Stop ${PAL}? Everyone on the server is disconnected, and it stays down until someone starts it.`));
+    assert.ok(html.includes(`Restart ${PAL}? Everyone on the server is disconnected for about a minute.`));
+    assert.ok(html.includes(`Update ${PAL}? The server stops, steamcmd updates it, then it starts again; everyone is disconnected until it&#39;s back.`) ||
+      html.includes(`Update ${PAL}? The server stops, steamcmd updates it, then it starts again; everyone is disconnected until it's back.`));
+    assert.match(html, /data-action-go="stop"[^>]*>Stop server</);
+    assert.match(html, /data-action-go="restart"[^>]*>Restart server</);
+    assert.match(html, /data-action-go="update"[^>]*>Update server</);
+    // Hidden until a button asks for it.
+    assert.match(elementWith(html, 'data-action-confirm="stop"'), /\shidden/);
+    const startOnly = board({ status: "exited", actions: ["start"] });
+    assert.ok(!startOnly.includes("data-action-confirm"));
+  });
+
+  test("the unit name in the confirmation copy is escaped", () => {
+    const html = board({ name: `x"<y`, status: "running", actions: ["stop"] });
+    assert.ok(html.includes("Stop x&quot;&lt;y?"));
+    assert.ok(!html.includes(`Stop x"<y`));
+  });
+
+  test("at rest nothing is disabled and the busy line is hidden", () => {
+    const html = board({ status: "running" });
+    for (const tag of Object.values(buttons(html))) assert.ok(!/\sdisabled(?=[\s>])/.test(tag), tag);
+    assert.match(elementWith(html, "data-action-busy"), /\shidden/);
+    assert.deepEqual(pills(html), ["running"]);
+  });
+
+  test("while an action runs: neutral pill naming it, every button disabled, the busy line, the live tail open", () => {
+    const html = board({ status: "running" }, {
+      [PAL]: { unit: PAL, action: "update", state: "running", startedAt: "2026-10-02T04:59:12Z", logTail: "Stopping\n Update state (0x61) downloading\n" },
+    });
+    assert.deepEqual(pills(html), ["updating"]);
+    assert.ok(html.includes(TONE_PILL.neutral));
+    const b = buttons(html);
+    assert.ok(Object.keys(b).length > 0);
+    for (const tag of Object.values(b)) assert.match(tag, /\sdisabled(?=[\s>])/);
+    const busy = html.slice(html.indexOf("data-action-busy"));
+    assert.ok(!/^[^>]*\shidden/.test(busy));
+    assert.ok(busy.includes(`an action is already running on ${PAL}`));
+    assert.match(elementWith(html, "data-host-actions"), /data-running="update"/);
+    assert.ok(html.includes("update running · started 48 seconds ago"));
+    const tail = elementWith(html, "data-action-tail");
+    assert.ok(!/\shidden/.test(tail));
+    assert.ok(html.includes(" Update state (0x61) downloading"));
+  });
+
+  test("each action's running word", () => {
+    for (const [action, word] of [["start", "starting"], ["stop", "stopping"], ["restart", "restarting"], ["update", "updating"]]) {
+      const html = board({ status: "running" }, { [PAL]: { unit: PAL, action: action as never, state: "running", logTail: "" } });
+      assert.deepEqual(pills(html), [word]);
+    }
+  });
+
+  test("a finished run is a fact line and a closed log disclosure with every line", () => {
+    const log = Array.from({ length: 14 }, (_, i) => `line ${i + 1}`).join("\n") + "\n";
+    const html = board({ status: "running" }, {
+      [PAL]: { unit: PAL, action: "update", state: "succeeded", startedAt: "2026-10-02T02:56:19Z", finishedAt: "2026-10-02T03:00:00Z", logTail: log },
+    });
+    assert.match(html, /update <span[^>]*>succeeded<\/span> · 2 hours ago · took 3m 41s/);
+    const details = elementWith(html, "data-action-log");
+    assert.ok(details.startsWith("<details"));
+    assert.ok(!/\sopen/.test(details));
+    assert.ok(html.includes("log · 14 lines"));
+    assert.ok(html.includes("line 1\n") && html.includes("line 14"));
+    assert.deepEqual(pills(html), ["running"]);
+  });
+
+  test("a failed run opens its log by default", () => {
+    const html = board({ status: "exited" }, {
+      [PAL]: { unit: PAL, action: "restart", state: "failed", startedAt: "2026-10-02T04:58:58Z", finishedAt: "2026-10-02T04:59:00Z", logTail: "Job for palworld-palchuds.service failed\n" },
+    });
+    assert.match(html, /restart <span[^>]*text-red-300[^>]*>failed<\/span> · 1 minute ago · took 2s/);
+    assert.match(elementWith(html, "data-action-log"), /\sopen/);
+    assert.ok(html.includes("log · 1 line<"));
+  });
+
+  test("an empty log reads no output", () => {
+    const html = board({ status: "running" }, {
+      [PAL]: { unit: PAL, action: "restart", state: "succeeded", startedAt: "2026-10-02T04:58:58Z", finishedAt: "2026-10-02T04:59:00Z", logTail: "" },
+    });
+    assert.ok(html.includes("no output"));
+    assert.ok(!html.includes("log · 0 lines"));
+  });
+
+  test("a never-run row has no last-run line and no log", () => {
+    const html = board({ status: "running" }, { [PAL]: { unit: PAL, action: "start", state: "idle", logTail: "" } });
+    assert.ok(!html.includes("data-action-log"));
+    assert.ok(!html.includes("succeeded") && !html.includes("failed"));
+    assert.match(elementWith(html, "data-action-fact"), /\shidden/);
+  });
+
+  test("the log is escaped", () => {
+    const html = board({ status: "running" }, {
+      [PAL]: { unit: PAL, action: "restart", state: "failed", finishedAt: "2026-10-02T04:59:00Z", logTail: "<script>x</script>\n" },
+    });
+    assert.ok(html.includes("&lt;script&gt;x&lt;/script&gt;"));
+  });
+});

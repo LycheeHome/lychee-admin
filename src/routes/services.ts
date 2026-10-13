@@ -2,7 +2,7 @@ import express from "express";
 import { config } from "../config";
 import type { Deps } from "../deps";
 import { isSiteName } from "../lib/declarationWriter";
-import { isHostAction, readCheckedActionState, requestAction } from "../lib/hostOperations";
+import { isHostAction, readCheckedActionState, readLastRuns, requestAction } from "../lib/hostOperations";
 import { readInventory } from "../lib/serviceInventory";
 import { buildBoard, findTimerUnit } from "../lib/serviceBoard";
 import { renderServicesPage } from "../views/html";
@@ -27,7 +27,7 @@ export function createServicesRouter(deps: Deps): express.Router {
       // Each read degrades independently; the page must render without either.
       const units = inventory.entries.flatMap((e) => (e.kind === "unit" ? [e.unit] : []));
       const projects = inventory.entries.flatMap((e) => (e.kind === "container" ? [e.container] : []));
-      const [states, schedule, statuses, declarations] = await Promise.all([
+      const [states, schedule, statuses, declarations, lastRuns] = await Promise.all([
         deps.commands.readUnitStates(units).catch(() => ({})),
         timer ? deps.commands.readTimerSchedule(timer).catch(noSchedule) : noSchedule(),
         // One wrapper call per project, concurrently; each degrades alone.
@@ -41,13 +41,16 @@ export function createServicesRouter(deps: Deps): express.Router {
         // failed read both mean no Prune control anywhere: the button is
         // offered only on evidence that the declaration is absent.
         deps.commands.readDeclarations().catch(() => null),
+        // Host actions: one systemd read for every listed action of every row
+        // that has them. Degrades to no last-run line by itself.
+        readLastRuns(deps, inventory.entries),
       ]);
       const board = buildBoard(inventory, states, schedule, Object.fromEntries(statuses));
       const prunable = new Set(
         (declarations ?? []).filter((d) => d.state === "absent" && isSiteName(d.name, config.domain)).map((d) => d.name),
       );
 
-      res.type("html").send(renderServicesPage(board, new Date(), prunable, config.domain));
+      res.type("html").send(renderServicesPage(board, new Date(), prunable, config.domain, lastRuns));
     } catch (error) {
       res.status(500).type("text/plain").send(`Could not render services: ${String(error)}`);
     }

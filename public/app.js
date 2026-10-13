@@ -884,6 +884,188 @@ document.querySelectorAll("[data-prune]").forEach((button) => {
   });
 });
 
+// Host actions on the services board (start/stop/restart/update on a unit whose
+// inventory entry lists them). Stop, Restart and Update replace the button strip
+// with an inline confirmation; Start goes straight through. A 202 puts the row
+// into its running state here, rather than by reloading: the job was only
+// queued (--no-block), so a page rendered now could still read the previous
+// run. While a run is active the page polls its state every 2s, and only then;
+// once it settles the page reloads, which restores the pill and the buttons
+// from the server's own reading.
+const ACTION_RUNNING_WORD = { start: "starting", stop: "stopping", restart: "restarting", update: "updating" };
+const ACTION_POLL_MS = 2000;
+// After a click, a settled state whose start predates the click (less this
+// slack, for clock skew between browser and host) is the previous run, read
+// before systemd picked the new job up. A few polls of that and the page
+// reloads anyway, so a misread can delay the row but never wedge it.
+const ACTION_STALE_SLACK_MS = 30000;
+const ACTION_STALE_POLLS = 5;
+
+function ageSince(text) {
+  if (!text) return null;
+  const ms = new Date(String(text).replace(/^[A-Za-z]{3}\s+/, "")).getTime();
+  if (!Number.isFinite(ms)) return null;
+  const seconds = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (seconds < 5) return "just now";
+  const plural = (n, unit) => `${n} ${unit}${n === 1 ? "" : "s"}`;
+  if (seconds < 60) return `${plural(seconds, "second")} ago`;
+  if (seconds < 3600) return `${plural(Math.round(seconds / 60), "minute")} ago`;
+  return `${plural(Math.round(seconds / 3600), "hour")} ago`;
+}
+
+document.querySelectorAll("[data-host-actions]").forEach((box) => {
+  const unit = box.dataset.hostActions;
+  const row = box.closest("[data-service]");
+  const strip = box.querySelector("[data-action-strip]");
+  const fact = box.querySelector("[data-action-fact]");
+  const tail = box.querySelector("[data-action-tail]");
+  const busy = box.querySelector("[data-action-busy]");
+  const actionButtons = [...box.querySelectorAll("[data-host-action]")];
+  const confirms = [...box.querySelectorAll("[data-action-confirm]")];
+  let opener = null;
+  let inFlight = false;
+
+  function closeConfirms(restoreFocus) {
+    confirms.forEach((c) => {
+      c.hidden = true;
+    });
+    strip.hidden = false;
+    if (restoreFocus && opener) opener.focus();
+    opener = null;
+  }
+
+  function setRunningFact(action, startedAt) {
+    const dot = document.createElement("span");
+    dot.className = "inline-block h-1.5 w-1.5 rounded-full bg-stone-400 motion-safe:animate-pulse align-middle mr-1.5";
+    dot.setAttribute("aria-hidden", "true");
+    const age = ageSince(startedAt);
+    fact.replaceChildren(dot, `${action} running${age ? ` · started ${age}` : ""}`);
+    fact.hidden = false;
+  }
+
+  function setTail(logTail) {
+    tail.textContent = (logTail ?? "").trimEnd() || "no output yet";
+    tail.hidden = false;
+  }
+
+  function enterRunning(action, state) {
+    const pillSlot = row?.querySelector("[data-row-pill]");
+    if (pillSlot) {
+      const pill = document.createElement("span");
+      pill.className = box.dataset.neutralPill;
+      const dot = document.createElement("span");
+      dot.setAttribute("aria-hidden", "true");
+      dot.textContent = "●";
+      pill.append(dot, ` ${ACTION_RUNNING_WORD[action]}`);
+      pillSlot.replaceChildren(pill);
+    }
+    actionButtons.forEach((b) => {
+      b.disabled = true;
+    });
+    closeConfirms(false);
+    box.querySelector("[data-action-log]")?.remove();
+    setRunningFact(action, state.startedAt);
+    setTail(state.logTail);
+    busy.hidden = false;
+    box.dataset.running = action;
+    // The clicked control is gone or disabled; keep focus in the row.
+    fact.tabIndex = -1;
+    fact.focus();
+  }
+
+  function poll(action, clickedAt) {
+    let stalePolls = 0;
+    const tick = async () => {
+      try {
+        const response = await fetch(`/services/${encodeURIComponent(unit)}/actions/${action}/state`, {
+          headers: { Accept: "application/json" },
+        });
+        const body = await response.json().catch(() => ({}));
+        if (response.ok && body.ok && body.state) {
+          const state = body.state;
+          if (state.state === "running") {
+            setRunningFact(action, state.startedAt);
+            setTail(state.logTail);
+          } else {
+            const started = new Date(String(state.startedAt ?? "").replace(/^[A-Za-z]{3}\s+/, "")).getTime();
+            const stale =
+              clickedAt !== null &&
+              (state.state === "idle" || !Number.isFinite(started) || started < clickedAt - ACTION_STALE_SLACK_MS);
+            if (!stale || ++stalePolls >= ACTION_STALE_POLLS) {
+              window.location.reload();
+              return;
+            }
+          }
+        }
+        // Anything else (a 502, lychee-admin itself restarting mid-update)
+        // is transient from here: the action runs in its own unit regardless.
+      } catch {
+        // Unreachable for a moment; try again on the next tick.
+      }
+      setTimeout(tick, ACTION_POLL_MS);
+    };
+    setTimeout(tick, ACTION_POLL_MS);
+  }
+
+  async function request(action) {
+    if (inFlight) return;
+    inFlight = true;
+    const clickedAt = Date.now();
+    box.querySelectorAll("button").forEach((b) => {
+      b.disabled = true;
+    });
+    try {
+      const response = await fetch(`/services/${encodeURIComponent(unit)}/actions/${action}`, {
+        method: "POST",
+        headers: { Accept: "application/json" },
+      });
+      const body = await response.json().catch(() => ({}));
+      if (response.status === 202 && body.ok) {
+        enterRunning(action, body.state ?? {});
+        poll(action, clickedAt);
+        return;
+      }
+      showBanner(body.reason ?? `Could not ${action} ${unit} (HTTP ${response.status}).`, "error");
+    } catch {
+      showBanner(`Could not reach the server to ${action} ${unit}.`, "error");
+    } finally {
+      inFlight = false;
+    }
+    // Refused: back to the strip, every control live again.
+    box.querySelectorAll("button").forEach((b) => {
+      b.disabled = false;
+    });
+    closeConfirms(true);
+  }
+
+  actionButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const action = button.dataset.hostAction;
+      const confirm = confirms.find((c) => c.dataset.actionConfirm === action);
+      if (!confirm) {
+        opener = button;
+        request(action);
+        return;
+      }
+      opener = button;
+      strip.hidden = true;
+      confirm.hidden = false;
+      confirm.querySelector("[data-action-cancel]")?.focus();
+    });
+  });
+
+  confirms.forEach((confirm) => {
+    confirm.querySelector("[data-action-cancel]")?.addEventListener("click", () => closeConfirms(true));
+    confirm.querySelector("[data-action-go]")?.addEventListener("click", () => request(confirm.dataset.actionConfirm));
+    confirm.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeConfirms(true);
+    });
+  });
+
+  // Rendered mid-run (a reload, or a run started elsewhere): follow it.
+  if (box.dataset.running) poll(box.dataset.running, null);
+});
+
 // A Next.js site's Attach control. The server takes the port from the site's
 // own Caddyfile block, so only the repository name is sent. Success reloads the
 // page rather than patching it: the attached state (awaiting image, the

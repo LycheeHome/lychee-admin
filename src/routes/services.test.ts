@@ -683,3 +683,40 @@ describe("host actions on the board", () => {
     assert.equal(res.status, 401);
   });
 });
+
+describe("GET /services: host action state", () => {
+  const PAL = "palworld-palchuds";
+  const GAME = { name: PAL, unit: `${PAL}.service`, group: "service", reconciled: false, actions: ["start", "stop", "restart", "update"] };
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  after(async () => {
+    await current?.close();
+  });
+
+  test("the board reads every action's state in one call and shows a running one", async () => {
+    const reads: string[][] = [];
+    current = await serve(inventory([GAME]), {
+      readOpUnits: (names) => {
+        reads.push(names);
+        return Promise.resolve({
+          [`lychee-op-${PAL}-update.service`]: { activeState: "activating", result: "success", startedAt: "Tue 2026-10-13 10:00:00 UTC", finishedAt: null },
+        });
+      },
+    });
+    const html = await (await current.get("/services")).text();
+    assert.equal(reads.length, 1);
+    assert.equal(reads[0].length, 4);
+    assert.ok(html.includes('data-running="update"'));
+    assert.ok(html.includes(`an action is already running on ${PAL}`));
+  });
+
+  test("an unreadable systemd still renders the board and its buttons, without a last run", async () => {
+    await current?.close();
+    current = await serve(inventory([GAME]), { readOpUnits: () => Promise.reject(new Error("systemctl broke")) });
+    const res = await current.get("/services");
+    assert.equal(res.status, 200);
+    const html = await res.text();
+    assert.ok(html.includes('data-host-action="restart"'));
+    assert.ok(!html.includes("data-running="));
+    assert.ok(!html.includes("data-action-log"));
+  });
+});

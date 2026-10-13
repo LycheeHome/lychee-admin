@@ -459,3 +459,78 @@ describe("requestAction grants are own properties", () => {
     assert.deepEqual(h.starts, []);
   });
 });
+
+describe("readLastRuns (the board's one batched read)", () => {
+  const done = (startedAt: string, finishedAt: string, failed = false): OpUnitState => ({
+    activeState: failed ? "failed" : "inactive",
+    result: failed ? "exit-code" : "success",
+    startedAt,
+    finishedAt,
+  });
+
+  test("one systemd read covers every listed action of every action-bearing row", async () => {
+    const { readLastRuns } = await import("./hostOperations");
+    const { readInventory } = await import("./serviceInventory");
+    const h = await harness({ services: [PAL_ENTRY, OTHER_ENTRY, { name: "swee", unit: "swee.service", group: "service", reconciled: true }] });
+    await readLastRuns(h.deps, readInventory(h.deps.fs).entries);
+    assert.equal(h.shows.length, 1);
+    assert.deepEqual(
+      [...h.shows[0]].sort(),
+      [...["start", "stop", "restart", "update"].map((a) => opUnitName(PAL, a as HostAction)), opUnitName(OTHER, "start")].sort(),
+    );
+  });
+
+  test("no action-bearing rows reads nothing", async () => {
+    const { readLastRuns } = await import("./hostOperations");
+    const { readInventory } = await import("./serviceInventory");
+    const h = await harness({ services: [{ name: "swee", unit: "swee.service", group: "service", reconciled: true }] });
+    assert.deepEqual(await readLastRuns(h.deps, readInventory(h.deps.fs).entries), {});
+    assert.equal(h.shows.length, 0);
+  });
+
+  test("a running action wins over a later-finished one", async () => {
+    const { readLastRuns } = await import("./hostOperations");
+    const { readInventory } = await import("./serviceInventory");
+    const h = await harness({
+      units: {
+        [opUnitName(PAL, "update")]: RUNNING,
+        [opUnitName(PAL, "restart")]: done("Tue 2026-10-13 11:00:00 UTC", "Tue 2026-10-13 11:00:02 UTC"),
+      },
+    });
+    const runs = await readLastRuns(h.deps, readInventory(h.deps.fs).entries);
+    assert.equal(runs[PAL]?.action, "update");
+    assert.equal(runs[PAL]?.state, "running");
+  });
+
+  test("otherwise the latest finished run, with its log", async () => {
+    const { readLastRuns, opLogPath } = await import("./hostOperations");
+    const { readInventory } = await import("./serviceInventory");
+    const h = await harness({
+      units: {
+        [opUnitName(PAL, "update")]: done("Tue 2026-10-13 09:00:00 UTC", "Tue 2026-10-13 09:03:41 UTC"),
+        [opUnitName(PAL, "restart")]: done("Tue 2026-10-13 10:00:00 UTC", "Tue 2026-10-13 10:00:02 UTC", true),
+        [opUnitName(PAL, "stop")]: IDLE,
+      },
+    });
+    h.deps.fs.writeFile(opLogPath(PAL, "restart"), "Job failed\n");
+    const runs = await readLastRuns(h.deps, readInventory(h.deps.fs).entries);
+    assert.equal(runs[PAL]?.action, "restart");
+    assert.equal(runs[PAL]?.state, "failed");
+    assert.equal(runs[PAL]?.logTail, "Job failed\n");
+    assert.equal(runs[PAL]?.finishedAt, "Tue 2026-10-13 10:00:02 UTC");
+  });
+
+  test("never run means no entry", async () => {
+    const { readLastRuns } = await import("./hostOperations");
+    const { readInventory } = await import("./serviceInventory");
+    const h = await harness({ units: { [opUnitName(PAL, "stop")]: IDLE } });
+    assert.deepEqual(await readLastRuns(h.deps, readInventory(h.deps.fs).entries), {});
+  });
+
+  test("a failed systemd read degrades to no runs, never a throw", async () => {
+    const { readLastRuns } = await import("./hostOperations");
+    const { readInventory } = await import("./serviceInventory");
+    const h = await harness({ overrides: { readOpUnits: () => Promise.reject(new Error("systemctl broke")) } });
+    assert.deepEqual(await readLastRuns(h.deps, readInventory(h.deps.fs).entries), {});
+  });
+});

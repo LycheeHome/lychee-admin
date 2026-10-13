@@ -13,8 +13,8 @@
 import type { Deps } from "../deps";
 import { CommandError } from "./systemCommands";
 import { HOST_ACTIONS, type HostAction, opUnitName } from "./platform";
-import { readInventory } from "./serviceInventory";
-import type { OpUnitState } from "./unitState";
+import { type InventoryEntry, readInventory } from "./serviceInventory";
+import { type OpUnitState, parseTimestamp } from "./unitState";
 
 export type Caller = { kind: "operator" } | { kind: "client"; name: string; grants: Record<string, HostAction[]> };
 
@@ -165,6 +165,52 @@ export async function readActionState(deps: Deps, unit: string, action: HostActi
   if (s?.startedAt) result.startedAt = s.startedAt;
   if (s?.finishedAt && result.state !== "running") result.finishedAt = s.finishedAt;
   return result;
+}
+
+/**
+ * The services board's view: for every unit entry that lists actions, its most
+ * recent run — a running one wins, otherwise the latest by finish (or start)
+ * time; a unit whose actions have never run has no entry. One `systemctl show`
+ * for every listed action of every such row, then one log read per row shown.
+ * Never throws: a systemd read that fails, or a name opUnitName refuses, is
+ * simply no entry, so the board renders without a last-run line rather than
+ * erroring.
+ */
+export async function readLastRuns(deps: Deps, entries: readonly InventoryEntry[]): Promise<Record<string, ActionState>> {
+  const rows: { name: string; ops: [HostAction, string][] }[] = [];
+  for (const e of entries) {
+    if (e.kind !== "unit" || !e.actions || e.actions.length === 0) continue;
+    try {
+      rows.push({ name: e.name, ops: e.actions.map((a): [HostAction, string] => [a, opUnitName(e.name, a)]) });
+    } catch {
+      // Not a bare unit name: no state to read, and nothing a request could start.
+    }
+  }
+  if (rows.length === 0) return {};
+
+  let states: Record<string, OpUnitState>;
+  try {
+    states = await deps.commands.readOpUnits(rows.flatMap((r) => r.ops.map(([, unit]) => unit)));
+  } catch {
+    return {};
+  }
+
+  const when = (s: OpUnitState | undefined) => parseTimestamp(s?.finishedAt) ?? parseTimestamp(s?.startedAt) ?? -Infinity;
+  const runs: Record<string, ActionState> = {};
+  for (const row of rows) {
+    const candidates = row.ops
+      .map(([action, unit]) => ({ action, s: states[unit], state: mapState(states[unit]) }))
+      .filter((c) => c.state !== "idle");
+    if (candidates.length === 0) continue;
+    const pick =
+      candidates.find((c) => c.state === "running") ??
+      candidates.reduce((latest, c) => (when(c.s) > when(latest.s) ? c : latest));
+    const run: ActionState = { unit: row.name, action: pick.action, state: pick.state, logTail: readLogTail(deps, row.name, pick.action) };
+    if (pick.s?.startedAt) run.startedAt = pick.s.startedAt;
+    if (pick.s?.finishedAt && pick.state !== "running") run.finishedAt = pick.s.finishedAt;
+    runs[row.name] = run;
+  }
+  return runs;
 }
 
 export type StateResult =

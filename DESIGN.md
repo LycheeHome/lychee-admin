@@ -915,6 +915,29 @@ says `applying` when the last reconcile actually succeeded; a blocked or failed
 row keeps its real state, because a pin that moved and then stopped is not in
 flight, and it would otherwise read as applying forever.
 
+**The host-action strip.** A unit whose inventory entry lists host actions
+(today only `palworld-palchuds`) grows a strip of in-row buttons beneath its
+facts, chosen from a rendered comparison as "01 Strip". Start shows only when
+the unit is not up and Stop only when it is (a state the page could not read
+shows both); Restart and Update always. Stop is a Danger button, the others
+Offer buttons, because Stop is the one action that leaves the server down. Stop,
+Restart and Update each confirm inline: the strip is replaced in place by one
+sentence naming what happens to the people on the server, then Cancel and a
+confirm button named for the act ("Stop server"), Cancel on the left as in the
+Dialog. Stop's confirmation sits in the Danger card's Scorch wash; the other two
+on Hearth Lift with a Hairline edge, since neither destroys anything. The most
+recent run is one more mono fact line — `update succeeded · 2 hours ago · took
+3m 41s`, the state word in its tone — over a `<details>` disclosure "log · N
+lines" holding the tail in full and wrapping, open by default when the run
+failed, and reading `log · no output` when there was none. While a run is
+active the pill turns neutral and names it (`restarting`, `updating`), the
+same move `applying` makes; every button disables, a Smoke sentence says an
+action is already running on the unit, and the live tail shows open beneath a
+fact line led by the same pulsing Smoke dot the remove dialog uses. The page
+polls only while that is true and reloads once the run settles. Ember stays on
+the buttons alone: the live log line is not tinted, because a value you can
+only read is not Ember's.
+
 ### Repository Card (From a repository)
 
 The deploy story of a Next.js site, and the one card in the app that is a
