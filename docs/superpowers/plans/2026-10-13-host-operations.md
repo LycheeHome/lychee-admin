@@ -4,7 +4,7 @@
 
 **Goal:** Palworld can be started, stopped, restarted and updated from lychee-admin's services board and through a per-client Unix socket, each action a lychee-ops-declared oneshot service started through one pinned sudo line, and no cross-site POST is accepted anywhere in lychee-admin.
 
-**Architecture:** lychee-ops declares units, actions and clients once; a new `host_operations` role renders the action services, the sudo lines, the client socket units and `clients.json`. lychee-admin gains one `hostOperations` module used by two routers kept apart — the board (network listener, Basic auth, cross-site check) and the `/v1` API (systemd-passed client sockets only). The contract (v1.2) carries the inventory's `actions` and agreement `A-OPS-1`.
+**Architecture:** lychee-ops declares units, actions and clients once; a new `host_operations` role renders the action services, the sudo lines, the client groups and socket directories, and `clients.json`. lychee-admin gains one `hostOperations` module used by two routers kept apart — the board (network listener, Basic auth, cross-site check) and the `/v1` API (per-client Unix sockets lychee-admin creates, only). The contract (v1.2) carries the inventory's `actions` and agreement `A-OPS-1`.
 
 **Tech Stack:** TypeScript/Express + `tsx --test` (lychee-admin), Ansible (lychee-ops), JSON Schema + Python (lychee-contract), systemd socket activation.
 
