@@ -189,6 +189,8 @@ service later is a reconciler change and no app change at all.
 
 #### The contract
 
+> Note, 2026-10-12: superseded. The inventory's shape is now `schemas/inventory.schema.json` in [`lychee-contract`](https://github.com/LycheeHome/lychee-contract); the section below is kept as history.
+
 ```json
 {
   "generated": "2026-10-02T04:58:02Z",
