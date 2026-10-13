@@ -26,3 +26,5 @@ public/style.css
 
 # Fetched by scripts/fetch-contract.sh (npm pretest).
 .contract/
+.contract-out/
+.venv-contract/

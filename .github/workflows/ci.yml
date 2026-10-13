@@ -40,4 +40,9 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - run: pip install -r .contract/requirements.txt
+      - run: npm run test:contract
       - run: npm run build

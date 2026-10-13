@@ -14,7 +14,8 @@
     "pretest": "sh scripts/fetch-contract.sh",
     "test": "tsx --test",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "test:contract": "tsx src/dev/contract/emitDeclarations.ts && python3 scripts/check-declarations.py"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
