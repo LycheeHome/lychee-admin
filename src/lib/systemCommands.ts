@@ -1,6 +1,7 @@
 import { execFile as execFileCb, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { config } from "../config";
+import { SUDO } from "./sudoCommands";
 import {
   changeSiteRepository,
   createSiteDeclaration,
@@ -125,12 +126,12 @@ export interface SystemCommands {
 const gitRunner: GitRunner = (args, options) => run("git", args, options);
 
 export const realSystemCommands: SystemCommands = {
-  validateCaddyfile(caddyfilePath) {
-    return run("sudo", ["/usr/bin/caddy", "validate", "--config", caddyfilePath]);
+  validateCaddyfile() {
+    return run("sudo", SUDO.caddyValidate);
   },
 
   reloadCaddy() {
-    return run("sudo", ["/usr/bin/systemctl", "reload", "caddy"]);
+    return run("sudo", SUDO.caddyReload);
   },
 
   /**
@@ -141,7 +142,7 @@ export const realSystemCommands: SystemCommands = {
    * access is Tailscale now, but the scope stays exactly as narrow as it was.
    */
   restartCloudflared() {
-    return run("sudo", ["/usr/bin/systemctl", "restart", "cloudflared-sites"]);
+    return run("sudo", SUDO.tunnelRestart);
   },
 
   /**
@@ -152,7 +153,7 @@ export const realSystemCommands: SystemCommands = {
    * /var/www" without wildcards, which aren't supported on every sudo build.
    */
   createSiteDirectory(hostname) {
-    return run("sudo", ["/usr/local/sbin/lychee-admin-create-site-dir", hostname]);
+    return run("sudo", SUDO.createSiteDir(hostname));
   },
 
   /**
@@ -164,7 +165,7 @@ export const realSystemCommands: SystemCommands = {
    */
   writeManagedConfig(targetPath, content) {
     return new Promise((resolve, reject) => {
-      const child = spawn("sudo", ["/usr/local/sbin/lychee-admin-write-config", targetPath]);
+      const child = spawn("sudo", SUDO.writeConfig(targetPath));
 
       let stderr = "";
       child.stderr.on("data", (chunk) => {
@@ -222,7 +223,7 @@ export const realSystemCommands: SystemCommands = {
     try {
       const { stdout } = await run(
         "sudo",
-        ["/usr/local/sbin/lychee-admin-resource-status", project],
+        SUDO.resourceStatus(project),
         { timeoutMs: STATUS_READ_TIMEOUT_MS },
       );
       return parseComposePsOutput(stdout);

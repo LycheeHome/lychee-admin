@@ -6,9 +6,6 @@ process.env.ADMIN_USERNAME = "tester";
 process.env.ADMIN_PASSWORD_HASH = "unused";
 process.env.DOMAIN = "lychee.land";
 process.env.PORT = "8787";
-process.env.CADDYFILE_PATH = "/etc/caddy/Caddyfile";
-process.env.TUNNEL_CONFIG_PATH = "/etc/cloudflared/sites-config.yml";
-process.env.SITES_ROOT = "/var/www";
 
 test("an unauthenticated request is challenged with the lychee-admin realm", async () => {
   const { basicAuth } = await import("./auth");

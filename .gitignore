@@ -23,3 +23,8 @@ public/style.css
 .impeccable/hook.pending.json
 .impeccable/live/roots.json
 .impeccable/live/sessions/
+
+# Fetched by scripts/fetch-contract.sh (npm pretest).
+.contract/
+.contract-out/
+.venv-contract/

@@ -1,4 +1,5 @@
 import type { FileSystem } from "./fileSystem";
+import { PATHS } from "./platform";
 
 /**
  * The inventory lychee-admin reads is published by lychee-ops on every reconcile
@@ -10,7 +11,7 @@ import type { FileSystem } from "./fileSystem";
  * freshness is bounded by the tick by construction and a privileged reader
  * would buy nothing. Liveness is a separate, live source (see unitState.ts).
  */
-export const INVENTORY_PATH = "/var/lib/lychee-inventory/services.json";
+export const INVENTORY_PATH = PATHS.inventory;
 
 export type ServiceGroup = "reconciler" | "service" | "infrastructure";
 

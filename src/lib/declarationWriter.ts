@@ -4,6 +4,7 @@ import path from "node:path";
 import { load } from "js-yaml";
 import { normalizeRepo, parseDeclaration, claimedPorts, siteSuffixFor, type DeclarationSummary } from "./siteResource";
 import { siteNamePatternFor } from "./siteValidation";
+import { IMAGE_PREFIX, RESERVED_PORTS, SITE_MIN_PORT, isValidTag } from "./platform";
 
 /**
  * `code: "tagged"` marks the one refusal a caller must tell apart from a failed
@@ -31,10 +32,6 @@ export const RESOURCES_KEY = "/etc/lychee-admin/id_lychee_resources";
 export const RESOURCES_KNOWN_HOSTS = "/etc/lychee-admin/known_hosts";
 const RESOURCES_REMOTE = "git@github.com:LycheeHome/lychee-resources.git";
 
-// A tag this app writes must be a tag. This is the app's own invariant, not a
-// copy of the reconciler's image rule: holding it here means a bad tag is
-// refused at the click instead of surfacing minutes later as a blocked service.
-const TAG_RE = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
 const NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
 
 // Group 1 ends at the FINAL colon of the image reference, so only the tag is
@@ -65,18 +62,7 @@ const MAX_NAME_LENGTH = 63;
 // value is the only thing replaced, so the comment survives.
 const STATE_LINE_RE = /^(\s*state:[ \t]*)(["']?[A-Za-z_-]+["']?)([ \t]*(?:#.*)?)$/;
 
-const IMAGE_PREFIX = "ghcr.io/lycheehome/";
-
-// Below 1024 is refused here because the reconciler's validator refuses it,
-// and one rejected declaration freezes every resource on the host for that tick.
-const MIN_SITE_PORT = 1024;
 const MAX_PORT = 65535;
-
-// lychee-admin's own PORT and Caddy's admin API. Mirrors RESERVED_PORTS in
-// lychee-ops' validate_declarations.py, for the same reason as MIN_SITE_PORT:
-// this is the last guard before a declaration the validator would refuse, and
-// a refused declaration freezes the whole set for the tick, not just this site.
-const RESERVED_PORTS: readonly number[] = [8787, 2019];
 
 export interface WriterOptions {
   git: GitRunner;
@@ -223,7 +209,7 @@ async function withCloneUnqueued(
  * Never throws and never forces (see withClone).
  */
 export async function writeDeclarationTag(name: string, tag: string, opts: WriterOptions): Promise<WriteResult> {
-  if (!TAG_RE.test(tag)) {
+  if (!isValidTag(tag)) {
     return { ok: false, reason: `"${tag}" is not a valid image tag.` };
   }
   if (!NAME_RE.test(name)) {
@@ -283,10 +269,10 @@ export async function createSiteDeclaration(
   const normalized = normalizeRepo(repo);
   if (!normalized.ok) return normalized;
   if (!Number.isInteger(port) || port > MAX_PORT) {
-    return { ok: false, reason: `${port} is not a valid port (${MIN_SITE_PORT}–${MAX_PORT}).` };
+    return { ok: false, reason: `${port} is not a valid port (${SITE_MIN_PORT}–${MAX_PORT}).` };
   }
-  if (port < MIN_SITE_PORT) {
-    return { ok: false, reason: `Sites may not use privileged ports; ${port} is below ${MIN_SITE_PORT}.` };
+  if (port < SITE_MIN_PORT) {
+    return { ok: false, reason: `Sites may not use privileged ports; ${port} is below ${SITE_MIN_PORT}.` };
   }
   if (RESERVED_PORTS.includes(port)) {
     return { ok: false, reason: `Port ${port} is reserved (lychee-admin itself or Caddy's admin API) and cannot be declared.` };
@@ -386,7 +372,7 @@ function parsedFields(content: string): Record<string, unknown> | null {
  * survive; the registry stays ghcr.io/lycheehome.
  *
  * The line is found by pattern, but the decision is made on the parsed value:
- * the old line must parse to exactly ghcr.io/lycheehome/<the repo it shows>,
+ * the old line must parse to exactly <IMAGE_PREFIX><the repo it shows>,
  * and the new file must parse to the new image with every other field equal.
  *
  * Tagless only, checked after the pull. A tag means Deploy has run and the
@@ -431,7 +417,7 @@ export async function changeSiteRepository(name: string, repo: string, opts: Wri
     }
     const index = hits[0];
     // The regexes above are lexical, and YAML is not: a quoted escape such as
-    // "ghcr.io/lycheehome/foo\x3a1.0" reads as tagless here while YAML (and the
+    // "<IMAGE_PREFIX>foo\x3a1.0" reads as tagless here while YAML (and the
     // reconciler) parse it as tagged, and a nested path would have only its
     // first component replaced. So the line must parse to exactly the
     // repository it appears to name, or nothing is written.

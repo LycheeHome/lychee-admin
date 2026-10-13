@@ -12,9 +12,6 @@ process.env.ADMIN_PASSWORD_HASH = bcrypt.hashSync(PASSWORD, 4);
 process.env.DOMAIN = "lychee.land";
 process.env.PORT = "8787";
 process.env.LOG_FILE = "/var/log/lychee-admin/actions.log";
-process.env.CADDYFILE_PATH = "/etc/caddy/Caddyfile";
-process.env.TUNNEL_CONFIG_PATH = "/etc/cloudflared/sites-config.yml";
-process.env.SITES_ROOT = "/var/www";
 process.env.BACKUP_DIR = "/etc/lychee-admin/backups";
 
 const AUTH = `Basic ${Buffer.from(`tester:${PASSWORD}`).toString("base64")}`;

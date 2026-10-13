@@ -150,6 +150,13 @@ describe("writeDeclarationTag", () => {
     );
   });
 
+  test("writeDeclarationTag refuses latest", async () => {
+    seedClone();
+    const result = await writeDeclarationTag("palsave-api", "latest", { git: fakeGit(), clonePath: clone, keyPath: key, domain: "lychee.land" });
+    assert.equal(result.ok, false);
+    assert.equal(calls.filter((c) => c.args[0] === "push").length, 0);
+  });
+
   test("a rejected push is reported, not forced", async () => {
     seedClone();
     const result = await writeDeclarationTag("palsave-api", "sha-new", { git: fakeGit({ failOn: "push" }), clonePath: clone, keyPath: key, domain: "lychee.land" });

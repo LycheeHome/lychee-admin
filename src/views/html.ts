@@ -12,6 +12,7 @@ import { resourceNameFor } from "../lib/siteResource";
 import { isSiteName } from "../lib/declarationWriter";
 import type { BoardRow, ServiceBoard } from "../lib/serviceBoard";
 import type { ServiceGroup } from "../lib/serviceInventory";
+import { IMAGE_PREFIX } from "../lib/platform";
 import { layout, type Nav } from "./shell";
 import {
   escapeHtml,
@@ -619,9 +620,6 @@ function renderDangerZone(): string {
         <button type="button" class="${BUTTON_DANGER} shrink-0" data-open-dialog="confirm-remove-dialog">${icon("trash")}Remove site</button>
       </section>`;
 }
-
-/** The only registry path the reconciler accepts for a site's image. */
-const IMAGE_PREFIX = "ghcr.io/lycheehome/";
 
 /**
  * A site attached to a repository: its resource in lychee-resources plus what
