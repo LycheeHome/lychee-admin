@@ -29,6 +29,7 @@ import type { SiteStatus } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
 import type { Site } from "../lib/caddyfile";
 import type { Deps } from "../deps";
+import { IMAGE_PREFIX } from "../lib/platform";
 
 // Caddy's built-in admin API — always on localhost:2019 regardless of
 // what's in the Caddyfile, so it can't be caught by parsing existing sites.
@@ -59,7 +60,6 @@ function computePortOwners(sites: Site[]): Record<string, string> {
   return portOwners;
 }
 
-const IMAGE_PREFIX = "ghcr.io/lycheehome/";
 
 /** `ghcr.io/lycheehome/<repo>[:tag]` -> `<repo>`; null for any other image. */
 function repoFromImage(image: string): string | null {

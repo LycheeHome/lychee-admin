@@ -1,3 +1,4 @@
+import { SITE_MIN_PORT } from "./platform";
 import { hostnameExists, parseSites, type SiteType } from "./caddyfile";
 
 /**
@@ -118,7 +119,7 @@ export function validateSiteInput(input: SiteInput, env: SiteEnv): Validation {
 
   // The reconciler's validator rejects sites below 1024, and one rejected
   // declaration freezes every resource on the host for a tick.
-  if (input.framework === "nextjs" && Number(input.port) < 1024) {
+  if (input.framework === "nextjs" && Number(input.port) < SITE_MIN_PORT) {
     return { ok: false, error: "A Next.js site needs a port of 1024 or above; lower ports are privileged" };
   }
 

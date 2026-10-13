@@ -1,6 +1,7 @@
 import path from "node:path";
 import { config } from "../config";
 import { toRowStatus } from "../lib/containerStatus";
+import { IMAGE_PREFIX } from "../lib/platform";
 import type { FileSystem } from "../lib/fileSystem";
 import type { DeclarationSummary } from "../lib/siteResource";
 import { siteNamePatternFor } from "../lib/siteValidation";
@@ -167,7 +168,7 @@ export function createFakes(
       if (claimant) {
         return Promise.resolve({ ok: false, reason: `Port ${port} is already claimed by ${claimant.name}.` });
       }
-      declarations.set(name, { name, port, state: "running", image: `ghcr.io/lycheehome/${repo.trim().toLowerCase()}` });
+      declarations.set(name, { name, port, state: "running", image: `${IMAGE_PREFIX}${repo.trim().toLowerCase()}` });
       return Promise.resolve({ ok: true });
     },
     setDeclarationState: (name, state) => {
@@ -218,7 +219,7 @@ export function createFakes(
           reason: `${name}.yml already has a tag: deployed images can't change repository; remove the site instead.`,
         });
       }
-      declarations.set(name, { ...decl, image: `ghcr.io/lycheehome/${repo.trim().toLowerCase()}` });
+      declarations.set(name, { ...decl, image: `${IMAGE_PREFIX}${repo.trim().toLowerCase()}` });
       return Promise.resolve({ ok: true });
     },
     readDeclarations: () => Promise.resolve([...declarations.values()].map((d) => ({ ...d }))),
