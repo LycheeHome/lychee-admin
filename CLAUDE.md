@@ -174,13 +174,13 @@ runner's exposure; it just did not buy what this paragraph claimed it bought.
 Both errors came from reasoning about a billing plan nobody had checked, which
 is one `gh api orgs/LycheeHome` away.
 
-**The job name `test` now has two consumers, not one.** The reconciler's deploy A-CI-1 in `lychee-contract`'s `AGREEMENTS.md` records both consumers.
+**The job name `test` now has two consumers, not one.** The reconciler's deploy
 gate matches a job named exactly `test`, and so does this ruleset's required
 status check. Renaming it, or adding a `name:` override that replaces the name
 the API reports, now blocks every merge *and* silently stops every deploy. The
 merge failure is loud and the deploy failure is not, so the first symptom is a
 blocked PR and the second is a status file reading `job test concluded:
-missing`.
+missing`. A-CI-1 in `lychee-contract`'s `AGREEMENTS.md` records both consumers.
 
 What this does not change is where a *blocked deploy* surfaces. The reconciler
 still refuses to install a commit whose `test` job is not green, independently
