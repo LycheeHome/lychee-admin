@@ -24,9 +24,6 @@ process.env.DOMAIN = "lychee.land";
 process.env.PORT = "8787";
 process.env.RESERVED_HOSTNAMES = "admin.lychee.land";
 process.env.LOG_FILE = LOG_FILE;
-process.env.CADDYFILE_PATH = CADDYFILE;
-process.env.TUNNEL_CONFIG_PATH = TUNNEL_CONFIG;
-process.env.SITES_ROOT = SITES_ROOT;
 process.env.BACKUP_DIR = "/etc/lychee-admin/backups";
 
 const SEED_CADDYFILE = `{

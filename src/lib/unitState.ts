@@ -2,9 +2,8 @@
  * Live unit state, read with `systemctl show` and no privilege at all.
  *
  * Deliberately NOT `systemctl status`: that renders recent journal lines and
- * therefore needs journal access, which is why `systemctl status caddy
- * --no-pager` is one of lychee-admin's eight sudo-pinned commands. `show` and
- * `is-active` are world-readable — verified on lychee 2026-10-02, where
+ * therefore needs journal access, and the app no longer has any `status`
+ * command pinned in sudo. `show` and `is-active` are world-readable — verified on lychee 2026-10-02, where
  * `sudo -u lychee-admin systemctl is-active <four units>` answered without sudo.
  */
 

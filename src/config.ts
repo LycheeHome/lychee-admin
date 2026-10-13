@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { PATHS } from "./lib/platform";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -29,15 +30,11 @@ export const config = {
   // check therefore cannot see.
   reservedHostnames: parseHostnameList(process.env.RESERVED_HOSTNAMES),
 
-  caddyfilePath: process.env.CADDYFILE_PATH ?? "/etc/caddy/Caddyfile",
-  // The "sites" tunnel's config — split off from the lychee-ssh tunnel, which
-  // carried ssh.lyly.dev until that tunnel was retired. Still its own file and
-  // service, and this path must keep pointing at the sites tunnel's config.
-  tunnelConfigPath: process.env.TUNNEL_CONFIG_PATH ?? "/etc/cloudflared/sites-config.yml",
-  // Must stay "/var/www" — lychee-ops' lychee-admin-create-site-dir.sh hardcodes
-  // this path (and the web:webdeploy owner/group) rather than taking it as
-  // an argument, since sudoers can't safely wildcard-match arbitrary paths.
-  sitesRoot: process.env.SITES_ROOT ?? "/var/www",
+  // Fixed on the host, not configured: the config-writing wrapper and the
+  // sudoers grant are pinned to these exact paths (see platform.ts).
+  caddyfilePath: PATHS.caddyfile,
+  tunnelConfigPath: PATHS.tunnelConfig,
+  sitesRoot: PATHS.sitesRoot,
 
   backupDir: process.env.BACKUP_DIR ?? "/etc/lychee-admin/backups",
   logFile: process.env.LOG_FILE ?? "/var/log/lychee-admin/actions.log",
