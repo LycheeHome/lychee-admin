@@ -1,4 +1,4 @@
-import { SITE_MIN_PORT } from "./platform";
+import { MAX_RESOURCE_NAME_LENGTH, SITE_MIN_PORT, escapeRegex } from "./platform";
 import { hostnameExists, parseSites, type SiteType } from "./caddyfile";
 
 /**
@@ -29,14 +29,6 @@ export interface SiteEnv {
 export type Validation = { ok: true } | { ok: false; error: string };
 
 const HEALTHCHECK_PATH_PATTERN = /^\/[A-Za-z0-9._~\-/]{0,199}$/;
-
-/** A resource name is capped at 63 characters (a DNS label, and the
- *  reconciler's own limit), so a site's label may use 63 minus the suffix. */
-export const MAX_RESOURCE_NAME_LENGTH = 63;
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
 
 /** Appended to a site's label to form its container-resource name:
  *  `lychee.land` -> `-lychee-land`. */
