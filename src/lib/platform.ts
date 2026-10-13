@@ -2,7 +2,7 @@
 // purpose: this ships, so it never reads the contract at runtime. The tests
 // compare every export to lychee-contract's constants.json, so drift fails CI.
 
-export const IMAGE_PREFIX = "ghcr.io/lycheehome/";
+export const IMAGE_PREFIX = "ghcr.io/lychee-home/";
 
 // lychee-admin's own PORT and Caddy's admin API. A reserved or privileged port
 // is the last guard before a declaration the reconciler's validator would
