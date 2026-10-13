@@ -141,6 +141,20 @@ export const SEEDED_INVENTORY = JSON.stringify(
         // case before it was seeded. The gate is the producer's form
         // (roles/swee_app/tasks/decide_gate.yml): "job <check> concluded: <verdicts>".
         result: "blocked", gate: "job test concluded: failure", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
+      // The retry cap, on a unit row: swee-staging is a second instance of the
+      // swee app, seeded at the cap. The result is "blocked", not "failed":
+      // failed is the pre-cap state while the reconciler is still retrying and
+      // alerts are firing; blocked is the cap, where the play succeeds, the
+      // notifications stop and the service stays down. CLAUDE.md calls that the
+      // state that looks like success. failed_attempts is what separates this
+      // blocked from a CI-gate blocked (swee above). Gate text is the template
+      // in roles/swee_app/tasks/decide_gate.yml, variables filled; its length
+      // and embedded recovery command are what the page has to lay out.
+      { name: "swee-staging", kind: "unit", unit: "swee-staging.service", group: "service", reconciled: true,
+        version: "v0.2.0", target: "", commit: "9fbb23a8348ea8ef93b81f01c93e811e980bcb09",
+        result: "blocked",
+        gate: "v0.3.0 failed 3 times; not retrying (promote another tag, or rm /opt/swee-staging/.failed-tag)",
+        last_run: "2026-10-02T04:58:02Z", failed_attempts: 3 },
       { name: "palsave-api", kind: "container", container: "palsave-api", group: "service", reconciled: true,
         version: "0.2.0", target: "0.2.0", commit: "",
         result: "blocked",
