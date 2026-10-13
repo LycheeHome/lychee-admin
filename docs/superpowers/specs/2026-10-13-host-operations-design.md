@@ -58,10 +58,13 @@ existing mutating routes.
 4. **Routers kept apart.** The `/v1` API exists only on client sockets; pages
    exist only on the network listener. Two separate Express routers in one
    process, so a route on one cannot appear on the other.
-5. **Client identity is the socket.** One socket per client, created by a
-   systemd `.socket` unit with `SocketUser=lychee-admin`,
-   `SocketGroup=<client>-api`, `SocketMode=0660`; only the client's user is in
-   that group. A request's socket names its caller. There are no tokens and no
+5. **Client identity is the socket.** One socket per client,
+   `/run/lychee-admin/clients/<client>/api.sock`, created by lychee-admin
+   inside a directory lychee-ops creates as `0750 lychee-admin:<client>-api`;
+   only the client's user is in that group, so only lychee-admin and that
+   client can reach the socket (the socket itself is `0666`, because
+   lychee-admin is not in the client's group and cannot give the file to it).
+   A request's socket names its caller. There are no tokens and no
    secret to store, rotate or leak. Revoking a client is removing it from the
    declaration.
 6. **Cross-site check.** A non-GET from a browser is refused (403) unless
@@ -112,16 +115,14 @@ host_operations:
 - **sudo lines** in lychee-admin's drop-in: one
   `/usr/bin/systemctl start --no-block lychee-op-<unit>-<action>.service` per
   declared action.
-- **Per client:** a group `<client>-api` with the client's user as its only
-  member; a socket unit `lychee-admin-client-<client>.socket` with
-  `ListenStream=/run/lychee-admin/clients/<client>.sock`,
-  `FileDescriptorName=<client>`, `SocketUser=lychee-admin`,
-  `SocketGroup=<client>-api`, `SocketMode=0660`,
-  `Service=lychee-admin.service`.
+- **Per client:** a group `<client>-api` whose only member is the client's
+  user (lychee-ops enforces the exact membership and removes anyone added by
+  hand); a `tmpfiles.d` rule creating `/run/lychee-admin/clients/<client>/`
+  as `0750 lychee-admin:<client>-api`, applied at boot and on every run.
 - **`/etc/lychee-admin/clients.json`** (`0640 root:lychee-admin`): each
   client's name and grants. Non-secret. lychee-admin restarts when it changes.
 - **Inventory:** each declared unit's entry gains `actions`.
-- **Watcher:** fingerprints the action services, the socket units and
+- **Watcher:** fingerprints the action services, the `tmpfiles.d` rule and
   `clients.json`.
 
 **Transition:** until sub-project 3, swee keeps its own sudo grant and calls
@@ -168,10 +169,15 @@ of them unlocked, for that window only.
 
 **Socket API** (client sockets only):
 
-- At start, lychee-admin reads `LISTEN_FDS` / `LISTEN_FDNAMES`; each named
-  descriptor whose name is a client in `clients.json` gets the `/v1` router; an
-  unknown name is closed and logged, never served. About 15 lines, no new
-  dependency. `dev:mock` opens its own sockets in a temp directory instead.
+- At start, for each client in `clients.json`, lychee-admin removes a
+  leftover file at the client's socket path only if `lstat` says it is a
+  socket (never anything else), listens there with the `/v1` router, and sets
+  the socket to `0666`. A client whose directory is missing is logged and
+  skipped; the app still starts. `dev:mock` does the same in a temp
+  directory.
+- During a lychee-admin restart (every deploy) a client's request is refused
+  for a few seconds; clients retry. A running action is unaffected: it is its
+  own systemd service.
 - `POST /v1/units/:unit/actions/:action` → `202` with the state.
 - `GET /v1/units/:unit/actions/:action` → the state and log tail.
 - The socket router has no pages, no Basic auth, no site or deploy routes.
@@ -204,14 +210,16 @@ the state reads `succeeded`; a cross-origin POST gets 403.
 ## Testing
 
 - **lychee-ops:** the declaration renders the expected action services,
-  socket units, `clients.json` and sudo lines; sudoers equals `sudo.json` plus
+  the `tmpfiles.d` rule, the client groups (exact membership),
+  `clients.json` and sudo lines; sudoers equals `sudo.json` plus
   the generated lines; the watcher includes the new files; an undeclared
   action's service is removed.
 - **lychee-contract:** valid examples with `actions`; invalid: an unknown
   action, `actions` on a container entry.
 - **lychee-admin:** grants per caller; 404/403/409/502 paths; the cross-site
-  check over every combination of `Sec-Fetch-Site` and `Origin`; `LISTEN_FDS`
-  parsing including an unknown name; the two routers kept apart (no `/v1` on
+  check over every combination of `Sec-Fetch-Site` and `Origin`; a leftover non-socket file at a
+  socket path is never removed; a missing client directory is skipped; a
+  real request over a temporary Unix socket end to end; the two routers kept apart (no `/v1` on
   the network router, no pages on the socket router); action-service names
   against `A-OPS-1`; the dev fakes through a full cycle.
 
@@ -234,8 +242,11 @@ the state reads `succeeded`; a cross-origin POST gets 403.
   socket's own permissions.
 - **One socket, identifying callers by `SO_PEERCRED`:** needs a native Node
   add-on, a new dependency that complicates sub-project 4's builds.
-- **The app creating its sockets** (a `0750` client directory and a `0666`
-  socket): works, but systemd can set the group directly and keeps the socket
-  open across restarts.
+- **systemd socket activation** (a `.socket` unit per client handing the
+  socket to lychee-admin): requests would wait instead of being refused
+  during a restart, but it adds a silent failure mode (if `ExecStart` stops
+  being Node itself, `LISTEN_PID` no longer matches and the API goes quiet),
+  an ordering rule (restart the socket, then the app) and a part CI cannot
+  test. With one client and restarts only on deploy, not worth it.
 - **Every unit on the board** (Caddy, `cloudflared-sites`, lychee-admin
   itself): a wrong click takes down the edge or the app mid-action.

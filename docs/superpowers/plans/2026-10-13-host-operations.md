@@ -15,7 +15,7 @@
 - Only `palworld-palchuds` (lychee-ops `palworld_service`) is declared; the mechanism stays general.
 - Action set: exactly `start`, `stop`, `restart`, `update`.
 - Action service name: `lychee-op-<unit>-<action>.service`; sudo line: `/usr/bin/systemctl start --no-block lychee-op-<unit>-<action>.service`; lock: `flock -n /run/lychee-op/<unit>.lock`; log: `/var/lib/lychee-op/<unit>-<action>.log` (dir `0750 root:lychee-admin`); `TimeoutStartSec` 300 (start/stop/restart), 1800 (update).
-- Client socket: unit `lychee-admin-client-<client>.socket`, `ListenStream=/run/lychee-admin/clients/<client>.sock`, `FileDescriptorName=<client>`, `SocketUser=lychee-admin`, `SocketGroup=<client>-api`, `SocketMode=0660`, `Service=lychee-admin.service`; group `<client>-api` has only the client's user.
+- Client socket: lychee-admin creates `/run/lychee-admin/clients/<client>/api.sock` (mode `0666`) inside a directory lychee-ops creates via `tmpfiles.d` as `0750 lychee-admin:<client>-api`; group `<client>-api` has exactly the client's user (enforced). No systemd socket activation.
 - `/etc/lychee-admin/clients.json`: `0640 root:lychee-admin`, `{"clients": [{"name", "grants": {"<unit>": ["<action>", ...]}}]}`, non-secret.
 - No tokens. A request's socket is its caller.
 - Cross-site check on every non-GET of the network app: allow when `Sec-Fetch-Site` ∈ {`same-origin`, `none`}, or `Origin`'s host equals the `Host` header, or neither header is present; else 403 and a log line.
@@ -34,7 +34,7 @@
 1. **A board POST through `https://admin.lychee.land`** (Caddy terminates TLS and proxies plain HTTP, keeping `Host`): `Origin` is `https://…` while Express sees `http`. The check must compare hosts, not schemes. → Task 1 test `same-origin POST via the HTTPS name passes`.
 2. **lychee-admin restarting while an update runs** (every deploy restarts it): the action keeps running and its state is still readable afterwards. → Task 6 test `state is read from systemd, not from memory`.
 3. **An action on one unit while another unit's action runs**: allowed — the lock is per unit. → Task 6 test `busy is per unit`.
-4. **A socket passed by systemd whose name is not in `clients.json`** (a stale socket unit): closed and logged, never served. → Task 7 test `an unknown descriptor name is closed, not served`.
+4. **A non-socket file at a client's socket path** (a mistake, or something planted): lychee-admin must never delete it, and must not serve that client. → Task 7 test `a non-socket file at the socket path is left alone`.
 5. **A client granted an action the inventory no longer lists** (clients.json and inventory out of step for one run): 404, not 500 and not a sudo call. → Task 6 test `a grant without an inventory action is 404`.
 
 ---
@@ -63,9 +63,9 @@
 
 **Files:**
 - Modify: `schemas/inventory.schema.json` — unit entries may carry `actions`: array, unique items, enum `start|stop|restart|update`; container entries may not
-- Modify: `constants.json` — `host_actions: ["start","stop","restart","update"]`, `op_unit_pattern: "lychee-op-{unit}-{action}.service"`, `op_sudo_argv: ["/usr/bin/systemctl","start","--no-block","{op_unit}"]`, `client_socket_path: "/run/lychee-admin/clients/{client}.sock"`, `clients_file: "/etc/lychee-admin/clients.json"`; add the keys to `CONSTANT_KEYS`
+- Modify: `constants.json` — `host_actions: ["start","stop","restart","update"]`, `op_unit_pattern: "lychee-op-{unit}-{action}.service"`, `op_sudo_argv: ["/usr/bin/systemctl","start","--no-block","{op_unit}"]`, `client_socket_path: "/run/lychee-admin/clients/{client}/api.sock"`, `clients_file: "/etc/lychee-admin/clients.json"`; add the keys to `CONSTANT_KEYS`
 - Create: `schemas/clients.schema.json` (`{clients: [{name: ^[a-z][a-z0-9-]{0,30}$, grants: {<unit>: [action...]}}]}`, `additionalProperties: false`) with valid/invalid examples
-- Modify: `AGREEMENTS.md` — `## A-OPS-1` (names, sudo line, lock, log path, socket unit fields, clients.json, "a request's socket is its caller")
+- Modify: `AGREEMENTS.md` — `## A-OPS-1` (names, sudo line, lock, log path, the client directory and socket path and modes, clients.json, "a request's socket is its caller")
 - Examples: valid inventory with `actions` on the Palworld row; invalid `unknown-action.json` (`pointer: /services/0/actions/0`, `keyword: enum`), `actions-on-container.json`
 
 - [ ] **Step 1:** Examples and the constants key check first → `tools/check_examples.py` fails; then schemas/constants/AGREEMENTS → passes; every v1.1 example still validates.
@@ -93,14 +93,14 @@
 ### Task 4: Sudo lines, clients, sockets, inventory, watcher
 
 **Files:**
-- Convert: `roles/lychee_admin_host/files/sudoers.example` → `templates/sudoers.j2` (today's alias entries unchanged, plus one `/usr/bin/systemctl start --no-block lychee-op-<unit>-<action>.service` per declared action in the same `Cmnd_Alias`); `files/lychee-admin.service` → `templates/lychee-admin.service.j2` adding `Sockets=` listing every `lychee-admin-client-<client>.socket` (no line when there are no clients) and `After=` the same
-- Modify: `roles/host_operations/tasks/main.yml` — per client: group `<client>-api` (members: exactly the client's user, appended, not replacing their other groups), the `.socket` unit (fields per Global Constraints, `[Install] WantedBy=sockets.target`), enabled and started; `/etc/lychee-admin/clients.json` (0640 root:lychee-admin), notify restart of lychee-admin on change; remove socket units of undeclared clients
+- Convert: `roles/lychee_admin_host/files/sudoers.example` → `templates/sudoers.j2` (today's alias entries unchanged, plus one `/usr/bin/systemctl start --no-block lychee-op-<unit>-<action>.service` per declared action in the same `Cmnd_Alias`)
+- Modify: `roles/host_operations/tasks/main.yml` — per client: group `<client>-api` (members: exactly the client's user, appended, not replacing their other groups), a `tmpfiles.d` rule `/etc/tmpfiles.d/lychee-admin-clients.conf` with `d /run/lychee-admin/clients/<client> 0750 lychee-admin <client>-api -` per client (plus `d /run/lychee-admin/clients 0755 root root -`), applied with `systemd-tmpfiles --create` on change; `/etc/lychee-admin/clients.json` (0640 root:lychee-admin), notify restart of lychee-admin on change; a client removed from the declaration loses its tmpfiles line, its group and its directory
 - Modify: `roles/inventory/defaults/main.yml` or the template — the Palworld entry carries `actions` from the declaration
-- Modify: `group_vars/all.yml` `watch_files` — the op services, socket units, `clients.json`
+- Modify: `group_vars/all.yml` `watch_files` — the op services, the tmpfiles rule, `clients.json`
 - Modify: `tests/test_contract.py` — `test_sudoers_grants_exactly_sudo_json` becomes "the rendered sudoers equals sudo.json plus one op line per declared action" (render the template with the real declaration); `clients.json` rendered validates against `.contract/schemas/clients.schema.json`; the rendered inventory row's `actions` validate (via `check_rendered.py`)
 - Modify: `contract.lock` → the local v1.2 commit
 
-- [ ] **Step 1:** Failing tests first (sudoers equality with the op lines; clients.json schema; socket unit fields; `Sockets=` present for swee and absent with no clients; group membership appended).
+- [ ] **Step 1:** Failing tests first (sudoers equality with the op lines; clients.json schema; the tmpfiles rule's exact line; group membership exactly the client's user, other users removed).
 - [ ] **Step 2:** Implement; `visudo -csf` on the rendered sudoers in the test; full suite green.
 - [ ] **Step 3: Commit** `feat: sudo lines, client sockets and clients.json from the declaration`.
 
@@ -132,11 +132,11 @@
 ### Task 7: The socket API
 
 **Files:**
-- Create: `src/api/router.ts` (`createApiRouter(deps, caller)` with `POST`/`GET /v1/units/:unit/actions/:action`), `src/lib/clients.ts` (`readClients(fs): ClientConfig[]` from `clients.json`; `listenFds(env): { name: string; fd: number }[]` parsing `LISTEN_FDS`, `LISTEN_FDNAMES`, `LISTEN_PID`), tests for both
-- Modify: `src/server.ts` — for each passed fd whose name is a client: `express()` with only `createApiRouter(deps, callerFor(client))`, `listen({ fd })`; unknown names: `fs.closeSync(fd)` + log; `src/dev/server.ts` — open `swee.sock` in a temp dir with dev grants
+- Create: `src/api/router.ts` (`createApiRouter(deps, caller)` with `POST`/`GET /v1/units/:unit/actions/:action`), `src/lib/clients.ts` (`readClients(fs): ClientConfig[]` from `clients.json`; `listenClientSocket(app, path): Promise<Server | null>` — `lstat` the path: a socket is unlinked, anything else is left alone and the client skipped with a log line; a missing directory skips with a log line; then listen and `chmod 0666`), tests for both
+- Modify: `src/server.ts` — for each client in `clients.json`: `express()` with only `createApiRouter(deps, callerFor(client))` and `listenClientSocket` at `/run/lychee-admin/clients/<name>/api.sock`; the app starts even if a client is skipped; `src/dev/server.ts` — the same in a temp dir with dev grants
 
-- [ ] **Step 1: Failing tests:** `listenFds` (count/names/pid mismatch → none); `an unknown descriptor name is closed, not served`; `the routers are kept apart` (the API app has no `/` page and no `/services`; `createApp` has no `/v1`); `POST` → 202 with state; `GET` → state + log tail; 403/404/409 mapped to HTTP status with `{error}`; a real `http.request` over a temp Unix socket returns 202 (end to end, no systemd).
-- [ ] **Step 2:** Implement; green; commit `feat: per-client socket API on systemd-passed sockets`.
+- [ ] **Step 1: Failing tests:** `a stale socket at the path is replaced`; `a non-socket file at the socket path is left alone`; `a missing client directory is skipped and the app still starts`; `the routers are kept apart` (the API app has no `/` page and no `/services`; `createApp` has no `/v1`); `POST` → 202 with state; `GET` → state + log tail; 403/404/409 mapped to HTTP status with `{error}`; a real `http.request` over a temp Unix socket returns 202 (end to end, no systemd).
+- [ ] **Step 2:** Implement; green; commit `feat: per-client socket API`.
 
 ### Task 8: Board routes (no markup)
 
@@ -158,5 +158,5 @@
 
 - [ ] Final whole-branch review across the three repos.
 - [ ] With approval: contract PR → merge (merge commit) → confirm the merged tree equals the tested commit → tag `v1.2.0` → re-point both locks → push, PRs for lychee-ops then lychee-admin.
-- [ ] After lychee-ops merges (read-only + operator sudo): `sudo -l -U lychee-admin` shows the 7 commands plus exactly 4 op lines; `ls -l /run/lychee-admin/clients/swee.sock` is `lychee-admin swee-api srw-rw----`; `sudo -u swee curl --unix-socket … /v1/units/palworld-palchuds/actions/restart` answers (lychee-admin not yet updated → it may hang until the app update; acceptable) and another user is denied.
-- [ ] After lychee-admin merges: as `swee`, `GET` state → `idle`; at a time the operator chooses, one restart from the board; audit line names `operator`, `/var/lib/lychee-op/palworld-palchuds-restart.log` has output, state `succeeded`; a cross-origin POST → 403.
+- [ ] After lychee-ops merges (read-only + operator sudo): `sudo -l -U lychee-admin` shows the 7 commands plus exactly 4 op lines; `ls -ld /run/lychee-admin/clients/swee` is `drwxr-x--- lychee-admin swee-api`; `getent group swee-api` lists only `swee`. (The socket appears once lychee-admin is updated.)
+- [ ] After lychee-admin merges: `ls -l /run/lychee-admin/clients/swee/api.sock` exists; as `swee`, `sudo -u swee curl --unix-socket /run/lychee-admin/clients/swee/api.sock http://x/v1/units/palworld-palchuds/actions/restart` → `idle`, and another user is denied at the directory; at a time the operator chooses, one restart from the board; audit line names `operator`, `/var/lib/lychee-op/palworld-palchuds-restart.log` has output, state `succeeded`; a cross-origin POST → 403.
