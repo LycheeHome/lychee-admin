@@ -12,7 +12,14 @@ import type { DeclarationSummary } from "./siteResource";
 // examples/resource-status and examples/app-status are deliberately not read
 // here: the app never reads those files, they reach it only through the inventory.
 
-for (const file of listContractDir("examples/inventory/valid")) {
+const inventoryFiles = listContractDir("examples/inventory/valid").filter((f) => f.endsWith(".json"));
+
+// Fails if the contract's valid inventory examples vanish, which would otherwise leave the loop below vacuous.
+test("the contract ships valid inventory examples", () => {
+  assert.ok(inventoryFiles.length > 0);
+});
+
+for (const file of inventoryFiles) {
   // Fails if parseInventory/toEntry starts dropping an entry kind, or rejects a field shape, the contract allows.
   test(`parseInventory keeps every entry of contract example ${file}`, () => {
     const raw = loadContractText(`examples/inventory/valid/${file}`);
