@@ -29,18 +29,17 @@ import type { SiteStatus } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
 import type { Site } from "../lib/caddyfile";
 import type { Deps } from "../deps";
-import { IMAGE_PREFIX } from "../lib/platform";
+import { IMAGE_PREFIX, RESERVED_PORTS } from "../lib/platform";
 
-// Caddy's built-in admin API — always on localhost:2019 regardless of
-// what's in the Caddyfile, so it can't be caught by parsing existing sites.
-const CADDY_ADMIN_PORT = 2019;
-
+// Reserved ports come from the platform's one RESERVED_PORTS: this app's own
+// port and Caddy's built-in admin API, which is always on localhost regardless
+// of what's in the Caddyfile, so parsing existing sites can't catch it.
 const SITE_ENV: SiteEnv = {
   domain: config.domain,
   sitesRoot: config.sitesRoot,
   caddyfilePath: config.caddyfilePath,
   tunnelConfigPath: config.tunnelConfigPath,
-  reservedPorts: [config.port, CADDY_ADMIN_PORT],
+  reservedPorts: [...new Set([config.port, ...RESERVED_PORTS])],
   reservedHostnames: config.reservedHostnames,
 };
 
@@ -50,10 +49,9 @@ const PLACEHOLDER_INDEX_HTML = (hostname: string) =>
 // Ports already spoken for, so the add-site form can flag a conflict
 // client-side as the user types instead of only on submit.
 function computePortOwners(sites: Site[]): Record<string, string> {
-  const portOwners: Record<string, string> = {
-    [String(config.port)]: "reserved (lychee-admin itself)",
-    [String(CADDY_ADMIN_PORT)]: "reserved (Caddy admin API)",
-  };
+  const portOwners: Record<string, string> = {};
+  for (const port of RESERVED_PORTS) portOwners[String(port)] = "reserved (Caddy admin API)";
+  portOwners[String(config.port)] = "reserved (lychee-admin itself)";
   for (const site of sites) {
     if (site.type === "reverse-proxy") portOwners[site.target] = site.hostname;
   }

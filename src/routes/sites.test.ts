@@ -481,7 +481,14 @@ describe("POST /sites — reverse proxy", () => {
   test("rejects a reserved port", async () => {
     const response = await request("/sites", form({ hostname: "clash.lychee.land", type: "reverse-proxy", port: "2019" }));
     assert.equal(response.status, 400);
-    assert.match((await json<{ error: string }>(response)).error, /reserved/);
+    assert.equal((await json<{ error: string }>(response)).error, "Port 2019 is reserved (used by lychee-admin itself or Caddy's admin API)");
+  });
+
+  test("the preview rejects 2019 with the same message, and the form labels it", async () => {
+    const preview = await json<{ error: string }>(await request("/sites/preview", form({ hostname: "clash.lychee.land", type: "reverse-proxy", port: "2019" })));
+    assert.equal(preview.error, "Port 2019 is reserved (used by lychee-admin itself or Caddy's admin API)");
+    const body = await (await request("/sites/new")).text();
+    assert.match(body, /"2019":"reserved \(Caddy admin API\)"/);
   });
 
   test("rejects a missing or out-of-range port", async () => {
