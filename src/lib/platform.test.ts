@@ -110,6 +110,12 @@ describe("host operations constants", () => {
     assert.equal(clientSocketPath("swee"), constants.client_socket_path.replace("{client}", "swee"));
   });
 
+  test("clientSocketPath refuses a name that is not a bare name", () => {
+    for (const bad of ["../swee", "swee/x", "Swee", "swee\n", "", "a".repeat(64)]) {
+      assert.throws(() => clientSocketPath(bad), bad);
+    }
+  });
+
   test("opUnitName fills op_unit_pattern for every action", () => {
     for (const a of HOST_ACTIONS) {
       assert.equal(opUnitName("palworld-palchuds", a), constants.op_unit_pattern.replace("{unit}", "palworld-palchuds").replace("{action}", a));

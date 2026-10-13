@@ -34,9 +34,11 @@ export type ActionResult =
 export const LOG_TAIL_LINES = 50;
 export const LOG_TAIL_MAX_BYTES = 64 * 1024;
 
-/** The action service's own output (A-OPS-1). Only call with a name that has
- *  passed opUnitName. */
+/** The action service's own output (A-OPS-1). Validated by construction:
+ *  throws on whatever opUnitName refuses, so no path is ever built from an
+ *  unchecked name. */
 export function opLogPath(unit: string, action: HostAction): string {
+  opUnitName(unit, action);
   return `/var/lib/lychee-op/${unit}-${action}.log`;
 }
 
@@ -108,16 +110,11 @@ export async function requestAction(
   }
   audit("started");
 
-  // systemd may not have moved the unit out of its previous state yet, and
-  // that state could read as the last run's result; the job is queued, so the
-  // honest answer to "what did my request do" is running. Polls read systemd.
-  let state: ActionState;
-  try {
-    state = await readActionState(deps, unit, hostAction);
-  } catch {
-    state = { unit, action: hostAction, state: "running", logTail: "" };
-  }
-  return { ok: true, state: { ...state, state: "running" } };
+  // systemd may not have moved the unit out of its previous state yet, so
+  // anything read now — its state, times and log — could be the last run's.
+  // The job is queued, so the honest answer to "what did my request do" is
+  // running, with nothing carried over. Polls read systemd.
+  return { ok: true, state: { unit, action: hostAction, state: "running", logTail: "" } };
 }
 
 function mapState(s: OpUnitState | undefined): ActionState["state"] {

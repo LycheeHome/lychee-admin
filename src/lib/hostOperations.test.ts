@@ -297,6 +297,34 @@ describe("requestAction", () => {
     assert.equal(r.ok && r.state.unit, PAL);
     assert.equal(r.ok && r.state.action, "update");
   });
+
+  test("the forced running state carries nothing from the previous run", async () => {
+    // --no-block returns before systemd moves the unit, so the read right
+    // after the start still sees the last run's failure and its log.
+    const { requestAction } = await import("./hostOperations");
+    const name = opUnitName(PAL, "update");
+    const h = await harness({
+      units: { [name]: { activeState: "failed", result: "exit-code", startedAt: "Tue 2026-10-13 09:00:00 UTC", finishedAt: "Tue 2026-10-13 09:00:05 UTC" } },
+    });
+    h.deps.fs.writeFile("/var/lib/lychee-op/palworld-palchuds-update.log", "old failure\n");
+    const r = await requestAction(h.deps, PAL, "update", OPERATOR);
+    assert.equal(r.ok, true);
+    assert.ok(r.ok);
+    assert.deepEqual(r.state, { unit: PAL, action: "update", state: "running", logTail: "" });
+  });
+});
+
+describe("opLogPath", () => {
+  test("builds the A-OPS-1 log path for a bare name", async () => {
+    const { opLogPath } = await import("./hostOperations");
+    assert.equal(opLogPath(PAL, "update"), "/var/lib/lychee-op/palworld-palchuds-update.log");
+  });
+  test("refuses what opUnitName refuses", async () => {
+    const { opLogPath } = await import("./hostOperations");
+    assert.throws(() => opLogPath("../etc/passwd", "start"));
+    assert.throws(() => opLogPath("swee\n", "start"));
+    assert.throws(() => opLogPath("swee", "rm" as HostAction));
+  });
 });
 
 describe("readActionState", () => {
