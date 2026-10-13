@@ -4,6 +4,15 @@
 
 export const IMAGE_PREFIX = "ghcr.io/lycheehome/";
 
+/** A resource name is capped at 63 characters (a DNS label, and the
+ *  reconciler's own limit), so a site's label may use 63 minus the suffix. */
+export const MAX_RESOURCE_NAME_LENGTH = 63;
+
+/** Escapes a string for literal use inside a RegExp. */
+export function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 // lychee-admin's own PORT and Caddy's admin API. A reserved or privileged port
 // is the last guard before a declaration the reconciler's validator would
 // refuse, and a refused declaration freezes the whole set for the tick.

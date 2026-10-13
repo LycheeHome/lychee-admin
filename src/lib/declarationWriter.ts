@@ -4,7 +4,7 @@ import path from "node:path";
 import { load } from "js-yaml";
 import { normalizeRepo, parseDeclaration, claimedPorts, siteSuffixFor, type DeclarationSummary } from "./siteResource";
 import { siteNamePatternFor } from "./siteValidation";
-import { IMAGE_PREFIX, RESERVED_PORTS, SITE_MIN_PORT, isValidTag } from "./platform";
+import { IMAGE_PREFIX, MAX_RESOURCE_NAME_LENGTH, RESERVED_PORTS, escapeRegex, SITE_MIN_PORT, isValidTag } from "./platform";
 
 /**
  * `code: "tagged"` marks the one refusal a caller must tell apart from a failed
@@ -50,13 +50,9 @@ const TAGLESS_IMAGE_LINE_RE = /^(\s*image:\s*["']?ghcr\.io\/[^\s"'#:]+)(["']?)(.
 // A tagless image under the one org this app writes, split so that only the
 // repository (group 2) is replaced: the prefix, any closing quote and anything
 // after it — a trailing comment — are carried over byte for byte.
-const SITE_TAGLESS_IMAGE_RE = /^(\s*image:\s*["']?ghcr\.io\/lycheehome\/)([^\s"'#:/]+)(["']?)(.*)$/;
-
-// A site's resource name: a DNS-label-shaped site label plus the domain's
-// suffix (siteNamePatternFor), capped at 63 like every resource name. Narrower
-// than NAME_RE on purpose: creating and retiring are reachable only for sites,
-// never for a declaration such as palsave-api that this app did not write.
-const MAX_NAME_LENGTH = 63;
+export const SITE_TAGLESS_IMAGE_RE = new RegExp(
+  `^(\\s*image:\\s*["']?${escapeRegex(IMAGE_PREFIX)})([^\\s"'#:/]+)(["']?)(.*)$`,
+);
 
 // One `state:` line with a bare or quoted word and an optional comment. The
 // value is the only thing replaced, so the comment survives.
@@ -76,8 +72,13 @@ export interface WriterOptions {
   timeoutMs?: number;
 }
 
+// A site's resource name: a DNS-label-shaped site label plus the domain's
+// suffix (siteNamePatternFor), capped at MAX_RESOURCE_NAME_LENGTH like every
+// resource name. Narrower than NAME_RE on purpose: creating and retiring are
+// reachable only for sites, never for a declaration such as palsave-api that
+// this app did not write.
 export function isSiteName(name: string, domain: string): boolean {
-  return name.length <= MAX_NAME_LENGTH && siteNamePatternFor(domain).test(name);
+  return name.length <= MAX_RESOURCE_NAME_LENGTH && siteNamePatternFor(domain).test(name);
 }
 
 /** What a write callback hands back: the file it changed and the commit message. */

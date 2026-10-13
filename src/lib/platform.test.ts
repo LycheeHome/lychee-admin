@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { loadContractJson } from "../dev/contract";
-import { FLOATING_TAGS, IMAGE_PREFIX, isValidTag, PATHS, RESERVED_PORTS, SITE_MIN_PORT } from "./platform";
+import { FLOATING_TAGS, IMAGE_PREFIX, isValidTag, MAX_RESOURCE_NAME_LENGTH, PATHS, RESERVED_PORTS, SITE_MIN_PORT } from "./platform";
+import { SITE_TAGLESS_IMAGE_RE } from "./declarationWriter";
+import { siteNamePatternFor, siteSuffixFor } from "./siteValidation";
 import { INVENTORY_PATH } from "./serviceInventory";
 
 interface Constants {
@@ -10,6 +12,10 @@ interface Constants {
   site_min_port: number;
   floating_tags: string[];
   tag_pattern: string;
+  max_resource_name_length: number;
+  domain: string;
+  site_suffix: string;
+  site_name_pattern: string;
   paths: Record<string, string>;
 }
 const constants = loadContractJson<Constants>("constants.json");
@@ -44,5 +50,46 @@ describe("platform constants match the contract", () => {
     assert.equal(isValidTag("latest"), false);
     assert.equal(isValidTag("1.2.3"), true);
     assert.equal(isValidTag("-x"), false);
+  });
+});
+
+describe("carried-over constants match the contract", () => {
+  test("MAX_RESOURCE_NAME_LENGTH", () => {
+    assert.equal(MAX_RESOURCE_NAME_LENGTH, constants.max_resource_name_length);
+  });
+
+  test("siteSuffixFor(domain) is site_suffix", () => {
+    assert.equal(siteSuffixFor(constants.domain), constants.site_suffix);
+  });
+
+  test("siteNamePatternFor agrees with site_name_pattern as a full match", () => {
+    const contractRe = new RegExp("^(?:" + constants.site_name_pattern + ")$");
+    const appRe = siteNamePatternFor(constants.domain);
+    for (const n of ["blog-lychee-land", "a-lychee-land", "-x-lychee-land", "x--lychee-land", "blog-lychee-land-2", "Blog-lychee-land"]) {
+      assert.equal(appRe.test(n), contractRe.test(n), n);
+    }
+  });
+});
+
+describe("SITE_TAGLESS_IMAGE_RE", () => {
+  // Frozen on purpose: the old SITE_TAGLESS_IMAGE_RE literal, kept verbatim as the baseline. Do not "fix" it.
+  const today = /^(\s*image:\s*["']?ghcr\.io\/lycheehome\/)([^\s"'#:/]+)(["']?)(.*)$/;
+  test("matches exactly what the literal it replaced matched", () => {
+    const lines = [
+      "image: ghcr.io/lycheehome/blog",
+      '  image: "ghcr.io/lycheehome/blog"',
+      "image: 'ghcr.io/lycheehome/blog' # note",
+      "image: ghcr.io/lycheehome/blog # note",
+      "image: ghcr.io/lycheehome/blog:1.2.3",
+      "image: ghcr.io/lycheehome/blog/sub",
+      "image: ghcr.io/otherorg/blog",
+      "image: ghcr.io/lycheehomeX/blog",
+      "image: docker.io/lycheehome/blog",
+    ];
+    for (const l of lines) {
+      assert.deepEqual(SITE_TAGLESS_IMAGE_RE.exec(l), today.exec(l), l);
+    }
+    assert.ok(SITE_TAGLESS_IMAGE_RE.test(lines[0]));
+    assert.ok(!SITE_TAGLESS_IMAGE_RE.test(lines[6]));
   });
 });
