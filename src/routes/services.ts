@@ -2,6 +2,7 @@ import express from "express";
 import { config } from "../config";
 import type { Deps } from "../deps";
 import { isSiteName } from "../lib/declarationWriter";
+import { readCheckedActionState, requestAction } from "../lib/hostOperations";
 import { readInventory } from "../lib/serviceInventory";
 import { buildBoard, findTimerUnit } from "../lib/serviceBoard";
 import { renderServicesPage } from "../views/html";
@@ -49,6 +50,33 @@ export function createServicesRouter(deps: Deps): express.Router {
       res.type("html").send(renderServicesPage(board, new Date(), prunable, config.domain));
     } catch (error) {
       res.status(500).type("text/plain").send(`Could not render services: ${String(error)}`);
+    }
+  });
+
+  // Host actions (start/stop/restart/update) on a declared unit, as the
+  // operator. A refusal is always JSON, never a redirect, like the routes below.
+  router.post("/services/:name/actions/:action", async (req, res) => {
+    const { name, action } = req.params;
+    try {
+      const result = await requestAction(deps, name, action, { kind: "operator" });
+      if (!result.ok) return res.status(result.status).json({ ok: false, reason: result.message });
+      if (String(req.headers.accept ?? "").includes("application/json")) {
+        return res.status(202).json(result.state);
+      }
+      return res.redirect(303, "/services");
+    } catch (error) {
+      return res.status(500).json({ ok: false, reason: `could not start ${action} on ${name}: ${String(error)}` });
+    }
+  });
+
+  router.get("/services/:name/actions/:action/state", async (req, res) => {
+    const { name, action } = req.params;
+    try {
+      const result = await readCheckedActionState(deps, name, action, { kind: "operator" });
+      if (!result.ok) return res.status(result.status).json({ ok: false, reason: result.message });
+      return res.json(result.state);
+    } catch (error) {
+      return res.status(502).json({ ok: false, reason: `could not read ${name}'s ${action}: ${String(error)}` });
     }
   });
 
