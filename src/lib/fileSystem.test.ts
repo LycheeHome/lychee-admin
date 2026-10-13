@@ -32,3 +32,32 @@ describe("FileSystem.exists", () => {
     assert.equal(mem.exists("/var/www/missing"), false);
   });
 });
+
+describe("FileSystem.readTail", () => {
+  test("the real implementation returns at most the last maxBytes bytes", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lychee-tail-"));
+    try {
+      const file = path.join(dir, "a.log");
+      fs.writeFileSync(file, "0123456789");
+      assert.equal(realFileSystem.readTail(file, 4), "6789");
+      assert.equal(realFileSystem.readTail(file, 100), "0123456789");
+      fs.writeFileSync(path.join(dir, "empty.log"), "");
+      assert.equal(realFileSystem.readTail(path.join(dir, "empty.log"), 4), "");
+      assert.throws(() => realFileSystem.readTail(path.join(dir, "missing.log"), 4));
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("the in-memory fake agrees", async () => {
+    process.env.ADMIN_USERNAME ??= "tester";
+    process.env.ADMIN_PASSWORD_HASH ??= "x";
+    process.env.DOMAIN ??= "lychee.land";
+    const { createInMemoryFileSystem } = await import("../dev/fakes");
+    const mem = createInMemoryFileSystem();
+    mem.writeFile("/x.log", "0123456789");
+    assert.equal(mem.readTail("/x.log", 4), "6789");
+    assert.equal(mem.readTail("/x.log", 100), "0123456789");
+    assert.throws(() => mem.readTail("/missing.log", 4));
+  });
+});

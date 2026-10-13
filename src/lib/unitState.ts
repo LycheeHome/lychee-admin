@@ -146,3 +146,49 @@ export function parseTimerSchedule(raw: string): TimerSchedule {
   const e = entry as Record<string, unknown>;
   return { next: toDate(e.next), last: toDate(e.last) };
 }
+
+/**
+ * A host-operation unit (`lychee-op-<unit>-<action>.service`) as systemd
+ * reports it: raw enough that the mapping to idle/running/succeeded/failed
+ * lives in one place (hostOperations.ts), and keyed by Id like the board's
+ * read. Timestamps are null where systemd has none, i.e. the unit never ran
+ * since boot.
+ */
+export interface OpUnitState {
+  activeState: string;
+  result: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export const OP_UNIT_SHOW_PROPERTIES = [
+  "Id",
+  "ActiveState",
+  "Result",
+  "ExecMainStartTimestamp",
+  "ExecMainExitTimestamp",
+];
+
+export function parseOpUnitShowOutput(raw: string): Record<string, OpUnitState> {
+  const states: Record<string, OpUnitState> = {};
+  for (const block of raw.split(/\n\s*\n/)) {
+    const fields: Record<string, string> = {};
+    for (const line of block.split("\n")) {
+      const eq = line.indexOf("=");
+      if (eq > 0) fields[line.slice(0, eq)] = line.slice(eq + 1);
+    }
+    const id = fields.Id;
+    if (!id) continue;
+    const clean = (v: string | undefined): string | null => {
+      const t = v?.trim();
+      return t && t !== "n/a" && t !== "never" ? t : null;
+    };
+    states[id] = {
+      activeState: fields.ActiveState?.trim() ?? "",
+      result: fields.Result?.trim() ?? "",
+      startedAt: clean(fields.ExecMainStartTimestamp),
+      finishedAt: clean(fields.ExecMainExitTimestamp),
+    };
+  }
+  return states;
+}

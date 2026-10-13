@@ -4,7 +4,7 @@
 // Everything below covers the pure parsers.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseTimerSchedule, parseUnitShowOutput } from "./unitState";
+import { parseOpUnitShowOutput, parseTimerSchedule, parseUnitShowOutput } from "./unitState";
 
 // `systemctl show a.service b.service -p Id,ActiveState,SubState,LoadState,ActiveEnterTimestamp`
 // emits one blank-line-separated block per unit, in the order requested.
@@ -145,4 +145,38 @@ test("a unit systemd omits from its output is absent, and does not shift the res
   const states = parseUnitShowOutput(TWO_UNITS);
   assert.equal(states["palworld.service"], undefined);
   assert.equal(states["caddy.service"].since, "Sat 2026-09-26 11:00:00 UTC");
+});
+
+test("parseOpUnitShowOutput keys op units by Id and nulls systemd's filler timestamps", () => {
+  const raw = [
+    "Id=lychee-op-palworld-palchuds-update.service",
+    "ActiveState=activating",
+    "Result=success",
+    "ExecMainStartTimestamp=Tue 2026-10-13 10:00:00 UTC",
+    "ExecMainExitTimestamp=",
+    "",
+    "Id=lychee-op-palworld-palchuds-stop.service",
+    "ActiveState=failed",
+    "Result=exit-code",
+    "ExecMainStartTimestamp=Tue 2026-10-13 09:00:00 UTC",
+    "ExecMainExitTimestamp=Tue 2026-10-13 09:00:05 UTC",
+    "",
+    "Id=lychee-op-palworld-palchuds-start.service",
+    "ActiveState=inactive",
+    "Result=success",
+    "ExecMainStartTimestamp=n/a",
+    "ExecMainExitTimestamp=n/a",
+  ].join("\n");
+  assert.deepEqual(parseOpUnitShowOutput(raw), {
+    "lychee-op-palworld-palchuds-update.service": {
+      activeState: "activating", result: "success", startedAt: "Tue 2026-10-13 10:00:00 UTC", finishedAt: null,
+    },
+    "lychee-op-palworld-palchuds-stop.service": {
+      activeState: "failed", result: "exit-code",
+      startedAt: "Tue 2026-10-13 09:00:00 UTC", finishedAt: "Tue 2026-10-13 09:00:05 UTC",
+    },
+    "lychee-op-palworld-palchuds-start.service": {
+      activeState: "inactive", result: "success", startedAt: null, finishedAt: null,
+    },
+  });
 });
