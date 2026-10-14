@@ -55,6 +55,15 @@ export function opUnitName(unit: string, action: HostAction): string {
   return `lychee-op-${unit}-${action}.service`;
 }
 
+/** Where an action service records how it ended (A-OPS-1 Result,
+ *  `op_result_path`). Validated through opUnitName, like opLogPath: throws on
+ *  anything but a bare name and a host action, so no path is ever built from
+ *  an unchecked name. */
+export function opResultPath(unit: string, action: HostAction): string {
+  opUnitName(unit, action);
+  return `/var/lib/lychee-op/${unit}-${action}.result.json`;
+}
+
 /** Throws on anything but a bare name: the result is a path lychee-admin
  *  unlinks a stale socket at. */
 export function clientSocketPath(client: string): string {

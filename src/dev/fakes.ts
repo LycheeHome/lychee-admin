@@ -1,7 +1,7 @@
 import path from "node:path";
 import { config } from "../config";
 import { toRowStatus } from "../lib/containerStatus";
-import { HOST_ACTIONS, type HostAction, IMAGE_PREFIX, MAX_RESOURCE_NAME_LENGTH, opUnitName } from "../lib/platform";
+import { HOST_ACTIONS, type HostAction, IMAGE_PREFIX, MAX_RESOURCE_NAME_LENGTH, opResultPath, opUnitName } from "../lib/platform";
 import type { OpUnitState } from "../lib/unitState";
 import type { FileSystem } from "../lib/fileSystem";
 import { opLogPath } from "../lib/hostOperations";
@@ -109,6 +109,12 @@ export function createInMemoryFileSystem(): FileSystem & {
  * `delayMs`, then `succeeded`, or `failed` where `fail` says so. A start while
  * another action on the same unit runs fails at once, as the real per-unit
  * `flock -n` does.
+ *
+ * Every finish writes the result file, as lychee-ops' recorder does. A
+ * succeeded unit then reads as systemd shows a garbage-collected one — a
+ * fresh load, inactive, Result=success, no times — so `succeeded` can only
+ * ever come from the file, in dev mode and in every test built on these
+ * fakes. A failed unit stays loaded as failed, as systemd keeps it.
  */
 export interface FakeOpRun {
   delayMs?: number;
@@ -134,6 +140,20 @@ export function createFakes(
   const opUnits = new Map<string, OpUnitState>();
   const opDelayMs = seed.opRun?.delayMs ?? 3000;
   const now = () => new Date().toISOString();
+  // The recorder's time format: ISO 8601 UTC to the second.
+  const recorded = (iso: string | null) => (iso === null ? null : iso.replace(/\.\d{3}Z$/, "Z"));
+  const recordResult = (unit: string, action: HostAction, result: string, startedAt: string | null, finishedAt: string) =>
+    fs.writeFile(
+      opResultPath(unit, action),
+      JSON.stringify({
+        unit,
+        action,
+        result,
+        exit_status: result === "success" ? 0 : 1,
+        started_at: recorded(startedAt),
+        finished_at: recorded(finishedAt),
+      }),
+    );
 
   const commands: SystemCommands = {
     validateCaddyfile: (caddyfilePath) =>
@@ -165,20 +185,25 @@ export function createFakes(
       const logPath = opLogPath(unit, action);
       const locked = HOST_ACTIONS.some((a) => opUnits.get(opUnitName(unit, a))?.activeState === "activating");
       if (locked) {
-        opUnits.set(name, { activeState: "failed", result: "exit-code", startedAt: now(), finishedAt: now() });
+        const at = now();
+        opUnits.set(name, { activeState: "failed", result: "exit-code", startedAt: at, finishedAt: at });
         fs.writeFile(logPath, `[mock] ${unit} is locked by another action\n`);
+        recordResult(unit, action, "exit-code", at, at);
         return Promise.resolve();
       }
       opUnits.set(name, { activeState: "activating", result: "success", startedAt: now(), finishedAt: null });
       fs.writeFile(logPath, `[mock] ${action} ${unit}: started\n`);
       const timer = setTimeout(() => {
         const failed = seed.opRun?.fail?.(unit, action) ?? false;
-        opUnits.set(name, {
-          activeState: failed ? "failed" : "inactive",
-          result: failed ? "exit-code" : "success",
-          startedAt: opUnits.get(name)?.startedAt ?? null,
-          finishedAt: now(),
-        });
+        const startedAt = opUnits.get(name)?.startedAt ?? null;
+        const finishedAt = now();
+        recordResult(unit, action, failed ? "exit-code" : "success", startedAt, finishedAt);
+        opUnits.set(
+          name,
+          failed
+            ? { activeState: "failed", result: "exit-code", startedAt, finishedAt }
+            : { activeState: "inactive", result: "success", startedAt: null, finishedAt: null },
+        );
         fs.appendFile(logPath, `[mock] ${action} ${unit}: ${failed ? "failed" : "done"}\n`);
       }, opDelayMs);
       timer.unref();

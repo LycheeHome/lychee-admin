@@ -3,8 +3,12 @@
 //
 // Holds no state. Each action is its own systemd service
 // (`lychee-op-<unit>-<action>.service`) and outlives this process — every
-// deploy restarts lychee-admin, often mid-update — so systemd is the only
-// source of truth for whether an action is running or how it ended.
+// deploy restarts lychee-admin, often mid-update — so systemd is the source
+// of truth for whether an action is running. How it ended comes from the
+// result file the service records as it exits (A-OPS-1 Result): systemd
+// garbage-collects a finished, unreferenced oneshot that succeeded, and
+// `systemctl show` then loads it afresh with no times and Result=success —
+// indistinguishable from a unit that never ran.
 //
 // The inventory's `actions` and the caller's grants are checked here as
 // defence in depth and for a clean error; sudo refuses anything lychee-ops
@@ -12,7 +16,8 @@
 
 import type { Deps } from "../deps";
 import { CommandError } from "./systemCommands";
-import { HOST_ACTIONS, type HostAction, opUnitName } from "./platform";
+import { OP_RESULT_MAX_BYTES, type OpResult, parseOpResult } from "./opResult";
+import { HOST_ACTIONS, type HostAction, opResultPath, opUnitName } from "./platform";
 import { type InventoryEntry, readInventory } from "./serviceInventory";
 import { type OpUnitState, parseTimestamp, toIsoTimestamp } from "./unitState";
 
@@ -128,13 +133,46 @@ export async function requestAction(
   return { ok: true, state: { unit, action: hostAction, state: "running", logTail: "" } };
 }
 
-function mapState(s: OpUnitState | undefined): ActionState["state"] {
-  if (!s) return "idle";
-  if (RUNNING_STATES.has(s.activeState)) return "running";
-  if (s.activeState === "failed") return "failed";
-  if (s.result !== "" && s.result !== "success") return "failed";
-  if (s.finishedAt !== null) return "succeeded";
-  return "idle";
+/** A bounded read: one byte past the cap tells an oversized file apart. */
+function readOpResult(deps: Deps, unit: string, action: HostAction): OpResult | null {
+  try {
+    const raw = deps.fs.readTail(opResultPath(unit, action), OP_RESULT_MAX_BYTES + 1);
+    if (Buffer.byteLength(raw) > OP_RESULT_MAX_BYTES) return null;
+    return parseOpResult(raw, unit, action);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * An action's state from systemd and its result file, in this order:
+ *   1. activating, active or deactivating: running, with systemd's start; the
+ *      file is not read (it is the previous run's).
+ *   2. ActiveState failed: failed, with systemd's times, whatever the file
+ *      says. systemd never collects a failed unit, so it is newer than any
+ *      file — and a recorder that refused or never ran leaves the previous
+ *      run's success on disk.
+ *   3. a result file saying success: succeeded, with the file's times.
+ *   4. a result file saying anything else: failed, with the file's times.
+ *   5. otherwise: idle.
+ * Times are ISO 8601, never systemd's own format: they leave the server (board
+ * JSON, the socket API, the page) and a browser cannot be trusted to parse
+ * "Tue 2026-10-13 10:00:00 UTC" (Safari cannot). An unparseable one is omitted.
+ */
+function resolveState(deps: Deps, unit: string, action: HostAction, s: OpUnitState | undefined): Omit<ActionState, "logTail"> {
+  const out = (state: ActionState["state"], startedAt?: string | null, finishedAt?: string | null) => {
+    const r: Omit<ActionState, "logTail"> = { unit, action, state };
+    const started = toIsoTimestamp(startedAt);
+    const finished = toIsoTimestamp(finishedAt);
+    if (started) r.startedAt = started;
+    if (finished) r.finishedAt = finished;
+    return r;
+  };
+  if (s && RUNNING_STATES.has(s.activeState)) return out("running", s.startedAt);
+  if (s?.activeState === "failed") return out("failed", s.startedAt, s.finishedAt);
+  const file = readOpResult(deps, unit, action);
+  if (file) return out(file.result === "success" ? "succeeded" : "failed", file.startedAt, file.finishedAt);
+  return out("idle");
 }
 
 function readLogTail(deps: Deps, unit: string, action: HostAction): string {
@@ -154,36 +192,23 @@ function readLogTail(deps: Deps, unit: string, action: HostAction): string {
 }
 
 /**
- * Start and finish times as ISO 8601, never systemd's own format: these leave
- * the server (board JSON, the socket API, the page) and a browser cannot be
- * trusted to parse "Tue 2026-10-13 10:00:00 UTC" (Safari cannot). A running
- * action has no finish yet; an unparseable time is omitted.
- */
-function withTimes(state: ActionState, s: OpUnitState | undefined): void {
-  const startedAt = toIsoTimestamp(s?.startedAt);
-  const finishedAt = state.state === "running" ? undefined : toIsoTimestamp(s?.finishedAt);
-  if (startedAt) state.startedAt = startedAt;
-  if (finishedAt) state.finishedAt = finishedAt;
-}
-
-/**
  * Throws when `unit` is not a bare unit name (opUnitName), or when systemd
  * cannot be read; a caller maps those to 404 and 502.
  */
 export async function readActionState(deps: Deps, unit: string, action: HostAction): Promise<ActionState> {
   const name = opUnitName(unit, action);
   const states = await deps.commands.readOpUnits([name]);
-  const s = states[name];
-  const result: ActionState = { unit, action, state: mapState(s), logTail: readLogTail(deps, unit, action) };
-  withTimes(result, s);
-  return result;
+  return { ...resolveState(deps, unit, action, states[name]), logTail: readLogTail(deps, unit, action) };
 }
 
 /**
  * The services board's view: for every unit entry that lists actions, its most
  * recent run — a running one wins, otherwise the latest by finish (or start)
- * time; a unit whose actions have never run has no entry. One `systemctl show`
- * for every listed action of every such row, then one log read per row shown.
+ * time, taken from wherever its state came from (the result file, for a unit
+ * systemd has unloaded); a unit whose actions have never run has no entry. One
+ * `systemctl show` for every listed action of every such row, a bounded result
+ * file read for each action systemd neither runs nor holds as failed, then one
+ * log read per row shown.
  * Never throws: a systemd read that fails, or a name opUnitName refuses, is
  * simply no entry, so the board renders without a last-run line rather than
  * erroring.
@@ -207,19 +232,17 @@ export async function readLastRuns(deps: Deps, entries: readonly InventoryEntry[
     return {};
   }
 
-  const when = (s: OpUnitState | undefined) => parseTimestamp(s?.finishedAt) ?? parseTimestamp(s?.startedAt) ?? -Infinity;
+  const when = (c: Omit<ActionState, "logTail">) => parseTimestamp(c.finishedAt) ?? parseTimestamp(c.startedAt) ?? -Infinity;
   const runs: Record<string, ActionState> = {};
   for (const row of rows) {
     const candidates = row.ops
-      .map(([action, unit]) => ({ action, s: states[unit], state: mapState(states[unit]) }))
+      .map(([action, unit]) => resolveState(deps, row.name, action, states[unit]))
       .filter((c) => c.state !== "idle");
     if (candidates.length === 0) continue;
     const pick =
       candidates.find((c) => c.state === "running") ??
-      candidates.reduce((latest, c) => (when(c.s) > when(latest.s) ? c : latest));
-    const run: ActionState = { unit: row.name, action: pick.action, state: pick.state, logTail: readLogTail(deps, row.name, pick.action) };
-    withTimes(run, pick.s);
-    runs[row.name] = run;
+      candidates.reduce((latest, c) => (when(c) > when(latest) ? c : latest));
+    runs[row.name] = { ...pick, logTail: readLogTail(deps, row.name, pick.action) };
   }
   return runs;
 }
