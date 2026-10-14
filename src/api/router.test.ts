@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, test } from "node:test";
+import { afterEach, describe, test } from "node:test";
 import { once } from "node:events";
 import type { Server } from "node:http";
 import bcrypt from "bcrypt";
@@ -35,8 +35,25 @@ interface Served {
   close: () => Promise<void>;
 }
 
+// Every server listen() opens, until it is closed. A test closes its own on
+// success; one whose assertion throws first never reaches that line, and a
+// server still listening keeps the runner from ever exiting, so the failure
+// was never reported. afterEach closes whatever a test left open.
+const open = new Set<Server>();
+
+function closeServer(server: Server): Promise<void> {
+  if (!open.delete(server)) return Promise.resolve();
+  server.closeAllConnections();
+  return new Promise((resolve) => server.close(() => resolve()));
+}
+
+afterEach(async () => {
+  await Promise.all([...open].map(closeServer));
+});
+
 async function listen(app: express.Express, deps: Deps, starts: [string, string][]): Promise<Served> {
   const server: Server = app.listen(0, "127.0.0.1");
+  open.add(server);
   await once(server, "listening");
   const address = server.address();
   assert.ok(address && typeof address === "object");
@@ -49,7 +66,7 @@ async function listen(app: express.Express, deps: Deps, starts: [string, string]
       const text = await res.text();
       return { status: res.status, text, json: () => JSON.parse(text) };
     },
-    close: () => new Promise((resolve) => server.close(() => resolve())),
+    close: () => closeServer(server),
   };
 }
 

@@ -40,10 +40,20 @@ export type HostAction = (typeof HOST_ACTIONS)[number];
 
 const OP_UNIT_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
-/** A bare name: what an inventory entry's `name` or a client's name must be
- *  before it becomes part of a unit name or a filesystem path. */
+/** A bare name: what an inventory entry's `name` must be before it becomes
+ *  part of a unit name or a filesystem path. */
 export function isBareName(name: string): boolean {
   return OP_UNIT_RE.test(name);
+}
+
+const CLIENT_NAME_RE = /^[a-z][a-z0-9-]{0,30}$/;
+
+/** A client's name, exactly as clients.schema.json has it: narrower than a
+ *  bare name (a letter first, at most 31 characters, so `<client>-api` fits a
+ *  32-character group name). lychee-ops refuses anything else, so this only
+ *  keeps lychee-admin from accepting a name the contract does not. */
+export function isClientName(name: string): boolean {
+  return CLIENT_NAME_RE.test(name);
 }
 
 /** The one-shot unit that performs `action` on the inventory entry named
@@ -64,10 +74,10 @@ export function opResultPath(unit: string, action: HostAction): string {
   return `/var/lib/lychee-op/${unit}-${action}.result.json`;
 }
 
-/** Throws on anything but a bare name: the result is a path lychee-admin
+/** Throws on anything but a client name: the result is a path lychee-admin
  *  unlinks a stale socket at. */
 export function clientSocketPath(client: string): string {
-  if (!isBareName(client)) throw new Error(`not a valid client name: ${JSON.stringify(client)}`);
+  if (!isClientName(client)) throw new Error(`not a valid client name: ${JSON.stringify(client)}`);
   return `/run/lychee-admin/clients/${client}/api.sock`;
 }
 

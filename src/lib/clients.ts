@@ -11,7 +11,7 @@ import type { Deps } from "../deps";
 import { createApiApp } from "../api/router";
 import type { FileSystem } from "./fileSystem";
 import type { Caller } from "./hostOperations";
-import { CLIENTS_FILE, HOST_ACTIONS, type HostAction, isBareName } from "./platform";
+import { CLIENTS_FILE, HOST_ACTIONS, type HostAction, isBareName, isClientName } from "./platform";
 
 export interface ClientConfig {
   name: string;
@@ -36,7 +36,7 @@ function parseClients(raw: string): ClientConfig[] {
     const extra = Object.keys(c).filter((k) => k !== "name" && k !== "grants");
     if (extra.length) throw new Error(`clients[${i}] has unexpected keys: ${extra.join(", ")}`);
     const name = c.name;
-    if (typeof name !== "string" || !isBareName(name)) throw new Error(`clients[${i}] has an invalid name`);
+    if (typeof name !== "string" || !isClientName(name)) throw new Error(`clients[${i}] has an invalid name`);
     if (seen.has(name)) throw new Error(`client ${name} is declared twice`);
     seen.add(name);
     if (!isObject(c.grants)) throw new Error(`client ${name} has no grants object`);

@@ -117,6 +117,16 @@ describe("host operations constants", () => {
     }
   });
 
+  // clients.schema.json's name is narrower than a unit name: a letter first,
+  // and at most 31 characters, so that `<client>-api` fits a 32-character
+  // group name. A bare name that the contract refuses is refused here too.
+  test("clientSocketPath takes exactly the contract's client names", () => {
+    for (const bad of ["9bot", "-bot", "a".repeat(32)]) {
+      assert.throws(() => clientSocketPath(bad), bad);
+    }
+    assert.doesNotThrow(() => clientSocketPath("a".repeat(31)));
+  });
+
   test("opUnitName fills op_unit_pattern for every action", () => {
     for (const a of HOST_ACTIONS) {
       assert.equal(opUnitName("palworld-palchuds", a), constants.op_unit_pattern.replace("{unit}", "palworld-palchuds").replace("{action}", a));
