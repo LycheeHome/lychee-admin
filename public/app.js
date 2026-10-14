@@ -894,16 +894,12 @@ document.querySelectorAll("[data-prune]").forEach((button) => {
 // from the server's own reading.
 const ACTION_RUNNING_WORD = { start: "starting", stop: "stopping", restart: "restarting", update: "updating" };
 const ACTION_POLL_MS = 2000;
-// After a click, a settled state whose start predates the click (less this
-// slack, for clock skew between browser and host) is the previous run, read
-// before systemd picked the new job up. A few polls of that and the page
-// reloads anyway, so a misread can delay the row but never wedge it.
-const ACTION_STALE_SLACK_MS = 30000;
-const ACTION_STALE_POLLS = 5;
 
+// The server sends ISO 8601 (never systemd's own format, which Safari cannot
+// parse), so Date.parse is enough here.
 function ageSince(text) {
   if (!text) return null;
-  const ms = new Date(String(text).replace(/^[A-Za-z]{3}\s+/, "")).getTime();
+  const ms = Date.parse(text);
   if (!Number.isFinite(ms)) return null;
   const seconds = Math.max(0, Math.round((Date.now() - ms) / 1000));
   if (seconds < 5) return "just now";
@@ -973,34 +969,32 @@ document.querySelectorAll("[data-host-actions]").forEach((box) => {
     fact.focus();
   }
 
+  // Every answer goes through decidePoll (public/actionPoll.js), which is
+  // what guarantees the loop ends: a settled run, a 401/403/404, an answer
+  // with no state, or a minute of 502s and network failures all reload, and
+  // the server render decides what the row is.
   function poll(action, clickedAt) {
-    let stalePolls = 0;
+    let memo = { failingSince: null, stalePolls: 0 };
     const tick = async () => {
+      let outcome;
       try {
         const response = await fetch(`/services/${encodeURIComponent(unit)}/actions/${action}/state`, {
           headers: { Accept: "application/json" },
         });
         const body = await response.json().catch(() => ({}));
-        if (response.ok && body.ok && body.state) {
-          const state = body.state;
-          if (state.state === "running") {
-            setRunningFact(action, state.startedAt);
-            setTail(state.logTail);
-          } else {
-            const started = new Date(String(state.startedAt ?? "").replace(/^[A-Za-z]{3}\s+/, "")).getTime();
-            const stale =
-              clickedAt !== null &&
-              (state.state === "idle" || !Number.isFinite(started) || started < clickedAt - ACTION_STALE_SLACK_MS);
-            if (!stale || ++stalePolls >= ACTION_STALE_POLLS) {
-              window.location.reload();
-              return;
-            }
-          }
-        }
-        // Anything else (a 502, lychee-admin itself restarting mid-update)
-        // is transient from here: the action runs in its own unit regardless.
+        outcome = { kind: "response", status: response.status, body };
       } catch {
-        // Unreachable for a moment; try again on the next tick.
+        outcome = { kind: "network-error" };
+      }
+      const decision = window.actionPoll.decidePoll(outcome, memo, Date.now(), clickedAt);
+      memo = decision.memo;
+      if (decision.next === "reload") {
+        window.location.reload();
+        return;
+      }
+      if (decision.next === "update") {
+        setRunningFact(action, outcome.body.state.startedAt);
+        setTail(outcome.body.state.logTail);
       }
       setTimeout(tick, ACTION_POLL_MS);
     };

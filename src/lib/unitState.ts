@@ -195,12 +195,21 @@ export function parseOpUnitShowOutput(raw: string): Record<string, OpUnitState> 
 
 /**
  * A systemd timestamp ("Tue 2026-10-13 10:00:00 UTC") or an ISO string, as
- * epoch milliseconds; null for anything unparseable. The leading weekday is
- * stripped because Date.parse does not promise to accept it (see formatAge's
- * note on zones, which applies here too).
+ * epoch milliseconds; null for anything unparseable. systemd's UTC form is
+ * rewritten to ISO here rather than left to Date's lenient parsing, which V8
+ * accepts and JavaScriptCore does not. Other zone abbreviations still go to
+ * Date as they are (see formatAge's note: lychee emits UTC).
  */
 export function parseTimestamp(value: string | null | undefined): number | null {
   if (!value) return null;
-  const ms = new Date(value.replace(/^[A-Za-z]{3}\s+/, "")).getTime();
+  const text = value.trim().replace(/^[A-Za-z]{3}\s+/, "");
+  const utc = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}(?:\.\d+)?) UTC$/.exec(text);
+  const ms = new Date(utc ? `${utc[1]}T${utc[2]}Z` : text).getTime();
   return Number.isFinite(ms) ? ms : null;
+}
+
+/** The same moment as ISO 8601, for anything that leaves the server; undefined when unparseable. */
+export function toIsoTimestamp(value: string | null | undefined): string | undefined {
+  const ms = parseTimestamp(value);
+  return ms === null ? undefined : new Date(ms).toISOString();
 }

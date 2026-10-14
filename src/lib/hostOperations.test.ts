@@ -335,7 +335,7 @@ describe("readActionState", () => {
     const h = await harness({ units: { [opUnitName(PAL, "update")]: RUNNING } });
     const s = await readActionState(h.deps, PAL, "update");
     assert.equal(s.state, "running");
-    assert.equal(s.startedAt, RUNNING.startedAt);
+    assert.equal(s.startedAt, "2026-10-13T10:00:00.000Z");
     assert.deepEqual(h.shows, [[opUnitName(PAL, "update")]]);
 
     // And a request made by this process does not override what systemd says.
@@ -365,10 +365,6 @@ describe("readActionState", () => {
       const h = await harness({ units });
       const s = await readActionState(h.deps, PAL, "stop");
       assert.equal(s.state, expected, JSON.stringify(unitState));
-      if (expected === "succeeded" || expected === "failed") {
-        assert.equal(s.startedAt, "a");
-        assert.equal(s.finishedAt, "b");
-      }
     }
   });
 
@@ -517,7 +513,7 @@ describe("readLastRuns (the board's one batched read)", () => {
     assert.equal(runs[PAL]?.action, "restart");
     assert.equal(runs[PAL]?.state, "failed");
     assert.equal(runs[PAL]?.logTail, "Job failed\n");
-    assert.equal(runs[PAL]?.finishedAt, "Tue 2026-10-13 10:00:02 UTC");
+    assert.equal(runs[PAL]?.finishedAt, "2026-10-13T10:00:02.000Z");
   });
 
   test("never run means no entry", async () => {
@@ -532,5 +528,31 @@ describe("readLastRuns (the board's one batched read)", () => {
     const { readInventory } = await import("./serviceInventory");
     const h = await harness({ overrides: { readOpUnits: () => Promise.reject(new Error("systemctl broke")) } });
     assert.deepEqual(await readLastRuns(h.deps, readInventory(h.deps.fs).entries), {});
+  });
+});
+
+describe("timestamps leave the server as ISO 8601", () => {
+  test("readActionState converts systemd's format; an unparseable one is omitted", async () => {
+    const { readActionState } = await import("./hostOperations");
+    const h = await harness({
+      units: { [opUnitName(PAL, "restart")]: { activeState: "inactive", result: "success", startedAt: "Tue 2026-10-13 10:00:00 UTC", finishedAt: "Tue 2026-10-13 10:00:02 UTC" } },
+    });
+    const s = await readActionState(h.deps, PAL, "restart");
+    assert.equal(s.startedAt, "2026-10-13T10:00:00.000Z");
+    assert.equal(s.finishedAt, "2026-10-13T10:00:02.000Z");
+    const junk = await harness({
+      units: { [opUnitName(PAL, "restart")]: { activeState: "inactive", result: "success", startedAt: "a", finishedAt: "b" } },
+    });
+    const j = await readActionState(junk.deps, PAL, "restart");
+    assert.equal(j.state, "succeeded");
+    assert.ok(!("startedAt" in j) && !("finishedAt" in j));
+  });
+
+  test("readLastRuns converts too", async () => {
+    const { readLastRuns } = await import("./hostOperations");
+    const { readInventory } = await import("./serviceInventory");
+    const h = await harness({ units: { [opUnitName(PAL, "update")]: RUNNING } });
+    const runs = await readLastRuns(h.deps, readInventory(h.deps.fs).entries);
+    assert.equal(runs[PAL]?.startedAt, "2026-10-13T10:00:00.000Z");
   });
 });

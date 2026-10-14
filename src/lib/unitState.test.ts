@@ -4,7 +4,7 @@
 // Everything below covers the pure parsers.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseOpUnitShowOutput, parseTimerSchedule, parseUnitShowOutput } from "./unitState";
+import { parseOpUnitShowOutput, parseTimerSchedule, parseUnitShowOutput, parseTimestamp, toIsoTimestamp } from "./unitState";
 
 // `systemctl show a.service b.service -p Id,ActiveState,SubState,LoadState,ActiveEnterTimestamp`
 // emits one blank-line-separated block per unit, in the order requested.
@@ -179,4 +179,14 @@ test("parseOpUnitShowOutput keys op units by Id and nulls systemd's filler times
       activeState: "inactive", result: "success", startedAt: null, finishedAt: null,
     },
   });
+});
+
+test("systemd's UTC timestamp is read without relying on the engine's lenient parsing", () => {
+  // JavaScriptCore returns NaN for "2026-10-13 10:00:00 UTC"; V8 accepts it.
+  // parseTimestamp rewrites the UTC form to ISO itself, so neither matters.
+  assert.equal(parseTimestamp("Tue 2026-10-13 10:00:00 UTC"), Date.UTC(2026, 9, 13, 10, 0, 0));
+  assert.equal(toIsoTimestamp("Tue 2026-10-13 10:00:00 UTC"), "2026-10-13T10:00:00.000Z");
+  assert.equal(toIsoTimestamp("2026-10-13T10:00:00Z"), "2026-10-13T10:00:00.000Z");
+  assert.equal(toIsoTimestamp("a"), undefined);
+  assert.equal(toIsoTimestamp(null), undefined);
 });

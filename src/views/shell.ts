@@ -155,6 +155,7 @@ export function layout(title: string, body: string, opts: LayoutOptions): string
     ${renderPageNotice(opts.banner)}
     ${body}
   </main>
+  <script src="/actionPoll.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>`;

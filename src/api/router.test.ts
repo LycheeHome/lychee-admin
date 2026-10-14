@@ -201,12 +201,12 @@ describe("POST /v1/units/:unit/actions/:action", () => {
 
 describe("GET /v1/units/:unit/actions/:action", () => {
   test("the state and the log tail", async () => {
-    const done: OpUnitState = { activeState: "inactive", result: "success", startedAt: "a", finishedAt: "b" };
+    const done: OpUnitState = { activeState: "inactive", result: "success", startedAt: "Tue 2026-10-13 10:00:00 UTC", finishedAt: "Tue 2026-10-13 10:00:02 UTC" };
     const s = await serveApi(ALL, {}, { [opUnitName(PAL, "restart")]: done });
     s.deps.fs.writeFile("/var/lib/lychee-op/palworld-palchuds-restart.log", "one\ntwo\n");
     const r = await s.call("GET", route(PAL, "restart"));
     assert.equal(r.status, 200);
-    assert.deepEqual(r.json(), { unit: PAL, action: "restart", state: "succeeded", startedAt: "a", finishedAt: "b", logTail: "one\ntwo\n" });
+    assert.deepEqual(r.json(), { unit: PAL, action: "restart", state: "succeeded", startedAt: "2026-10-13T10:00:00.000Z", finishedAt: "2026-10-13T10:00:02.000Z", logTail: "one\ntwo\n" });
     await s.close();
   });
 

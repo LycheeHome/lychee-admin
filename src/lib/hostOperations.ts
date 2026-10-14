@@ -14,7 +14,7 @@ import type { Deps } from "../deps";
 import { CommandError } from "./systemCommands";
 import { HOST_ACTIONS, type HostAction, opUnitName } from "./platform";
 import { type InventoryEntry, readInventory } from "./serviceInventory";
-import { type OpUnitState, parseTimestamp } from "./unitState";
+import { type OpUnitState, parseTimestamp, toIsoTimestamp } from "./unitState";
 
 export type Caller = { kind: "operator" } | { kind: "client"; name: string; grants: Record<string, HostAction[]> };
 
@@ -154,6 +154,19 @@ function readLogTail(deps: Deps, unit: string, action: HostAction): string {
 }
 
 /**
+ * Start and finish times as ISO 8601, never systemd's own format: these leave
+ * the server (board JSON, the socket API, the page) and a browser cannot be
+ * trusted to parse "Tue 2026-10-13 10:00:00 UTC" (Safari cannot). A running
+ * action has no finish yet; an unparseable time is omitted.
+ */
+function withTimes(state: ActionState, s: OpUnitState | undefined): void {
+  const startedAt = toIsoTimestamp(s?.startedAt);
+  const finishedAt = state.state === "running" ? undefined : toIsoTimestamp(s?.finishedAt);
+  if (startedAt) state.startedAt = startedAt;
+  if (finishedAt) state.finishedAt = finishedAt;
+}
+
+/**
  * Throws when `unit` is not a bare unit name (opUnitName), or when systemd
  * cannot be read; a caller maps those to 404 and 502.
  */
@@ -162,8 +175,7 @@ export async function readActionState(deps: Deps, unit: string, action: HostActi
   const states = await deps.commands.readOpUnits([name]);
   const s = states[name];
   const result: ActionState = { unit, action, state: mapState(s), logTail: readLogTail(deps, unit, action) };
-  if (s?.startedAt) result.startedAt = s.startedAt;
-  if (s?.finishedAt && result.state !== "running") result.finishedAt = s.finishedAt;
+  withTimes(result, s);
   return result;
 }
 
@@ -206,8 +218,7 @@ export async function readLastRuns(deps: Deps, entries: readonly InventoryEntry[
       candidates.find((c) => c.state === "running") ??
       candidates.reduce((latest, c) => (when(c.s) > when(latest.s) ? c : latest));
     const run: ActionState = { unit: row.name, action: pick.action, state: pick.state, logTail: readLogTail(deps, row.name, pick.action) };
-    if (pick.s?.startedAt) run.startedAt = pick.s.startedAt;
-    if (pick.s?.finishedAt && pick.state !== "running") run.finishedAt = pick.s.finishedAt;
+    withTimes(run, pick.s);
     runs[row.name] = run;
   }
   return runs;

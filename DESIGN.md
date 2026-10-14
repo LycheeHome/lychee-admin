@@ -501,10 +501,12 @@ between, and nothing above 24px except the header band.
 
 **The Show-It Rule.** There is one operator and one wide viewport, so content is
 never folded, capped, truncated with an ellipsis, or put inside an inner scroll
-box. A generated workflow file renders at full height. The single exception is
+box. A generated workflow file renders at full height. One exception is
 horizontal overflow on a one-line command, which must not wrap: `overflow-x:
 auto` with `white-space: nowrap`. Long values wrap by breaking characters
-(`break-all`), never by being cut.
+(`break-all`), never by being cut. Another is named: a finished host action's
+log folds at rest; it is open while the action runs and open after a failure,
+so the log that explains something is never behind a click.
 
 **The Frame-And-Column Rule.** 1080px is the page frame — the header band, the
 shell's `<main>`, and any page holding two kinds of content that belong side by
@@ -929,7 +931,9 @@ on Hearth Lift with a Hairline edge, since neither destroys anything. The most
 recent run is one more mono fact line — `update succeeded · 2 hours ago · took
 3m 41s`, the state word in its tone — over a `<details>` disclosure "log · N
 lines" holding the tail in full and wrapping, open by default when the run
-failed, and reading `log · no output` when there was none. While a run is
+failed, and reading `log · no output` when there was none. That fold is The
+Show-It Rule's named exception and goes no further: closed only for a run that
+finished cleanly. While a run is
 active the pill turns neutral and names it (`restarting`, `updating`), the
 same move `applying` makes; every button disables, a Smoke sentence says an
 action is already running on the unit, and the live tail shows open beneath a
@@ -1087,7 +1091,8 @@ stops the container, and when.
 ### Don't:
 
 - **Don't** fold, cap, truncate, or add an inner scrollbar to content the
-  operator might read. One operator, one wide viewport.
+  operator might read. One operator, one wide viewport. The one named fold is
+  The Show-It Rule's: a finished host action's log, at rest.
 - **Don't** use Poetsen One anywhere except the wordmark and a list row's
   hostname, and never above 1.5rem or at a weight it doesn't ship.
 - **Don't** fill a destructive button with Ember or make it the largest control

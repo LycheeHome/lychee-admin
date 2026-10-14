@@ -459,7 +459,7 @@
       },
       {
         "name": "The Show-It Rule",
-        "body": "There is one operator and one wide viewport, so content is never folded, capped, truncated with an ellipsis, or put inside an inner scroll box. A generated workflow file renders at full height. The single exception is horizontal overflow on a one-line command, which must not wrap: overflow-x: auto with white-space: nowrap. Long values wrap by breaking characters (break-all), never by being cut.",
+        "body": "There is one operator and one wide viewport, so content is never folded, capped, truncated with an ellipsis, or put inside an inner scroll box. A generated workflow file renders at full height. One exception is horizontal overflow on a one-line command, which must not wrap: overflow-x: auto with white-space: nowrap. Long values wrap by breaking characters (break-all), never by being cut. Another is named: a finished host action's log folds at rest; it is open while the action runs and open after a failure, so the log that explains something is never behind a click.",
         "section": "layout"
       },
       {

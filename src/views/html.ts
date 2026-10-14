@@ -1306,7 +1306,7 @@ function renderHostActions(row: BoardRow, run: ActionState | undefined, now: Dat
     .join("");
 
   return `<div class="flex flex-col gap-0.5" data-host-actions="${name}" data-neutral-pill="${TONE_PILL.neutral}"${
-    running ? ` data-running="${run.action}" data-started-at="${escapeHtml(run.startedAt ?? "")}"` : ""
+    running ? ` data-running="${run.action}"` : ""
   }>
           <p class="${SERVICE_DETAIL}" data-action-fact${fact ? "" : " hidden"}>${fact}</p>
           ${actionLog(run)}
