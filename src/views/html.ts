@@ -12,7 +12,8 @@ import { resourceNameFor } from "../lib/siteResource";
 import { isSiteName } from "../lib/declarationWriter";
 import type { BoardRow, ServiceBoard } from "../lib/serviceBoard";
 import type { ServiceGroup } from "../lib/serviceInventory";
-import { IMAGE_PREFIX } from "../lib/platform";
+import { type HostAction, IMAGE_PREFIX } from "../lib/platform";
+import type { ActionState } from "../lib/hostOperations";
 import { layout, type Nav } from "./shell";
 import {
   escapeHtml,
@@ -39,6 +40,7 @@ import {
   SERVICE_NAME,
   SERVICE_DETAIL,
   formatAge,
+  formatDuration,
 } from "./shared";
 
 /**
@@ -1191,7 +1193,146 @@ function renderOfferLine(name: string, tag: string): string {
           </p>`;
 }
 
-function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date, prunable: ReadonlySet<string>, domain: string): string {
+/** A run in progress names itself on the pill, neutral, the way `applying` does. */
+const ACTION_RUNNING_WORD: Record<HostAction, string> = {
+  start: "starting",
+  stop: "stopping",
+  restart: "restarting",
+  update: "updating",
+};
+const ACTION_LABEL: Record<HostAction, string> = { start: "Start", stop: "Stop", restart: "Restart", update: "Update" };
+/** Strip order: the way up first, then the two that cycle it, then the way down. */
+const ACTION_ORDER: readonly HostAction[] = ["start", "restart", "update", "stop"];
+
+/**
+ * The three actions that disconnect players ask first, inline, in place of the
+ * strip. Start does not: nobody is on a server that is down. Copy names what
+ * happens to the people on it, because that is the cost the operator weighs.
+ */
+const ACTION_CONFIRM: Partial<Record<HostAction, { copy: (unit: string) => string; go: string }>> = {
+  stop: {
+    copy: (u) => `Stop ${u}? Everyone on the server is disconnected, and it stays down until someone starts it.`,
+    go: "Stop server",
+  },
+  restart: { copy: (u) => `Restart ${u}? Everyone on the server is disconnected for about a minute.`, go: "Restart server" },
+  update: {
+    copy: (u) => `Update ${u}? The server stops, steamcmd updates it, then it starts again; everyone is disconnected until it's back.`,
+    go: "Update server",
+  },
+};
+
+/**
+ * An action's log, in full and wrapping — the multi-line Command Block's
+ * reading shape without its copy button, since this is output to read rather
+ * than text to paste. Never clipped: the tail is already bounded at 50 lines.
+ */
+const LOG_TAIL =
+  "font-mono text-[0.72rem] leading-[1.6] bg-stone-900 border border-stone-700 rounded-md px-3 py-2.5 text-stone-300 whitespace-pre-wrap [overflow-wrap:anywhere] m-0 mt-1.5";
+/** The inline confirmation: Stop's sits in the Danger card's wash, the others on Hearth Lift. */
+const CONFIRM_BASE = "mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md px-3 py-2.5";
+const CONFIRM_DANGER = `${CONFIRM_BASE} border border-red-900/60 bg-red-950/20`;
+const CONFIRM_QUIET = `${CONFIRM_BASE} border border-stone-700 bg-stone-800`;
+
+/** "update succeeded · 2 hours ago · took 3m 41s", or the running form. */
+function actionFact(run: ActionState | undefined, now: Date): string {
+  if (!run || run.state === "idle") return "";
+  if (run.state === "running") {
+    const started = formatAge(run.startedAt, now);
+    return `<span class="inline-block h-1.5 w-1.5 rounded-full bg-stone-400 motion-safe:animate-pulse align-middle mr-1.5" aria-hidden="true"></span>${run.action} running${started ? ` · started ${escapeHtml(started)}` : ""}`;
+  }
+  const tone = run.state === "failed" ? TONE_TEXT.bad : TONE_TEXT.ok;
+  const parts = [`${run.action} <span class="${tone}">${run.state}</span>`];
+  const age = formatAge(run.finishedAt, now);
+  if (age) parts.push(escapeHtml(age));
+  const took = formatDuration(run.startedAt, run.finishedAt);
+  if (took) parts.push(`took ${took}`);
+  return parts.join(" · ");
+}
+
+/** A finished run's log: a disclosure, open when the run failed; "no output" when empty. */
+function actionLog(run: ActionState | undefined): string {
+  if (!run || run.state === "idle" || run.state === "running") return "";
+  const body = run.logTail.trimEnd();
+  if (body === "") return `<p class="${SERVICE_DETAIL}" data-action-log>log · no output</p>`;
+  const lines = body.split("\n").length;
+  return `<details class="mt-0.5" data-action-log${run.state === "failed" ? " open" : ""}>
+            <summary class="${SERVICE_DETAIL} w-fit cursor-pointer rounded-sm marker:text-stone-500 hover:text-stone-300 ${FOCUS_RING}">log · ${lines} ${lines === 1 ? "line" : "lines"}</summary>
+            <pre class="${LOG_TAIL}">${escapeHtml(body)}</pre>
+          </details>`;
+}
+
+/**
+ * Host actions on a unit row (the chosen "Strip"): the last run as a fact line
+ * and its log, then the buttons on one line. A confirmation replaces the strip
+ * in place; while a run is active every button is disabled and the row says
+ * why. app.js binds [data-host-actions], and polls the state route only while
+ * `data-running` is set.
+ *
+ * Start, Stop and Restart follow the unit's live state: Start only when it is
+ * not up, Stop and Restart only when it is not down. A state this page could
+ * not read (`unknown`) shows all three, because hiding any would be a guess.
+ *
+ * Stop is the only coloured button in the strip (Scorch); Start, Restart and
+ * Update are compact secondary. Stop is the one action that leaves the server
+ * down, and an Ember outline beside a Scorch one read as the same red.
+ */
+function renderHostActions(row: BoardRow, run: ActionState | undefined, now: Date): string {
+  if (row.kind !== "unit" || !row.actions || row.actions.length === 0) return "";
+  const listed = new Set(row.actions);
+  const up = row.status === "running" || row.status === "starting" || row.status === "restarting";
+  const down = row.status === "exited";
+  const shown = ACTION_ORDER.filter(
+    (a) => listed.has(a) && !(a === "start" && up) && !((a === "stop" || a === "restart") && down),
+  );
+  const running = run?.state === "running";
+  const name = escapeHtml(row.name);
+  const fact = actionFact(run, now);
+
+  const buttons = shown
+    .map(
+      (a) =>
+        `<button type="button" class="${a === "stop" ? BUTTON_DANGER : BUTTON_SECONDARY_COMPACT}" data-host-action="${a}"${running ? " disabled" : ""}>${ACTION_LABEL[a]}</button>`,
+    )
+    .join("");
+  const confirms = shown
+    .flatMap((a) => {
+      const c = ACTION_CONFIRM[a];
+      if (!c) return [];
+      const textId = `action-confirm-${name}-${a}`;
+      return [
+        `<div class="${a === "stop" ? CONFIRM_DANGER : CONFIRM_QUIET}" data-action-confirm="${a}" role="group" aria-labelledby="${textId}" hidden>
+            <p id="${textId}" class="m-0 flex-[1_1_28ch] text-[0.85rem] leading-snug text-stone-300">${escapeHtml(c.copy(row.name))}</p>
+            <div class="flex items-center gap-2.5">
+              <button type="button" class="${BUTTON_SECONDARY_COMPACT}" data-action-cancel>Cancel</button>
+              <button type="button" class="${a === "stop" ? BUTTON_DANGER : BUTTON_OFFER}" data-action-go="${a}">${c.go}</button>
+            </div>
+          </div>`,
+      ];
+    })
+    .join("");
+
+  return `<div class="flex flex-col gap-0.5" data-host-actions="${name}" data-neutral-pill="${TONE_PILL.neutral}"${
+    running ? ` data-running="${run.action}"` : ""
+  }>
+          <p class="${SERVICE_DETAIL}" data-action-fact${fact ? "" : " hidden"}>${fact}</p>
+          ${actionLog(run)}
+          <pre class="${LOG_TAIL}" data-action-tail aria-live="off"${running ? "" : " hidden"}>${running ? escapeHtml(run.logTail.trimEnd()) || "no output yet" : ""}</pre>
+          <div class="mt-2 flex flex-wrap items-center gap-2" data-action-strip>
+            ${buttons}
+            <span class="text-[0.8rem] text-stone-400" data-action-busy role="status"${running ? "" : " hidden"}>an action is already running on ${name}</span>
+          </div>
+          ${confirms}
+        </div>`;
+}
+
+function renderServiceRow(
+  row: BoardRow,
+  board: ServiceBoard,
+  now: Date,
+  prunable: ReadonlySet<string>,
+  domain: string,
+  run?: ActionState,
+): string {
   // `target` is what the reconciler has been asked to run; `version` is what
   // it last confirmed running. "Applying" means the reconciler last ran
   // cleanly (`deployed` or `skipped`) and the pin has since moved, so the next
@@ -1205,7 +1346,12 @@ function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date, prunabl
   // container that is actually failing.
   const applying = isApplying(row);
   const live = rowLabels(row.status);
-  const labels = applying && live.tone !== "bad" ? { ...live, pill: "applying", tone: "neutral" as const } : live;
+  const labels =
+    run?.state === "running"
+      ? { ...live, pill: ACTION_RUNNING_WORD[run.action], tone: "neutral" as const }
+      : applying && live.tone !== "bad"
+        ? { ...live, pill: "applying", tone: "neutral" as const }
+        : live;
   const offer = offeredTag(row);
 
   const facts: string[] = [];
@@ -1232,7 +1378,7 @@ function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date, prunabl
 
   return `
       <li class="${SERVICE_ROW}" data-service="${escapeHtml(row.name)}">
-        <div class="pt-px"><span class="${TONE_PILL[labels.tone]}"><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span></div>
+        <div class="pt-px" data-row-pill><span class="${TONE_PILL[labels.tone]}"><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span></div>
         <div class="flex flex-col gap-0.5 min-w-0">
           <p class="${SERVICE_NAME}">${escapeHtml(row.name)}</p>
           ${facts.length > 0 ? `<p class="${SERVICE_DETAIL}">${facts.map(escapeHtml).join(" · ")}</p>` : ""}
@@ -1261,21 +1407,28 @@ function renderServiceRow(row: BoardRow, board: ServiceBoard, now: Date, prunabl
             // pruned from here, whatever the caller passed.
             prunable.has(row.name) && isSiteName(row.name, domain) ? renderPruneControl(row.name) : ""
           }
+          ${
+            // Start/stop/restart/update, only on a unit whose entry lists
+            // them. A row without actions is byte-identical to before.
+            renderHostActions(row, run, now)
+          }
         </div>
       </li>`;
 }
 
 /**
  * What else runs on the host. Read-only except for two controls: a row with a
- * newer tag on offer carries a Deploy button, and a site row named in
- * `prunable` (its declaration is `state: absent`) carries Prune. `now` is a
- * parameter so ages are testable.
+ * newer tag on offer carries a Deploy button, a site row named in `prunable`
+ * (its declaration is `state: absent`) carries Prune, and a unit whose entry
+ * lists host actions carries their strip, with `lastRuns[name]` as its most
+ * recent run. `now` is a parameter so ages are testable.
  */
 export function renderServicesPage(
   board: ServiceBoard,
   now: Date,
   prunable: ReadonlySet<string>,
   domain: string,
+  lastRuns: Readonly<Record<string, ActionState>> = {},
 ): string {
   const written = formatAge(board.generated, now);
   const freshness = board.inventoryAvailable
@@ -1289,7 +1442,7 @@ export function renderServicesPage(
       (g) => `
     <section aria-labelledby="group-${g.group}">
       <h3 id="group-${g.group}" class="${GROUP_LABEL}">${GROUP_LABELS[g.group]}</h3>
-      <ul class="list-none m-0 p-0 flex flex-col">${g.rows.map((r) => renderServiceRow(r, board, now, prunable, domain)).join("")}
+      <ul class="list-none m-0 p-0 flex flex-col">${g.rows.map((r) => renderServiceRow(r, board, now, prunable, domain, Object.hasOwn(lastRuns, r.name) ? lastRuns[r.name] : undefined)).join("")}
       </ul>
     </section>`,
     )

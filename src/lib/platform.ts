@@ -34,3 +34,32 @@ export const PATHS = {
   tunnelConfig: "/etc/cloudflared/sites-config.yml",
   sitesRoot: "/var/www",
 } as const;
+
+export const HOST_ACTIONS = ["start", "stop", "restart", "update"] as const;
+export type HostAction = (typeof HOST_ACTIONS)[number];
+
+const OP_UNIT_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
+/** A bare name: what an inventory entry's `name` or a client's name must be
+ *  before it becomes part of a unit name or a filesystem path. */
+export function isBareName(name: string): boolean {
+  return OP_UNIT_RE.test(name);
+}
+
+/** The one-shot unit that performs `action` on the inventory entry named
+ *  `unit` (its bare name, never its `unit` value). Throws on anything but a
+ *  bare name: the result becomes part of a root command line. */
+export function opUnitName(unit: string, action: HostAction): string {
+  if (!isBareName(unit)) throw new Error(`not a valid unit name: ${JSON.stringify(unit)}`);
+  if (!HOST_ACTIONS.includes(action)) throw new Error(`not a host action: ${JSON.stringify(action)}`);
+  return `lychee-op-${unit}-${action}.service`;
+}
+
+/** Throws on anything but a bare name: the result is a path lychee-admin
+ *  unlinks a stale socket at. */
+export function clientSocketPath(client: string): string {
+  if (!isBareName(client)) throw new Error(`not a valid client name: ${JSON.stringify(client)}`);
+  return `/run/lychee-admin/clients/${client}/api.sock`;
+}
+
+export const CLIENTS_FILE = "/etc/lychee-admin/clients.json";

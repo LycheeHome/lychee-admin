@@ -146,3 +146,70 @@ export function parseTimerSchedule(raw: string): TimerSchedule {
   const e = entry as Record<string, unknown>;
   return { next: toDate(e.next), last: toDate(e.last) };
 }
+
+/**
+ * A host-operation unit (`lychee-op-<unit>-<action>.service`) as systemd
+ * reports it: raw enough that the mapping to idle/running/succeeded/failed
+ * lives in one place (hostOperations.ts), and keyed by Id like the board's
+ * read. Timestamps are null where systemd has none, i.e. the unit never ran
+ * since boot.
+ */
+export interface OpUnitState {
+  activeState: string;
+  result: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export const OP_UNIT_SHOW_PROPERTIES = [
+  "Id",
+  "ActiveState",
+  "Result",
+  "ExecMainStartTimestamp",
+  "ExecMainExitTimestamp",
+];
+
+export function parseOpUnitShowOutput(raw: string): Record<string, OpUnitState> {
+  const states: Record<string, OpUnitState> = {};
+  for (const block of raw.split(/\n\s*\n/)) {
+    const fields: Record<string, string> = {};
+    for (const line of block.split("\n")) {
+      const eq = line.indexOf("=");
+      if (eq > 0) fields[line.slice(0, eq)] = line.slice(eq + 1);
+    }
+    const id = fields.Id;
+    if (!id) continue;
+    const clean = (v: string | undefined): string | null => {
+      const t = v?.trim();
+      return t && t !== "n/a" && t !== "never" ? t : null;
+    };
+    states[id] = {
+      activeState: fields.ActiveState?.trim() ?? "",
+      result: fields.Result?.trim() ?? "",
+      startedAt: clean(fields.ExecMainStartTimestamp),
+      finishedAt: clean(fields.ExecMainExitTimestamp),
+    };
+  }
+  return states;
+}
+
+/**
+ * A systemd timestamp ("Tue 2026-10-13 10:00:00 UTC") or an ISO string, as
+ * epoch milliseconds; null for anything unparseable. systemd's UTC form is
+ * rewritten to ISO here rather than left to Date's lenient parsing, which V8
+ * accepts and JavaScriptCore does not. Other zone abbreviations still go to
+ * Date as they are (see formatAge's note: lychee emits UTC).
+ */
+export function parseTimestamp(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const text = value.trim().replace(/^[A-Za-z]{3}\s+/, "");
+  const utc = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}(?:\.\d+)?) UTC$/.exec(text);
+  const ms = new Date(utc ? `${utc[1]}T${utc[2]}Z` : text).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** The same moment as ISO 8601, for anything that leaves the server; undefined when unparseable. */
+export function toIsoTimestamp(value: string | null | undefined): string | undefined {
+  const ms = parseTimestamp(value);
+  return ms === null ? undefined : new Date(ms).toISOString();
+}

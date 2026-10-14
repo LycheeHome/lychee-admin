@@ -1,4 +1,5 @@
 import type { StatusTone } from "../lib/siteDisplay";
+import { parseTimestamp } from "../lib/unitState";
 
 export function escapeHtml(value: string): string {
   return value
@@ -145,4 +146,19 @@ export function formatAge(when: Date | string | null | undefined, now: Date): st
   else if (seconds < 48 * 3600) span = plural(Math.round(seconds / 3600), "hour");
   else span = plural(Math.round(seconds / 86400), "day");
   return delta < 0 ? `${span} ago` : `in ${span}`;
+}
+
+/**
+ * How long something took, from two timestamps systemd or ISO: "2s",
+ * "3m 41s", "1h 4m". Null when either end is unparseable or the span is
+ * negative, so callers omit the fact rather than print nonsense.
+ */
+export function formatDuration(start: string | null | undefined, end: string | null | undefined): string | null {
+  const from = parseTimestamp(start);
+  const to = parseTimestamp(end);
+  if (from === null || to === null || to < from) return null;
+  const seconds = Math.round((to - from) / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
 }

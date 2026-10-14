@@ -3,7 +3,7 @@
 // same commands in sudo.json's form and the tests compare it to the contract's,
 // so drift fails CI. lychee-ops' sudoers.example grants exactly these.
 
-import { PATHS } from "./platform";
+import { type HostAction, opUnitName, PATHS } from "./platform";
 
 const WRITE_CONFIG = "/usr/local/sbin/lychee-admin-write-config";
 
@@ -13,6 +13,7 @@ export const SUDO = {
   tunnelRestart: ["/usr/bin/systemctl", "restart", "cloudflared-sites"],
   createSiteDir: (hostname: string) => ["/usr/local/sbin/lychee-admin-create-site-dir", hostname],
   writeConfig: (path: string) => [WRITE_CONFIG, path],
+  startOp: (unit: string, action: HostAction) => ["/usr/bin/systemctl", "start", "--no-block", opUnitName(unit, action)],
   resourceStatus: (project: string) => ["/usr/local/sbin/lychee-admin-resource-status", project],
 };
 

@@ -165,7 +165,8 @@ export const SEEDED_INVENTORY = JSON.stringify(
       // Named for the instance, not the game: the producer derives both from
       // palworld_service, because a second Palworld server would be a second
       // unit and a row reading "palworld" would not say which.
-      { name: "palworld-palchuds", kind: "unit", unit: "palworld-palchuds.service", group: "service", reconciled: false },
+      { name: "palworld-palchuds", kind: "unit", unit: "palworld-palchuds.service", group: "service", reconciled: false,
+        actions: ["start", "stop", "restart", "update"] },
       // A container with no status file yet: reconciled false, no version. Dev
       // fakes answer "unknown" for every container, so this is the neutral,
       // not-red row, which is the case a container row must get right.

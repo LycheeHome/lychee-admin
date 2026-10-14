@@ -20,7 +20,7 @@ function fsReturning(content: string | (() => never)): FileSystem {
   return {
     readFile: typeof content === "string" ? () => content : content,
     writeFile: () => {}, mkdir: () => {}, appendFile: () => {},
-    copyFile: () => {}, rmRecursive: () => {}, exists: () => true,
+    copyFile: () => {}, rmRecursive: () => {}, exists: () => true, readTail: () => "",
   };
 }
 
@@ -315,4 +315,18 @@ test("a missing or empty failed_step leaves failedStep absent", () => {
     assert.equal(inv.entries.length, 1);
     assert.equal("failedStep" in inv.entries[0], false, JSON.stringify(extra));
   }
+});
+
+test("reads actions on unit entries: known only, de-duplicated, even when not reconciled", () => {
+  const inv = parseInventory(JSON.stringify({ services: [
+    { name: "palworld-palchuds", unit: "palworld-palchuds.service", group: "service", reconciled: false, actions: ["start", "stop", "bogus", "start", 3] },
+    { name: "a", unit: "a.service", group: "service", reconciled: true, actions: "start" },
+    { name: "b", unit: "b.service", group: "service", reconciled: true },
+    { name: "c", kind: "container", container: "c", group: "service", reconciled: true, actions: ["start"] },
+  ] }));
+  const [p, a, b, c] = inv.entries;
+  assert.deepEqual(p.kind === "unit" && p.actions, ["start", "stop"]);
+  assert.equal(a.kind === "unit" && a.actions, undefined);
+  assert.equal(b.kind === "unit" && b.actions, undefined);
+  assert.equal("actions" in c, false);
 });

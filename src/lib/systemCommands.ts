@@ -15,10 +15,14 @@ import {
 } from "./declarationWriter";
 import { parseComposePsOutput, toRowStatus, type ContainerStatus } from "./containerStatus";
 import type { DeclarationSummary } from "./siteResource";
+import type { HostAction } from "./platform";
 import {
+  OP_UNIT_SHOW_PROPERTIES,
+  parseOpUnitShowOutput,
   parseTimerSchedule,
   parseUnitShowOutput,
   UNIT_SHOW_PROPERTIES,
+  type OpUnitState,
   type TimerSchedule,
   type UnitState,
   type ServiceStatus,
@@ -103,6 +107,18 @@ export interface SystemCommands {
   createSiteDirectory(hostname: string): Promise<{ stdout: string; stderr: string }>;
   writeManagedConfig(targetPath: string, content: string): Promise<void>;
   readUnitStates(units: string[]): Promise<Record<string, UnitState>>;
+  /**
+   * Starts `lychee-op-<unit>-<action>.service` without waiting for it, via the
+   * one sudo line lychee-ops grants per declared action. `unit` is the
+   * inventory entry's bare name; an invalid one throws before sudo runs.
+   */
+  startHostAction(unit: string, action: HostAction): Promise<void>;
+  /**
+   * Host-operation units by full name, keyed by Id. Unlike readUnitStates this
+   * REJECTS on failure rather than degrading to {}: the busy check must not
+   * read "nothing running" out of a read that did not happen.
+   */
+  readOpUnits(units: string[]): Promise<Record<string, OpUnitState>>;
   checkResourceContainerStatus(project: string): Promise<ContainerStatus>;
   readResourceStatus(project: string): Promise<ServiceStatus>;
   readTimerSchedule(timer: string): Promise<TimerSchedule>;
@@ -208,6 +224,26 @@ export const realSystemCommands: SystemCommands = {
     } catch {
       return {};
     }
+  },
+
+  /**
+   * `--no-block`: the action is its own systemd service and outlives this
+   * process (every deploy restarts lychee-admin); its state is read back from
+   * systemd, never remembered here.
+   */
+  async startHostAction(unit, action) {
+    await run("sudo", SUDO.startOp(unit, action));
+  },
+
+  /** No sudo, like readUnitStates; bounded like every status read. */
+  async readOpUnits(units) {
+    if (units.length === 0) return {};
+    const { stdout } = await run(
+      "/usr/bin/systemctl",
+      ["show", ...units, "-p", OP_UNIT_SHOW_PROPERTIES.join(",")],
+      { timeoutMs: STATUS_READ_TIMEOUT_MS },
+    );
+    return parseOpUnitShowOutput(stdout);
   },
 
   /**

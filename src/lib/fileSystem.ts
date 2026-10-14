@@ -21,6 +21,9 @@ export interface FileSystem {
   copyFile(source: string, destination: string): void;
   rmRecursive(path: string): void;
   exists(path: string): boolean;
+  /** At most the last `maxBytes` bytes of a file, decoded as UTF-8. Reads
+   *  only that much: an action's log can grow without bound. */
+  readTail(path: string, maxBytes: number): string;
 }
 
 export const realFileSystem: FileSystem = {
@@ -41,4 +44,16 @@ export const realFileSystem: FileSystem = {
     fs.rmSync(p, { recursive: true, force: true });
   },
   exists: (p) => fs.existsSync(p),
+  readTail: (p, maxBytes) => {
+    const fd = fs.openSync(p, "r");
+    try {
+      const size = fs.fstatSync(fd).size;
+      const length = Math.min(size, maxBytes);
+      const buffer = Buffer.alloc(length);
+      const read = fs.readSync(fd, buffer, 0, length, size - length);
+      return buffer.subarray(0, read).toString("utf8");
+    } finally {
+      fs.closeSync(fd);
+    }
+  },
 };

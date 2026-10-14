@@ -1,8 +1,10 @@
 import path from "node:path";
 import { config } from "../config";
 import { toRowStatus } from "../lib/containerStatus";
-import { IMAGE_PREFIX, MAX_RESOURCE_NAME_LENGTH } from "../lib/platform";
+import { HOST_ACTIONS, type HostAction, IMAGE_PREFIX, MAX_RESOURCE_NAME_LENGTH, opUnitName } from "../lib/platform";
+import type { OpUnitState } from "../lib/unitState";
 import type { FileSystem } from "../lib/fileSystem";
+import { opLogPath } from "../lib/hostOperations";
 import type { DeclarationSummary } from "../lib/siteResource";
 import { siteNamePatternFor } from "../lib/siteValidation";
 import type { SystemCommands } from "../lib/systemCommands";
@@ -69,6 +71,11 @@ export function createInMemoryFileSystem(): FileSystem & {
     }
   }
 
+  function readTail(target: string, maxBytes: number): string {
+    const bytes = Buffer.from(readFile(target), "utf8");
+    return bytes.subarray(Math.max(0, bytes.length - maxBytes)).toString("utf8");
+  }
+
   function hasFile(target: string): boolean {
     return files.has(normalizePath(target));
   }
@@ -81,7 +88,7 @@ export function createInMemoryFileSystem(): FileSystem & {
     return hasFile(target) || hasDir(target);
   }
 
-  return { readFile, writeFile, mkdir, appendFile, copyFile, rmRecursive, exists, hasFile, hasDir };
+  return { readFile, writeFile, mkdir, appendFile, copyFile, rmRecursive, exists, readTail, hasFile, hasDir };
 }
 
 /**
@@ -97,9 +104,20 @@ export function createInMemoryFileSystem(): FileSystem & {
  * server passes it (SEEDED_DECLARATIONS); tests start from an empty clone so
  * that no seeded port claim or name can change what they assert.
  */
+/**
+ * How the fake host-operation units behave: each start is `running` for
+ * `delayMs`, then `succeeded`, or `failed` where `fail` says so. A start while
+ * another action on the same unit runs fails at once, as the real per-unit
+ * `flock -n` does.
+ */
+export interface FakeOpRun {
+  delayMs?: number;
+  fail?: (unit: string, action: HostAction) => boolean;
+}
+
 export function createFakes(
   overrides: Partial<SystemCommands> = {},
-  seed: { declarations?: DeclarationSummary[] } = {},
+  seed: { declarations?: DeclarationSummary[]; opRun?: FakeOpRun } = {},
 ): {
   fs: ReturnType<typeof createInMemoryFileSystem>;
   commands: SystemCommands;
@@ -111,6 +129,11 @@ export function createFakes(
   const declarations = new Map<string, DeclarationSummary>(
     (seed.declarations ?? []).map((d) => [d.name, { ...d }]),
   );
+
+  // Stands in for systemd's view of the lychee-op-* units, keyed by full name.
+  const opUnits = new Map<string, OpUnitState>();
+  const opDelayMs = seed.opRun?.delayMs ?? 3000;
+  const now = () => new Date().toISOString();
 
   const commands: SystemCommands = {
     validateCaddyfile: (caddyfilePath) =>
@@ -136,6 +159,37 @@ export function createFakes(
         Object.fromEntries(
           units.flatMap((u) => (u in seededUnitStates ? [[u, seededUnitStates[u]]] : [])),
         ),
+      ),
+    startHostAction: (unit, action) => {
+      const name = opUnitName(unit, action);
+      const logPath = opLogPath(unit, action);
+      const locked = HOST_ACTIONS.some((a) => opUnits.get(opUnitName(unit, a))?.activeState === "activating");
+      if (locked) {
+        opUnits.set(name, { activeState: "failed", result: "exit-code", startedAt: now(), finishedAt: now() });
+        fs.writeFile(logPath, `[mock] ${unit} is locked by another action\n`);
+        return Promise.resolve();
+      }
+      opUnits.set(name, { activeState: "activating", result: "success", startedAt: now(), finishedAt: null });
+      fs.writeFile(logPath, `[mock] ${action} ${unit}: started\n`);
+      const timer = setTimeout(() => {
+        const failed = seed.opRun?.fail?.(unit, action) ?? false;
+        opUnits.set(name, {
+          activeState: failed ? "failed" : "inactive",
+          result: failed ? "exit-code" : "success",
+          startedAt: opUnits.get(name)?.startedAt ?? null,
+          finishedAt: now(),
+        });
+        fs.appendFile(logPath, `[mock] ${action} ${unit}: ${failed ? "failed" : "done"}\n`);
+      }, opDelayMs);
+      timer.unref();
+      return Promise.resolve();
+    },
+    readOpUnits: (units) =>
+      Promise.resolve(
+        Object.fromEntries(units.flatMap((u) => {
+          const state = opUnits.get(u);
+          return state ? [[u, { ...state }]] : [];
+        })),
       ),
     // Only seeded containers have state; for every other one "unknown" is the
     // honest neutral answer. The board and a site's page read the same map, so

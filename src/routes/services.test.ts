@@ -30,7 +30,7 @@ const SWEE = { name: "swee", unit: "swee.service", group: "service", reconciled:
 async function serve(
   inventoryJson: string | null,
   overrides: Partial<SystemCommands>,
-): Promise<{ base: string; get: (p: string) => Promise<Response>; actions: () => string[]; close: () => Promise<void> }> {
+): Promise<{ base: string; get: (p: string) => Promise<Response>; actions: () => string[]; audit: () => Record<string, unknown>[]; close: () => Promise<void> }> {
   const { createApp } = await import("../app");
   const { createBackup } = await import("../lib/backup");
   const { createLogger } = await import("../lib/logger");
@@ -51,6 +51,11 @@ async function serve(
   return {
     base,
     get: (p) => fetch(`${base}${p}`, { headers: { Authorization: AUTH } }),
+    audit: () => {
+      const file = process.env.LOG_FILE as string;
+      if (!fakes.fs.exists(file)) return [];
+      return fakes.fs.readFile(file).split("\n").filter(Boolean).map((l) => JSON.parse(l) as Record<string, unknown>);
+    },
     actions: () => {
       const file = process.env.LOG_FILE as string;
       if (!fakes.fs.exists(file)) return [];
@@ -501,5 +506,217 @@ describe("POST /resources/:name/prune", () => {
     assert.equal(res.status, 404);
     assert.equal(reads, 0);
     assert.equal(calls.length, 0);
+  });
+});
+
+describe("host actions on the board", () => {
+  const PAL = "palworld-palchuds";
+  const GAME = {
+    name: PAL,
+    unit: `${PAL}.service`,
+    group: "service",
+    reconciled: false,
+    actions: ["start", "stop", "restart", "update"],
+  };
+  const NO_ACTIONS = { name: "swee", unit: "swee.service", group: "service", reconciled: true, actions: ["start"] };
+  const stateRoute = (unit: string, action: string) => `/services/${unit}/actions/${action}/state`;
+  const actionRoute = (unit: string, action: string) => `/services/${unit}/actions/${action}`;
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  let starts: [string, string][] = [];
+  after(async () => {
+    await current?.close();
+  });
+
+  async function start(overrides: Partial<SystemCommands> = {}): Promise<Awaited<ReturnType<typeof serve>>> {
+    await current?.close();
+    starts = [];
+    current = await serve(inventory([GAME, NO_ACTIONS]), {
+      startHostAction: (unit, action) => {
+        starts.push([unit, action]);
+        return Promise.resolve();
+      },
+      readOpUnits: () => Promise.resolve({}),
+      ...overrides,
+    });
+    return current;
+  }
+
+  function post(s: { base: string }, p: string, headers: Record<string, string> = {}): Promise<Response> {
+    return fetch(`${s.base}${p}`, { method: "POST", headers: { Authorization: AUTH, ...headers }, redirect: "manual" });
+  }
+
+  test("POST starts the action and redirects to /services with 303", async () => {
+    const s = await start();
+    const res = await post(s, actionRoute(PAL, "restart"));
+    assert.equal(res.status, 303);
+    assert.equal(res.headers.get("location"), "/services");
+    assert.deepEqual(starts, [[PAL, "restart"]]);
+  });
+
+  test("POST with Accept: application/json answers 202 with the state", async () => {
+    const s = await start();
+    const res = await post(s, actionRoute(PAL, "update"), { Accept: "application/json" });
+    assert.equal(res.status, 202);
+    assert.deepEqual(await res.json(), { ok: true, state: { unit: PAL, action: "update", state: "running", logTail: "" } });
+    assert.deepEqual(starts, [[PAL, "update"]]);
+  });
+
+  test("POST is audited as the operator", async () => {
+    const s = await start();
+    await post(s, actionRoute(PAL, "stop"));
+    const lines = s.audit();
+    assert.equal(lines.length, 1);
+    assert.equal(lines[0].caller, "operator");
+    assert.equal(lines[0].unit, PAL);
+    assert.equal(lines[0].hostAction, "stop");
+    assert.equal(lines[0].outcome, "started");
+  });
+
+  test("an unknown action is refused 404 and never reaches the audit log", async () => {
+    const s = await start();
+    const res = await post(s, actionRoute(PAL, "rm -rf"));
+    assert.equal(res.status, 404);
+    assert.deepEqual(s.audit(), []);
+  });
+
+  test("refusals are JSON {ok:false, reason}, never a redirect: unknown unit, unknown action, unlisted action", async () => {
+    const s = await start();
+    for (const [unit, action] of [
+      ["nope", "start"],
+      [PAL, "reboot"],
+      ["swee", "stop"],
+    ]) {
+      const res = await post(s, actionRoute(unit, action));
+      assert.equal(res.status, 404, `${unit} ${action}`);
+      const body = (await res.json()) as { ok: boolean; reason: string };
+      assert.equal(body.ok, false);
+      assert.equal(typeof body.reason, "string");
+    }
+    assert.deepEqual(starts, []);
+  });
+
+  test("409 is surfaced when an action is already running", async () => {
+    const s = await start({
+      readOpUnits: () =>
+        Promise.resolve({
+          [`lychee-op-${PAL}-stop.service`]: { activeState: "active", result: "success", startedAt: "x", finishedAt: null },
+        }),
+    });
+    const res = await post(s, actionRoute(PAL, "start"), { Accept: "application/json" });
+    assert.equal(res.status, 409);
+    const body = (await res.json()) as { ok: boolean; reason: string };
+    assert.equal(body.ok, false);
+    assert.match(body.reason, /already running/);
+    assert.deepEqual(starts, []);
+  });
+
+  test("502 is surfaced when the start fails", async () => {
+    const s = await start({ startHostAction: () => Promise.reject(new Error("sudo refused")) });
+    const res = await post(s, actionRoute(PAL, "start"));
+    assert.equal(res.status, 502);
+    const body = (await res.json()) as { ok: boolean; reason: string };
+    assert.equal(body.ok, false);
+    assert.match(body.reason, /sudo refused/);
+  });
+
+  test("a cross-site POST is refused 403 and starts nothing", async () => {
+    const s = await start();
+    const res = await post(s, actionRoute(PAL, "start"), { "Sec-Fetch-Site": "cross-site" });
+    assert.equal(res.status, 403);
+    assert.deepEqual(starts, []);
+  });
+
+  test("POST requires authentication", async () => {
+    const s = await start();
+    const res = await fetch(`${s.base}${actionRoute(PAL, "start")}`, { method: "POST" });
+    assert.equal(res.status, 401);
+    assert.deepEqual(starts, []);
+  });
+
+  test("GET state answers the action's state as JSON", async () => {
+    const s = await start({
+      readOpUnits: () =>
+        Promise.resolve({
+          [`lychee-op-${PAL}-restart.service`]: {
+            activeState: "inactive",
+            result: "success",
+            startedAt: "a",
+            finishedAt: "b",
+          },
+        }),
+    });
+    const res = await s.get(stateRoute(PAL, "restart"));
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { ok: boolean; state: { unit: string; action: string; state: string } };
+    assert.equal(body.ok, true);
+    assert.equal(body.state.unit, PAL);
+    assert.equal(body.state.action, "restart");
+    assert.equal(body.state.state, "succeeded");
+  });
+
+  test("GET state: unknown unit, unknown action, unlisted action and a bad name are 404 JSON", async () => {
+    const s = await start();
+    for (const [unit, action] of [
+      ["nope", "start"],
+      [PAL, "reboot"],
+      ["swee", "stop"],
+      ["..%2Fetc", "start"],
+    ]) {
+      const res = await s.get(stateRoute(unit, action));
+      assert.equal(res.status, 404, `${unit} ${action}`);
+      assert.equal(((await res.json()) as { ok: boolean }).ok, false);
+    }
+  });
+
+  test("GET state answers 502 when systemd cannot be read, never a 500", async () => {
+    const s = await start({ readOpUnits: () => Promise.reject(new Error("systemctl broke")) });
+    const res = await s.get(stateRoute(PAL, "start"));
+    assert.equal(res.status, 502);
+    const body = (await res.json()) as { ok: boolean; reason: string };
+    assert.equal(body.ok, false);
+    assert.match(body.reason, /systemctl broke/);
+  });
+
+  test("GET state requires authentication", async () => {
+    const s = await start();
+    const res = await fetch(`${s.base}${stateRoute(PAL, "start")}`);
+    assert.equal(res.status, 401);
+  });
+});
+
+describe("GET /services: host action state", () => {
+  const PAL = "palworld-palchuds";
+  const GAME = { name: PAL, unit: `${PAL}.service`, group: "service", reconciled: false, actions: ["start", "stop", "restart", "update"] };
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  after(async () => {
+    await current?.close();
+  });
+
+  test("the board reads every action's state in one call and shows a running one", async () => {
+    const reads: string[][] = [];
+    current = await serve(inventory([GAME]), {
+      readOpUnits: (names) => {
+        reads.push(names);
+        return Promise.resolve({
+          [`lychee-op-${PAL}-update.service`]: { activeState: "activating", result: "success", startedAt: "Tue 2026-10-13 10:00:00 UTC", finishedAt: null },
+        });
+      },
+    });
+    const html = await (await current.get("/services")).text();
+    assert.equal(reads.length, 1);
+    assert.equal(reads[0].length, 4);
+    assert.ok(html.includes('data-running="update"'));
+    assert.ok(html.includes(`an action is already running on ${PAL}`));
+  });
+
+  test("an unreadable systemd still renders the board and its buttons, without a last run", async () => {
+    await current?.close();
+    current = await serve(inventory([GAME]), { readOpUnits: () => Promise.reject(new Error("systemctl broke")) });
+    const res = await current.get("/services");
+    assert.equal(res.status, 200);
+    const html = await res.text();
+    assert.ok(html.includes('data-host-action="restart"'));
+    assert.ok(!html.includes("data-running="));
+    assert.ok(!html.includes("data-action-log"));
   });
 });

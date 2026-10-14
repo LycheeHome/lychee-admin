@@ -501,10 +501,12 @@ between, and nothing above 24px except the header band.
 
 **The Show-It Rule.** There is one operator and one wide viewport, so content is
 never folded, capped, truncated with an ellipsis, or put inside an inner scroll
-box. A generated workflow file renders at full height. The single exception is
+box. A generated workflow file renders at full height. One exception is
 horizontal overflow on a one-line command, which must not wrap: `overflow-x:
 auto` with `white-space: nowrap`. Long values wrap by breaking characters
-(`break-all`), never by being cut.
+(`break-all`), never by being cut. Another is named: a finished host action's
+log folds at rest; it is open while the action runs and open after a failure,
+so the log that explains something is never behind a click.
 
 **The Frame-And-Column Rule.** 1080px is the page frame — the header band, the
 shell's `<main>`, and any page holding two kinds of content that belong side by
@@ -630,9 +632,11 @@ exceptions to it.
   colour would have said the wrong thing at a glance; borrowing its size says the
   right one, because both are in-row controls subordinate to the row they sit in.
 - **Compact secondary:** Secondary's colours, hover, focus and disabled at the
-  offer's size (0.8rem, 6px by 12px padding, 32px minimum height). Used only for
+  offer's size (0.8rem, 6px by 12px padding, 32px minimum height). Made for
   the prune control, which sits on the services board beside the 32px offer; at
-  Secondary's 40px it was the tallest control in its row. Derived from
+  Secondary's 40px it was the tallest control in its row. The host-action strip
+  uses it too, for Start, Restart and Update and every confirmation's Cancel.
+  Derived from
   Secondary in `shared.ts`, so the two cannot drift apart.
   Hover fills to Ember Deep and lifts the label a step; disabled drops to Smoke
   Deep on a Hairline outline, because the control disables itself while its
@@ -915,6 +919,35 @@ says `applying` when the last reconcile actually succeeded; a blocked or failed
 row keeps its real state, because a pin that moved and then stopped is not in
 flight, and it would otherwise read as applying forever.
 
+**The host-action strip.** A unit whose inventory entry lists host actions
+(today only `palworld-palchuds`) grows a strip of in-row buttons beneath its
+facts, chosen from a rendered comparison as "01 Strip". Start shows only when
+the unit is not up, and Stop and Restart only when it is not down (a state the
+page could not read shows all three); Update always. Stop is the only coloured
+button in the strip, a Danger button; Start, Restart and Update are compact
+Secondary, the grey Prune already uses ("02 Quiet neighbours", from a second
+comparison). Stop is the one action that leaves the server down, and an Offer
+outline beside a Danger one read as one red, so the strip spent no colour on
+the others rather than let Stop's lose its meaning. Stop,
+Restart and Update each confirm inline: the strip is replaced in place by one
+sentence naming what happens to the people on the server, then Cancel and a
+confirm button named for the act ("Stop server"), Cancel on the left as in the
+Dialog. Stop's confirmation sits in the Danger card's Scorch wash; the other two
+on Hearth Lift with a Hairline edge, since neither destroys anything. The most
+recent run is one more mono fact line — `update succeeded · 2 hours ago · took
+3m 41s`, the state word in its tone — over a `<details>` disclosure "log · N
+lines" holding the tail in full and wrapping, open by default when the run
+failed, and reading `log · no output` when there was none. That fold is The
+Show-It Rule's named exception and goes no further: closed only for a run that
+finished cleanly. While a run is
+active the pill turns neutral and names it (`restarting`, `updating`), the
+same move `applying` makes; every button disables, a Smoke sentence says an
+action is already running on the unit, and the live tail shows open beneath a
+fact line led by the same pulsing Smoke dot the remove dialog uses. The page
+polls only while that is true and reloads once the run settles. Ember stays on
+the buttons alone: the live log line is not tinted, because a value you can
+only read is not Ember's.
+
 ### Repository Card (From a repository)
 
 The deploy story of a Next.js site, and the one card in the app that is a
@@ -1064,7 +1097,8 @@ stops the container, and when.
 ### Don't:
 
 - **Don't** fold, cap, truncate, or add an inner scrollbar to content the
-  operator might read. One operator, one wide viewport.
+  operator might read. One operator, one wide viewport. The one named fold is
+  The Show-It Rule's: a finished host action's log, at rest.
 - **Don't** use Poetsen One anywhere except the wordmark and a list row's
   hostname, and never above 1.5rem or at a weight it doesn't ship.
 - **Don't** fill a destructive button with Ember or make it the largest control
