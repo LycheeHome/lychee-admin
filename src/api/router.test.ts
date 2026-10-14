@@ -201,8 +201,12 @@ describe("POST /v1/units/:unit/actions/:action", () => {
 
 describe("GET /v1/units/:unit/actions/:action", () => {
   test("the state and the log tail", async () => {
-    const done: OpUnitState = { activeState: "inactive", result: "success", startedAt: "Tue 2026-10-13 10:00:00 UTC", finishedAt: "Tue 2026-10-13 10:00:02 UTC" };
-    const s = await serveApi(ALL, {}, { [opUnitName(PAL, "restart")]: done });
+    const unloaded: OpUnitState = { activeState: "inactive", result: "success", startedAt: null, finishedAt: null };
+    const s = await serveApi(ALL, {}, { [opUnitName(PAL, "restart")]: unloaded });
+    s.deps.fs.writeFile(
+      "/var/lib/lychee-op/palworld-palchuds-restart.result.json",
+      JSON.stringify({ unit: PAL, action: "restart", result: "success", exit_status: 0, started_at: "2026-10-13T10:00:00Z", finished_at: "2026-10-13T10:00:02Z" }),
+    );
     s.deps.fs.writeFile("/var/lib/lychee-op/palworld-palchuds-restart.log", "one\ntwo\n");
     const r = await s.call("GET", route(PAL, "restart"));
     assert.equal(r.status, 200);
@@ -269,6 +273,33 @@ describe("a malformed percent-escape", () => {
         assert.deepEqual(r.json(), { error: "bad request" }, method);
       }
       assert.deepEqual(s.starts, []);
+    } finally {
+      await s.close();
+    }
+  });
+});
+
+describe("the socket API over the dev fakes, end to end", () => {
+  test("start, running, then succeeded from the result file once the unit is unloaded", async () => {
+    const { createApiApp } = await import("./router");
+    const { createBackup } = await import("../lib/backup");
+    const { createLogger } = await import("../lib/logger");
+    const { createFakes } = await import("../dev/fakes");
+    const fakes = createFakes({}, { opRun: { delayMs: 30 } });
+    fakes.fs.writeFile(INVENTORY_PATH, JSON.stringify({ generated: "2026-10-13T00:00:00Z", services: SERVICES }));
+    const deps: Deps = { commands: fakes.commands, fs: fakes.fs, backup: createBackup(fakes.fs), logger: createLogger(fakes.fs) };
+    const s = await listen(createApiApp(deps, { kind: "client", name: "swee", grants: ALL }), deps, []);
+    try {
+      const started = await s.call("POST", route(PAL, "restart"));
+      assert.equal(started.status, 202);
+      assert.equal((started.json() as { state: string }).state, "running");
+      assert.equal((((await s.call("GET", route(PAL, "restart"))).json()) as { state: string }).state, "running");
+      await new Promise((r) => setTimeout(r, 90));
+      const unit = opUnitName(PAL, "restart");
+      assert.deepEqual((await fakes.commands.readOpUnits([unit]))[unit], { activeState: "inactive", result: "success", startedAt: null, finishedAt: null });
+      const done = (await s.call("GET", route(PAL, "restart"))).json() as { state: string; startedAt?: string; finishedAt?: string };
+      assert.equal(done.state, "succeeded");
+      assert.ok(done.startedAt && done.finishedAt);
     } finally {
       await s.close();
     }

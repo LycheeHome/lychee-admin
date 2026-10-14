@@ -61,3 +61,24 @@ test("readDeclarations returns one summary per contract declaration example, as 
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+// Fails if parseOpResult rejects a result file the contract allows, or accepts
+// one the contract's schema refuses (A-OPS-1 Result: an invalid file is absent).
+test("parseOpResult reads every valid contract op-result example and rejects every invalid one", async () => {
+  const { parseOpResult } = await import("./opResult");
+  const valid = listContractDir("examples/op-result/valid").filter((f) => f.endsWith(".json"));
+  const invalid = listContractDir("examples/op-result/invalid").filter((f) => f.endsWith(".json") && f !== "expected.json");
+  assert.ok(valid.length > 0 && invalid.length > 0);
+  for (const f of valid) {
+    const raw = loadContractText(`examples/op-result/valid/${f}`);
+    const doc = JSON.parse(raw) as { unit: string; action: "start"; result: string };
+    const parsed = parseOpResult(raw, doc.unit, doc.action);
+    assert.ok(parsed, f);
+    assert.equal(parsed.result, doc.result, f);
+  }
+  for (const f of invalid) {
+    const raw = loadContractText(`examples/op-result/invalid/${f}`);
+    const doc = JSON.parse(raw) as { unit: string; action: "start" };
+    assert.equal(parseOpResult(raw, doc.unit, doc.action), null, f);
+  }
+});

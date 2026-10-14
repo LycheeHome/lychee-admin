@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { loadContractJson } from "../dev/contract";
-import { CLIENTS_FILE, clientSocketPath, HOST_ACTIONS, opUnitName, FLOATING_TAGS, IMAGE_PREFIX, isValidTag, MAX_RESOURCE_NAME_LENGTH, PATHS, RESERVED_PORTS, SITE_MIN_PORT } from "./platform";
+import { CLIENTS_FILE, clientSocketPath, HOST_ACTIONS, opResultPath, opUnitName, FLOATING_TAGS, IMAGE_PREFIX, isValidTag, MAX_RESOURCE_NAME_LENGTH, PATHS, RESERVED_PORTS, SITE_MIN_PORT } from "./platform";
 import { SITE_TAGLESS_IMAGE_RE } from "./declarationWriter";
 import { siteNamePatternFor, siteSuffixFor } from "./siteValidation";
 import { SUDO } from "./sudoCommands";
@@ -23,6 +23,7 @@ interface Constants {
   op_sudo_argv: string[];
   client_socket_path: string;
   clients_file: string;
+  op_result_path: string;
 }
 const constants = loadContractJson<Constants>("constants.json");
 
@@ -127,6 +128,19 @@ describe("host operations constants", () => {
       assert.throws(() => opUnitName(bad, "start"), bad);
     }
     assert.doesNotThrow(() => opUnitName("a".repeat(63), "start"));
+  });
+
+  test("opResultPath fills op_result_path for every action", () => {
+    for (const a of HOST_ACTIONS) {
+      assert.equal(opResultPath("palworld-palchuds", a), constants.op_result_path.replace("{unit}", "palworld-palchuds").replace("{action}", a));
+    }
+  });
+
+  test("opResultPath refuses what opUnitName refuses", () => {
+    for (const bad of ["../etc/passwd", "swee\n", "Swee", "a/b", ""]) {
+      assert.throws(() => opResultPath(bad, "start"), bad);
+    }
+    assert.throws(() => opResultPath("swee", "rm" as (typeof HOST_ACTIONS)[number]));
   });
 
   test("SUDO.startOp is op_sudo_argv with the op unit substituted", () => {

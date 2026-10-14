@@ -30,12 +30,13 @@ const SWEE = { name: "swee", unit: "swee.service", group: "service", reconciled:
 async function serve(
   inventoryJson: string | null,
   overrides: Partial<SystemCommands>,
-): Promise<{ base: string; get: (p: string) => Promise<Response>; actions: () => string[]; audit: () => Record<string, unknown>[]; close: () => Promise<void> }> {
+  seed: { opRun?: { delayMs?: number } } = {},
+): Promise<{ base: string; fs: Deps["fs"]; get: (p: string) => Promise<Response>; actions: () => string[]; audit: () => Record<string, unknown>[]; close: () => Promise<void> }> {
   const { createApp } = await import("../app");
   const { createBackup } = await import("../lib/backup");
   const { createLogger } = await import("../lib/logger");
   const { createFakes } = await import("../dev/fakes");
-  const fakes = createFakes(overrides);
+  const fakes = createFakes(overrides, seed);
   if (inventoryJson !== null) fakes.fs.writeFile(INVENTORY_PATH, inventoryJson);
   const deps: Deps = {
     commands: fakes.commands,
@@ -50,6 +51,7 @@ async function serve(
   const base = `http://127.0.0.1:${address.port}`;
   return {
     base,
+    fs: fakes.fs,
     get: (p) => fetch(`${base}${p}`, { headers: { Authorization: AUTH } }),
     audit: () => {
       const file = process.env.LOG_FILE as string;
@@ -640,11 +642,15 @@ describe("host actions on the board", () => {
           [`lychee-op-${PAL}-restart.service`]: {
             activeState: "inactive",
             result: "success",
-            startedAt: "a",
-            finishedAt: "b",
+            startedAt: null,
+            finishedAt: null,
           },
         }),
     });
+    s.fs.writeFile(
+      `/var/lib/lychee-op/${PAL}-restart.result.json`,
+      JSON.stringify({ unit: PAL, action: "restart", result: "success", exit_status: 0, started_at: "2026-10-14T15:14:58Z", finished_at: "2026-10-14T15:15:03Z" }),
+    );
     const res = await s.get(stateRoute(PAL, "restart"));
     assert.equal(res.status, 200);
     const body = (await res.json()) as { ok: boolean; state: { unit: string; action: string; state: string } };
@@ -718,5 +724,47 @@ describe("GET /services: host action state", () => {
     assert.ok(html.includes('data-host-action="restart"'));
     assert.ok(!html.includes("data-running="));
     assert.ok(!html.includes("data-action-log"));
+  });
+
+  test("the last-run line shows a succeeded run whose unit systemd has unloaded", async () => {
+    await current?.close();
+    // A garbage-collected oneshot: `systemctl show` loads it afresh, no times.
+    current = await serve(inventory([GAME]), {
+      readOpUnits: (names) =>
+        Promise.resolve(Object.fromEntries(names.map((n) => [n, { activeState: "inactive", result: "success", startedAt: null, finishedAt: null }]))),
+    });
+    current.fs.writeFile(
+      `/var/lib/lychee-op/${PAL}-restart.result.json`,
+      JSON.stringify({ unit: PAL, action: "restart", result: "success", exit_status: 0, started_at: "2026-10-14T15:14:58Z", finished_at: "2026-10-14T15:15:03Z" }),
+    );
+    current.fs.writeFile(`/var/lib/lychee-op/${PAL}-restart.log`, "restarted\n");
+    const html = await (await current.get("/services")).text();
+    assert.match(html, /restart <span class="[^"]*">succeeded<\/span>/);
+    assert.ok(html.includes("took 5s"), "the duration comes from the file's times");
+    assert.ok(html.includes("data-action-log"));
+    assert.ok(!html.includes("data-running="));
+  });
+
+  test("dev fakes, end to end: start, running, then succeeded from the file after the unit is unloaded", async () => {
+    await current?.close();
+    current = await serve(inventory([GAME]), {}, { opRun: { delayMs: 30 } });
+    const s = current;
+    const started = await fetch(`${s.base}/services/${PAL}/actions/restart`, {
+      method: "POST",
+      headers: { Authorization: AUTH, Accept: "application/json" },
+      redirect: "manual",
+    });
+    assert.equal(started.status, 202);
+    const running = (await (await s.get(`/services/${PAL}/actions/restart/state`)).json()) as { state: { state: string } };
+    assert.equal(running.state.state, "running");
+    assert.ok((await (await s.get("/services")).text()).includes('data-running="restart"'));
+    await new Promise((r) => setTimeout(r, 90));
+    const done = (await (await s.get(`/services/${PAL}/actions/restart/state`)).json()) as {
+      state: { state: string; startedAt?: string; finishedAt?: string };
+    };
+    assert.equal(done.state.state, "succeeded");
+    assert.ok(done.state.startedAt && done.state.finishedAt);
+    assert.ok(s.fs.exists(`/var/lib/lychee-op/${PAL}-restart.result.json`));
+    assert.match(await (await s.get("/services")).text(), /restart <span class="[^"]*">succeeded<\/span>/);
   });
 });
