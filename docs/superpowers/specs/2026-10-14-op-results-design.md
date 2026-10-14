@@ -73,10 +73,15 @@ run was started: the board, swee, a future timer, or a person running
 | systemd ActiveState | result file | state |
 |---|---|---|
 | `activating`, `active`, `deactivating` | not read | `running` |
+| `failed` | not read | `failed`, with systemd's times |
 | otherwise | `result` is `success` | `succeeded`, with its times |
 | otherwise | any other `result` | `failed`, with its times |
-| `failed` | absent | `failed` |
 | otherwise | absent | `idle` |
+
+A unit systemd still holds as `failed` is newer than any file (garbage
+collection never unloads a failed unit), and a recorder that refused or never ran
+(`start-limit-hit`) leaves the previous run's file behind, so `failed` in systemd
+comes before the file.
 
 An unreadable or invalid file is absent, never an error. The board's last-run
 line and the socket API both report this state.
@@ -96,8 +101,9 @@ and the file's shape is chosen so that is an extension rather than a change.
 4. Operator: one board restart; the board and swee's socket read `succeeded`
    with times, and the result file exists.
 
-lychee-admin treats an absent file as today's behaviour, so 2 and 3 may merge in
-either order.
+Merge lychee-ops (2) before lychee-admin (3). With no result file, lychee-admin
+reads a finished success as `idle`; on the host systemd unloads the unit at once,
+so that is what the board shows today, but the recorder should exist first.
 
 ## Future uses (not built)
 
