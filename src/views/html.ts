@@ -1268,16 +1268,22 @@ function actionLog(run: ActionState | undefined): string {
  * why. app.js binds [data-host-actions], and polls the state route only while
  * `data-running` is set.
  *
- * Start and Stop follow the unit's live state: Start only when it is not up,
- * Stop only when it is. A state this page could not read (`unknown`) shows
- * both, because hiding either would be a guess.
+ * Start, Stop and Restart follow the unit's live state: Start only when it is
+ * not up, Stop and Restart only when it is not down. A state this page could
+ * not read (`unknown`) shows all three, because hiding any would be a guess.
+ *
+ * Stop is the only coloured button in the strip (Scorch); Start, Restart and
+ * Update are compact secondary. Stop is the one action that leaves the server
+ * down, and an Ember outline beside a Scorch one read as the same red.
  */
 function renderHostActions(row: BoardRow, run: ActionState | undefined, now: Date): string {
   if (row.kind !== "unit" || !row.actions || row.actions.length === 0) return "";
   const listed = new Set(row.actions);
   const up = row.status === "running" || row.status === "starting" || row.status === "restarting";
   const down = row.status === "exited";
-  const shown = ACTION_ORDER.filter((a) => listed.has(a) && !(a === "start" && up) && !(a === "stop" && down));
+  const shown = ACTION_ORDER.filter(
+    (a) => listed.has(a) && !(a === "start" && up) && !((a === "stop" || a === "restart") && down),
+  );
   const running = run?.state === "running";
   const name = escapeHtml(row.name);
   const fact = actionFact(run, now);
@@ -1285,7 +1291,7 @@ function renderHostActions(row: BoardRow, run: ActionState | undefined, now: Dat
   const buttons = shown
     .map(
       (a) =>
-        `<button type="button" class="${a === "stop" ? BUTTON_DANGER : BUTTON_OFFER}" data-host-action="${a}"${running ? " disabled" : ""}>${ACTION_LABEL[a]}</button>`,
+        `<button type="button" class="${a === "stop" ? BUTTON_DANGER : BUTTON_SECONDARY_COMPACT}" data-host-action="${a}"${running ? " disabled" : ""}>${ACTION_LABEL[a]}</button>`,
     )
     .join("");
   const confirms = shown

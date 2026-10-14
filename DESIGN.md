@@ -632,9 +632,11 @@ exceptions to it.
   colour would have said the wrong thing at a glance; borrowing its size says the
   right one, because both are in-row controls subordinate to the row they sit in.
 - **Compact secondary:** Secondary's colours, hover, focus and disabled at the
-  offer's size (0.8rem, 6px by 12px padding, 32px minimum height). Used only for
+  offer's size (0.8rem, 6px by 12px padding, 32px minimum height). Made for
   the prune control, which sits on the services board beside the 32px offer; at
-  Secondary's 40px it was the tallest control in its row. Derived from
+  Secondary's 40px it was the tallest control in its row. The host-action strip
+  uses it too, for Start, Restart and Update and every confirmation's Cancel.
+  Derived from
   Secondary in `shared.ts`, so the two cannot drift apart.
   Hover fills to Ember Deep and lifts the label a step; disabled drops to Smoke
   Deep on a Hairline outline, because the control disables itself while its
@@ -920,9 +922,13 @@ flight, and it would otherwise read as applying forever.
 **The host-action strip.** A unit whose inventory entry lists host actions
 (today only `palworld-palchuds`) grows a strip of in-row buttons beneath its
 facts, chosen from a rendered comparison as "01 Strip". Start shows only when
-the unit is not up and Stop only when it is (a state the page could not read
-shows both); Restart and Update always. Stop is a Danger button, the others
-Offer buttons, because Stop is the one action that leaves the server down. Stop,
+the unit is not up, and Stop and Restart only when it is not down (a state the
+page could not read shows all three); Update always. Stop is the only coloured
+button in the strip, a Danger button; Start, Restart and Update are compact
+Secondary, the grey Prune already uses ("02 Quiet neighbours", from a second
+comparison). Stop is the one action that leaves the server down, and an Offer
+outline beside a Danger one read as one red, so the strip spent no colour on
+the others rather than let Stop's lose its meaning. Stop,
 Restart and Update each confirm inline: the strip is replaced in place by one
 sentence naming what happens to the people on the server, then Cancel and a
 confirm button named for the act ("Stop server"), Cancel on the left as in the

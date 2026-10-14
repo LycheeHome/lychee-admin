@@ -2287,15 +2287,31 @@ describe("host actions on the services board", () => {
   test("a running unit offers Restart, Update and Stop, and no Start", () => {
     const b = buttons(board({ status: "running" }));
     assert.deepEqual(Object.keys(b), ["restart", "update", "stop"]);
-    assert.ok(b.stop.includes(BUTTON_DANGER));
-    assert.ok(b.restart.includes(BUTTON_OFFER));
-    assert.ok(b.update.includes(BUTTON_OFFER));
   });
 
-  test("a stopped unit offers Start, Restart and Update, and no Stop", () => {
+  test("a stopped unit offers Start and Update only: no Stop, and no Restart", () => {
     const b = buttons(board({ status: "exited" }));
-    assert.deepEqual(Object.keys(b), ["start", "restart", "update"]);
-    assert.ok(b.start.includes(BUTTON_OFFER));
+    assert.deepEqual(Object.keys(b), ["start", "update"]);
+  });
+
+  test("Restart follows Stop: shown while the unit is up or unreadable, hidden when it is down", () => {
+    for (const status of ["running", "starting", "restarting", "unknown"]) {
+      const keys = Object.keys(buttons(board({ status })));
+      assert.ok(keys.includes("restart"), status);
+      assert.ok(keys.includes("stop"), status);
+    }
+    assert.deepEqual(Object.keys(buttons(board({ status: "unknown" }))), ["start", "restart", "update", "stop"]);
+  });
+
+  test("Stop is the only coloured action: Start, Restart and Update are compact secondary", () => {
+    for (const status of ["running", "exited", "unknown"]) {
+      const b = buttons(board({ status }));
+      for (const [action, tag] of Object.entries(b)) {
+        const expected = action === "stop" ? BUTTON_DANGER : BUTTON_SECONDARY_COMPACT;
+        assert.ok(tag.includes(`class="${expected}"`), `${status} ${action}: ${tag}`);
+        assert.ok(!tag.includes(BUTTON_OFFER), `${status} ${action}`);
+      }
+    }
   });
 
   test("stop, restart and update each confirm inline with their own copy; start does not", () => {
