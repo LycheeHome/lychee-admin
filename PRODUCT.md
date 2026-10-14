@@ -94,14 +94,16 @@ claim.
   retiring an attached site's declaration (`POST /sites/:hostname/detach`)
   and deleting its files (`POST /sites/:hostname/delete-files`); attaching a
   Next.js site to its repository (`POST /sites/:hostname/attach`); and a
-  services board (`GET /services`) whose two actions, Deploy a newer tag
+  services board (`GET /services`) whose Deploy a newer tag
   (`POST /services/:name/deploy`) and Prune a retired site declaration
-  (`POST /resources/:name/prune`), are each reused on a site's own page. A global header band (wordmark
+  (`POST /resources/:name/prune`) are each reused on a site's own page, and
+  whose host actions (`POST /services/:name/actions/:action`: start, stop,
+  restart and update, today only for the Palworld server) appear only there. A global header band (wordmark
   plus `sites`, `services` and `add site`) fronts every page; a site's detail
   page also carries a hostname dropdown on its breadcrumb for moving to another
   site without a round trip through the list. The list's cards carry a status
   pill for reverse-proxy sites.
-- **The services board reads, and requests two things.** It shows every
+- **The services board reads, and requests three kinds of thing.** It shows every
   declared long-lived process on the host — the reconciler, the services it
   deploys, the game server, Caddy and the sites tunnel — by joining a
   world-readable inventory the reconciler publishes each tick to live state.
@@ -112,7 +114,14 @@ claim.
   down. Attached sites appear there too, because the reconciler
   publishes them like any other resource, but their home is still the site's
   own page, which carries the same offer line and the same Deploy control so
-  the two can never disagree about what is on offer. This is the one surface that can show a deploy
+  the two can never disagree about what is on offer. The third is a host
+  action, on a unit whose inventory entry lists actions (today only the
+  Palworld server): start, stop, restart or update, each a root oneshot service
+  lychee-ops declares and lychee-admin may only start. Stop is the one action
+  that leaves the server down, so it is the only one in colour; stop, restart
+  and update confirm first, because each disconnects the people playing. The
+  same actions reach other apps on the host (swee) through a per-client socket,
+  never through the network listener. This is the one surface that can show a deploy
   wedged at its retry cap, a state that otherwise only appears in a file on the
   host.
 - **Development happens off-host**, on macOS, via `npm run dev:mock` against

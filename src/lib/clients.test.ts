@@ -111,6 +111,8 @@ describe("readClients", () => {
       JSON.stringify({ clients: {} }),
       JSON.stringify({ clients: [{ name: "../swee", grants: {} }] }),
       JSON.stringify({ clients: [{ name: "Swee", grants: {} }] }),
+      JSON.stringify({ clients: [{ name: "9bot", grants: {} }] }),
+      JSON.stringify({ clients: [{ name: "a".repeat(32), grants: {} }] }),
       JSON.stringify({ clients: [{ name: "swee", grants: { [PAL]: ["rm"] } }] }),
       JSON.stringify({ clients: [{ name: "swee", grants: { "../x": ["start"] } }] }),
       JSON.stringify({ clients: [{ name: "swee", grants: { [PAL]: "start" } }] }),
