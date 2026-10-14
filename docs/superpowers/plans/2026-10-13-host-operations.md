@@ -6,7 +6,7 @@
 
 **Architecture:** lychee-ops declares units, actions and clients once; a new `host_operations` role renders the action services, the sudo lines, the client groups and socket directories, and `clients.json`. lychee-admin gains one `hostOperations` module used by two routers kept apart — the board (network listener, Basic auth, cross-site check) and the `/v1` API (per-client Unix sockets lychee-admin creates, only). The contract (v1.2) carries the inventory's `actions` and agreement `A-OPS-1`.
 
-**Tech Stack:** TypeScript/Express + `tsx --test` (lychee-admin), Ansible (lychee-ops), JSON Schema + Python (lychee-contract), systemd socket activation.
+**Tech Stack:** TypeScript/Express + `tsx --test` (lychee-admin), Ansible (lychee-ops), JSON Schema + Python (lychee-contract), per-client Unix sockets created by the app.
 
 **Spec:** `docs/superpowers/specs/2026-10-13-host-operations-design.md` (this repo).
 

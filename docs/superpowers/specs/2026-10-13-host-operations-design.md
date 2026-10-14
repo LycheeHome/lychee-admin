@@ -199,10 +199,12 @@ inventory reader accepts `actions`; dev fakes run actions to `succeeded` or
 | 4 | lychee-admin | `hostOperations`, the socket API, the board buttons | Palworld actions usable |
 
 **After step 3 (operator's sudo where noted):** `sudo -l -U lychee-admin`
-lists today's commands plus exactly four action lines; `swee.sock` is
-`lychee-admin:swee-api 0660`; `swee` can connect and another user cannot.
+lists today's commands plus exactly four action lines; `/run/lychee-admin/clients/swee/` is
+`0750 lychee-admin:swee-api` and `getent group swee-api` lists only `swee`;
+the socket itself appears once step 4 is deployed.
 
-**After step 4:** a state request on `swee.sock` as `swee` returns `idle`; one
+**After step 4:** a state request on swee's `api.sock` as `swee` returns `idle`, and another user
+is refused at the directory; one
 restart from the board at a time the operator chooses (it disconnects
 players); the audit line names `operator`, the action's log holds its output,
 the state reads `succeeded`; a cross-origin POST gets 403.
@@ -226,7 +228,7 @@ the state reads `succeeded`; a cross-origin POST gets 403.
 ## Done when
 
 - Palworld can be started, stopped, restarted and updated from the board, and
-  through `swee.sock` by the `swee` user, and by nothing else.
+  through its socket by the `swee` user, and by nothing else.
 - Every action request is in the audit log with its caller.
 - No cross-site POST is accepted anywhere in lychee-admin.
 
