@@ -151,6 +151,13 @@ counting and status-file write keep their behaviour.
 1. **Target.** `git ls-remote` with the existing deploy key for
    `refs/heads/main`. The root-owned checkout in `src_dir` is no longer
    needed.
+   Before anything else, the role checks that the installed
+   `lychee-admin.service` runs from `<release root>/current/`. If it does not
+   (the host role has not yet switched the unit), the run is `blocked` with
+   gate code `host-pending` and nothing is pulled. App runs use the lychee-ops
+   checkout of the last full run, which already ran the host role, so this
+   should never fire; it exists so that a deploy can never pass a health
+   check against the old tree and be recorded as the new one.
 2. **Gate.** As A-CI-1 for `test`, and the same rule for a job named
    `release`: every job of that name in every completed run for the target
    concluded `success`; none means `missing`. The CI-pending/CI-failed
@@ -239,7 +246,7 @@ lychee-contract, a minor version:
   `release_tag_format: "sha-{commit}"`,
   `release_signer_workflow: ".github/workflows/ci.yml"`, and
   `paths.app_release_root: "/usr/local/lib/lychee-admin"`.
-- `gate_codes` gains `image-unavailable` and `provenance-failed`; A-GATE-1's
+- `gate_codes` gains `image-unavailable`, `provenance-failed` and `host-pending`; A-GATE-1's
   table gains their rows. `failed_step` is already a free string in
   `app-status.schema.json`, so the rollback wording needs no schema change.
 
