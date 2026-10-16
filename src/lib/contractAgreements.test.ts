@@ -40,6 +40,14 @@ describe("agreements with lychee-contract", () => {
     assert.equal(push.with.tags, `${c.release_image}:sha-\${{ github.sha }}`);
   });
 
+  // lychee installs what the release job signs, so a moved tag on any action
+  // there would change what the provenance check vouches for.
+  test("every action in ci.yml is pinned to a full commit SHA", () => {
+    const uses = [...fs.readFileSync(".github/workflows/ci.yml", "utf8").matchAll(/^\s*(?:- )?uses:\s*(\S+)/gm)].map((m) => m[1]);
+    assert.ok(uses.length > 0);
+    for (const ref of uses) assert.match(ref, /^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/, ref);
+  });
+
   test("config.ts reads no path from the environment", () => {
     const source = fs.readFileSync("src/config.ts", "utf8");
     for (const name of ["CADDYFILE_PATH", "TUNNEL_CONFIG_PATH", "SITES_ROOT"]) {
