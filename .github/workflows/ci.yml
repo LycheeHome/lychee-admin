@@ -46,3 +46,64 @@ jobs:
       - run: pip install -r .contract/requirements.txt
       - run: npm run test:contract
       - run: npm run build
+
+  # Name is load-bearing (agreement A-CI-2): lychee-ops looks for an Actions
+  # JOB named exactly "release" on the target commit, and finds the image by
+  # the sha-<commit> tag this job pushes. Renaming the key, or giving it a
+  # `name:` override, which replaces the job name the API reports, silently
+  # stops every deploy. It runs only on pushes to main and only after `test`
+  # passes, so no pull request ever gets a token that can write packages.
+  release:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - run: npm ci
+      - run: npm run build
+      - run: scripts/assemble-release.sh release
+
+      # Older glibc than the runner's, because the host's is older too.
+      - run: >-
+          docker run --rm
+          -v "$PWD/release:/app:ro"
+          -v "$PWD/scripts/smoke-release.cjs:/smoke.cjs:ro"
+          node:22-bookworm-slim node /smoke.cjs /app
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: push
+        uses: docker/build-push-action@v6
+        with:
+          file: release.Dockerfile
+          context: .
+          platforms: linux/amd64
+          push: true
+          # buildx's own unsigned provenance would turn the tag into an image
+          # index with an extra attestation manifest. The signed provenance
+          # comes from attest-build-provenance below, and the host expects a
+          # single linux/amd64 manifest.
+          provenance: false
+          sbom: false
+          tags: ghcr.io/lycheehome/lychee-admin:sha-${{ github.sha }}
+
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ghcr.io/lycheehome/lychee-admin
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true

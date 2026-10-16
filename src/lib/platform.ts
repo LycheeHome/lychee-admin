@@ -33,6 +33,8 @@ export const PATHS = {
   caddyfile: "/etc/caddy/Caddyfile",
   tunnelConfig: "/etc/cloudflared/sites-config.yml",
   sitesRoot: "/var/www",
+  // The app never reads this: it exists so PATHS stays the contract's paths.
+  appReleaseRoot: "/usr/local/lib/lychee-admin",
 } as const;
 
 export const HOST_ACTIONS = ["start", "stop", "restart", "update"] as const;
