@@ -94,6 +94,12 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
+          # buildx's own unsigned provenance would turn the tag into an image
+          # index with an extra attestation manifest. The signed provenance
+          # comes from attest-build-provenance below, and the host expects a
+          # single linux/amd64 manifest.
+          provenance: false
+          sbom: false
           tags: ghcr.io/lycheehome/lychee-admin:sha-${{ github.sha }}
 
       - uses: actions/attest-build-provenance@v4

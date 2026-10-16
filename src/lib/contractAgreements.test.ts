@@ -34,6 +34,10 @@ describe("agreements with lychee-contract", () => {
     assert.deepEqual(job.permissions, { contents: "read", packages: "write", "id-token": "write", attestations: "write" });
     assert.deepEqual(wf.permissions, { contents: "read" });
     assert.ok(JSON.stringify(job.steps).includes(c.release_image));
+    const push = job.steps.find((step: { id?: string }) => step.id === "push");
+    assert.equal(push.with.provenance, false);
+    assert.equal(push.with.platforms, "linux/amd64");
+    assert.equal(push.with.tags, `${c.release_image}:sha-\${{ github.sha }}`);
   });
 
   test("config.ts reads no path from the environment", () => {
