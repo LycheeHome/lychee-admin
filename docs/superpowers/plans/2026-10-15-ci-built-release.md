@@ -19,7 +19,7 @@
 - Release root `/usr/local/lib/lychee-admin`, `root:root 0755`; `releases/<sha>/` and `current -> releases/<sha>` (relative link target). Trees `chown -R root:root`, `chmod -R u=rwX,go=rX`.
 - Swap is `symlink current.tmp` + `rename` over `current` (`mv -T` semantics). Never `ln -sfn`, never unlink-then-link.
 - Keep 3 releases; never prune the target of `current`, the release rolled back from, or `legacy`.
-- Markers: `/var/lib/lychee-admin/.deployed-sha`, `/var/lib/lychee-admin/.failed-sha`. Retry cap 3, unchanged.
+- Markers: `/var/lib/lychee-ops/lychee-admin/.deployed-sha`, `/var/lib/lychee-ops/lychee-admin/.failed-sha`, in a directory the role creates `root:root 0700`; each is read only if a non-following `stat` shows a regular file owned by uid 0. Retry cap 3, unchanged. The install's unit guard reads the loaded unit (`systemctl show lychee-admin -p ExecStart -p NeedDaemonReload`), not the unit file.
 - `gh attestation verify` flags, exactly: `oci://ghcr.io/lycheehome/lychee-admin@sha256:<digest> --bundle-from-oci --repo LycheeHome/lychee-admin --signer-workflow LycheeHome/lychee-admin/.github/workflows/ci.yml --source-ref refs/heads/main --source-digest <sha> --deny-self-hosted-runners`. Env for `gh`: `GH_TOKEN` (when `github_api_token` is set), `DOCKER_CONFIG=/root/.docker`, `XDG_CACHE_HOME`/`XDG_CONFIG_HOME`/`XDG_STATE_HOME` under `/var/lib/lychee-ops/gh`.
 - Health check unchanged: `GET http://<HOST>:<PORT>/` answers `401`, 5 tries, 2 s apart.
 - `failed_step` wording, exactly: `health check; rolled back to <prev>`, `health check; rollback to <prev> also failed`, `health check; no previous release to roll back to`, `unpack: <reason>`; `<prev>` is the first 8 hex of the previous sha, or `legacy`.

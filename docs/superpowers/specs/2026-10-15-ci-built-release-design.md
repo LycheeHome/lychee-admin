@@ -116,8 +116,19 @@ the app user nor `webdeploy` can write. `/opt/lychee-admin` keeps `.env` (still
 hand-placed; `EnvironmentFile=` and A-ENV-1..4 unchanged).
 
 `.deployed-sha` and `.failed-sha` move from `/opt/lychee-admin/` to
-`/var/lib/lychee-admin/`, beside `deploy-status.json`, root-written as today.
-The recovery instruction becomes `sudo rm /var/lib/lychee-admin/.failed-sha`.
+`/var/lib/lychee-ops/lychee-admin/`, a directory the role creates
+`root:root 0700` (lychee-ops' `app_marker_dir`). Not beside
+`deploy-status.json`: `/var/lib/lychee-admin` is owned by the app user and is
+a `ReadWritePaths` entry of its service, so the app could unlink and replace a
+root-written marker there, forging `.deployed-sha` to skip a deploy, or making
+it a symlink to a root-only file (`.deployed-sha -> /root/.ssh/id_lychee_admin`)
+that root's read would follow and copy into `installed_commit` of the
+world-readable status file. As a second lock, each marker is `stat`ed without
+following links before it is read, and anything that is not a regular file
+owned by uid 0 is treated as absent, with a warning in the run's output.
+`deploy-status.json` stays in `/var/lib/lychee-admin`, where the app reads it.
+The recovery instruction becomes
+`sudo rm /var/lib/lychee-ops/lychee-admin/.failed-sha`.
 
 ### Unit
 
@@ -151,10 +162,15 @@ counting and status-file write keep their behaviour.
 1. **Target.** `git ls-remote` with the existing deploy key for
    `refs/heads/main`. The root-owned checkout in `src_dir` is no longer
    needed.
-   Before anything else, the role checks that the installed
-   `lychee-admin.service` runs from `<release root>/current/`. If it does not
-   (the host role has not yet switched the unit), the run is `blocked` with
-   gate code `host-pending` and nothing is pulled. App runs use the lychee-ops
+   Before anything else, the program checks that the unit **systemd has
+   loaded** runs from `<release root>/current/`: `systemctl show lychee-admin
+   -p ExecStart -p NeedDaemonReload`, whose `ExecStart` must name
+   `<release root>/current/` and whose `NeedDaemonReload` must be `no`. The
+   file on disk is not enough: a full run that dies between installing the new
+   unit and its daemon-reload leaves the new file beside the old loaded
+   definition, and `systemctl restart` would run the old one. If the loaded
+   unit does not qualify, or `systemctl show` fails, the run is `blocked` with
+   gate code `host-pending`, a `gate` naming which, and nothing is pulled. App runs use the lychee-ops
    checkout of the last full run, which already ran the host role, so this
    should never fire; it exists so that a deploy can never pass a health
    check against the old tree and be recorded as the new one.
@@ -187,7 +203,10 @@ counting and status-file write keep their behaviour.
    `releases/<sha>`. The container is removed in an `always:` so a failure
    leaves none behind.
 6. **Switch.** Record the release `current` points at now as `previous`
-   (from `readlink`; none on a fresh host). `ln -s releases/<sha>
+   (from `readlink`; none on a fresh host). If `current` already names the
+   target (a run killed after its swap and before its health check),
+   `previous` is the newest other release by the ordering prune uses, else
+   `legacy` if it exists. `ln -s releases/<sha>
    current.tmp` then `mv -T current.tmp current`. Restart the service.
 7. **Health check.** Today's: `GET http://<HOST>:<PORT>/` answers `401`,
    five tries two seconds apart, `HOST`/`PORT` from the existing `.env` parse.
@@ -204,8 +223,10 @@ counting and status-file write keep their behaviour.
 10. **Prune.** Keep the newest three entries in `releases/` by modification
     time, never removing the target of `current` or the release just rolled
     back from. Pruning failures are logged and never fail the run.
-11. Remove the pulled image (`docker image rm` by digest) so pulls do not
-    accumulate; failure here is ignored.
+11. Remove the pulled image (`docker image rm` with both the `sha-<sha>` tag
+    and the digest reference, in one call: removing the digest reference alone
+    leaves the tag holding the image) so pulls do not accumulate; failure here
+    is ignored.
 
 The role runs no `npm`, and no longer needs `build_dir`, `src_dir` or
 `/var/lib/lychee-ops/.npm`.
