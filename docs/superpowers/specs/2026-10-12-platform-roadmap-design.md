@@ -116,6 +116,12 @@ check one written contract.**
   host's architecture with any native modules.
 - **Done when:** no `npm ci` or build runs on lychee, so no dependency
   lifecycle script runs on the host.
+- **Done 2026-10-16:** spec `2026-10-15-ci-built-release-design.md`. The
+  image is an unpacked, never-run OCI image on ghcr; bcrypt ships as its
+  bundled N-API prebuild with no install script anywhere. lychee verifies the
+  build-provenance attestation, installs into a root-owned release directory
+  with a `current` symlink and rolls back on a failed health check. Cleanup of
+  the old in-place tree follows.
 
 ## Order and dependencies
 
