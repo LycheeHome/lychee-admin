@@ -1467,7 +1467,7 @@ export function renderServicesPage(
 
   const unavailable = `
     <p id="inventory-unavailable" class="m-0 max-w-[62ch] text-[0.9rem] leading-relaxed text-stone-300 border border-stone-700 rounded-md px-4 py-3">
-      There are no services to show: the inventory could not be read, or it declares none this page recognises. Without it there is no list of what should be running and nothing to check live state against. It is published by the reconciler on each tick; if it has never run, or the file was removed, this page stays empty.
+      There are no ${GROUP_NONE[group]} to show: the inventory could not be read, or it declares none this page recognises. Without it there is no list of what should be running and nothing to check live state against. It is published by the reconciler on each tick; if it has never run, or the file was removed, this page stays empty.
     </p>`;
 
   // An empty board, readable or not, is still today's explanation on every

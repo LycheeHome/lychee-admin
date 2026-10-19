@@ -1765,12 +1765,26 @@ describe("one board page per group", () => {
     assert.ok(html.includes("Inventory written"));
   });
 
+  test("the services page says so plainly too", () => {
+    const html = renderServicesPage({ ...BOARD, groups: [BOARD.groups[0]] }, NOW, new Set(), "lychee.land", {}, "service");
+    assert.match(html, /id="group-empty"[^>]*>\s*The inventory lists no services\.\s*</);
+  });
+
   test("an unreadable inventory gets today's explanation on every page, not the empty sentence", () => {
     for (const group of ["service", "reconciler", "infrastructure"] as const) {
       const html = renderServicesPage({ ...BOARD, groups: [], inventoryAvailable: false }, NOW, new Set(), "lychee.land", {}, group);
       assert.ok(html.includes('id="inventory-unavailable"'), group);
       assert.ok(!html.includes('id="group-empty"'), group);
     }
+  });
+
+  test("the explanation names the page's own group", () => {
+    const explain = (group: "service" | "reconciler" | "infrastructure") =>
+      renderServicesPage({ ...BOARD, groups: [], inventoryAvailable: false }, NOW, new Set(), "lychee.land", {}, group);
+    assert.match(explain("service"), /There are no services to show: the inventory could not be read/);
+    assert.match(explain("reconciler"), /There are no reconciler units to show: the inventory could not be read/);
+    assert.match(explain("infrastructure"), /There are no infrastructure units to show: the inventory could not be read/);
+    assert.doesNotMatch(explain("reconciler"), /no services to show/);
   });
 });
 
