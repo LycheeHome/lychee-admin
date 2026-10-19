@@ -674,7 +674,7 @@ function renderDangerZone(): string {
       <section class="border border-red-900/60 bg-red-950/20 rounded-[10px] p-5 mt-4 flex items-center justify-between gap-4 flex-wrap">
         <div class="min-w-0">
           <h3 class="${CARD_LABEL_BASE} text-red-300 m-0 mb-1.5">Danger</h3>
-          <p class="text-stone-400 text-[0.8rem] leading-snug m-0">Removing takes the site out of the Caddyfile and the tunnel route, reloads Caddy, then restarts the sites tunnel. Your DNS record and files stay unless you ask otherwise.</p>
+          <p class="text-stone-400 text-[0.8rem] leading-snug m-0 max-w-[70ch]">Removing takes the site out of the Caddyfile and the tunnel route, reloads Caddy, then restarts the sites tunnel. Your DNS record and files stay unless you ask otherwise.</p>
         </div>
         <button type="button" class="${BUTTON_DANGER} shrink-0" data-open-dialog="confirm-remove-dialog">${icon("trash")}Remove site</button>
       </section>`;
@@ -753,7 +753,21 @@ function fileBlock(file: { name: string; content: string }, index: number): stri
 }
 
 /** `title` is markup: machine facts inside it are wrapped with mono() by the caller. */
-function runbookStep(n: number, done: boolean, title: string, body: string): string {
+function runbookStep(n: number, done: boolean, title: string, body: string, fold?: { extra?: string }): string {
+  if (done && fold) {
+    // A finished step collapses to its summary line; the body stays in the page, one click away.
+    const extra = fold.extra ? ` <span class="font-mono text-[0.72rem] font-normal text-stone-400">· ${escapeHtml(fold.extra)}</span>` : "";
+    return `<details class="group">
+          <summary class="flex gap-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden rounded-md ${FOCUS_RING}">
+            <span class="${STEP_DONE}">${icon("check")}<span class="sr-only">Step ${n}, done</span></span>
+            <p class="text-stone-50 font-semibold text-[0.9rem] leading-snug m-0 flex-1 min-w-0">${title} <span class="font-mono text-[0.72rem] font-normal text-stone-400">done</span>${extra}</p>
+            <span class="text-stone-500 shrink-0 mt-0.5">${icon("chevronDown")}</span>
+          </summary>
+          <div class="pl-[1.95rem] pt-2 flex flex-col gap-2">
+            ${body}
+          </div>
+        </details>`;
+  }
   return `<div class="flex gap-3">
           <span class="${done ? STEP_DONE : STEP_NUMBER}">${done ? `${icon("check")}<span class="sr-only">Step ${n}, done</span>` : n}</span>
           <div class="flex-1 min-w-0 flex flex-col gap-2">
@@ -994,6 +1008,7 @@ function renderRepositoryCard(site: Site, opts: SiteDetailOptions, resourceName:
 
   const imageFound = Boolean(resource?.available);
   const files = (opts.scaffoldFiles ?? []).map(fileBlock).join("\n            ");
+  const scaffoldNames = (opts.scaffoldFiles ?? []).map((f) => f.name.split("/").pop()).join(", ");
   const attached = resource
     ? `<p class="font-mono text-[0.8rem] text-stone-50 m-0 break-all">${escapeHtml(resource.repo ? `${IMAGE_PREFIX}${resource.repo}` : resource.name)} <span class="text-stone-400">· ${escapeHtml(resource.name)}.yml</span></p>${
         canChangeRepository(resource) ? `\n            ${changeRepositoryForm(site, resource)}` : ""
@@ -1006,9 +1021,9 @@ function renderRepositoryCard(site: Site, opts: SiteDetailOptions, resourceName:
         <p class="${BODY} mb-4">Steps 1 and 2 happen in GitHub; 3 and 4 happen here. Attaching before the first tag is pushed is fine: nothing is offered to deploy until the image exists.</p>
         <div class="flex flex-col gap-5">
           ${runbookStep(1, imageFound, "Commit these three files beside your app", `<p class="${BODY}">At the repository's root, next to ${mono("package.json")}.</p>
-            ${files}`)}
+            ${files}`, { extra: scaffoldNames })}
           ${runbookStep(2, imageFound, `Create the repository in ${mono("LycheeHome")}, then push tag ${mono("v0.1.0")}`, `<p class="${BODY}">It has to live in the ${mono("LycheeHome")} org: the image is published as ${mono(`${IMAGE_PREFIX}<repo>`)}, the only registry path the reconciler accepts. The tag has GitHub's own runners build and push ${mono(`${IMAGE_PREFIX}<repo>:0.1.0`)}. Nothing runs on lychee yet.</p>
-            ${commandBlock("cmd-tag", "git tag v0.1.0 && git push origin v0.1.0", "Copy tag command")}`)}
+            ${commandBlock("cmd-tag", "git tag v0.1.0 && git push origin v0.1.0", "Copy tag command")}`, {})}
           ${runbookStep(3, resource !== undefined, "Attach the repository", attached)}
           ${runbookStep(4, false, "Deploy", firstDeploy(resource))}
         </div>
@@ -1130,6 +1145,11 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       </div>`
     : "";
 
+  const manualSteps = renderManualSteps(site, opts);
+  const repositoryCard = resourceName && opts.scaffold ? renderRepositoryCard(site, opts, resourceName) : "";
+  // DNS is live setup until a site is attached; after that the repository card is the work in hand.
+  const attached = opts.resource !== undefined;
+
   return layout(
     site.hostname,
     `
@@ -1137,8 +1157,9 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       ${renderDetailHeader(site, opts)}
 
       ${renderRequestPath(site, opts)}
-      ${renderManualSteps(site, opts)}
-      ${resourceName && opts.scaffold ? renderRepositoryCard(site, opts, resourceName) : ""}
+      ${attached ? `${repositoryCard}
+      ${manualSteps}` : `${manualSteps}
+      ${repositoryCard}`}
 
       ${renderDangerZone()}
     </div>

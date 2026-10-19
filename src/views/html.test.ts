@@ -2090,6 +2090,29 @@ describe("renderSiteDetail from a repository", () => {
     assert.match(c, /git tag v0\.1\.0 &amp;&amp; git push origin v0\.1\.0/);
   });
 
+  test("done steps 1 and 2 fold at rest, with the file names in step 1's summary", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...BASE,
+      resource: { ...RESOURCE, available: "0.1.0", result: "awaiting-image" },
+      status: { kind: "awaiting-image" },
+    });
+    const c = card(html);
+    assert.equal((c.match(/<details/g) ?? []).length, 2);
+    assert.doesNotMatch(c, /<details[^>]*\sopen/);
+    const summary = c.match(/<summary[\s\S]*?<\/summary>/)![0];
+    assert.ok(summary.includes("Dockerfile, .dockerignore, release.yml"));
+    for (const file of FILES) assert.ok(c.includes(file.content.trimEnd().replace(/'/g, "'")), `${file.name} not in full`);
+    const outside = c.replace(/<details[\s\S]*?<\/details>/g, "");
+    assert.ok(outside.includes("app-lychee-land.yml"), "step 3's attached line stays visible");
+  });
+
+  test("steps not yet done never fold", () => {
+    const notAttached = card(renderSiteDetail(NEXT_SITE, { ...BASE, status: { kind: "container", state: "not-created" } }));
+    assert.doesNotMatch(notAttached, /<details/);
+    const attached = card(renderSiteDetail(NEXT_SITE, { ...BASE, resource: RESOURCE, status: { kind: "awaiting-image" } }));
+    assert.doesNotMatch(attached, /<details/);
+  });
+
   test("not attached: the attach control fixes the ghcr prefix beside the input and is the page's ember action", () => {
     const html = renderSiteDetail(NEXT_SITE, { ...BASE, status: { kind: "container", state: "not-created" } });
     const c = card(html);
@@ -2409,6 +2432,66 @@ describe("renderSiteDetail from a repository", () => {
     });
     assert.match(html, /docker compose -p app-lychee-land logs/);
     assert.doesNotMatch(html, /in \/var\/www\/app\.lychee\.land\//);
+  });
+});
+
+describe("card order", () => {
+  const order = (html: string, ...labels: string[]) => labels.map((l) => html.indexOf(`>${l}</h3>`));
+  const ascending = (xs: number[]) => xs.every((x, i) => x >= 0 && (i === 0 || xs[i - 1] < x));
+
+  test("an attached site puts Manual steps after the repository card", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...BASE, resource: RESOURCE, status: { kind: "awaiting-image" } });
+    assert.ok(ascending(order(html, "Request path", "From a repository", "Manual steps", "Danger")));
+  });
+
+  test("static, plain-proxy and unattached sites keep Manual steps second", () => {
+    const static_ = renderSiteDetail(STATIC_SITE, OPTS);
+    assert.ok(ascending(order(static_, "Request path", "Manual steps", "Danger")));
+    const proxy = renderSiteDetail(PROXY_SITE, OPTS);
+    assert.ok(ascending(order(proxy, "Request path", "Manual steps", "Danger")));
+    const next = renderSiteDetail(NEXT_SITE, { ...BASE, status: { kind: "container", state: "not-created" } });
+    assert.ok(ascending(order(next, "Request path", "Manual steps", "From a repository", "Danger")));
+  });
+
+  test("a detached site keeps Manual steps before the repository card", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...BASE, detached: true, status: { kind: "container", state: "not-created" } });
+    assert.ok(ascending(order(html, "Request path", "Manual steps", "From a repository", "Danger")));
+  });
+
+  test("the Danger paragraph is held to a reading measure", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    assert.match(html.split(">Danger</h3>")[1], /^\s*<p class="[^"]*max-w-\[70ch\]/);
+  });
+
+  test("no id repeats on a detail page", () => {
+    const EXITED = { status: "exited", since: null } as const;
+    const pages = [
+      renderSiteDetail(STATIC_SITE, OPTS),
+      renderSiteDetail(PROXY_SITE, {
+        ...OPTS,
+        status: { kind: "tcp", responding: false },
+        unitStates: { "cloudflared-sites.service": EXITED, "caddy.service": EXITED },
+      }),
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, result: "failed", target: "0.1.0", available: "0.1.1", failedStep: "Start the container: exit 1" },
+        status: { kind: "failed" },
+      }),
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, version: "0.2.0", result: "deployed" },
+        status: { kind: "container", state: "exited" },
+      }),
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, available: "0.1.0", result: "awaiting-image" },
+        status: { kind: "awaiting-image" },
+      }),
+    ];
+    for (const html of pages) {
+      const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
+      assert.equal(ids.length, new Set(ids).size, `duplicate ids: ${ids.filter((id, i) => ids.indexOf(id) !== i)}`);
+    }
   });
 });
 
