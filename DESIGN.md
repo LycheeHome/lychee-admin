@@ -737,10 +737,13 @@ Two tiers, each scoped to what it navigates.
 
 **The header band** is a 1080px centred band with no background and no bottom
 rule, aligned to the same container as the content below it: the
-`lychee` `admin` wordmark as a home link at Display 1.5rem, then flat items —
-`sites`, `services` and `add site` — at 0.85rem mono, Smoke going Chalk on
-hover. The two destinations sit adjacent and the single action goes last; that
-ordering is a judgement rather than a rule, and is recorded in `shell.ts`.
+`lychee` `admin` wordmark as a home link at Display 1.5rem, then five flat
+items — `sites`, `services`, `reconciler`, `infrastructure` and `add site` — at
+0.85rem mono, Smoke going Chalk on hover. The four destinations sit adjacent and
+the single action goes last; that ordering is a judgement rather than a rule,
+and is recorded in `shell.ts`. `reconciler` and `infrastructure` are the
+services board's other two groups, each its own page since the board was split,
+and so peers of `services` rather than tabs beneath it.
 `aria-current="page"` is both the accessibility signal and the
 styling hook (the arbitrary `aria-[current=page]:` variant, since Tailwind ships
 no built-in one): Chalk text on a Hairline fill with a 2px Ember Edge left rule
@@ -840,7 +843,8 @@ state.
 
 ### Service Row
 
-The row shape of the services board (`GET /services`), and the one place a
+The row shape of the services board (`GET /services`, `/reconciler` and
+`/infrastructure`), and the one place a
 status pill leads. A fixed-width left column holds the pill; the right column
 holds the unit's name on one line and its facts beneath, as prose rather than
 columns — `v0.2.0 · blocked · 3 attempts`, then the reconciler's own gate string
@@ -852,9 +856,14 @@ reconciler deploys. A table of those rows is mostly empty cells arguing it
 should have been a list, and the longest and most important content — the gate
 string naming a recovery command — breaks a row grid wherever it lands.
 
-Rows group under uppercase Micro-labels (reconciler, services, infrastructure)
-with no card around them: the groups are a reading order, not three independent
-objects. Age is always rendered as an age and never as a timestamp, with no
+Each group is its own page, named by the page's eyebrow, so the board carries no
+Micro-label group headings and no card around its rows. The rows once grouped
+under those headings on one page, as a reading order rather than three
+independent objects; when the board split into three peer pages (chosen from a
+rendered comparison on 2026-10-19), the eyebrow came to name the group, and a
+heading beneath it would only have repeated it. Each page repeats the inventory's
+freshness line, and a page whose group the inventory lists nothing in says so in
+one plain sentence. Age is always rendered as an age and never as a timestamp, with no
 threshold at which it changes appearance — "written 3 hours ago" reads as wrong
 on its own, and a cutover would be a number nobody has watched long enough to
 choose.
