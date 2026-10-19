@@ -406,7 +406,7 @@ function hopFixes(site: Site, opts: SiteDetailOptions): HopFix[] {
   }
 
   const status = opts.status;
-  if (status?.kind === "failed" && opts.resource) {
+  if (status?.kind === "failed" && opts.resource && !opts.resource.version) {
     // Forced: the status is the page's verdict, and the resource's own `result`
     // can have moved on (a newer run) while the pill still reads failed.
     fixes.push({ hop: "your app", body: failureLine({ ...opts.resource, result: "failed" }) });
@@ -513,7 +513,7 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
         ${
           fixes.length
             ? `<div class="h-px bg-stone-700 my-4"></div>
-        <p class="${HOP_LABEL} mb-3">What to check</p>
+        <h4 class="${HOP_LABEL} !mb-3">What to check</h4>
         <div class="flex flex-col gap-4">
           ${fixes
             .map(
@@ -760,8 +760,8 @@ function runbookStep(n: number, done: boolean, title: string, body: string, fold
     return `<details class="group">
           <summary class="flex gap-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden rounded-md ${FOCUS_RING}">
             <span class="${STEP_DONE}">${icon("check")}<span class="sr-only">Step ${n}, done</span></span>
-            <p class="text-stone-50 font-semibold text-[0.9rem] leading-snug m-0 flex-1 min-w-0">${title} <span class="font-mono text-[0.72rem] font-normal text-stone-400">done</span>${extra}</p>
-            <span class="text-stone-500 shrink-0 mt-0.5">${icon("chevronDown")}</span>
+            <span class="block text-stone-50 font-semibold text-[0.9rem] leading-snug m-0 flex-1 min-w-0">${title} <span class="font-mono text-[0.72rem] font-normal text-stone-400">done</span>${extra}</span>
+            <span class="text-stone-500 shrink-0 mt-0.5 group-open:rotate-180 motion-safe:transition-transform">${icon("chevronDown")}</span>
           </summary>
           <div class="pl-[1.95rem] pt-2 flex flex-col gap-2">
             ${body}

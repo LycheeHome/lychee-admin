@@ -2694,3 +2694,14 @@ describe("host actions on the services board", () => {
     assert.ok(html.includes("&lt;script&gt;x&lt;/script&gt;"));
   });
 });
+
+describe("failed redeploy of an installed site", () => {
+  test("renders the reconcile-log command once, in the repository card only", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...BASE,
+      resource: { ...RESOURCE, version: "0.1.0", target: "0.2.0", result: "failed" },
+      status: { kind: "failed" },
+    });
+    assert.equal(html.match(/id="cmd-reconcile-log"/g)?.length, 1);
+  });
+});
