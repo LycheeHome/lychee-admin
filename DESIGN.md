@@ -263,13 +263,11 @@ carry a verdict.
 - **Ember** (`rose-400`): The only chromatic voice. Primary button fills, every
   focus ring in the app, the numerals beside manual steps, the checked
   reverse-proxy radio, and the "back to sites" link on the not-found page.
-- **Ember Light** (`rose-300`): Ember's hover state on filled buttons, and the
-  text color of the `proxy` type pill.
+- **Ember Light** (`rose-300`): Ember's hover state on filled buttons.
 - **Ember Edge** (`rose-800`): Structural Ember — the border of the checked
   reverse-proxy option, the 2px left rule marking the port/framework branch of
   the add form, and the 2px left rule on the current header nav item.
-- **Ember Deep** (`rose-950`): The ground beneath Ember text — the `proxy` pill,
-  the checked reverse-proxy option's fill (at 50%), and every non-error flash
+- **Ember Deep** (`rose-950`): The ground beneath Ember text — the checked reverse-proxy option's fill (at 50%), and every non-error flash
   banner (at 60%).
 
 ### Neutral
@@ -280,10 +278,10 @@ carry a verdict.
 - **Hearth Lift** (`stone-800`): Cards, dialogs, and the copy button's rest
   state. One tonal step up from the page, and the only surface color.
 - **Hairline** (`stone-700`): Borders on cards, dialogs, inputs and code blocks;
-  the divider rule inside a card (`1px`); the fill of the `static` type pill and
-  the neutral status pill; the hover fill of secondary buttons.
-- **Hairline Strong** (`stone-600`): The secondary button's fill, the `static`
-  pill's edge, and the arrows between routing hops. It carries Chalk at 7.32:1
+  the divider rule inside a card (`1px`); the fill of the neutral status pill;
+  the hover fill of secondary buttons.
+- **Hairline Strong** (`stone-600`): The secondary button's fill and the arrows
+  between routing hops. It carries Chalk at 7.32:1
   as a surface, having been unusable as a 1px line against Hearth (2.29:1) or
   Hearth Lift (1.99:1) — the same token reads completely differently depending
   on how much of it there is.
@@ -326,8 +324,7 @@ background for prose, or as an accent.
 
 **The Ember Is Interactive Rule.** Ember and its family mark what you can act
 on — buttons, focus rings, the checked option, step numerals, a card's hover
-edge — plus the one label that means "something else runs here" (the `proxy`
-pill). It never colors a heading, a body sentence, or a value you can only
+edge. It never colors a heading, a body sentence, or a value you can only
 read. On any given screen it covers well under 10% of the pixels, and that
 rarity is what makes a primary button unmissable.
 
@@ -466,13 +463,10 @@ caps at the 760px reading column and stays one column, because everything on it
 is either a sentence to read or a command to copy, and neither improves at
 1200px. Add-site takes the frame too — see The Frame-And-Column Rule below.
 
-A list row has two halves: the hostname and its mono address on the left, both
-pills on the right. The right half is a two-column grid, not a flex run — the
-status column reserves a fixed `9rem` whether or not the row has a status to put
-in it, sized to the longest word in the vocabulary (`not responding`) plus its
-dot. Without that reservation a static site's type pill slides into the position
-a reverse-proxy row's status pill holds, and neither column lines up down the
-page; the alignment is the entire reason the list is rows and not cards.
+A list row has two halves: the hostname and its mono address on the left, the
+status pill alone on the right, right-aligned so the pills share an edge down the
+page; the alignment is the entire reason the list is rows and not cards. A static
+site has no status and so nothing on the right.
 
 The page ground has 24px of horizontal padding and a 64px-tall header band
 (32px of content height under 16px top and bottom padding) holding the wordmark
@@ -561,7 +555,7 @@ state, the Danger panel), **6px** for a control or a container of text you act
 on (button, input, select, command block, copy button, inline error, a list
 row's hover shape), **4px** for
 inline code inside a sentence, and **fully round** for anything stating a single
-word or numeral (type pills, status pills, the 1.2rem step numerals).
+word or numeral (status pills, the 1.2rem step numerals).
 
 Borders are `1px` everywhere. The one deliberate exception is the add-site form's
 conditional branch — the port, framework, and healthcheck fields sit behind a
@@ -678,8 +672,8 @@ exceptions to it.
   padding pulled back out with a matching negative margin so its hover ground
   reaches the content column's edges. Left: the hostname (Title face, shared
   suffix in Smoke) over its address in Data — a bare path, or `localhost:<port>`
-  with the framework after a middot. Right: the type pill, then the status pill
-  inside its reserved `9rem` column. A `1px` Hairline separates rows, dropped on
+  with the framework after a middot. Right: the status pill alone, right-aligned,
+  with no reserved column. A `1px` Hairline separates rows, dropped on
   the last. Hover fills the row with Hearth Lift over a 150ms color transition,
   gated behind `motion-safe:`.
 - **Empty state behavior:** Replaces the row list, and takes the section
@@ -719,10 +713,9 @@ exceptions to it.
 
 ### Pills
 
-- **Type pills** (`static` / `proxy`): 0.7rem mono, uppercase, tracking 0.06em,
-  4px × 10px, fully round. `static` is Chalk on Hairline with a Hairline Strong
-  edge; `proxy` is Ember Light on Ember Deep with no visible edge — the state
-  that means "a process runs here" is the one that carries color.
+- **There is no type pill.** The type is already in each row's address and in
+  the detail page's last hop, and a coloured type label competed with the status
+  pills beside it.
 - **Status pills:** 0.6875rem mono, uppercase, tracking 0.06em, prefixed with a
   decorative `●` that is `aria-hidden` so it never joins the accessible name,
   fully round, and colored by tone only: Clear on Clear Deep, Scorch on Scorch
@@ -746,9 +739,8 @@ services board's other two groups, each its own page since the board was split,
 and so peers of `services` rather than tabs beneath it.
 `aria-current="page"` is both the accessibility signal and the
 styling hook (the arbitrary `aria-[current=page]:` variant, since Tailwind ships
-no built-in one): Chalk text on a Hairline fill with a 2px Ember Edge left rule
-— deliberately not the `proxy` pill's Ember fill, so a nav item and a type pill
-never look alike. A header item's destination never changes with location, so
+no built-in one): Chalk text on a Hairline fill with a 2px Ember Edge left rule.
+A header item's destination never changes with location, so
 `/sites/:hostname` marks no item current; the breadcrumb carries the
 location instead.
 
