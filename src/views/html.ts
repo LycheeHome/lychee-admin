@@ -362,6 +362,70 @@ function renderHop(hop: Hop): string {
           </div>`;
 }
 
+interface HopFix {
+  hop: "tunnel" | "caddy" | "your app";
+  /** Already-escaped HTML. */
+  body: string;
+}
+
+/**
+ * What to check under the chain: one entry for every hop that reads a bad
+ * status, in request order, so a red hop is never left without its fix and the
+ * failure is stated once here rather than inside a setup step that appears and
+ * disappears with state. The tunnel and Caddy entries read their unit's tone
+ * (a unit missing from `unitStates` is `unknown`, which is neutral, and with
+ * `unitStates` absent there are no unit entries at all). The app entry is the
+ * first that applies: a failed deploy (the reason and the reconciler's journal),
+ * a broken container (its logs), or a plain proxy nobody answered.
+ *
+ * "not-created" needs no special case: it is the neutral tone, so
+ * `tone === "bad"` already excludes it, since a container that never existed
+ * has no logs and Deploy is where you learn how to start one. Only an attached
+ * resource has a container to read: the reconciler runs it as a compose
+ * project named after the resource, so its logs are reached by project name
+ * from anywhere, never from a /var/www directory.
+ */
+function hopFixes(site: Site, opts: SiteDetailOptions): HopFix[] {
+  const fixes: HopFix[] = [];
+  const unitIsBad = (unit: string): boolean =>
+    opts.unitStates !== undefined && rowLabels(opts.unitStates[unit]?.status ?? "unknown").tone === "bad";
+
+  if (unitIsBad("cloudflared-sites.service")) {
+    fixes.push({
+      hop: "tunnel",
+      body: `<p class="${STEP_TEXT} !mb-0">The sites tunnel isn't running, so no request reaches Caddy. Its journal says why:</p>
+          ${commandBlock("cmd-fix-tunnel", "journalctl -u cloudflared-sites -n 50", "Copy journal command")}`,
+    });
+  }
+  if (unitIsBad("caddy.service")) {
+    fixes.push({
+      hop: "caddy",
+      body: `<p class="${STEP_TEXT} !mb-0">Caddy isn't running, which takes down every site on lychee, not just this one. Its journal says why:</p>
+          ${commandBlock("cmd-fix-caddy", "journalctl -u caddy -n 50", "Copy journal command")}`,
+    });
+  }
+
+  const status = opts.status;
+  if (status?.kind === "failed" && opts.resource) {
+    // Forced: the status is the page's verdict, and the resource's own `result`
+    // can have moved on (a newer run) while the pill still reads failed.
+    fixes.push({ hop: "your app", body: failureLine({ ...opts.resource, result: "failed" }) });
+  } else if (opts.resource && status?.kind === "container" && describeStatus(status).tone === "bad") {
+    fixes.push({
+      hop: "your app",
+      body: `<p class="${STEP_TEXT} !mb-0">Check the container's logs to see why:</p>
+          ${commandBlock("cmd-logs", `docker compose -p ${opts.resource.name} logs`, "Copy logs command")}`,
+    });
+  } else if (status?.kind === "tcp" && !status.responding) {
+    fixes.push({
+      hop: "your app",
+      body: `<p class="${STEP_TEXT} !mb-0">Nothing answered on ${mono(`localhost:${site.target}`)}. lychee-admin doesn't run this process, so check that it's started and listening:</p>
+          ${commandBlock("cmd-fix-listen", `ss -ltn 'sport = :${site.target}'`, "Copy listen check")}`,
+    });
+  }
+  return fixes;
+}
+
 /**
  * The chain a request actually travels, which is the whole point of this app:
  * Cloudflare DNS → the sites tunnel → Caddy → whatever serves the site.
@@ -383,21 +447,7 @@ function renderHop(hop: Hop): string {
  */
 function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
   const filesPath = computeFilesPath(site, opts.sitesRoot);
-  // Remediation belongs with the hop that reports the failure, not as a
-  // numbered setup step that appears and disappears with container state.
-  // "not-created" is excluded: a container that never existed has no logs, and
-  // Deploy is where you learn how to start one.
-  const containerStatus = opts.status?.kind === "container" ? opts.status : null;
-  // `not-created` needs no special case here: it is the neutral tone, so
-  // `tone === "bad"` already excludes it. A guard naming it would imply it is
-  // still considered a failure. Pinned by "a never-deployed container is not
-  // asked to read logs it has none of".
-  //
-  // Only an attached resource has a container to read: the reconciler runs it
-  // as a compose project named after the resource, so its logs are reached by
-  // project name from anywhere, never from a /var/www directory.
-  const containerIsBroken =
-    opts.resource !== undefined && containerStatus !== null && describeStatus(containerStatus).tone === "bad";
+  const fixes = hopFixes(site, opts);
   const labels = opts.status ? describeStatus(opts.status) : null;
   const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
   const lastHop: Hop =
@@ -461,16 +511,24 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
           ${hops.map((hop) => renderHop(hop)).join(arrow)}
         </div>
         ${
-          containerIsBroken && opts.resource
-            ? `<div class="mt-4">
-          <p class="text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5">Check the container's logs to see why:</p>
-          ${commandBlock("cmd-logs", `docker compose -p ${opts.resource.name} logs`, "Copy logs command")}
+          fixes.length
+            ? `<div class="h-px bg-stone-700 my-4"></div>
+        <p class="${HOP_LABEL} mb-3">What to check</p>
+        <div class="flex flex-col gap-4">
+          ${fixes
+            .map(
+              (fix) => `<div class="grid grid-cols-1 sm:grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+            <p class="font-mono text-[0.8rem] text-red-300 m-0"><span aria-hidden="true">&#9679;</span> ${fix.hop}</p>
+            <div class="flex flex-col gap-2 min-w-0">${fix.body}</div>
+          </div>`,
+            )
+            .join("\n          ")}
         </div>`
             : ""
         }
         ${
           rows.length
-            ? `<div class="h-px bg-stone-700 my-4"></div>
+            ? `${fixes.length ? "" : `<div class="h-px bg-stone-700 my-4"></div>`}
         ${rows
           .map(
             ([key, value]) =>
@@ -865,7 +923,11 @@ function firstDeploy(resource: SiteResourceView | undefined): string {
   // offeredTag never re-offers the one that failed.
   if (resource.result === "failed") {
     const tag = offeredTag(resource);
-    return `${failureLine(resource)}${gateLine(resource)}${tag ? renderOfferLine(resource.name, tag) : ""}`;
+    // The reason lives under the request path, where the red hop is.
+    const pointer = resource.target
+      ? `Deploying ${mono(resource.target)} failed; the reason is under the request path.`
+      : "The last deploy failed; the reason is under the request path.";
+    return `<p class="${BODY}">${pointer}</p>${gateLine(resource)}${tag ? renderOfferLine(resource.name, tag) : ""}`;
   }
   if (resource.target && resource.target === resource.available) {
     const requested = `<p class="font-mono text-[0.8rem] text-stone-50 m-0">${escapeHtml(resource.target)} requested</p>`;
