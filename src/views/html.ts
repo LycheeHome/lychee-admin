@@ -32,7 +32,6 @@ import {
   CARD,
   CARD_LABEL,
   CARD_LABEL_BASE,
-  GROUP_LABEL,
   TONE_PILL,
   TONE_TEXT,
   BUTTON_OFFER,
@@ -1416,8 +1415,25 @@ function renderServiceRow(
       </li>`;
 }
 
+/** Each board page's header item, by the group it holds. */
+const GROUP_PAGES: Record<ServiceGroup, NonNullable<Nav["page"]>> = {
+  reconciler: "reconciler",
+  service: "services",
+  infrastructure: "infrastructure",
+};
+
+/** What a readable inventory with nothing in this group lists. */
+const GROUP_NONE: Record<ServiceGroup, string> = {
+  reconciler: "reconciler units",
+  service: "services",
+  infrastructure: "infrastructure units",
+};
+
 /**
- * What else runs on the host. Read-only except for two controls: a row with a
+ * What else runs on the host, one group per page: /services, /reconciler and
+ * /infrastructure all render through here from the same board, keeping only
+ * `group`'s rows, and the eyebrow names the group, so there is no group
+ * heading beneath it. Read-only except for three controls: a row with a
  * newer tag on offer carries a Deploy button, a site row named in `prunable`
  * (its declaration is `state: absent`) carries Prune, and a unit whose entry
  * lists host actions carries their strip, with `lastRuns[name]` as its most
@@ -1429,6 +1445,7 @@ export function renderServicesPage(
   prunable: ReadonlySet<string>,
   domain: string,
   lastRuns: Readonly<Record<string, ActionState>> = {},
+  group: ServiceGroup = "service",
 ): string {
   const written = formatAge(board.generated, now);
   const freshness = board.inventoryAvailable
@@ -1436,34 +1453,38 @@ export function renderServicesPage(
       ? `Inventory written ${written}`
       : "Inventory write time unknown"
     : "";
+  const label = GROUP_LABELS[group];
+  const rows = board.groups.find((g) => g.group === group)?.rows ?? [];
 
-  const groups = board.groups
-    .map(
-      (g) => `
-    <section aria-labelledby="group-${g.group}">
-      <h3 id="group-${g.group}" class="${GROUP_LABEL}">${GROUP_LABELS[g.group]}</h3>
-      <ul class="list-none m-0 p-0 flex flex-col">${g.rows.map((r) => renderServiceRow(r, board, now, prunable, domain, Object.hasOwn(lastRuns, r.name) ? lastRuns[r.name] : undefined)).join("")}
-      </ul>
-    </section>`,
-    )
-    .join("");
+  const list = `
+      <ul class="list-none m-0 p-0 flex flex-col">${rows.map((r) => renderServiceRow(r, board, now, prunable, domain, Object.hasOwn(lastRuns, r.name) ? lastRuns[r.name] : undefined)).join("")}
+      </ul>`;
+
+  // The inventory is readable and declares something, just not here: a plain
+  // fact, not the unavailable explanation, which would blame the inventory.
+  const none = `
+      <p id="group-empty" class="m-0 text-[0.9rem] leading-relaxed text-stone-300">The inventory lists no ${GROUP_NONE[group]}.</p>`;
 
   const unavailable = `
     <p id="inventory-unavailable" class="m-0 max-w-[62ch] text-[0.9rem] leading-relaxed text-stone-300 border border-stone-700 rounded-md px-4 py-3">
       There are no services to show: the inventory could not be read, or it declares none this page recognises. Without it there is no list of what should be running and nothing to check live state against. It is published by the reconciler on each tick; if it has never run, or the file was removed, this page stays empty.
     </p>`;
 
+  // An empty board, readable or not, is still today's explanation on every
+  // page: with nothing declared anywhere, "lists none" would undersell it.
+  const content = !board.inventoryAvailable || board.groups.length === 0 ? unavailable : rows.length > 0 ? list : none;
+
   return layout(
-    "Services",
+    label,
     `
     <div class="${FRAME_WIDTH} flex flex-col gap-8">
       <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Services</h2>
+        <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">${label}</h2>
         ${freshness ? `<p class="m-0 text-[0.8rem] text-stone-400" data-inventory-age>${escapeHtml(freshness)}</p>` : ""}
       </div>
-      ${board.inventoryAvailable && board.groups.length > 0 ? groups : unavailable}
+      ${content}
     </div>
     `,
-    { nav: { page: "services" } },
+    { nav: { page: GROUP_PAGES[group] } },
   );
 }

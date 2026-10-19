@@ -2,7 +2,7 @@ import { escapeHtml, BUTTON_OFFER, DETAIL_WIDTH, FOCUS_RING } from "./shared";
 
 export interface Nav {
   /** Which header item is current. Absent on a site detail page. */
-  page?: "sites" | "new" | "services";
+  page?: "sites" | "new" | "services" | "reconciler" | "infrastructure";
 }
 
 export interface Banner {
@@ -30,9 +30,11 @@ function headerItem(href: string, label: string, current: boolean): string {
  * depending on where you stand, it is a control you have to read the URL to
  * understand. Per-site movement lives on the detail page's breadcrumb.
  *
- * Order is a judgment call, not a rule: "sites" and "services" are both
- * "what exists here" pages, so they sit adjacent and the parallel reads;
- * "add site" is the only action and goes last.
+ * Order is a judgment call, not a rule: "sites", "services", "reconciler"
+ * and "infrastructure" are all "what exists here" pages, so they sit
+ * adjacent and the parallel reads; the last three are the services board's
+ * groups, one page each, with "services" first because it was the board's
+ * URL before the split. "add site" is the only action and goes last.
  *
  * "add site" is here as well as on the list page's primary button. Same label
  * in both places, quiet here and ember there: this one navigates, that one
@@ -52,6 +54,8 @@ function renderHeader(nav: Nav): string {
     <nav class="flex items-center gap-1" aria-label="Sections">
       ${headerItem("/", "sites", nav.page === "sites")}
       ${headerItem("/services", "services", nav.page === "services")}
+      ${headerItem("/reconciler", "reconciler", nav.page === "reconciler")}
+      ${headerItem("/infrastructure", "infrastructure", nav.page === "infrastructure")}
       ${headerItem("/sites/new", "add site", nav.page === "new")}
     </nav>
   </header>`;

@@ -86,14 +86,6 @@ export const CARD = "bg-stone-800 border border-stone-700 rounded-[10px] p-5";
  */
 export const CARD_LABEL_BASE = "font-mono text-[0.75rem] font-medium uppercase tracking-[0.1em]";
 export const CARD_LABEL = `${CARD_LABEL_BASE} text-stone-300 m-0 mb-3`;
-/**
- * A group heading on the services board. Built from CARD_LABEL_BASE rather
- * than CARD_LABEL for the reason that split exists: CARD_LABEL carries the
- * margin of a card, these headings are in no card, and appending an override
- * is unreliable because Tailwind resolves competing utilities by stylesheet
- * order, not attribute order.
- */
-export const GROUP_LABEL = `${CARD_LABEL_BASE} text-stone-300 m-0 mb-1`;
 
 export const TONE_TEXT: Record<StatusTone, string> = {
   ok: "text-green-300",
