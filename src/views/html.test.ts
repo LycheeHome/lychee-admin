@@ -215,7 +215,9 @@ describe("renderSiteDetail header", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     // The hostname switcher's dropdown hints say "static" per row, so the
     // type-word check looks at the header alone, up to the Visit button.
-    const header = html.slice(html.indexOf('id="site-hostname"'), html.indexOf("Visit"));
+    const headerStart = html.indexOf('id="site-hostname"');
+    const header = html.slice(headerStart, html.indexOf("Visit", headerStart));
+    assert.ok(headerStart >= 0 && header.length > 0, "the header slice is empty");
     assert.doesNotMatch(header, />static</);
     assert.doesNotMatch(html, /data-state-pill/);
     assert.doesNotMatch(html, /<div class="flex items-center gap-2 mt-3/);
@@ -224,7 +226,9 @@ describe("renderSiteDetail header", () => {
   test("a proxy site's header shows its status pill and no type pill", () => {
     const html = renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: false } });
     assert.match(html, /data-state-pill>[\s\S]*not responding/);
-    const header = html.slice(html.indexOf('id="site-hostname"'), html.indexOf("Visit"));
+    const headerStart = html.indexOf('id="site-hostname"');
+    const header = html.slice(headerStart, html.indexOf("Visit", headerStart));
+    assert.ok(headerStart >= 0 && header.length > 0, "the header slice is empty");
     assert.doesNotMatch(header, />proxy</);
   });
 

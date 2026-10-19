@@ -249,12 +249,14 @@ carry a verdict.
 - **Ember** (`rose-400`): The only chromatic voice. Primary button fills, every
   focus ring in the app, the numerals beside manual steps, the checked
   reverse-proxy radio, and the "back to sites" link on the not-found page.
-- **Ember Light** (`rose-300`): Ember's hover state on filled buttons.
+- **Ember Light** (`rose-300`): Ember's hover state on filled buttons, and the
+  offer button's text.
 - **Ember Edge** (`rose-800`): Structural Ember — the border of the checked
   reverse-proxy option, the 2px left rule marking the port/framework branch of
   the add form, and the 2px left rule on the current header nav item.
-- **Ember Deep** (`rose-950`): The ground beneath Ember text — the checked reverse-proxy option's fill (at 50%), and every non-error flash
-  banner (at 60%).
+- **Ember Deep** (`rose-950`): The ground beneath Ember text — the checked
+  reverse-proxy option's fill (at 50%), every non-error flash banner (at 60%),
+  and the offer button's hover fill.
 
 ### Neutral
 
@@ -267,10 +269,9 @@ carry a verdict.
   the divider rule inside a card (`1px`); the fill of the neutral status pill;
   the hover fill of secondary buttons.
 - **Hairline Strong** (`stone-600`): The secondary button's fill and the arrows
-  between routing hops. It carries Chalk at 7.32:1
-  as a surface, having been unusable as a 1px line against Hearth (2.29:1) or
-  Hearth Lift (1.99:1) — the same token reads completely differently depending
-  on how much of it there is.
+  between routing hops. It carries Chalk at 7.32:1 as a surface, having been
+  unusable as a 1px line against Hearth (2.29:1) or Hearth Lift (1.99:1) — the
+  same token reads completely differently depending on how much of it there is.
 - **Smoke Deep** (`stone-500`): Structure, not prose. Arrows between routing
   hops, the breadcrumb's `/`, and the trailing `.lychee.land` of a hostname at
   Headline size. It measures 3.64:1 on Hearth and 3.16:1 on Hearth Lift, so it
