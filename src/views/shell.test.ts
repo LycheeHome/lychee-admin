@@ -2,7 +2,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { withoutHeader } from "../dev/testHelpers";
-import { renderSiteList, renderSiteDetail, renderAddSite, renderSiteNotFound } from "./html";
+import { renderSiteList, renderSiteDetail, renderAddSite, renderSiteNotFound, renderServicesPage } from "./html";
 
 const SITES: Site[] = [
   { hostname: "blog.lychee.land", type: "static", target: "/var/www/blog.lychee.land" },
@@ -59,6 +59,47 @@ describe("the header band", () => {
   test("marks add site current on the add-site page", () => {
     const block = header(renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS));
     assert.match(block, /href="\/sites\/new"[^>]*aria-current="page"/);
+  });
+
+  // The board's three pages are peers of "sites"; "add site" stays the one
+  // action, last. Same five, same order, on every page.
+  const ITEMS = [
+    ["/", "sites"],
+    ["/services", "services"],
+    ["/reconciler", "reconciler"],
+    ["/infrastructure", "infrastructure"],
+    ["/sites/new", "add site"],
+  ];
+  const items = (block: string) =>
+    [...block.matchAll(/<a href="([^"]+)" class="[^"]*"(?: aria-current="page")?>([^<]+)<\/a>/g)].map((m) => [m[1], m[2]]);
+  const board = (group: "service" | "reconciler" | "infrastructure") =>
+    renderServicesPage(
+      { groups: [], schedule: { next: null, last: null }, timerUnit: null, generated: null, inventoryAvailable: false },
+      new Date(), new Set(), "lychee.land", {}, group,
+    );
+
+  test("lists the five items in order with their hrefs, on every page", () => {
+    const pages = {
+      list: renderSiteList(SITES, {}, "lychee.land"),
+      detail: renderSiteDetail(SITES[0], DETAIL_OPTS),
+      add: renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS),
+      notFound: renderSiteNotFound("nope.lychee.land"),
+      services: board("service"),
+      reconciler: board("reconciler"),
+      infrastructure: board("infrastructure"),
+    };
+    for (const [name, html] of Object.entries(pages)) assert.deepEqual(items(header(html)), ITEMS, name);
+  });
+
+  test("each board page marks exactly its own item current", () => {
+    const current = (html: string) => [...header(html).matchAll(/href="([^"]+)"[^>]*aria-current="page"/g)].map((m) => m[1]);
+    assert.deepEqual(current(board("service")), ["/services"]);
+    assert.deepEqual(current(board("reconciler")), ["/reconciler"]);
+    assert.deepEqual(current(board("infrastructure")), ["/infrastructure"]);
+    assert.deepEqual(current(renderSiteList(SITES, {}, "lychee.land")), ["/"]);
+    assert.deepEqual(current(renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS)), ["/sites/new"]);
+    assert.deepEqual(current(renderSiteDetail(SITES[0], DETAIL_OPTS)), []);
+    assert.deepEqual(current(renderSiteNotFound("nope.lychee.land")), []);
   });
 
   test("lists no hostnames — the switcher is not in the header", () => {

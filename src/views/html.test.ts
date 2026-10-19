@@ -1529,7 +1529,7 @@ describe("renderServicesPage", () => {
             reconciled: false, status: "running", since: null },
         ] }],
       },
-      NOW, new Set(), "lychee.land",
+      NOW, new Set(), "lychee.land", {}, "reconciler",
     );
     assert.ok(!html.includes("next run"));
     assert.ok(html.includes("last run 2 minutes ago"));
@@ -1720,6 +1720,71 @@ describe("renderServicesPage", () => {
     const html = pillFor("running");
     assert.match(html, /href="\/services"[^>]*aria-current="page"/);
     assert.doesNotMatch(html, /href="\/"[^>]*aria-current="page"/);
+  });
+});
+
+describe("one board page per group", () => {
+  const NOW = new Date("2026-10-02T05:00:00Z");
+  const unit = (name: string, group: "service" | "reconciler" | "infrastructure") => ({
+    name, kind: "unit" as const, unit: `${name}.service`, group, reconciled: false, status: "running" as const, since: null,
+  });
+  const BOARD = {
+    inventoryAvailable: true, schedule: { next: null, last: null }, timerUnit: null, generated: "2026-10-02T04:58:02Z",
+    groups: [
+      { group: "reconciler" as const, rows: [unit("lychee-watch-timer", "reconciler")] },
+      { group: "service" as const, rows: [unit("swee", "service")] },
+      { group: "infrastructure" as const, rows: [unit("caddy", "infrastructure")] },
+    ],
+  };
+  const rows = (html: string) => [...html.matchAll(/<li [^>]*data-service="([^"]+)"/g)].map((m) => m[1]);
+  const eyebrow = (html: string) => html.match(/<h2 [^>]*>([^<]*)<\/h2>/)?.[1];
+
+  for (const [group, label, name] of [
+    ["service", "Services", "swee"],
+    ["reconciler", "Reconciler", "lychee-watch-timer"],
+    ["infrastructure", "Infrastructure", "caddy"],
+  ] as const) {
+    test(`the ${group} page holds only its group, named by the eyebrow, with no group heading`, () => {
+      const html = renderServicesPage(BOARD, NOW, new Set(), "lychee.land", {}, group);
+      assert.deepEqual(rows(html), [name]);
+      assert.equal(eyebrow(html), label);
+      assert.ok(html.includes("Inventory written 2 minutes ago"));
+      assert.doesNotMatch(html, /<h3[^>]*>(Reconciler|Services|Infrastructure)<\/h3>/);
+      assert.match(html, new RegExp(`<title>${label}</title>`));
+    });
+  }
+
+  test("the group defaults to services", () => {
+    assert.deepEqual(rows(renderServicesPage(BOARD, NOW, new Set(), "lychee.land")), ["swee"]);
+  });
+
+  test("a readable inventory with no rows in the page's group says so plainly", () => {
+    const html = renderServicesPage({ ...BOARD, groups: BOARD.groups.slice(1) }, NOW, new Set(), "lychee.land", {}, "reconciler");
+    assert.match(html, /id="group-empty"[^>]*>\s*The inventory lists no reconciler units\.\s*</);
+    assert.ok(!html.includes('id="inventory-unavailable"'));
+    assert.ok(html.includes("Inventory written"));
+  });
+
+  test("the services page says so plainly too", () => {
+    const html = renderServicesPage({ ...BOARD, groups: [BOARD.groups[0]] }, NOW, new Set(), "lychee.land", {}, "service");
+    assert.match(html, /id="group-empty"[^>]*>\s*The inventory lists no services\.\s*</);
+  });
+
+  test("an unreadable inventory gets today's explanation on every page, not the empty sentence", () => {
+    for (const group of ["service", "reconciler", "infrastructure"] as const) {
+      const html = renderServicesPage({ ...BOARD, groups: [], inventoryAvailable: false }, NOW, new Set(), "lychee.land", {}, group);
+      assert.ok(html.includes('id="inventory-unavailable"'), group);
+      assert.ok(!html.includes('id="group-empty"'), group);
+    }
+  });
+
+  test("the explanation names the page's own group", () => {
+    const explain = (group: "service" | "reconciler" | "infrastructure") =>
+      renderServicesPage({ ...BOARD, groups: [], inventoryAvailable: false }, NOW, new Set(), "lychee.land", {}, group);
+    assert.match(explain("service"), /There are no services to show: the inventory could not be read/);
+    assert.match(explain("reconciler"), /There are no reconciler units to show: the inventory could not be read/);
+    assert.match(explain("infrastructure"), /There are no infrastructure units to show: the inventory could not be read/);
+    assert.doesNotMatch(explain("reconciler"), /no services to show/);
   });
 });
 

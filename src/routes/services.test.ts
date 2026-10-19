@@ -118,8 +118,9 @@ describe("GET /services", () => {
     assert.equal(stateCalls, 1);
     assert.deepEqual(requested, ["lychee-reconcile.timer", "lychee-reconcile.service", "swee.service"]);
     assert.deepEqual(timers, ["lychee-reconcile.timer"]);
-    assert.match(html, /next run in 3 minutes/);
-    assert.deepEqual(pills(html).slice(-1), ["running"]);
+    assert.deepEqual(pills(html), ["running"]);
+    // The schedule is shown where the timer's row is: on the reconciler page.
+    assert.match(await (await s.get("/reconciler")).text(), /next run in 3 minutes/);
   });
 
   test("a reconciler entry that is not a timer is not mistaken for one", async () => {
@@ -130,7 +131,7 @@ describe("GET /services", () => {
         return Promise.resolve({ next: null, last: null });
       },
     });
-    const html = await (await s.get("/services")).text();
+    const html = await (await s.get("/reconciler")).text();
     assert.deepEqual(timers, []);
     assert.ok(!html.includes("next run"));
   });
@@ -158,9 +159,12 @@ describe("GET /services", () => {
     const s = await start(inventory([...RECONCILER, SWEE]), {
       readUnitStates: () => Promise.reject(new Error("systemctl not found")),
     });
-    const res = await s.get("/services");
-    assert.equal(res.status, 200);
-    const statuses = pills(await res.text());
+    const statuses: string[] = [];
+    for (const page of ["/services", "/reconciler"]) {
+      const res = await s.get(page);
+      assert.equal(res.status, 200);
+      statuses.push(...pills(await res.text()));
+    }
     assert.equal(statuses.length, 3);
     assert.ok(statuses.every((st) => st === "unknown"));
   });
@@ -170,11 +174,10 @@ describe("GET /services", () => {
       readUnitStates: () => Promise.resolve({ "swee.service": { status: "running", since: null } }),
       readTimerSchedule: () => Promise.reject(new Error("boom")),
     });
-    const res = await s.get("/services");
+    const res = await s.get("/reconciler");
     assert.equal(res.status, 200);
-    const html = await res.text();
-    assert.ok(!html.includes("next run"));
-    assert.deepEqual(pills(html).slice(-1), ["running"]);
+    assert.ok(!(await res.text()).includes("next run"));
+    assert.deepEqual(pills(await (await s.get("/services")).text()), ["running"]);
   });
 
   test("the two reads run concurrently", async () => {
@@ -263,6 +266,92 @@ describe("GET /services", () => {
     const res = await s.get("/services");
     assert.equal(res.status, 200);
     assert.equal(started, 2);
+  });
+});
+
+describe("the three board pages", () => {
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  after(async () => {
+    await current?.close();
+  });
+
+  async function start(...args: Parameters<typeof serve>): Promise<Awaited<ReturnType<typeof serve>>> {
+    await current?.close();
+    current = await serve(...args);
+    return current;
+  }
+
+  /** The data-service names of the rendered rows, in page order. */
+  const rows = (html: string): string[] => [...html.matchAll(/<li [^>]*data-service="([^"]+)"/g)].map((m) => m[1]);
+  /** The page's eyebrow: the h2 that names its group. */
+  const eyebrow = (html: string): string | undefined => html.match(/<h2 [^>]*>([^<]*)<\/h2>/)?.[1];
+  const currentItems = (html: string): string[] =>
+    [...html.matchAll(/<a href="([^"]+)"[^>]*aria-current="page"/g)].map((m) => m[1]);
+
+  const PAGES = [
+    { path: "/services", eyebrow: "Services", only: ["lychee-admin", "swee", "palsave-api"], never: ["lychee-reconcile-timer", "caddy"] },
+    { path: "/reconciler", eyebrow: "Reconciler", only: ["lychee-reconcile-timer", "lychee-watch-timer"], never: ["swee", "caddy"] },
+    { path: "/infrastructure", eyebrow: "Infrastructure", only: ["caddy", "cloudflared-sites"], never: ["swee", "lychee-watch-timer"] },
+  ];
+
+  for (const page of PAGES) {
+    test(`${page.path} renders only its own group's rows, under its own eyebrow`, async () => {
+      const { SEEDED_INVENTORY } = await import("../dev/seed");
+      const s = await start(SEEDED_INVENTORY, {});
+      const res = await s.get(page.path);
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      const names = rows(html);
+      for (const name of page.only) assert.ok(names.includes(name), `${page.path} is missing ${name}`);
+      for (const name of page.never) assert.ok(!names.includes(name), `${page.path} shows ${name}`);
+      assert.equal(eyebrow(html), page.eyebrow);
+      assert.match(html, /Inventory written/);
+      // One group per page, so no group heading beneath the eyebrow.
+      assert.doesNotMatch(html, /<h3[^>]*>(Reconciler|Services|Infrastructure)<\/h3>/);
+    });
+
+    test(`${page.path} marks exactly its own header item current`, async () => {
+      const { SEEDED_INVENTORY } = await import("../dev/seed");
+      const s = await start(SEEDED_INVENTORY, {});
+      assert.deepEqual(currentItems(await (await s.get(page.path)).text()), [page.path]);
+    });
+
+    test(`${page.path} explains a missing inventory instead of erroring`, async () => {
+      const s = await start(null, {});
+      const res = await s.get(page.path);
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.ok(html.includes('id="inventory-unavailable"'));
+      assert.equal(eyebrow(html), page.eyebrow);
+    });
+
+    test(`${page.path} requires authentication`, async () => {
+      const s = await start(null, {});
+      assert.equal((await fetch(`${s.base}${page.path}`)).status, 401);
+    });
+  }
+
+  test("a readable inventory with nothing in a page's group says so in one sentence", async () => {
+    const s = await start(inventory([SWEE]), {});
+    for (const path of ["/reconciler", "/infrastructure"]) {
+      const html = await (await s.get(path)).text();
+      assert.ok(html.includes('id="group-empty"'), path);
+      assert.ok(!html.includes('id="inventory-unavailable"'), path);
+      assert.deepEqual(rows(html), [], path);
+    }
+    const services = await (await s.get("/services")).text();
+    assert.ok(!services.includes('id="group-empty"'));
+    assert.deepEqual(rows(services), ["swee"]);
+  });
+
+  test("every page reads the whole board once: one systemctl call for every declared unit", async () => {
+    const calls: string[][] = [];
+    const s = await start(inventory([...RECONCILER, SWEE]), {
+      readUnitStates: (units) => (calls.push(units), Promise.resolve({})),
+    });
+    for (const path of ["/services", "/reconciler", "/infrastructure"]) await s.get(path);
+    assert.equal(calls.length, 3);
+    for (const units of calls) assert.deepEqual(units, ["lychee-reconcile.timer", "lychee-reconcile.service", "swee.service"]);
   });
 });
 

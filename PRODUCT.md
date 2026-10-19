@@ -94,17 +94,19 @@ claim.
   retiring an attached site's declaration (`POST /sites/:hostname/detach`)
   and deleting its files (`POST /sites/:hostname/delete-files`); attaching a
   Next.js site to its repository (`POST /sites/:hostname/attach`); and a
-  services board (`GET /services`) whose Deploy a newer tag
+  services board, split across three peer pages by group (`GET /services`,
+  `GET /reconciler`, `GET /infrastructure`), whose Deploy a newer tag
   (`POST /services/:name/deploy`) and Prune a retired site declaration
   (`POST /resources/:name/prune`) are each reused on a site's own page, and
   whose host actions (`POST /services/:name/actions/:action`: start, stop,
   restart and update, today only for the Palworld server) appear only there. A global header band (wordmark
-  plus `sites`, `services` and `add site`) fronts every page; a site's detail
+  plus `sites`, `services`, `reconciler`, `infrastructure` and `add site`)
+  fronts every page; a site's detail
   page also carries a hostname dropdown on its breadcrumb for moving to another
   site without a round trip through the list. The list's cards carry a status
   pill for reverse-proxy sites.
-- **The services board reads, and requests three kinds of thing.** It shows every
-  declared long-lived process on the host — the reconciler, the services it
+- **The services board reads, and requests three kinds of thing.** It shows, one group
+  per page, every declared long-lived process on the host — the reconciler, the services it
   deploys, the game server, Caddy and the sites tunnel — by joining a
   world-readable inventory the reconciler publishes each tick to live state.
   Its main action is Deploy: writing a newer tag the reconciler itself

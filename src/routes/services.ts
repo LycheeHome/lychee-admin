@@ -6,6 +6,7 @@ import { isHostAction, readCheckedActionState, readLastRuns, requestAction } fro
 import { readInventory } from "../lib/serviceInventory";
 import { buildBoard, findTimerUnit } from "../lib/serviceBoard";
 import { renderServicesPage } from "../views/html";
+import type { ServiceGroup } from "../lib/serviceInventory";
 import type { ServiceStatus, TimerSchedule } from "../lib/unitState";
 
 // A function, not a shared constant: it lands on board.schedule, and a shared
@@ -13,13 +14,26 @@ import type { ServiceStatus, TimerSchedule } from "../lib/unitState";
 const noSchedule = (): TimerSchedule => ({ next: null, last: null });
 const CONFIRM_DOWN_REASON = "the container hasn't been confirmed down yet; try after the next reconcile";
 
+/** The board's three pages, one group each. Every row's POSTs stay under /services. */
+const BOARD_PAGES: ReadonlyArray<[path: string, group: ServiceGroup]> = [
+  ["/services", "service"],
+  ["/reconciler", "reconciler"],
+  ["/infrastructure", "infrastructure"],
+];
+
 export function createServicesRouter(deps: Deps): express.Router {
   const router = express.Router();
 
-  router.get("/services", async (_req, res) => {
+  // One data path for all three pages: the whole board is read and joined
+  // exactly as it was when it was one page, and the renderer keeps the page's
+  // group. Reading only one group's units would be a second path to keep in
+  // step with this one, for the price of a few systemctl properties.
+  for (const [path, group] of BOARD_PAGES) router.get(path, (_req, res) => renderBoardPage(res, group));
+
+  async function renderBoardPage(res: express.Response, group: ServiceGroup): Promise<void> {
     // Every read below already degrades, so this should be unreachable; it is
     // here because Express 4 does not catch an async handler's rejection, and
-    // this is the one page whose design goal is that it never errors.
+    // these are the pages whose design goal is that they never error.
     try {
       const inventory = readInventory(deps.fs);
       const timer = findTimerUnit(inventory);
@@ -50,11 +64,11 @@ export function createServicesRouter(deps: Deps): express.Router {
         (declarations ?? []).filter((d) => d.state === "absent" && isSiteName(d.name, config.domain)).map((d) => d.name),
       );
 
-      res.type("html").send(renderServicesPage(board, new Date(), prunable, config.domain, lastRuns));
+      res.type("html").send(renderServicesPage(board, new Date(), prunable, config.domain, lastRuns, group));
     } catch (error) {
       res.status(500).type("text/plain").send(`Could not render services: ${String(error)}`);
     }
-  });
+  }
 
   // Host actions (start/stop/restart/update) on a declared unit, as the
   // operator. A refusal is always JSON, never a redirect, like the routes below.
