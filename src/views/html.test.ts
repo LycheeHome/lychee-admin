@@ -2050,6 +2050,19 @@ describe("what to check under the chain", () => {
     assert.doesNotMatch(w, /cmd-fix-tunnel/);
   });
 
+  test("a hairline separates the fixes from the detail rows that follow", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...BASE,
+      resource: { ...RESOURCE, result: "failed", target: "0.1.0" },
+      status: { kind: "failed" },
+    });
+    const rp = requestPath(html);
+    const fixesAt = rp.indexOf(">What to check<");
+    const rowAt = rp.indexOf(">framework<");
+    assert.ok(fixesAt > -1 && rowAt > fixesAt, "expected detail rows after the fixes");
+    assert.ok(rp.slice(fixesAt, rowAt).includes("h-px bg-stone-700"));
+  });
+
   test("a static site gets the Caddy entry", () => {
     const w = whatToCheck(
       renderSiteDetail(STATIC_SITE, { ...OPTS, unitStates: { "caddy.service": EXITED, "cloudflared-sites.service": RUNNING } }),

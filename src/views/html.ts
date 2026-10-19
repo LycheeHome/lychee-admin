@@ -528,7 +528,7 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
         }
         ${
           rows.length
-            ? `${fixes.length ? "" : `<div class="h-px bg-stone-700 my-4"></div>`}
+            ? `<div class="h-px bg-stone-700 my-4"></div>
         ${rows
           .map(
             ([key, value]) =>
