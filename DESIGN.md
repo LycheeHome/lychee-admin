@@ -418,7 +418,9 @@ says its own name and names a site.
   Section and dialog headings — "Sites", "Add a site", "Remove site".
 - **Label** (DM Mono, 0.75rem, weight 500, uppercase, tracking 0.1em, Smoke Light):
   Card headings inside the detail page — "Request path", "Manual steps",
-  "Deploy", "Danger".
+  "Deploy", "Danger". An attached site's cards run Request path → From a
+  repository → Manual steps → Danger, so the card with something to do sits
+  directly under the chain; every other site keeps Manual steps second.
 - **Micro-label** (DM Mono, 0.6875rem, weight 500, uppercase, tracking 0.09em,
   Smoke): The label above a routing hop. The smallest type in the system, so it
   gets the brightest of the dim tones, not the dimmest. 0.6875rem is exactly
@@ -504,9 +506,12 @@ never folded, capped, truncated with an ellipsis, or put inside an inner scroll
 box. A generated workflow file renders at full height. One exception is
 horizontal overflow on a one-line command, which must not wrap: `overflow-x:
 auto` with `white-space: nowrap`. Long values wrap by breaking characters
-(`break-all`), never by being cut. Another is named: a finished host action's
+(`break-all`), never by being cut. Two more are named. A finished host action's
 log folds at rest; it is open while the action runs and open after a failure,
-so the log that explains something is never behind a click.
+so the log that explains something is never behind a click. A finished runbook
+step folds at rest too — one line, the check, its title, `done`, and a chevron,
+the body one click away — but a step that is not done never folds, so setup in
+progress is never behind a click.
 
 **The Frame-And-Column Rule.** 1080px is the page frame — the header band, the
 shell's `<main>`, and any page holding two kinds of content that belong side by
@@ -836,9 +841,13 @@ for both, run concurrently with the per-site check and degrading to a neutral
 Cloudflare DNS, which this app does not touch at all (Tier 1 scope), so its
 sub-line reads `manual step` permanently: an indicator there would be invented
 health rather than a reading, and would go stale the moment a record is
-created. When the last hop is in a `bad` tone, the
-remediation appears *inside this card*, directly beneath the chain, as a command
-block — never as a numbered step that appears and disappears with container
+created. Every hop in a `bad` tone gets an entry in a
+"What to check" list *inside this card*, beneath the chain behind a Hairline
+rule, in request order — tunnel, Caddy, your app. Each entry is a Scorch mono
+hop key (a dot and the hop's name) beside a Body sentence and a command block;
+the key is a fixed column above `sm` and stacks over its sentence below it. Hop
+one never gets an entry, because it has no state to be bad. It is a list of
+what to check, never a numbered step that appears and disappears with container
 state.
 
 ### Service Row
@@ -972,7 +981,11 @@ column beside a Body Strong title — machine facts inside it set in mono, per T
 Mono-Carries-Facts Rule — over its body, 20px between steps. An open step's
 numeral is the remove dialog's: Ember, in a 1.2rem ring of Ember at 40%. A
 done step's numeral becomes a check in Smoke Light inside a Hairline Strong
-ring, and its title gains a mono `done` in Smoke. The numeral leaves Ember when
+ring, and its title gains a mono `done` in Smoke. A done scaffold or
+repository step (one and two) folds at rest into a native `<details>`, closed:
+its summary is that title line, `done`, step one's file names in mono, and a
+chevron, and its body stays in the page beneath. Step three
+(attach) and step four (deploy) never fold. The numeral leaves Ember when
 the step is done because there is nothing left to act on there — The Ember Is
 Interactive Rule, applied to a step rather than a button.
 
@@ -1106,8 +1119,9 @@ stops the container, and when.
 ### Don't:
 
 - **Don't** fold, cap, truncate, or add an inner scrollbar to content the
-  operator might read. One operator, one wide viewport. The one named fold is
-  The Show-It Rule's: a finished host action's log, at rest.
+  operator might read. One operator, one wide viewport. The two named folds
+  are The Show-It Rule's: a finished host action's log, and a finished
+  runbook step, at rest.
 - **Don't** use Poetsen One anywhere except the wordmark and a list row's
   hostname, and never above 1.5rem or at a weight it doesn't ship.
 - **Don't** fill a destructive button with Ember or make it the largest control
