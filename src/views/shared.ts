@@ -50,8 +50,6 @@ export const DETAIL_WIDTH = "max-w-[760px] mx-auto w-full";
  * side by side; DETAIL_WIDTH is the reading column it caps to when it has one.
  */
 export const FRAME_WIDTH = "max-w-[1080px] mx-auto w-full";
-export const TYPE_PILL_STATIC = "border-stone-600 text-stone-50 bg-stone-700";
-export const TYPE_PILL_PROXY = "border-transparent text-rose-300 bg-rose-950";
 
 export const TONE_PILL: Record<StatusTone, string> = {
   ok: `${STATUS_PILL_BASE} text-green-300 bg-green-950/60`,
