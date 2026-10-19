@@ -75,10 +75,6 @@ typography:
     fontFamily: "DM Mono, ui-monospace, SFMono-Regular, Consolas, monospace"
     fontSize: "0.6875rem"
     letterSpacing: "0.06em"
-  type-pill:
-    fontFamily: "DM Mono, ui-monospace, SFMono-Regular, Consolas, monospace"
-    fontSize: "0.7rem"
-    letterSpacing: "0.06em"
 rounded:
   inline: "4px"
   control: "6px"
@@ -164,16 +160,6 @@ components:
     typography: "{typography.code}"
     rounded: "{rounded.control}"
     padding: "10px 44px 10px 10px"
-  pill-type-static:
-    backgroundColor: "{colors.hairline}"
-    textColor: "{colors.chalk}"
-    rounded: "{rounded.full}"
-    padding: "4px 10px"
-  pill-type-proxy:
-    backgroundColor: "{colors.ember-deep}"
-    textColor: "{colors.ember-light}"
-    rounded: "{rounded.full}"
-    padding: "4px 10px"
   pill-status-ok:
     backgroundColor: "{colors.clear-deep}"
     textColor: "{colors.clear}"
@@ -482,8 +468,7 @@ image bakes in.
 Two breakpoints. `sm` (640px) is the floor that keeps a narrow window honest:
 below it the routing hop chain turns from a row of four hops separated by `→`
 into a stacked column separated by `↓`, the remove dialog's four-step list
-collapses from two columns to one, and the site list's status column releases
-its reserved `9rem`. `lg` (1024px) exists only for the add-site page, whose
+collapses from two columns to one. `lg` (1024px) exists only for the add-site page, whose
 form and preview columns need 1128px to render side by side at full size and
 stack below it. Neither is a mobile design — PRODUCT.md records this as a
 desktop-only tool.
