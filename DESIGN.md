@@ -850,6 +850,17 @@ holds the unit's name on one line and its facts beneath, as prose rather than
 columns — `v0.2.0 · blocked · 3 attempts`, then the reconciler's own gate string
 on its own line, in full.
 
+A deploy that is blocked or failed gets its own line directly under the name,
+`● deploy blocked · <reason>`, because the pill stays the unit's own health and a
+healthy old build must never read as a broken one. Scorch marks trouble the
+operator has to act on and Smoke marks a deploy that is only waiting (`deploy
+waiting`); the colour sits on the `deploy <word>` alone and the reason beside it
+stays Smoke, and is left out when it would only repeat the word. The reconciler's
+`gate_code` decides the tone and the word, never the sentence beside it, and a row
+whose inventory entry carries no code gets no line. A row that has nothing installed
+already says its trouble in its pill, so it gets no line either, and a row that has
+one drops the `result` word from its facts line rather than say it twice.
+
 Prose and not a table, deliberately: half the rows have no deploy state at all
 and never will, because the game server, Caddy and the tunnel are not things the
 reconciler deploys. A table of those rows is mostly empty cells arguing it
