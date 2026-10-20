@@ -217,9 +217,9 @@ describe("hostProblems", () => {
       ...HOST_INVENTORY,
       entries: [...HOST_INVENTORY.entries, unitEntry("foo", "foo.service", "reconciler")],
     };
-    const [p] = hostProblems(states({ "foo.service": "paused" }), inv);
+    const [p] = hostProblems(states({ "foo.service": "restarting" }), inv);
     assert.equal(p.name, "foo");
-    assert.equal(p.word, "paused");
+    assert.equal(p.word, "restarting");
     assert.equal(p.consequence, "Deploys may not apply");
   });
 
@@ -249,6 +249,29 @@ describe("hostProblems", () => {
     assert.equal(hostProblems(states({ "caddy.service": "exited" }), HOST_INVENTORY).length, 1);
   });
 
+  test("a third infrastructure unit is read, after the fixed ones and before reconciler problems", () => {
+    const inv: ServiceInventory = {
+      ...HOST_INVENTORY,
+      entries: [...HOST_INVENTORY.entries, unitEntry("other-infra", "other.service", "infrastructure")],
+    };
+    const got = hostProblems(
+      states({ "other.service": "exited", "lychee-watch.timer": "exited", "caddy.service": "exited" }),
+      inv,
+    );
+    assert.deepEqual(got.map((p) => p.name), ["caddy", "other-infra", "lychee-watch-timer"]);
+    assert.equal(got[1].consequence, "Every site is unreachable from outside");
+    assert.equal(got[1].href, "/infrastructure");
+    assert.equal(got[1].page, "infrastructure");
+  });
+
+  test("a fixed unit takes the inventory's name for it", () => {
+    const inv: ServiceInventory = {
+      ...HOST_INVENTORY,
+      entries: [unitEntry("web-proxy", "caddy.service", "infrastructure")],
+    };
+    assert.equal(hostProblems(states({ "caddy.service": "exited" }), inv)[0].name, "web-proxy");
+  });
+
   test("no inventory falls back to the fixed units", () => {
     const got = hostProblems(states({ "caddy.service": "exited", "lychee-watch.timer": "exited" }), null);
     assert.deepEqual(got.map((p) => p.name), ["caddy"]);
@@ -262,6 +285,16 @@ describe("hostProblems", () => {
 });
 
 describe("hostProblemUnits", () => {
+  test("a third infrastructure unit is included once", () => {
+    const inv: ServiceInventory = {
+      ...HOST_INVENTORY,
+      entries: [...HOST_INVENTORY.entries, unitEntry("other-infra", "other.service", "infrastructure")],
+    };
+    const units = hostProblemUnits(inv);
+    assert.equal(units.filter((u) => u === "other.service").length, 1);
+    assert.equal(new Set(units).size, units.length);
+  });
+
   test("no inventory reads only the fixed units", () => {
     assert.deepEqual(hostProblemUnits(null), ["caddy.service", "cloudflared-sites.service"]);
   });

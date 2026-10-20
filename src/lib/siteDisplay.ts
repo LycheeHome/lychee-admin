@@ -132,36 +132,65 @@ export interface HostProblem {
 }
 
 /**
- * Caddy and the sites tunnel are named in code, not read from the inventory:
- * they are what carries every site, and the sites list must still notice them
- * down when the inventory is missing.
+ * Caddy and the sites tunnel are named in code, not only read from the
+ * inventory: they are what carries every site, and the sites list must still
+ * notice them down when the inventory is missing. The name is the inventory's
+ * when it lists the unit, else this fallback.
  */
 const FIXED_UNITS = [
-  { name: "caddy", unit: "caddy.service", consequence: "Every site is unreachable from outside" },
-  { name: "cloudflared-sites", unit: "cloudflared-sites.service", consequence: "Every site is unreachable from outside" },
+  { name: "caddy", unit: "caddy.service" },
+  { name: "cloudflared-sites", unit: "cloudflared-sites.service" },
 ] as const;
 
 const WATCH_TIMER = "lychee-watch.timer";
 
+const SITES_DOWN = "Every site is unreachable from outside";
+
 /** The words that are bad on the board: this mirrors the bad tone rowLabels
- *  gives them. starting, unknown and running are not problems. */
+ *  gives them. paused and unhealthy are kept for that mirroring but cannot
+ *  reach this function, since a UnitStatus never takes them. */
 const BAD_WORDS = new Set(["exited", "restarting", "paused", "unhealthy"]);
 
-/** The inventory's reconciler units, or none when it is missing or empty. */
-function reconcilerUnits(inventory: ServiceInventory | null) {
+interface HostUnit {
+  name: string;
+  unit: string;
+}
+
+/** The inventory's unit entries in one group; none when it is missing or empty. */
+function groupUnits(inventory: ServiceInventory | null, group: "infrastructure" | "reconciler"): HostUnit[] {
   if (!inventory) return [];
-  const out: { name: string; unit: string }[] = [];
+  const out: HostUnit[] = [];
   for (const e of inventory.entries) {
-    if (e.kind === "unit" && e.group === "reconciler") out.push({ name: e.name, unit: e.unit });
+    if (e.kind === "unit" && e.group === group) out.push({ name: e.name, unit: e.unit });
   }
   return out;
 }
 
+/** Fixed units first (inventory name when listed), then the other
+ *  infrastructure units in inventory order, each unit once. */
+function infrastructureUnits(inventory: ServiceInventory | null): HostUnit[] {
+  const listed = groupUnits(inventory, "infrastructure");
+  const out: HostUnit[] = FIXED_UNITS.map((f) => ({
+    name: listed.find((l) => l.unit === f.unit)?.name ?? f.name,
+    unit: f.unit,
+  }));
+  for (const l of listed) {
+    if (!out.some((o) => o.unit === l.unit)) out.push(l);
+  }
+  return out;
+}
+
+/** Reconciler units, minus any already counted as infrastructure. */
+function reconcilerUnits(inventory: ServiceInventory | null): HostUnit[] {
+  const infra = infrastructureUnits(inventory);
+  return groupUnits(inventory, "reconciler").filter((r) => !infra.some((i) => i.unit === r.unit));
+}
+
 /** The unit names whose state the sites list must read to decide hostProblems. */
 export function hostProblemUnits(inventory: ServiceInventory | null): string[] {
-  const units: string[] = FIXED_UNITS.map((f) => f.unit);
-  for (const r of reconcilerUnits(inventory)) {
-    if (!units.includes(r.unit)) units.push(r.unit);
+  const units: string[] = [];
+  for (const u of [...infrastructureUnits(inventory), ...reconcilerUnits(inventory)]) {
+    if (!units.includes(u.unit)) units.push(u.unit);
   }
   return units;
 }
@@ -181,9 +210,9 @@ export function hostProblems(
     return status && BAD_WORDS.has(status) ? status : null;
   };
 
-  for (const f of FIXED_UNITS) {
-    const w = word(f.unit);
-    if (w) problems.push({ name: f.name, word: w, consequence: f.consequence, page: "infrastructure", href: "/infrastructure" });
+  for (const i of infrastructureUnits(inventory)) {
+    const w = word(i.unit);
+    if (w) problems.push({ name: i.name, word: w, consequence: SITES_DOWN, page: "infrastructure", href: "/infrastructure" });
   }
 
   // The watcher is matched by name so it can never be taken for the full-run
