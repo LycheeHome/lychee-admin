@@ -5,6 +5,7 @@ import type { Server } from "node:http";
 import bcrypt from "bcrypt";
 import type { Deps } from "../deps";
 import type { SystemCommands } from "../lib/systemCommands";
+import { withoutHeader } from "../dev/testHelpers";
 
 const PASSWORD = "test-password";
 process.env.ADMIN_USERNAME = "tester";
@@ -855,5 +856,32 @@ describe("GET /services: host action state", () => {
     assert.ok(done.state.startedAt && done.state.finishedAt);
     assert.ok(s.fs.exists(`/var/lib/lychee-op/${PAL}-restart.result.json`));
     assert.match(await (await s.get("/services")).text(), /restart <span class="[^"]*">succeeded<\/span>/);
+  });
+});
+
+describe("GET /services: links to managed sites", () => {
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  after(async () => {
+    await current?.close();
+  });
+  const APP = { name: "app-lychee-land", kind: "container", container: "app-lychee-land", group: "service", reconciled: true, result: "deployed" };
+
+  test("the board links a managed site's row", async () => {
+    current = await serve(inventory([APP]), {});
+    current.fs.writeFile(
+      "/etc/caddy/Caddyfile",
+      "{\n  auto_https off\n}\n\nhttp://app.lychee.land {\n  reverse_proxy localhost:3200\n}\n",
+    );
+    const res = await current.get("/services");
+    assert.equal(res.status, 200);
+    assert.ok((await res.text()).includes('href="/sites/app.lychee.land"'));
+  });
+
+  test("an unreadable Caddyfile renders the board without site links", async () => {
+    await current?.close();
+    current = await serve(inventory([APP]), {});
+    const res = await current.get("/services");
+    assert.equal(res.status, 200);
+    assert.ok(!withoutHeader(await res.text()).includes('href="/sites/'));
   });
 });

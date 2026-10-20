@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { describeStatus, hostProblems, hostProblemUnits, splitHostnameForDisplay } from "./siteDisplay";
+import { describeStatus, hostProblems, hostProblemUnits, splitHostnameForDisplay, undeployedStatus } from "./siteDisplay";
 import type { InventoryEntry, ServiceInventory } from "./serviceInventory";
 import type { UnitState } from "./unitState";
 
@@ -146,6 +146,26 @@ describe("splitHostnameForDisplay", () => {
       lead: "notlychee.land",
       dimmed: "",
     });
+  });
+});
+
+describe("undeployedStatus", () => {
+  test("nothing installed and the last run failed reads failed", () => {
+    assert.deepEqual(undeployedStatus({ version: "", result: "failed" }), { kind: "failed" });
+    assert.deepEqual(undeployedStatus({ result: "failed" }), { kind: "failed" });
+  });
+
+  test("nothing installed and awaiting an image reads awaiting-image", () => {
+    assert.deepEqual(undeployedStatus({ version: "", result: "awaiting-image" }), { kind: "awaiting-image" });
+  });
+
+  test("nothing installed with any other result, or none, has no opinion", () => {
+    assert.equal(undeployedStatus({ version: "", result: "deployed" }), null);
+    assert.equal(undeployedStatus({}), null);
+  });
+
+  test("an installed version has no opinion, whatever the last result", () => {
+    assert.equal(undeployedStatus({ version: "0.1.0", result: "failed" }), null);
   });
 });
 

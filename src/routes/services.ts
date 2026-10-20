@@ -1,6 +1,8 @@
 import express from "express";
 import { config } from "../config";
 import type { Deps } from "../deps";
+import * as caddyfile from "../lib/caddyfile";
+import { isManagedHostname } from "../lib/siteValidation";
 import { isSiteName } from "../lib/declarationWriter";
 import { isHostAction, readCheckedActionState, readLastRuns, requestAction } from "../lib/hostOperations";
 import { readInventory } from "../lib/serviceInventory";
@@ -38,6 +40,20 @@ export function createServicesRouter(deps: Deps): express.Router {
       const inventory = readInventory(deps.fs);
       const timer = findTimerUnit(inventory);
 
+      // The sites the app manages, so a site's row can link to its page. An
+      // unreadable Caddyfile is an empty set: the board renders, unlinked.
+      let managed = new Set<string>();
+      try {
+        managed = new Set(
+          caddyfile
+            .parseSites(deps.fs.readFile(config.caddyfilePath))
+            .filter((site) => isManagedHostname(site.hostname, config.domain))
+            .map((site) => site.hostname),
+        );
+      } catch {
+        // degrade to no links
+      }
+
       // Each read degrades independently; the page must render without either.
       const units = inventory.entries.flatMap((e) => (e.kind === "unit" ? [e.unit] : []));
       const projects = inventory.entries.flatMap((e) => (e.kind === "container" ? [e.container] : []));
@@ -64,7 +80,7 @@ export function createServicesRouter(deps: Deps): express.Router {
         (declarations ?? []).filter((d) => d.state === "absent" && isSiteName(d.name, config.domain)).map((d) => d.name),
       );
 
-      res.type("html").send(renderServicesPage(board, new Date(), prunable, config.domain, lastRuns, group));
+      res.type("html").send(renderServicesPage(board, new Date(), prunable, config.domain, lastRuns, group, managed));
     } catch (error) {
       res.status(500).type("text/plain").send(`Could not render services: ${String(error)}`);
     }

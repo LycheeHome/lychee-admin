@@ -100,6 +100,24 @@ export function describeStatus(status: SiteStatus): StatusLabels {
   }
 }
 
+/**
+ * What a site resource reads while nothing is installed: the reconciler has
+ * never confirmed a version, so the container is not asked and its live state
+ * (an `exited` left by a failed first deploy) would only contradict the
+ * reconciler's own verdict. Shared by the site page and the services board so
+ * the two cannot give one resource two words. Null means this rule has no
+ * opinion and the caller reads the container as usual.
+ */
+export function undeployedStatus(entry: {
+  version?: string;
+  result?: string;
+}): { kind: "failed" } | { kind: "awaiting-image" } | null {
+  if (entry.version) return null;
+  if (entry.result === "failed") return { kind: "failed" };
+  if (entry.result === "awaiting-image") return { kind: "awaiting-image" };
+  return null;
+}
+
 export interface HostnameParts {
   /** The bright leading part — the whole hostname when there is nothing to dim. */
   lead: string;
