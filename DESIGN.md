@@ -858,9 +858,9 @@ waiting`); the colour sits on the `deploy <word>` alone and the reason beside it
 stays Smoke, and is left out when it would only repeat the word. A blocked
 deploy is classified by the reconciler's `gate_code`, never by the sentence beside
 it, and a failed one by its `result`; a blocked row with no code, or with a code
-the app does not know, gets no line. A row that has nothing installed
-already says its trouble in its pill, so it gets no line either, and a row that has
-one drops the `result` word from its facts line rather than say it twice.
+the app does not know, gets no line. A container row with
+nothing installed whose pill already reads `failed` or `awaiting image` gets no
+line either, and a row that has one drops the `result` word from its facts line rather than say it twice.
 
 Prose and not a table, deliberately: half the rows have no deploy state at all
 and never will, because the game server, Caddy and the tunnel are not things the

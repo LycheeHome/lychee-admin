@@ -135,8 +135,8 @@ export function splitHostnameForDisplay(hostname: string, domain: string): Hostn
   return { lead: hostname, dimmed: "" };
 }
 
-/** Why a reconciled site's deploy is not going through, as the board and the
- *  site page show it. `bad` is something to act on; `neutral` is a wait. */
+/** Why a reconciled site's deploy is not going through, as the board
+ *  shows it. `bad` is something to act on; `neutral` is a wait. */
 export interface DeployTrouble { tone: "bad" | "neutral"; word: "blocked" | "failed" | "waiting"; reason: string }
 
 const BAD = "bad" as const;
