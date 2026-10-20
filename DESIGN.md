@@ -855,9 +855,10 @@ A deploy that is blocked or failed gets its own line directly under the name,
 healthy old build must never read as a broken one. Scorch marks trouble the
 operator has to act on and Smoke marks a deploy that is only waiting (`deploy
 waiting`); the colour sits on the `deploy <word>` alone and the reason beside it
-stays Smoke, and is left out when it would only repeat the word. The reconciler's
-`gate_code` decides the tone and the word, never the sentence beside it, and a row
-whose inventory entry carries no code gets no line. A row that has nothing installed
+stays Smoke, and is left out when it would only repeat the word. A blocked
+deploy is classified by the reconciler's `gate_code`, never by the sentence beside
+it, and a failed one by its `result`; a blocked row with no code, or with a code
+the app does not know, gets no line. A row that has nothing installed
 already says its trouble in its pill, so it gets no line either, and a row that has
 one drops the `result` word from its facts line rather than say it twice.
 
