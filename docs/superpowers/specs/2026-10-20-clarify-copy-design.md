@@ -27,7 +27,7 @@ Every word on a board row either adds something its pill doesn't say or is gone,
 
 ### 1. Board rows drop the raw result word
 
-`renderServiceRow` (`src/views/html.ts`) no longer pushes `row.result` into the facts line, in any case. These facts are unchanged:
+`renderServiceRow` (`src/views/html.ts`) no longer pushes `row.result` into the facts line, with one exception: a `blocked` row with no deploy line (`deployTrouble(row)` is null, because the code is missing or unknown to this app) keeps `blocked` as a fact, since nothing else on the row would say the deploy is stuck. These facts are unchanged:
 
 - the version, or `version → target` while applying
 - the failed-attempt count
@@ -44,13 +44,15 @@ A new pure helper in `src/lib/siteDisplay.ts`:
 export function troubleGate(entry: { result?: string; gateCode?: string; gate?: string }): string | null
 ```
 
-It returns `entry.gate` only when `deployTrouble(entry)` is non-null with `word` `"blocked"` or `"waiting"` **and** `entry.gate` is a non-empty string. Otherwise it returns `null`. It branches on `gate_code` through `deployTrouble`, never on the gate's text (contract A-GATE-1).
+It returns `entry.gate` only when `entry.result` is `"blocked"` or `"failed"` **and** `entry.gate` is a non-empty string. Otherwise it returns `null`. It branches on the run's `result`, never on the gate's text (contract A-GATE-1).
 
-So `ok`, `up-to-date`, `awaiting-image`, `unknown`, an empty code and any code the app doesn't know never show a gate. `retry-capped` still shows its gate, recovery command included. A `failed` run shows no gate: its explanation is the failure line, and a failed first deploy publishes an empty gate anyway.
+So a `skipped` (up-to-date), `deployed` (ok) or `awaiting-image` row never shows a gate. Every blocked row does, including one whose code is missing or unknown to this app, because otherwise a stuck deploy under a new code would go silent. `retry-capped` keeps its recovery command. A `failed` row shows its gate when the reconciler wrote one: lychee-admin's own row can carry its only explanation there, and a failed first deploy publishes an empty gate, so nothing extra appears.
+
+*Amended 2026-10-20 while planning:* the first draft keyed this on `deployTrouble`, which would have hidden both the gate and the `blocked` word for an unclassified code, and hidden a failed row's only explanation.
 
 **Board row:** the `data-gate` line renders `troubleGate(row)` and nothing else.
 
-**Deploy line:** when `troubleGate(row)` is non-null, the line drops its short reason and renders `● deploy blocked` or `● deploy waiting` alone, because the gate beneath says why, in full. When the gate is null (a known trouble code with no gate text), the line keeps its short reason as now. A `deploy failed` line is unchanged.
+**Deploy line:** when `troubleGate(row)` is non-null, the line drops its short reason and renders `● deploy blocked` or `● deploy waiting` alone, because the gate beneath says why, in full. When the gate is null (a known trouble code with no gate text), the line keeps its short reason as now. A `deploy failed` line is unchanged (its reason already equals its word, so it shows no reason).
 
 **Site repository card:** `gateLine(resource)` renders `troubleGate(resource)` and nothing else, in every place it is called. A running site's card loses `pin unchanged (0.2.0)`. A blocked first deploy still shows its gate in full.
 
@@ -85,19 +87,23 @@ Update the doc comment above `renderDangerZone` so it describes what the paragra
 ## Testing
 
 - `src/lib/siteDisplay.test.ts`, for `troubleGate`:
-  - Returns the gate for `blocked` + `retry-capped`, `not-applied` and `ci-pending`.
-  - Returns `null` for each of these:
-    - `blocked` + a known code with an empty gate
+  - Returns the gate for:
+    - `blocked` + `retry-capped`, `not-applied` and `ci-pending`
     - `blocked` + an unknown code
+    - `blocked` with no code
+    - `failed` with a gate string
+  - Returns `null` for each of these:
+    - `blocked` with an empty gate
+    - `failed` with an empty gate
     - `skipped` + `up-to-date`
     - `deployed` + `ok`
     - `awaiting-image`
-    - `failed` with a gate string
     - no result
 - `src/views/html.test.ts`:
   - No board row's facts line contains `skipped`, `deployed`, `failed` or `awaiting-image` as a fact. Check each seed shape: up-to-date, awaiting image, failed first deploy, taken-down (gone), blocked retry-capped, blocked not-applied, unit rows.
   - A `retry-capped` row shows `● deploy blocked` with no ` · retry limit reached`, and its full gate (with the recovery command) on the `data-gate` line.
   - A `blocked` row with a known code and no gate keeps `· <reason>`.
+  - A `blocked` row with no code keeps `blocked` in its facts and shows its gate.
   - An up-to-date row (`gate: "pin unchanged (1.4.0)"`, `gate_code: "up-to-date"`) has no `data-gate` line.
   - A running site's repository card has no `data-gate` line. A blocked first deploy's card still has one.
   - Both DNS step variants contain the new sentence and not "still reports the site running".
