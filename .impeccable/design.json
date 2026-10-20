@@ -269,7 +269,7 @@
       "refersTo": "button-secondary",
       "description": "The cancel side of a dialog. Same size as primary, filled Hairline Strong rather than outlined, because a 1px line at this tone is invisible against both grounds.",
       "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
-      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.8rem; font-weight: 600; background: oklch(44.4% 0.011 73.639); color: oklch(98.5% 0.001 106.423); border: none; border-radius: 6px; min-height: 32px; padding: 6px 12px; cursor: pointer; transition: background 150ms, color 150ms; } .ds-btn-secondary:hover { background: oklch(37.4% 0.01 67.558); } .ds-btn-secondary:active { transform: translateY(1px); } .ds-btn-secondary:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-btn-secondary:disabled { background: transparent; color: oklch(55.3% 0.013 58.071); cursor: not-allowed; } .ds-btn-secondary:disabled:hover { background: transparent; }"
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 600; background: oklch(44.4% 0.011 73.639); color: oklch(98.5% 0.001 106.423); border: none; border-radius: 6px; min-height: 40px; padding: 10px 16px; cursor: pointer; transition: background 150ms, color 150ms; } .ds-btn-secondary:hover { background: oklch(37.4% 0.01 67.558); } .ds-btn-secondary:active { transform: translateY(1px); } .ds-btn-secondary:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-btn-secondary:disabled { background: transparent; color: oklch(55.3% 0.013 58.071); cursor: not-allowed; } .ds-btn-secondary:disabled:hover { background: transparent; }"
     },
     {
       "name": "Danger Button",
@@ -290,10 +290,18 @@
     {
       "name": "Compact Primary Button",
       "kind": "button",
-      "refersTo": "button-primary",
+      "refersTo": "button-primary-compact",
       "description": "Primary's colours at the offer's size, derived from Primary. The runbook's first Deploy, and the Prune under a site page's retired warning, where that control is the page's next step.",
       "html": "<button class=\"ds-btn-primary-compact\">Deploy v0.1.0</button>",
       "css": ".ds-btn-primary-compact { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.8rem; font-weight: 600; background: oklch(71.2% 0.194 13.428); color: oklch(21.6% 0.006 56.043); border: none; border-radius: 6px; min-height: 32px; padding: 6px 12px; cursor: pointer; transition: background 150ms; } .ds-btn-primary-compact svg { width: 1em; height: 1em; flex-shrink: 0; } .ds-btn-primary-compact:hover { background: oklch(81% 0.117 11.638); } .ds-btn-primary-compact:active { transform: translateY(1px); } .ds-btn-primary-compact:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-btn-primary-compact:disabled { background: oklch(71.2% 0.194 13.428 / 0.4); color: oklch(55.3% 0.013 58.071); cursor: not-allowed; } .ds-btn-primary-compact:disabled:hover { background: oklch(71.2% 0.194 13.428 / 0.4); }"
+    },
+    {
+      "name": "Compact Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary-compact",
+      "description": "Secondary's colours at the offer's size, derived from Secondary. The services board's Prune and the host-action strip's Start, Restart, Update and every confirmation's Cancel, where a 40px control would be the tallest thing in its row.",
+      "html": "<button class=\"ds-btn-secondary-compact\">Prune old declaration</button>",
+      "css": ".ds-btn-secondary-compact { display: inline-flex; align-items: center; gap: 6px; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.8rem; font-weight: 600; background: oklch(44.4% 0.011 73.639); color: oklch(98.5% 0.001 106.423); border: none; border-radius: 6px; min-height: 32px; padding: 6px 12px; cursor: pointer; transition: background 150ms, color 150ms; } .ds-btn-secondary-compact:hover { background: oklch(37.4% 0.01 67.558); } .ds-btn-secondary-compact:active { transform: translateY(1px); } .ds-btn-secondary-compact:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-btn-secondary-compact:disabled { background: transparent; color: oklch(55.3% 0.013 58.071); cursor: not-allowed; } .ds-btn-secondary-compact:disabled:hover { background: transparent; }"
     },
     {
       "name": "Text Field",

@@ -98,6 +98,15 @@ components:
   button-primary-hover:
     backgroundColor: "{colors.ember-light}"
     textColor: "{colors.hearth}"
+  button-primary-compact:
+    backgroundColor: "{colors.ember}"
+    textColor: "{colors.hearth}"
+    rounded: "{rounded.control}"
+    padding: "6px 12px"
+    minHeight: "32px"
+  button-primary-compact-hover:
+    backgroundColor: "{colors.ember-light}"
+    textColor: "{colors.hearth}"
   button-secondary:
     backgroundColor: "{colors.hairline-strong}"
     textColor: "{colors.chalk}"
@@ -105,6 +114,15 @@ components:
     padding: "10px 16px"
     minHeight: "40px"
   button-secondary-hover:
+    backgroundColor: "{colors.hairline}"
+    textColor: "{colors.chalk}"
+  button-secondary-compact:
+    backgroundColor: "{colors.hairline-strong}"
+    textColor: "{colors.chalk}"
+    rounded: "{rounded.control}"
+    padding: "6px 12px"
+    minHeight: "32px"
+  button-secondary-compact-hover:
     backgroundColor: "{colors.hairline}"
     textColor: "{colors.chalk}"
   button-danger:
