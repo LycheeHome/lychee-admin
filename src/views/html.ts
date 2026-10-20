@@ -126,7 +126,7 @@ export function renderSiteList(
   const problemLines = problems
     .map(
       (problem) =>
-        `<p class="m-0 font-sans text-[0.85rem] leading-relaxed text-stone-50">${escapeHtml(problem.consequence)} &mdash; <span class="font-mono text-red-300"><span aria-hidden="true">&#9679;</span> ${escapeHtml(problem.name)} ${escapeHtml(statePhrase(problem.word))}</span> &middot; <a href="${escapeHtml(problem.href)}" class="text-stone-300 underline hover:text-stone-50 ${FOCUS_RING}">${escapeHtml(problem.page)} &rarr;</a></p>`,
+        `<p class="m-0 font-sans text-[0.85rem] leading-relaxed text-stone-50">${escapeHtml(problem.consequence)} &mdash; <span class="font-mono text-red-300"><span aria-hidden="true">&#9679;</span> ${escapeHtml(problem.name)} ${escapeHtml(statePhrase(problem.word))}</span> &middot; <a href="${escapeHtml(problem.href)}" class="text-stone-300 underline hover:text-stone-50 ${FOCUS_RING}">${escapeHtml(problem.page)} <span aria-hidden="true">&rarr;</span></a></p>`,
     )
     .join("\n        ");
   const problemBlock =

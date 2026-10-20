@@ -215,6 +215,9 @@ export function hostProblems(
     if (w) problems.push({ name: i.name, word: w, consequence: SITES_DOWN, page: "infrastructure", href: "/infrastructure" });
   }
 
+  // Assumes the inventory's `infrastructure` and `reconciler` groups hold only
+  // long-lived units (timers, daemons). A oneshot service there would sit
+  // inactive -> exited between runs and show as a permanent false problem.
   // The watcher is matched by name so it can never be taken for the full-run
   // timer, whatever order the inventory lists them in.
   const units = reconcilerUnits(inventory);
