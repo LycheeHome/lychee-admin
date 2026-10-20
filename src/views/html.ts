@@ -363,6 +363,97 @@ function renderHop(hop: Hop): string {
 }
 
 /**
+ * A bad-tone status word as a predicate, so a unit and a container read alike
+ * in What to check. Only these four are bad-tone unit or container states; any
+ * other word falls back to a plain "is <word>" rather than a wrong claim.
+ * Exported so a test can pin the fallback.
+ */
+export function statePhrase(word: string): string {
+  switch (word) {
+    case "exited":
+      return "has stopped";
+    case "restarting":
+      return "keeps restarting";
+    case "paused":
+      return "is paused";
+    case "unhealthy":
+      return "is running but failing its health check";
+    default:
+      return `is ${word}`;
+  }
+}
+
+interface HopFix {
+  hop: "tunnel" | "caddy" | "your app";
+  /** Already-escaped HTML. */
+  body: string;
+}
+
+/**
+ * What to check under the chain: one entry for every hop that reads a bad
+ * status, in request order, so a red hop is never left without its fix and the
+ * failure is stated once here rather than inside a setup step that appears and
+ * disappears with state. The tunnel and Caddy entries read their unit's tone
+ * (a unit missing from `unitStates` is `unknown`, which is neutral, and with
+ * `unitStates` absent there are no unit entries at all). The app entry is the
+ * first that applies: a failed deploy (the reason and the reconciler's journal),
+ * a broken container (its logs), or a plain proxy nobody answered.
+ *
+ * "not-created" needs no special case: it is the neutral tone, so
+ * `tone === "bad"` already excludes it, since a container that never existed
+ * has no logs and Deploy is where you learn how to start one. Only an attached
+ * resource has a container to read: the reconciler runs it as a compose
+ * project named after the resource, so its logs are reached by project name
+ * from anywhere, never from a /var/www directory.
+ */
+function hopFixes(site: Site, opts: SiteDetailOptions): HopFix[] {
+  const fixes: HopFix[] = [];
+  const unitIsBad = (unit: string): boolean =>
+    opts.unitStates !== undefined && rowLabels(opts.unitStates[unit]?.status ?? "unknown").tone === "bad";
+
+  const unitPhrase = (unit: string): string => statePhrase(rowLabels(opts.unitStates?.[unit]?.status ?? "unknown").pill);
+
+  if (unitIsBad("cloudflared-sites.service")) {
+    fixes.push({
+      hop: "tunnel",
+      body: `<p class="${STEP_TEXT} !mb-0">The sites tunnel ${unitPhrase("cloudflared-sites.service")}, so Cloudflare has nowhere to send this site's requests. Its last 50 log lines usually show why:</p>
+          ${commandBlock("cmd-fix-tunnel", "journalctl -u cloudflared-sites -n 50", "Copy journal command")}`,
+    });
+  }
+  if (unitIsBad("caddy.service")) {
+    fixes.push({
+      hop: "caddy",
+      body: `<p class="${STEP_TEXT} !mb-0">Caddy ${unitPhrase("caddy.service")}. Every site on lychee goes through it, so all of them are down, not only this one. Its last 50 log lines usually show why:</p>
+          ${commandBlock("cmd-fix-caddy", "journalctl -u caddy -n 50", "Copy journal command")}`,
+    });
+  }
+
+  const status = opts.status;
+  if (status?.kind === "failed" && opts.resource && !opts.resource.version) {
+    // Forced: the status is the page's verdict, and the resource's own `result`
+    // can have moved on (a newer run) while the pill still reads failed.
+    fixes.push({
+      hop: "your app",
+      body: `${failureLine({ ...opts.resource, result: "failed" })}
+          <p class="${STEP_TEXT} !mb-0">To recover, publish a fixed tag; From a repository below offers it to deploy.</p>`,
+    });
+  } else if (opts.resource && status?.kind === "container" && describeStatus(status).tone === "bad") {
+    fixes.push({
+      hop: "your app",
+      body: `<p class="${STEP_TEXT} !mb-0">The container ${statePhrase(describeStatus(status).pill)}. Its last 100 log lines usually show why:</p>
+          ${commandBlock("cmd-logs", `docker compose -p ${opts.resource.name} logs --tail 100`, "Copy logs command")}`,
+    });
+  } else if (status?.kind === "tcp" && !status.responding) {
+    fixes.push({
+      hop: "your app",
+      body: `<p class="${STEP_TEXT} !mb-0">Nothing answered on ${mono(`localhost:${site.target}`)}. lychee-admin only routes requests to this port; whatever serves it is started outside the app. This shows what is listening there, and prints only its header row if nothing is:</p>
+          ${commandBlock("cmd-fix-listen", `ss -ltn 'sport = :${site.target}'`, "Copy listen check")}`,
+    });
+  }
+  return fixes;
+}
+
+/**
  * The chain a request actually travels, which is the whole point of this app:
  * Cloudflare DNS → the sites tunnel → Caddy → whatever serves the site.
  *
@@ -383,21 +474,7 @@ function renderHop(hop: Hop): string {
  */
 function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
   const filesPath = computeFilesPath(site, opts.sitesRoot);
-  // Remediation belongs with the hop that reports the failure, not as a
-  // numbered setup step that appears and disappears with container state.
-  // "not-created" is excluded: a container that never existed has no logs, and
-  // Deploy is where you learn how to start one.
-  const containerStatus = opts.status?.kind === "container" ? opts.status : null;
-  // `not-created` needs no special case here: it is the neutral tone, so
-  // `tone === "bad"` already excludes it. A guard naming it would imply it is
-  // still considered a failure. Pinned by "a never-deployed container is not
-  // asked to read logs it has none of".
-  //
-  // Only an attached resource has a container to read: the reconciler runs it
-  // as a compose project named after the resource, so its logs are reached by
-  // project name from anywhere, never from a /var/www directory.
-  const containerIsBroken =
-    opts.resource !== undefined && containerStatus !== null && describeStatus(containerStatus).tone === "bad";
+  const fixes = hopFixes(site, opts);
   const labels = opts.status ? describeStatus(opts.status) : null;
   const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
   const lastHop: Hop =
@@ -461,10 +538,18 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
           ${hops.map((hop) => renderHop(hop)).join(arrow)}
         </div>
         ${
-          containerIsBroken && opts.resource
-            ? `<div class="mt-4">
-          <p class="text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5">Check the container's logs to see why:</p>
-          ${commandBlock("cmd-logs", `docker compose -p ${opts.resource.name} logs`, "Copy logs command")}
+          fixes.length
+            ? `<div class="h-px bg-stone-700 my-4"></div>
+        <h4 class="${HOP_LABEL} !mb-3">What to check</h4>
+        <div class="flex flex-col gap-4">
+          ${fixes
+            .map(
+              (fix) => `<div class="grid grid-cols-1 sm:grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3 gap-y-1.5">
+            <p class="font-mono text-[0.8rem] text-red-300 m-0"><span aria-hidden="true">&#9679;</span> ${fix.hop}</p>
+            <div class="flex flex-col gap-2 min-w-0">${fix.body}</div>
+          </div>`,
+            )
+            .join("\n          ")}
         </div>`
             : ""
         }
@@ -616,7 +701,7 @@ function renderDangerZone(): string {
       <section class="border border-red-900/60 bg-red-950/20 rounded-[10px] p-5 mt-4 flex items-center justify-between gap-4 flex-wrap">
         <div class="min-w-0">
           <h3 class="${CARD_LABEL_BASE} text-red-300 m-0 mb-1.5">Danger</h3>
-          <p class="text-stone-400 text-[0.8rem] leading-snug m-0">Removing takes the site out of the Caddyfile and the tunnel route, reloads Caddy, then restarts the sites tunnel. Your DNS record and files stay unless you ask otherwise.</p>
+          <p class="text-stone-400 text-[0.8rem] leading-snug m-0 max-w-[70ch]">Removing takes the site out of the Caddyfile and the tunnel route, reloads Caddy, then restarts the sites tunnel. Your DNS record and files stay unless you ask otherwise.</p>
         </div>
         <button type="button" class="${BUTTON_DANGER} shrink-0" data-open-dialog="confirm-remove-dialog">${icon("trash")}Remove site</button>
       </section>`;
@@ -695,7 +780,21 @@ function fileBlock(file: { name: string; content: string }, index: number): stri
 }
 
 /** `title` is markup: machine facts inside it are wrapped with mono() by the caller. */
-function runbookStep(n: number, done: boolean, title: string, body: string): string {
+function runbookStep(n: number, done: boolean, title: string, body: string, fold?: { extra?: string }): string {
+  if (done && fold) {
+    // A finished step collapses to its summary line; the body stays in the page, one click away.
+    const extra = fold.extra ? ` <span class="font-mono text-[0.72rem] font-normal text-stone-400">· ${escapeHtml(fold.extra)}</span>` : "";
+    return `<details class="group">
+          <summary class="flex gap-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden rounded-md ${FOCUS_RING}">
+            <span class="${STEP_DONE}">${icon("check")}<span class="sr-only">Step ${n}, done</span></span>
+            <span class="block text-stone-50 font-semibold text-[0.9rem] leading-snug m-0 flex-1 min-w-0">${title} <span class="font-mono text-[0.72rem] font-normal text-stone-400">done</span>${extra}</span>
+            <span class="text-stone-500 shrink-0 mt-0.5 group-open:rotate-180 motion-safe:transition-transform">${icon("chevronDown")}</span>
+          </summary>
+          <div class="pl-[1.95rem] pt-2 flex flex-col gap-2">
+            ${body}
+          </div>
+        </details>`;
+  }
   return `<div class="flex gap-3">
           <span class="${done ? STEP_DONE : STEP_NUMBER}">${done ? `${icon("check")}<span class="sr-only">Step ${n}, done</span>` : n}</span>
           <div class="flex-1 min-w-0 flex flex-col gap-2">
@@ -824,6 +923,10 @@ function gateLine(resource: SiteResourceView): string {
  * step is a machine fact, so it is mono like the gate line. Empty unless
  * `result` is failed, so `blocked` keeps showing only its gate.
  *
+ * "Retries this tag on every run" is only true when a target tag exists. A
+ * failed row with none (lychee-admin's own row, a commit retried at most three
+ * times) says only that the log has the latest attempt.
+ *
  * One markup for a site's repository card and a services board row, which is
  * why it takes only the three facts both carry. The board passes a per-row
  * `commandId`, since several failed rows can share one page and the copy
@@ -839,11 +942,14 @@ function failureLine(resource: FailureFacts, extraClass = "", commandId = "cmd-r
   const step = resource.failedStep
     ? `<p class="${SERVICE_DETAIL} text-stone-300" data-failed-step>${escapeHtml(resource.failedStep)}</p>`
     : "";
+  const retry = resource.target
+    ? "The reconciler retries this tag on every run; its log for the last hour shows each attempt:"
+    : "The reconciler's log for the last hour has the latest attempt:";
   return `<div class="flex flex-col gap-2 ${extraClass}" data-deploy-failed>
             <p class="${BODY}">${what}</p>
             ${step}
-            <p class="${BODY}">The reconciler's journal has the whole run:</p>
-            ${commandBlock(commandId, "journalctl -u lychee-reconcile", "Copy journal command")}
+            <p class="${BODY}">${retry}</p>
+            ${commandBlock(commandId, 'journalctl -u lychee-reconcile -u lychee-reconcile-app --since "1 hour ago"', "Copy journal command")}
           </div>`;
 }
 
@@ -865,7 +971,11 @@ function firstDeploy(resource: SiteResourceView | undefined): string {
   // offeredTag never re-offers the one that failed.
   if (resource.result === "failed") {
     const tag = offeredTag(resource);
-    return `${failureLine(resource)}${gateLine(resource)}${tag ? renderOfferLine(resource.name, tag) : ""}`;
+    // The reason lives under the request path, where the red hop is.
+    const pointer = resource.target
+      ? `Deploying ${mono(resource.target)} failed; the reason is under the request path.`
+      : "The last deploy failed; the reason is under the request path.";
+    return `<p class="${BODY}">${pointer}</p>${gateLine(resource)}${tag ? renderOfferLine(resource.name, tag) : ""}`;
   }
   if (resource.target && resource.target === resource.available) {
     const requested = `<p class="font-mono text-[0.8rem] text-stone-50 m-0">${escapeHtml(resource.target)} requested</p>`;
@@ -932,6 +1042,7 @@ function renderRepositoryCard(site: Site, opts: SiteDetailOptions, resourceName:
 
   const imageFound = Boolean(resource?.available);
   const files = (opts.scaffoldFiles ?? []).map(fileBlock).join("\n            ");
+  const scaffoldNames = (opts.scaffoldFiles ?? []).map((f) => f.name.split("/").pop()).join(", ");
   const attached = resource
     ? `<p class="font-mono text-[0.8rem] text-stone-50 m-0 break-all">${escapeHtml(resource.repo ? `${IMAGE_PREFIX}${resource.repo}` : resource.name)} <span class="text-stone-400">· ${escapeHtml(resource.name)}.yml</span></p>${
         canChangeRepository(resource) ? `\n            ${changeRepositoryForm(site, resource)}` : ""
@@ -944,9 +1055,9 @@ function renderRepositoryCard(site: Site, opts: SiteDetailOptions, resourceName:
         <p class="${BODY} mb-4">Steps 1 and 2 happen in GitHub; 3 and 4 happen here. Attaching before the first tag is pushed is fine: nothing is offered to deploy until the image exists.</p>
         <div class="flex flex-col gap-5">
           ${runbookStep(1, imageFound, "Commit these three files beside your app", `<p class="${BODY}">At the repository's root, next to ${mono("package.json")}.</p>
-            ${files}`)}
+            ${files}`, { extra: scaffoldNames })}
           ${runbookStep(2, imageFound, `Create the repository in ${mono("LycheeHome")}, then push tag ${mono("v0.1.0")}`, `<p class="${BODY}">It has to live in the ${mono("LycheeHome")} org: the image is published as ${mono(`${IMAGE_PREFIX}<repo>`)}, the only registry path the reconciler accepts. The tag has GitHub's own runners build and push ${mono(`${IMAGE_PREFIX}<repo>:0.1.0`)}. Nothing runs on lychee yet.</p>
-            ${commandBlock("cmd-tag", "git tag v0.1.0 && git push origin v0.1.0", "Copy tag command")}`)}
+            ${commandBlock("cmd-tag", "git tag v0.1.0 && git push origin v0.1.0", "Copy tag command")}`, {})}
           ${runbookStep(3, resource !== undefined, "Attach the repository", attached)}
           ${runbookStep(4, false, "Deploy", firstDeploy(resource))}
         </div>
@@ -1068,6 +1179,11 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       </div>`
     : "";
 
+  const manualSteps = renderManualSteps(site, opts);
+  const repositoryCard = resourceName && opts.scaffold ? renderRepositoryCard(site, opts, resourceName) : "";
+  // DNS is live setup until a site is attached; after that the repository card is the work in hand.
+  const attached = opts.resource !== undefined;
+
   return layout(
     site.hostname,
     `
@@ -1075,8 +1191,9 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       ${renderDetailHeader(site, opts)}
 
       ${renderRequestPath(site, opts)}
-      ${renderManualSteps(site, opts)}
-      ${resourceName && opts.scaffold ? renderRepositoryCard(site, opts, resourceName) : ""}
+      ${attached ? `${repositoryCard}
+      ${manualSteps}` : `${manualSteps}
+      ${repositoryCard}`}
 
       ${renderDangerZone()}
     </div>
