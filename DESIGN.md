@@ -778,7 +778,7 @@ than wraps, with a copy button absolutely positioned inside it. An optional
 caption beneath in 0.72rem Smoke names the directory the command must run in —
 a value you have to read, so it is not dimmed below Smoke. No current command
 takes one: the logs command reaches its container by compose project name
-(`docker compose -p <name> logs`), which runs from anywhere, and that is the
+(`docker compose -p <name> logs --tail 100`), which runs from anywhere, and that is the
 better shape whenever it is available.
 
 **A whole file is the one multi-line variant.** The repository card renders
