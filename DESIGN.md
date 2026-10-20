@@ -98,6 +98,15 @@ components:
   button-primary-hover:
     backgroundColor: "{colors.ember-light}"
     textColor: "{colors.hearth}"
+  button-primary-compact:
+    backgroundColor: "{colors.ember}"
+    textColor: "{colors.hearth}"
+    rounded: "{rounded.control}"
+    padding: "6px 12px"
+    minHeight: "32px"
+  button-primary-compact-hover:
+    backgroundColor: "{colors.ember-light}"
+    textColor: "{colors.hearth}"
   button-secondary:
     backgroundColor: "{colors.hairline-strong}"
     textColor: "{colors.chalk}"
@@ -105,6 +114,15 @@ components:
     padding: "10px 16px"
     minHeight: "40px"
   button-secondary-hover:
+    backgroundColor: "{colors.hairline}"
+    textColor: "{colors.chalk}"
+  button-secondary-compact:
+    backgroundColor: "{colors.hairline-strong}"
+    textColor: "{colors.chalk}"
+    rounded: "{rounded.control}"
+    padding: "6px 12px"
+    minHeight: "32px"
+  button-secondary-compact-hover:
     backgroundColor: "{colors.hairline}"
     textColor: "{colors.chalk}"
   button-danger:
@@ -313,7 +331,8 @@ background for prose, or as an accent.
 on — buttons, focus rings, the checked option, step numerals, a card's hover
 edge. It never colors a heading, a body sentence, or a value you can only
 read. On any given screen it covers well under 10% of the pixels, and that
-rarity is what makes a primary button unmissable.
+rarity is what makes a primary button unmissable. A control the page expects
+to be refused never wears it.
 
 **The Three-Tone Status Rule.** Site state resolves to exactly three tones:
 Clear, Scorch, or Smoke. `starting`, `unknown`, `not deployed` and
@@ -604,8 +623,11 @@ exceptions to it.
   confirm dialog.
 - **Primary:** Ember fill, Hearth text, semibold Nunito at 0.875rem, 10px
   vertical and 16px horizontal padding over a 40px minimum height. Used once
-  per view for its one forward action — "Add site", "Visit". Hover goes Ember
-  Light.
+  per view, and it marks the action that will work now: "Add site", and "Visit"
+  only while the site is serving (running, responding, or a static site). A page
+  whose fix is on the host carries no Primary. A Primary blocked by an explicit
+  rejection keeps its disabled look through `aria-disabled` and stays focusable.
+  Hover goes Ember Light.
 - **Secondary:** A Hairline Strong fill with Chalk text, same size as primary,
   no border. Hover **recedes** to Hairline rather than brightening, which takes
   the label from 7.32:1 to 9.85:1; brightening to Smoke Deep would have been
@@ -625,6 +647,12 @@ exceptions to it.
   for danger. Deploying a newer version is not destructive, so wearing the danger
   colour would have said the wrong thing at a glance; borrowing its size says the
   right one, because both are in-row controls subordinate to the row they sit in.
+- **Compact primary:** Primary's colours, hover, focus, disabled and
+  aria-disabled at the offer's size
+  (0.8rem, 6px by 12px padding, 32px minimum height). Derived from Primary in
+  `shared.ts`, as Compact secondary is from Secondary, so the two cannot drift.
+  Used for the runbook's first Deploy and for the Prune under a site page's
+  retired warning, where that control is the page's next step.
 - **Compact secondary:** Secondary's colours, hover, focus and disabled at the
   offer's size (0.8rem, 6px by 12px padding, 32px minimum height). Made for
   the prune control, which sits on the services board beside the 32px offer; at
@@ -891,11 +919,13 @@ cell on a board whose whole job is a five-second glance. A row with nothing to
 offer is byte-identical to one from before the feature existed.
 
 **The same line serves a site's own page.** An attached Next.js site's
-repository card carries the offer with the board's exact markup and the same
-Deploy control, posting to the same endpoint, and the rule for whether a tag is
+repository card carries the offer from the same renderer and the same Deploy
+control, posting to the same endpoint — a Compact primary during the first
+deploy, the board's outline offer otherwise — and the rule for whether a tag is
 on offer at all is one function shared by both pages — so a site's page and the
 board can never disagree about what is deployable. It lives in that card, not
-the page header, which keeps Visit the header's one Ember action.
+the page header, which keeps Visit the header's action while the site is
+serving.
 
 Where both appear, the gate line comes first and the offer second. A blocked
 service's gate string carries its own recovery instruction — on this host it
@@ -913,11 +943,12 @@ say.
 
 **The prune line.** A site row whose declaration is retired (`state: absent`)
 and still in `lychee-resources` grows one more line, last: a compact secondary
-`Prune old declaration` button and a mono caption naming the file it deletes and
-the condition it waits for — `deletes <name>.yml from lychee-resources · once
-its container is confirmed down`. The same markup, from the same function, sits
-under a site page's detached warning, and both post to the same route. Secondary
-rather than the offer's Ember outline or the danger button's Scorch: it removes
+`Prune old declaration` button (compact primary under a site page's retired
+warning, where it is the page's next step) and a mono caption naming the file it
+deletes and the condition it waits for — `deletes <name>.yml from
+lychee-resources · once its container is confirmed down`. The same markup, from
+the same function, sits under a site page's detached warning, and both post to
+the same route. On the board, Secondary rather than the offer's Ember outline or the danger button's Scorch: it removes
 a file already retired for a container already down, in a commit that can be
 reverted, so it is neither the row's way forward nor a destructive act, and no
 modal guards it. The button is shown only on evidence that the declaration is
@@ -955,7 +986,7 @@ facts, chosen from a rendered comparison as "01 Strip". Start shows only when
 the unit is not up, and Stop and Restart only when it is not down (a state the
 page could not read shows all three); Update always. Stop is the only coloured
 button in the strip, a Danger button; Start, Restart and Update are compact
-Secondary, the grey Prune already uses ("02 Quiet neighbours", from a second
+Secondary, the grey Prune the board already uses ("02 Quiet neighbours", from a second
 comparison). Stop is the one action that leaves the server down, and an Offer
 outline beside a Danger one read as one red, so the strip spent no colour on
 the others rather than let Stop's lose its meaning. Stop,
@@ -1032,7 +1063,7 @@ is wrong — because a typo and an unpushed tag look identical from here. Below
 it, the attach control's own shape (the same label, the same affixed field,
 prefilled with the current repository) with a **secondary** `Change repository`
 button, not a primary: correcting a request is not the step's forward action,
-and Visit stays the page's one Ember fill. Its caption names the file it
+and the page's one Ember fill belongs to its forward action. Its caption names the file it
 rewrites and that it works only while there is no tag; its error is the same
 form-level surface. Step four does not repeat the explanation and says only
 that nothing is offered until an image exists. Before the reconciler's first

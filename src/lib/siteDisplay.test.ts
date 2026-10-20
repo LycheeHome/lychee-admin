@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { describeStatus, deployTrouble, hostProblems, hostProblemUnits, splitHostnameForDisplay, undeployedStatus } from "./siteDisplay";
+import { describeStatus, deployTrouble, hostProblems, hostProblemUnits, splitHostnameForDisplay, undeployedStatus, visitIsForward, type SiteStatus } from "./siteDisplay";
 import type { InventoryEntry, ServiceInventory } from "./serviceInventory";
 import type { UnitState } from "./unitState";
 
@@ -109,6 +109,34 @@ describe("describeStatus", () => {
       const { pill, hop } = describeStatus({ kind: "container", state });
       assert.doesNotMatch(`${pill} ${hop}`, /\b(live|down)\b/);
     }
+  });
+});
+
+describe("visitIsForward", () => {
+  test("no status (a static site, or no status entry) keeps Visit forward", () => {
+    assert.equal(visitIsForward(undefined), true);
+  });
+
+  test("serving states keep Visit forward", () => {
+    assert.equal(visitIsForward({ kind: "tcp", responding: true }), true);
+    assert.equal(visitIsForward({ kind: "container", state: "running" }), true);
+    assert.equal(visitIsForward({ kind: "container", state: "running", health: "healthy" }), true);
+  });
+
+  test("every other state demotes Visit, neutral ones included", () => {
+    const demoted: SiteStatus[] = [
+      { kind: "failed" },
+      { kind: "awaiting-image" },
+      { kind: "tcp", responding: false },
+      { kind: "container", state: "running", health: "unhealthy" },
+      { kind: "container", state: "running", health: "starting" },
+      { kind: "container", state: "exited" },
+      { kind: "container", state: "restarting" },
+      { kind: "container", state: "paused" },
+      { kind: "container", state: "not-created" },
+      { kind: "container", state: "unknown" },
+    ];
+    for (const s of demoted) assert.equal(visitIsForward(s), false, JSON.stringify(s));
   });
 });
 

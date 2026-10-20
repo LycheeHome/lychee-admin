@@ -101,6 +101,20 @@ export function describeStatus(status: SiteStatus): StatusLabels {
 }
 
 /**
+ * Whether the site page's Visit button is its forward action, drawn in Ember.
+ * Visit is primary only while the site is serving: a site with no status
+ * (static, or no entry) has nothing to contradict it, and a serving pill
+ * ("running" or "responding") keeps it. Any other pill demotes Visit to quiet
+ * emphasis. That demotion is presentation only and changes no tone, so the
+ * neutral states demote too, not just the bad ones (The Three-Tone Status Rule).
+ */
+export function visitIsForward(status: SiteStatus | undefined): boolean {
+  if (!status) return true;
+  const { pill } = describeStatus(status);
+  return pill === "running" || pill === "responding";
+}
+
+/**
  * What a site resource reads while nothing is installed: the reconciler has
  * never confirmed a version, so the container is not asked and its live state
  * (an `exited` left by a failed first deploy) would only contradict the
