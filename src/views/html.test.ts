@@ -2,8 +2,8 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { withoutHeader } from "../dev/testHelpers";
-import { offeredTag, renderPruneControl, renderServicesPage, renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
-import { formatAge, SERVICE_DETAIL, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_SECONDARY_COMPACT, TYPE_PILL_PROXY } from "./shared";
+import { offeredTag, statePhrase, renderPruneControl, renderServicesPage, renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
+import { formatAge, SERVICE_DETAIL, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_SECONDARY_COMPACT } from "./shared";
 import { ADD_STEPS } from "../lib/stepReport";
 
 const STATIC_SITE: Site = { hostname: "blog.lychee.land", type: "static", target: "/var/www/blog.lychee.land" };
@@ -42,10 +42,6 @@ function tagById(html: string, id: string): string {
   const match = html.match(new RegExp(`<[a-z]+[^>]* id="${id}"[^>]*>`));
   assert.ok(match, `no element with id="${id}" was rendered`);
   return match[0];
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**
@@ -215,10 +211,37 @@ describe("renderSiteDetail header", () => {
     assert.match(html, /data-copy-icon="copied"/);
   });
 
-  test("a static site gets a type pill and no state pill", () => {
+  test("a static site's header has no pills", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
-    assert.match(html, />static</);
+    // The hostname switcher's dropdown hints say "static" per row, so the
+    // type-word check looks at the header alone, up to the Visit button.
+    const headerStart = html.indexOf('id="site-hostname"');
+    const header = html.slice(headerStart, html.indexOf("Visit", headerStart));
+    assert.ok(headerStart >= 0 && header.length > 0, "the header slice is empty");
+    assert.doesNotMatch(header, />static</);
     assert.doesNotMatch(html, /data-state-pill/);
+    assert.doesNotMatch(html, /<div class="flex items-center gap-2 mt-3/);
+  });
+
+  test("a proxy site's header shows its status pill and no type pill", () => {
+    const html = renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: false } });
+    assert.match(html, /data-state-pill>[\s\S]*not responding/);
+    const headerStart = html.indexOf('id="site-hostname"');
+    const header = html.slice(headerStart, html.indexOf("Visit", headerStart));
+    assert.ok(headerStart >= 0 && header.length > 0, "the header slice is empty");
+    assert.doesNotMatch(header, />proxy</);
+  });
+
+  test("a proxy site with no status has no pill row", () => {
+    const html = renderSiteDetail(PROXY_SITE, OPTS);
+    assert.doesNotMatch(html, /data-state-pill/);
+    assert.doesNotMatch(html, /<div class="flex items-center gap-2 mt-3/);
+  });
+
+  test("a created static site's notice still renders with no pill row", () => {
+    const html = renderSiteDetail(STATIC_SITE, { ...OPTS, created: true });
+    assert.match(html, /id="page-notice"/);
+    assert.doesNotMatch(html, /<div class="flex items-center gap-2 mt-3/);
   });
 
   test("a container site's pill uses the canonical state word, not live", () => {
@@ -293,7 +316,7 @@ describe("the hostname switcher", () => {
     assert.match(panel, /rounded-\[10px\]/);
   });
 
-  test("marks the current row without the proxy pill's ember fill", () => {
+  test("marks the current row without an ember fill", () => {
     const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
     assert.doesNotMatch(block, /bg-rose-950/);
   });
@@ -1055,32 +1078,30 @@ describe("the site list's ledger rows", () => {
     assert.match(row, /Next\.js/);
   });
 
-  // The whole point of the layout change: pills that line up down the page.
-  // A static row has no status to show, but it must still occupy the column,
-  // or its type pill slides into the position a proxy row's status pill holds.
-  test("a status-less row still reserves the status column so the pills align", () => {
+  test("every row keeps a right-aligned status slot", () => {
     const staticRow = rowFor(renderSiteList([STATIC_SITE], {}, "lychee.land"), "blog.lychee.land");
     const proxyRow = rowFor(
       renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lychee.land"),
       "api.lychee.land",
     );
-    assert.match(staticRow, /data-status-slot/);
-    assert.match(proxyRow, /data-status-slot/);
+    for (const row of [staticRow, proxyRow]) {
+      assert.match(row, /data-status-slot/);
+      assert.match(row, /class="flex justify-end" data-status-slot/);
+      assert.doesNotMatch(row, /min-w-\[9rem\]/);
+    }
     assert.doesNotMatch(staticRow, /&#9679;/);
   });
 
-  // The reserved column buys alignment, which is only worth having when there
-  // is width to align across. Below the sm floor it starves the hostname —
-  // measured at 380px, the pills held 215px while the hostname got 97 and the
-  // address wrapped — so the reservation starts at sm and not before.
-  test("the reserved status column starts at the sm floor, not below it", () => {
-    const row = rowFor(renderSiteList([STATIC_SITE], {}, "lychee.land"), "blog.lychee.land");
-    const slot = row.slice(row.indexOf("data-status-slot") - 200, row.indexOf("data-status-slot"));
-    assert.match(slot, /sm:min-w-/);
-    assert.doesNotMatch(slot, /(?<!sm:)\bmin-w-\[9rem\]/);
+  test("the list carries no type pill and no ember fill", () => {
+    const html = renderSiteList(SITES, { [PROXY_SITE.hostname]: { kind: "tcp", responding: false } }, "lychee.land");
+    // Scoped to the rows: the page around them legitimately uses rose-950 on
+    // its own buttons and notices.
+    const rows = SITES.map((site) => rowFor(html, site.hostname)).join("");
+    assert.doesNotMatch(rows, />static<\/span>|>proxy<\/span>/);
+    assert.doesNotMatch(rows, /rose-950/);
   });
 
-  test("both pills share one right-hand group, so the row has two halves not three", () => {
+  test("the right half holds the status pill alone", () => {
     const row = rowFor(
       renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lychee.land"),
       "api.lychee.land",
@@ -1088,8 +1109,8 @@ describe("the site list's ledger rows", () => {
     const at = row.indexOf("data-row-side");
     assert.notEqual(at, -1, "no element carrying data-row-side was rendered in the row");
     const side = row.slice(at);
-    assert.match(side, new RegExp(escapeRegex(TYPE_PILL_PROXY)));
     assert.match(side, /data-status-slot/);
+    assert.doesNotMatch(side, />proxy<|>static<|rose-950/);
   });
 });
 
@@ -1109,21 +1130,31 @@ function accessibleName(markup: string): string {
 }
 
 describe("what a site row announces", () => {
-  // "api.lychee.land localhost:4000 proxy not responding" is serviceable but runs
-  // four separate facts together. The separators are sr-only rather than an
+  // "api.lychee.land localhost:4000 responding" is serviceable but runs
+  // three separate facts together. The separators are sr-only rather than an
   // aria-label so the name still derives from the visible text and cannot
   // drift from it.
-  test("a proxy row's four facts are separated rather than run together", () => {
+  test("a proxy row's three facts are separated rather than run together", () => {
     const row = rowFor(
       renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lychee.land"),
       "api.lychee.land",
     );
-    assert.equal(accessibleName(row), "api.lychee.land, localhost:4000, proxy, responding");
+    assert.equal(accessibleName(row), "api.lychee.land, localhost:4000, responding");
   });
 
-  test("a status-less row ends after its type, with no trailing separator", () => {
+  test("a static row ends after its address, with no trailing separator", () => {
     const row = rowFor(renderSiteList([STATIC_SITE], {}, "lychee.land"), "blog.lychee.land");
-    assert.equal(accessibleName(row), "blog.lychee.land, /var/www/blog.lychee.land, static");
+    assert.equal(accessibleName(row), "blog.lychee.land, /var/www/blog.lychee.land");
+  });
+
+  test("the apex row reads host then address", () => {
+    const row = rowFor(renderSiteList([APEX_SITE], {}, "lychee.land"), "lychee.land");
+    assert.equal(accessibleName(row), "lychee.land, /var/www/lychee.land");
+  });
+
+  test("a proxy row with no status ends after its address", () => {
+    const row = rowFor(renderSiteList([PROXY_SITE], {}, "lychee.land"), "api.lychee.land");
+    assert.equal(accessibleName(row), "api.lychee.land, localhost:4000");
   });
 
   test("the status dot is still absent from the name", () => {
@@ -1764,6 +1795,20 @@ describe("renderServicesPage", () => {
     assert.ok(!html.includes("data-failed-step"));
   });
 
+  test("the board's failure line has the two-unit command and no recovery sentence", () => {
+    const html = offerBoard({ version: "v1.4.0", target: "v1.5.0", result: "failed" });
+    assert.ok(html.includes("The reconciler retries this tag on every run; its log for the last hour shows each attempt:"));
+    assert.ok(html.includes("journalctl -u lychee-reconcile -u lychee-reconcile-app --since &quot;1 hour ago&quot;"));
+    assert.ok(!html.includes("To recover"));
+  });
+
+  test("a failed board row with no target says the log has the latest attempt, not that a tag is retried", () => {
+    const html = offerBoard({ version: "v1.4.0", result: "failed" });
+    assert.ok(html.includes("The reconciler's log for the last hour has the latest attempt:") || html.includes("The reconciler&#39;s log for the last hour has the latest attempt:"));
+    assert.ok(html.includes("journalctl -u lychee-reconcile -u lychee-reconcile-app --since &quot;1 hour ago&quot;"));
+    assert.ok(!html.includes("retries this tag"));
+  });
+
   test("rows that are not failed render no failure line", () => {
     for (const result of ["deployed", "skipped", "blocked", "awaiting-image", undefined]) {
       const html = offerBoard({ version: "v1.4.0", target: "v1.5.0", available: "v1.6.0", result, failedStep: "x" });
@@ -2041,14 +2086,242 @@ describe("renderSiteDetail request path: live unit state", () => {
   });
 });
 
+const FILES = [
+  { name: "Dockerfile", content: "FROM node:20-alpine AS deps\nWORKDIR /app\n" },
+  { name: ".dockerignore", content: "node_modules\n.next\n" },
+  { name: ".github/workflows/release.yml", content: "on:\n  push:\n    tags: ['v*.*.*']\n" },
+];
+const BASE = { ...OPTS, scaffold: { buildCommand: "npm run build", runCommand: "npm start" }, scaffoldFiles: FILES };
+const RESOURCE = { name: "app-lychee-land", repo: "app-site" };
+
+function requestPath(html: string): string {
+  const [, after] = html.split(">Request path</h3>");
+  assert.ok(after, "expected a Request path card");
+  return after.split("</section>")[0];
+}
+function whatToCheck(html: string): string {
+  const [, after] = requestPath(html).split(">What to check<");
+  assert.ok(after, "expected a What to check block");
+  return after;
+}
+
+describe("what to check under the chain", () => {
+  const EXITED = { status: "exited", since: null } as const;
+  const RUNNING = { status: "running", since: null } as const;
+
+  test("a failed first deploy: the reason and the journal sit under the chain", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...BASE,
+      resource: { ...RESOURCE, result: "failed", target: "0.1.0", available: "0.1.1", failedStep: "Start the container: exit 1" },
+      status: { kind: "failed" },
+    });
+    const w = whatToCheck(html);
+    assert.match(w, /your app/);
+    assert.match(w, /Deploying <span[^>]*>0\.1\.0<\/span> failed at this step:/);
+    assert.match(w, /Start the container: exit 1/);
+    assert.match(w, /id="cmd-reconcile-log"/);
+    assert.match(w, /journalctl -u lychee-reconcile/);
+  });
+
+  test("each bad state reads as a phrase", () => {
+    assert.equal(statePhrase("exited"), "has stopped");
+    assert.equal(statePhrase("restarting"), "keeps restarting");
+    assert.equal(statePhrase("paused"), "is paused");
+    assert.equal(statePhrase("unhealthy"), "is running but failing its health check");
+  });
+
+  test("an unmapped word falls back to is <word>", () => {
+    assert.equal(statePhrase("unknown"), "is unknown");
+  });
+
+  test("the tunnel and Caddy entries use the phrase", () => {
+    const w = whatToCheck(
+      renderSiteDetail(PROXY_SITE, {
+        ...OPTS,
+        status: { kind: "tcp", responding: true },
+        unitStates: {
+          "cloudflared-sites.service": { status: "restarting", since: null },
+          "caddy.service": EXITED,
+        },
+      }),
+    );
+    assert.ok(w.includes("The sites tunnel keeps restarting, so Cloudflare has nowhere to send this site's requests."));
+    assert.ok(w.includes("Caddy has stopped. Every site on lychee goes through it, so all of them are down, not only this one."));
+    assert.equal(w.split("Its last 50 log lines usually show why:").length - 1, 2);
+  });
+
+  test("the container entry uses the phrase and a bounded log command", () => {
+    const w = whatToCheck(
+      renderSiteDetail(NEXT_SITE, {
+        ...OPTS,
+        resource: RUNNING_RESOURCE,
+        status: { kind: "container", state: "running", health: "unhealthy" },
+      }),
+    );
+    assert.ok(w.includes("The container is running but failing its health check. Its last 100 log lines usually show why:"));
+    assert.ok(w.includes("docker compose -p app-lychee-land logs --tail 100"));
+  });
+
+  const TWO_UNIT = "journalctl -u lychee-reconcile -u lychee-reconcile-app --since &quot;1 hour ago&quot;";
+  const RECOVER = "To recover, publish a fixed tag; From a repository below offers it to deploy.";
+
+  test("a failed first deploy points at both reconciler units for the last hour, then recovery", () => {
+    const w = whatToCheck(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, result: "failed", target: "0.1.0", available: "0.1.1", failedStep: "Start the container: exit 1" },
+        status: { kind: "failed" },
+      }),
+    );
+    assert.ok(w.includes("The reconciler retries this tag on every run; its log for the last hour shows each attempt:"));
+    const pre = w.slice(w.indexOf('id="cmd-reconcile-log"'));
+    assert.ok(pre.includes(TWO_UNIT));
+    assert.ok(w.indexOf(RECOVER) > w.indexOf(TWO_UNIT));
+  });
+
+  test("a failed deploy with no target still offers recovery", () => {
+    const w = whatToCheck(
+      renderSiteDetail(NEXT_SITE, { ...BASE, resource: { ...RESOURCE, result: "failed" }, status: { kind: "failed" } }),
+    );
+    assert.ok(w.includes("The last deploy failed"));
+    assert.ok(w.includes("The reconciler's log for the last hour has the latest attempt:"));
+    assert.ok(!w.includes("retries this tag"));
+    assert.ok(w.includes(RECOVER));
+    assert.ok(w.includes(TWO_UNIT));
+    assert.ok(w.includes(RECOVER));
+  });
+
+  test("the plain-proxy entry says how to read the listen check", () => {
+    const w = whatToCheck(renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: false } }));
+    assert.ok(
+      w.includes(
+        "lychee-admin only routes requests to this port; whatever serves it is started outside the app. This shows what is listening there, and prints only its header row if nothing is:",
+      ),
+    );
+  });
+
+  test("no entry overpromises", () => {
+    const pages = [
+      renderSiteDetail(PROXY_SITE, {
+        ...OPTS,
+        status: { kind: "tcp", responding: false },
+        unitStates: { "caddy.service": EXITED, "cloudflared-sites.service": { status: "restarting", since: null } },
+      }),
+      renderSiteDetail(NEXT_SITE, { ...OPTS, resource: RUNNING_RESOURCE, status: { kind: "container", state: "paused" } }),
+      renderSiteDetail(NEXT_SITE, { ...BASE, resource: { ...RESOURCE, result: "failed" }, status: { kind: "failed" } }),
+    ];
+    for (const html of pages) {
+      const w = whatToCheck(html);
+      assert.ok(!w.includes("says why"));
+      assert.ok(!w.includes("isn't running"));
+    }
+  });
+
+  test("a plain proxy not responding gets a listen check", () => {
+    const w = whatToCheck(renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: false } }));
+    assert.match(w, /id="cmd-fix-listen"/);
+    assert.match(w, /ss -ltn 'sport = :4000'/);
+    assert.match(w, /localhost:4000/);
+  });
+
+  test("a stopped Caddy gets its journal", () => {
+    const w = whatToCheck(
+      renderSiteDetail(PROXY_SITE, {
+        ...OPTS,
+        status: { kind: "tcp", responding: true },
+        unitStates: { "caddy.service": EXITED, "cloudflared-sites.service": RUNNING },
+      }),
+    );
+    assert.match(w, /id="cmd-fix-caddy"/);
+    assert.match(w, /journalctl -u caddy -n 50/);
+    assert.doesNotMatch(w, /cmd-fix-tunnel/);
+  });
+
+  test("entries run in request order", () => {
+    const w = whatToCheck(
+      renderSiteDetail(PROXY_SITE, {
+        ...OPTS,
+        status: { kind: "tcp", responding: false },
+        unitStates: { "caddy.service": EXITED, "cloudflared-sites.service": EXITED },
+      }),
+    );
+    assert.ok(w.indexOf("cmd-fix-tunnel") < w.indexOf("cmd-fix-caddy"));
+    assert.ok(w.indexOf("cmd-fix-caddy") < w.indexOf("cmd-fix-listen"));
+    assert.match(w, /journalctl -u cloudflared-sites -n 50/);
+    assert.ok(w.includes("The sites tunnel has stopped"));
+    assert.ok(w.includes("Caddy has stopped"));
+  });
+
+  test("an exited container keeps its logs command, now in the list", () => {
+    const w = whatToCheck(renderSiteDetail(NEXT_SITE, { ...OPTS, resource: RUNNING_RESOURCE, status: { kind: "container", state: "exited" } }));
+    assert.match(w, /id="cmd-logs"/);
+    assert.match(w, /docker compose -p app-lychee-land logs/);
+  });
+
+  test("a healthy site and neutral units render no block", () => {
+    const proxy = renderSiteDetail(PROXY_SITE, {
+      ...OPTS,
+      status: { kind: "tcp", responding: true },
+      unitStates: { "caddy.service": RUNNING, "cloudflared-sites.service": { status: "unknown", since: null } as const },
+    });
+    assert.doesNotMatch(requestPath(proxy), /What to check/);
+    const next = renderSiteDetail(NEXT_SITE, { ...BASE, resource: RESOURCE, status: { kind: "awaiting-image" } });
+    assert.doesNotMatch(requestPath(next), /What to check/);
+  });
+
+  test("a failed status renders the journal even when the resource's result has moved on", () => {
+    const w = whatToCheck(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, result: "awaiting-image", target: "0.1.0" },
+        status: { kind: "failed" },
+      }),
+    );
+    assert.match(w, /journalctl -u lychee-reconcile/);
+    assert.match(w, /failed/);
+  });
+
+  test("the failed step stays escaped under the chain", () => {
+    const w = whatToCheck(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, result: "failed", target: "0.1.0", failedStep: "Pull the image: <manifest> unknown" },
+        status: { kind: "failed" },
+      }),
+    );
+    assert.ok(w.includes("Pull the image: &lt;manifest&gt; unknown"));
+    assert.ok(!w.includes("<manifest>"));
+  });
+
+  test("no unit states means no unit entries", () => {
+    const w = whatToCheck(renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: false } }));
+    assert.match(w, /cmd-fix-listen/);
+    assert.doesNotMatch(w, /cmd-fix-caddy/);
+    assert.doesNotMatch(w, /cmd-fix-tunnel/);
+  });
+
+  test("a hairline separates the fixes from the detail rows that follow", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...BASE,
+      resource: { ...RESOURCE, result: "failed", target: "0.1.0" },
+      status: { kind: "failed" },
+    });
+    const rp = requestPath(html);
+    const fixesAt = rp.indexOf(">What to check<");
+    const rowAt = rp.indexOf(">framework<");
+    assert.ok(fixesAt > -1 && rowAt > fixesAt, "expected detail rows after the fixes");
+    assert.ok(rp.slice(fixesAt, rowAt).includes("h-px bg-stone-700"));
+  });
+
+  test("a static site gets the Caddy entry", () => {
+    const w = whatToCheck(
+      renderSiteDetail(STATIC_SITE, { ...OPTS, unitStates: { "caddy.service": EXITED, "cloudflared-sites.service": RUNNING } }),
+    );
+    assert.match(w, /journalctl -u caddy -n 50/);
+  });
+});
+
 describe("renderSiteDetail from a repository", () => {
-  const FILES = [
-    { name: "Dockerfile", content: "FROM node:20-alpine AS deps\nWORKDIR /app\n" },
-    { name: ".dockerignore", content: "node_modules\n.next\n" },
-    { name: ".github/workflows/release.yml", content: "on:\n  push:\n    tags: ['v*.*.*']\n" },
-  ];
-  const BASE = { ...OPTS, scaffold: { buildCommand: "npm run build", runCommand: "npm start" }, scaffoldFiles: FILES };
-  const RESOURCE = { name: "app-lychee-land", repo: "app-site" };
 
   function card(html: string): string {
     const [, after] = withoutHeader(html).split(">From a repository</h3>");
@@ -2065,6 +2338,29 @@ describe("renderSiteDetail from a repository", () => {
     }
     assert.doesNotMatch(c, /<details|role="tab"|max-h-|overflow-y/);
     assert.match(c, /git tag v0\.1\.0 &amp;&amp; git push origin v0\.1\.0/);
+  });
+
+  test("done steps 1 and 2 fold at rest, with the file names in step 1's summary", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...BASE,
+      resource: { ...RESOURCE, available: "0.1.0", result: "awaiting-image" },
+      status: { kind: "awaiting-image" },
+    });
+    const c = card(html);
+    assert.equal((c.match(/<details/g) ?? []).length, 2);
+    assert.doesNotMatch(c, /<details[^>]*\sopen/);
+    const summary = c.match(/<summary[\s\S]*?<\/summary>/)![0];
+    assert.ok(summary.includes("Dockerfile, .dockerignore, release.yml"));
+    for (const file of FILES) assert.ok(c.includes(file.content.trimEnd().replace(/'/g, "'")), `${file.name} not in full`);
+    const outside = c.replace(/<details[\s\S]*?<\/details>/g, "");
+    assert.ok(outside.includes("app-lychee-land.yml"), "step 3's attached line stays visible");
+  });
+
+  test("steps not yet done never fold", () => {
+    const notAttached = card(renderSiteDetail(NEXT_SITE, { ...BASE, status: { kind: "container", state: "not-created" } }));
+    assert.doesNotMatch(notAttached, /<details/);
+    const attached = card(renderSiteDetail(NEXT_SITE, { ...BASE, resource: RESOURCE, status: { kind: "awaiting-image" } }));
+    assert.doesNotMatch(attached, /<details/);
   });
 
   test("not attached: the attach control fixes the ghcr prefix beside the input and is the page's ember action", () => {
@@ -2230,33 +2526,32 @@ describe("renderSiteDetail from a repository", () => {
     for (const html of pages) assert.doesNotMatch(html, /data-prune/);
   });
 
-  test("a failed first deploy: the Deploy step names the tag, the failed step and the journal, and offers nothing", () => {
+  test("a failed first deploy: the Deploy step points up and offers nothing", () => {
     const html = renderSiteDetail(NEXT_SITE, {
       ...BASE,
       resource: { ...RESOURCE, result: "failed", target: "0.1.0", available: "0.1.0", failedStep: "Pull the image: <manifest> unknown" },
       status: { kind: "failed" },
     });
     const c = card(html);
-    assert.match(c, /data-deploy-failed/);
-    assert.match(c, /0\.1\.0/);
-    assert.match(c, /Pull the image: &lt;manifest&gt; unknown/);
-    assert.match(c, /journalctl -u lychee-reconcile/);
+    assert.doesNotMatch(c, /data-deploy-failed/);
+    assert.doesNotMatch(c, /journalctl/);
+    assert.match(c, /the reason is under the request path/);
     assert.doesNotMatch(c, /0\.1\.0 requested/);
     assert.doesNotMatch(c, /data-deploy=/);
     assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> failed<\/span>/);
   });
 
   test("a failed deploy with no failed step still names the tag and the journal", () => {
-    const c = card(
+    const w = whatToCheck(
       renderSiteDetail(NEXT_SITE, {
         ...BASE,
         resource: { ...RESOURCE, result: "failed", target: "0.1.0" },
         status: { kind: "failed" },
       }),
     );
-    assert.match(c, /data-deploy-failed/);
-    assert.match(c, /journalctl -u lychee-reconcile/);
-    assert.doesNotMatch(c, /data-failed-step/);
+    assert.match(w, /data-deploy-failed/);
+    assert.match(w, /journalctl -u lychee-reconcile/);
+    assert.doesNotMatch(w, /data-failed-step/);
   });
 
   test("a failed redeploy shows the failure line in the collapsed card", () => {
@@ -2299,7 +2594,7 @@ describe("renderSiteDetail from a repository", () => {
     }
   });
 
-  test("a failed first deploy with a newer tag: the failure line, then the offer", () => {
+  test("a failed first deploy with a newer tag: the pointer, then the offer", () => {
     const c = card(
       renderSiteDetail(NEXT_SITE, {
         ...BASE,
@@ -2307,12 +2602,11 @@ describe("renderSiteDetail from a repository", () => {
         status: { kind: "failed" },
       }),
     );
-    assert.match(c, /data-deploy-failed/);
-    assert.match(c, /Start the container: exit 1/);
+    assert.match(c, /the reason is under the request path/);
+    assert.doesNotMatch(c, /data-deploy-failed/);
     assert.match(c, /0\.1\.1 available/);
     assert.match(c, /data-deploy="app-lychee-land"/);
     assert.match(c, /data-deploy-tag="0\.1\.1"/);
-    assert.ok(c.indexOf("data-deploy-failed") < c.indexOf("data-offer"));
     assert.doesNotMatch(c, /No tag found/);
   });
 
@@ -2336,7 +2630,8 @@ describe("renderSiteDetail from a repository", () => {
       { ...RESOURCE, version: "0.1.0", target: "0.2.0", available: "0.2.0", result: "failed" },
     ]) {
       const c = card(renderSiteDetail(NEXT_SITE, { ...BASE, resource, status: { kind: "failed" } }));
-      assert.match(c, /data-deploy-failed/);
+      // A first deploy points up at the chain; a redeploy keeps its line here.
+      assert.match(c, "version" in resource ? /data-deploy-failed/ : /the reason is under the request path/);
       assert.doesNotMatch(c, /data-offer|data-deploy=/);
     }
   });
@@ -2387,6 +2682,66 @@ describe("renderSiteDetail from a repository", () => {
     });
     assert.match(html, /docker compose -p app-lychee-land logs/);
     assert.doesNotMatch(html, /in \/var\/www\/app\.lychee\.land\//);
+  });
+});
+
+describe("card order", () => {
+  const order = (html: string, ...labels: string[]) => labels.map((l) => html.indexOf(`>${l}</h3>`));
+  const ascending = (xs: number[]) => xs.every((x, i) => x >= 0 && (i === 0 || xs[i - 1] < x));
+
+  test("an attached site puts Manual steps after the repository card", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...BASE, resource: RESOURCE, status: { kind: "awaiting-image" } });
+    assert.ok(ascending(order(html, "Request path", "From a repository", "Manual steps", "Danger")));
+  });
+
+  test("static, plain-proxy and unattached sites keep Manual steps second", () => {
+    const static_ = renderSiteDetail(STATIC_SITE, OPTS);
+    assert.ok(ascending(order(static_, "Request path", "Manual steps", "Danger")));
+    const proxy = renderSiteDetail(PROXY_SITE, OPTS);
+    assert.ok(ascending(order(proxy, "Request path", "Manual steps", "Danger")));
+    const next = renderSiteDetail(NEXT_SITE, { ...BASE, status: { kind: "container", state: "not-created" } });
+    assert.ok(ascending(order(next, "Request path", "Manual steps", "From a repository", "Danger")));
+  });
+
+  test("a detached site keeps Manual steps before the repository card", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...BASE, detached: true, status: { kind: "container", state: "not-created" } });
+    assert.ok(ascending(order(html, "Request path", "Manual steps", "From a repository", "Danger")));
+  });
+
+  test("the Danger paragraph is held to a reading measure", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    assert.match(html.split(">Danger</h3>")[1], /^\s*<p class="[^"]*max-w-\[70ch\]/);
+  });
+
+  test("no id repeats on a detail page", () => {
+    const EXITED = { status: "exited", since: null } as const;
+    const pages = [
+      renderSiteDetail(STATIC_SITE, OPTS),
+      renderSiteDetail(PROXY_SITE, {
+        ...OPTS,
+        status: { kind: "tcp", responding: false },
+        unitStates: { "cloudflared-sites.service": EXITED, "caddy.service": EXITED },
+      }),
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, result: "failed", target: "0.1.0", available: "0.1.1", failedStep: "Start the container: exit 1" },
+        status: { kind: "failed" },
+      }),
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, version: "0.2.0", result: "deployed" },
+        status: { kind: "container", state: "exited" },
+      }),
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, available: "0.1.0", result: "awaiting-image" },
+        status: { kind: "awaiting-image" },
+      }),
+    ];
+    for (const html of pages) {
+      const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
+      assert.equal(ids.length, new Set(ids).size, `duplicate ids: ${ids.filter((id, i) => ids.indexOf(id) !== i)}`);
+    }
   });
 });
 
@@ -2658,5 +3013,70 @@ describe("board rows link to their sites, and unknown explains itself", () => {
       { x: { unit: "x", action: "restart", state: "running", logTail: "" } },
     );
     assert.ok(!html.includes(UNIT_SENTENCE) && !html.includes(CONTAINER_SENTENCE));
+  });
+});
+
+describe("failed redeploy of an installed site", () => {
+  test("renders the reconcile-log command once, in the repository card only", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...BASE,
+      resource: { ...RESOURCE, version: "0.1.0", target: "0.2.0", result: "failed" },
+      status: { kind: "failed" },
+    });
+    assert.equal(html.match(/id="cmd-reconcile-log"/g)?.length, 1);
+  });
+});
+
+describe("host problems on the site list", () => {
+  const CADDY_DOWN = {
+    name: "caddy",
+    word: "exited",
+    consequence: "Every site is unreachable from outside",
+    page: "infrastructure" as const,
+    href: "/infrastructure" as const,
+  };
+
+  test("no problems renders no block", () => {
+    assert.doesNotMatch(renderSiteList(SITES, {}, "lychee.land"), /data-host-problems/);
+  });
+
+  test("a problem renders consequence first, red state words, a link", () => {
+    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, undefined, [CADDY_DOWN]);
+    assert.match(html, /<[^>]*role="status"[^>]*data-host-problems|<[^>]*data-host-problems[^>]*role="status"/);
+    const consequence = html.indexOf("Every site is unreachable from outside");
+    const phrase = html.indexOf("caddy has stopped");
+    assert.ok(consequence >= 0 && phrase > consequence, "consequence must come before the state phrase");
+    const consequenceTag = html.slice(html.lastIndexOf("<", consequence), consequence);
+    assert.doesNotMatch(consequenceTag, /text-red-/);
+    assert.match(html, /<span class="[^"]*text-red-300[^"]*">.*caddy has stopped/);
+    assert.match(html, /href="\/infrastructure"/);
+  });
+
+  test("several problems keep their order", () => {
+    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, undefined, [
+      CADDY_DOWN,
+      { name: "lychee-watch", word: "exited", consequence: "Changes wait for the 15-minute full run", page: "reconciler", href: "/reconciler" },
+    ]);
+    const first = html.indexOf("Every site is unreachable from outside");
+    const second = html.indexOf("Changes wait for the 15-minute full run");
+    assert.ok(first >= 0 && second > first);
+  });
+
+  test("problem values are escaped", () => {
+    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, undefined, [
+      { ...CADDY_DOWN, name: "<b>x</b>" },
+    ]);
+    assert.match(html, /&lt;b&gt;x&lt;\/b&gt;/);
+    assert.doesNotMatch(html, /<b>x<\/b>/);
+  });
+
+  test("the removed notice and host problems both render", () => {
+    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, "Removed blog.lychee.land.", [CADDY_DOWN]);
+    assert.match(html, /Removed blog\.lychee\.land\./);
+    assert.match(html, /data-host-problems/);
+  });
+
+  test("the error render has no host-problem block", () => {
+    assert.doesNotMatch(renderSiteList([], {}, "lychee.land", "boom"), /data-host-problems/);
   });
 });

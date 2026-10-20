@@ -1,4 +1,7 @@
 import type { ContainerHealth, ContainerState } from "./containerStatus";
+import type { ServiceInventory } from "./serviceInventory";
+import { findTimerUnit } from "./serviceBoard";
+import type { UnitState } from "./unitState";
 
 /**
  * How the detail page learned about a site's liveness. Plain reverse-proxy
@@ -170,4 +173,122 @@ export function deployTrouble(entry: { result?: string; gateCode?: string }): De
   if (entry.result === "failed") return { tone: BAD, word: "failed", reason: "deploy failed" };
   if (entry.result !== "blocked" || entry.gateCode === undefined) return null;
   return Object.hasOwn(BLOCKED_TROUBLE, entry.gateCode) ? { ...BLOCKED_TROUBLE[entry.gateCode] } : null;
+}
+
+export interface HostProblem {
+  /** The inventory's name for the unit, which is what the board's rows are keyed by. */
+  name: string;
+  /** The unit's status word, as the board would show it. */
+  word: string;
+  /** What the operator loses while it stays that way. */
+  consequence: string;
+  page: "infrastructure" | "reconciler";
+  href: "/infrastructure" | "/reconciler";
+}
+
+/**
+ * Caddy and the sites tunnel are named in code, not only read from the
+ * inventory: they are what carries every site, and the sites list must still
+ * notice them down when the inventory is missing. The name is the inventory's
+ * when it lists the unit, else this fallback.
+ */
+const FIXED_UNITS = [
+  { name: "caddy", unit: "caddy.service" },
+  { name: "cloudflared-sites", unit: "cloudflared-sites.service" },
+] as const;
+
+const WATCH_TIMER = "lychee-watch.timer";
+
+const SITES_DOWN = "Every site is unreachable from outside";
+
+/** The words that are bad on the board: this mirrors the bad tone rowLabels
+ *  gives them. paused and unhealthy are kept for that mirroring but cannot
+ *  reach this function, since a UnitStatus never takes them. */
+const BAD_WORDS = new Set(["exited", "restarting", "paused", "unhealthy"]);
+
+interface HostUnit {
+  name: string;
+  unit: string;
+}
+
+/** The inventory's unit entries in one group; none when it is missing or empty. */
+function groupUnits(inventory: ServiceInventory | null, group: "infrastructure" | "reconciler"): HostUnit[] {
+  if (!inventory) return [];
+  const out: HostUnit[] = [];
+  for (const e of inventory.entries) {
+    if (e.kind === "unit" && e.group === group) out.push({ name: e.name, unit: e.unit });
+  }
+  return out;
+}
+
+/** Fixed units first (inventory name when listed), then the other
+ *  infrastructure units in inventory order, each unit once. */
+function infrastructureUnits(inventory: ServiceInventory | null): HostUnit[] {
+  const listed = groupUnits(inventory, "infrastructure");
+  const out: HostUnit[] = FIXED_UNITS.map((f) => ({
+    name: listed.find((l) => l.unit === f.unit)?.name ?? f.name,
+    unit: f.unit,
+  }));
+  for (const l of listed) {
+    if (!out.some((o) => o.unit === l.unit)) out.push(l);
+  }
+  return out;
+}
+
+/** Reconciler units, minus any already counted as infrastructure. */
+function reconcilerUnits(inventory: ServiceInventory | null): HostUnit[] {
+  const infra = infrastructureUnits(inventory);
+  return groupUnits(inventory, "reconciler").filter((r) => !infra.some((i) => i.unit === r.unit));
+}
+
+/** The unit names whose state the sites list must read to decide hostProblems. */
+export function hostProblemUnits(inventory: ServiceInventory | null): string[] {
+  const units: string[] = [];
+  for (const u of [...infrastructureUnits(inventory), ...reconcilerUnits(inventory)]) {
+    if (!units.includes(u.unit)) units.push(u.unit);
+  }
+  return units;
+}
+
+/**
+ * Host units that are down and what that costs, infrastructure first. The
+ * sites list reads no host state otherwise, so a Caddy outage would leave it
+ * green; this is the one place that says otherwise.
+ */
+export function hostProblems(
+  unitStates: Record<string, UnitState>,
+  inventory: ServiceInventory | null,
+): HostProblem[] {
+  const problems: HostProblem[] = [];
+  const word = (unit: string): string | null => {
+    const status = unitStates[unit]?.status;
+    return status && BAD_WORDS.has(status) ? status : null;
+  };
+
+  for (const i of infrastructureUnits(inventory)) {
+    const w = word(i.unit);
+    if (w) problems.push({ name: i.name, word: w, consequence: SITES_DOWN, page: "infrastructure", href: "/infrastructure" });
+  }
+
+  // Assumes the inventory's `infrastructure` and `reconciler` groups hold only
+  // long-lived units (timers, daemons). A oneshot service there would sit
+  // inactive -> exited between runs and show as a permanent false problem.
+  // The watcher is matched by name so it can never be taken for the full-run
+  // timer, whatever order the inventory lists them in.
+  const units = reconcilerUnits(inventory);
+  const fullRun = inventory
+    ? findTimerUnit({ ...inventory, entries: inventory.entries.filter((e) => e.kind !== "unit" || e.unit !== WATCH_TIMER) })
+    : null;
+  for (const r of units) {
+    const w = word(r.unit);
+    if (!w) continue;
+    const consequence =
+      r.unit === WATCH_TIMER
+        ? "Changes wait for the 15-minute full run"
+        : r.unit === fullRun
+          ? "The 15-minute full run has stopped"
+          : "Deploys may not apply";
+    problems.push({ name: r.name, word: w, consequence, page: "reconciler", href: "/reconciler" });
+  }
+  return problems;
 }

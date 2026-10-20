@@ -169,7 +169,7 @@ claim.
   Cloudflare DNS record inside the app, and (2) container control beyond
   deploying a tag — restart, logs in the page. DNS is manual today; deploying
   a Next.js site is a request to the reconciler, and its logs are a copyable
-  `docker compose -p <name> logs` command. Future
+  `docker compose -p <name> logs --tail 100` command. Future
   design should leave room for them rather than treating the manual DNS
   reminder or read-only container status as permanent furniture.
 

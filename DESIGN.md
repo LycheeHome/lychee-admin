@@ -75,10 +75,6 @@ typography:
     fontFamily: "DM Mono, ui-monospace, SFMono-Regular, Consolas, monospace"
     fontSize: "0.6875rem"
     letterSpacing: "0.06em"
-  type-pill:
-    fontFamily: "DM Mono, ui-monospace, SFMono-Regular, Consolas, monospace"
-    fontSize: "0.7rem"
-    letterSpacing: "0.06em"
 rounded:
   inline: "4px"
   control: "6px"
@@ -164,16 +160,6 @@ components:
     typography: "{typography.code}"
     rounded: "{rounded.control}"
     padding: "10px 44px 10px 10px"
-  pill-type-static:
-    backgroundColor: "{colors.hairline}"
-    textColor: "{colors.chalk}"
-    rounded: "{rounded.full}"
-    padding: "4px 10px"
-  pill-type-proxy:
-    backgroundColor: "{colors.ember-deep}"
-    textColor: "{colors.ember-light}"
-    rounded: "{rounded.full}"
-    padding: "4px 10px"
   pill-status-ok:
     backgroundColor: "{colors.clear-deep}"
     textColor: "{colors.clear}"
@@ -264,13 +250,13 @@ carry a verdict.
   focus ring in the app, the numerals beside manual steps, the checked
   reverse-proxy radio, and the "back to sites" link on the not-found page.
 - **Ember Light** (`rose-300`): Ember's hover state on filled buttons, and the
-  text color of the `proxy` type pill.
+  offer button's text.
 - **Ember Edge** (`rose-800`): Structural Ember — the border of the checked
   reverse-proxy option, the 2px left rule marking the port/framework branch of
   the add form, and the 2px left rule on the current header nav item.
-- **Ember Deep** (`rose-950`): The ground beneath Ember text — the `proxy` pill,
-  the checked reverse-proxy option's fill (at 50%), and every non-error flash
-  banner (at 60%).
+- **Ember Deep** (`rose-950`): The ground beneath Ember text — the checked
+  reverse-proxy option's fill (at 50%), every non-error flash banner (at 60%),
+  and the offer button's hover fill.
 
 ### Neutral
 
@@ -280,13 +266,12 @@ carry a verdict.
 - **Hearth Lift** (`stone-800`): Cards, dialogs, and the copy button's rest
   state. One tonal step up from the page, and the only surface color.
 - **Hairline** (`stone-700`): Borders on cards, dialogs, inputs and code blocks;
-  the divider rule inside a card (`1px`); the fill of the `static` type pill and
-  the neutral status pill; the hover fill of secondary buttons.
-- **Hairline Strong** (`stone-600`): The secondary button's fill, the `static`
-  pill's edge, and the arrows between routing hops. It carries Chalk at 7.32:1
-  as a surface, having been unusable as a 1px line against Hearth (2.29:1) or
-  Hearth Lift (1.99:1) — the same token reads completely differently depending
-  on how much of it there is.
+  the divider rule inside a card (`1px`); the fill of the neutral status pill;
+  the hover fill of secondary buttons.
+- **Hairline Strong** (`stone-600`): The secondary button's fill and the arrows
+  between routing hops. It carries Chalk at 7.32:1 as a surface, having been
+  unusable as a 1px line against Hearth (2.29:1) or Hearth Lift (1.99:1) — the
+  same token reads completely differently depending on how much of it there is.
 - **Smoke Deep** (`stone-500`): Structure, not prose. Arrows between routing
   hops, the breadcrumb's `/`, and the trailing `.lychee.land` of a hostname at
   Headline size. It measures 3.64:1 on Hearth and 3.16:1 on Hearth Lift, so it
@@ -326,8 +311,7 @@ background for prose, or as an accent.
 
 **The Ember Is Interactive Rule.** Ember and its family mark what you can act
 on — buttons, focus rings, the checked option, step numerals, a card's hover
-edge — plus the one label that means "something else runs here" (the `proxy`
-pill). It never colors a heading, a body sentence, or a value you can only
+edge. It never colors a heading, a body sentence, or a value you can only
 read. On any given screen it covers well under 10% of the pixels, and that
 rarity is what makes a primary button unmissable.
 
@@ -418,7 +402,9 @@ says its own name and names a site.
   Section and dialog headings — "Sites", "Add a site", "Remove site".
 - **Label** (DM Mono, 0.75rem, weight 500, uppercase, tracking 0.1em, Smoke Light):
   Card headings inside the detail page — "Request path", "Manual steps",
-  "Deploy", "Danger".
+  "Deploy", "Danger". An attached site's cards run Request path → From a
+  repository → Manual steps → Danger, so the card with something to do sits
+  directly under the chain; every other site keeps Manual steps second.
 - **Micro-label** (DM Mono, 0.6875rem, weight 500, uppercase, tracking 0.09em,
   Smoke): The label above a routing hop. The smallest type in the system, so it
   gets the brightest of the dim tones, not the dimmest. 0.6875rem is exactly
@@ -466,13 +452,19 @@ caps at the 760px reading column and stays one column, because everything on it
 is either a sentence to read or a command to copy, and neither improves at
 1200px. Add-site takes the frame too — see The Frame-And-Column Rule below.
 
-A list row has two halves: the hostname and its mono address on the left, both
-pills on the right. The right half is a two-column grid, not a flex run — the
-status column reserves a fixed `9rem` whether or not the row has a status to put
-in it, sized to the longest word in the vocabulary (`not responding`) plus its
-dot. Without that reservation a static site's type pill slides into the position
-a reverse-proxy row's status pill holds, and neither column lines up down the
-page; the alignment is the entire reason the list is rows and not cards.
+A list row has two halves: the hostname and its mono address on the left, the
+status pill alone on the right, right-aligned so the pills share an edge down the
+page; the alignment is the entire reason the list is rows and not cards. A static
+site has no status and so nothing on the right.
+
+When Caddy, the sites tunnel or a reconciler unit is down, the list says so
+above its rows, between the section heading and the first row: one line per
+unit, consequence first in Chalk and plain sans (what the operator needs to
+know), then `● name phrase` in Scorch and Data (the machine fact, and the only
+red), then a Smoke Light link to the page that holds the unit's detail. A
+Hairline rule sits beneath the block and the block is absent entirely when
+nothing is down, so a healthy list is the list it always was. Per-site pills are
+unchanged: they speak for a site, these lines for the host beneath all of them.
 
 The page ground has 24px of horizontal padding and a 64px-tall header band
 (32px of content height under 16px top and bottom padding) holding the wordmark
@@ -488,8 +480,7 @@ image bakes in.
 Two breakpoints. `sm` (640px) is the floor that keeps a narrow window honest:
 below it the routing hop chain turns from a row of four hops separated by `→`
 into a stacked column separated by `↓`, the remove dialog's four-step list
-collapses from two columns to one, and the site list's status column releases
-its reserved `9rem`. `lg` (1024px) exists only for the add-site page, whose
+collapses from two columns to one. `lg` (1024px) exists only for the add-site page, whose
 form and preview columns need 1128px to render side by side at full size and
 stack below it. Neither is a mobile design — PRODUCT.md records this as a
 desktop-only tool.
@@ -504,9 +495,12 @@ never folded, capped, truncated with an ellipsis, or put inside an inner scroll
 box. A generated workflow file renders at full height. One exception is
 horizontal overflow on a one-line command, which must not wrap: `overflow-x:
 auto` with `white-space: nowrap`. Long values wrap by breaking characters
-(`break-all`), never by being cut. Another is named: a finished host action's
+(`break-all`), never by being cut. Two more are named. A finished host action's
 log folds at rest; it is open while the action runs and open after a failure,
-so the log that explains something is never behind a click.
+so the log that explains something is never behind a click. A finished runbook
+step folds at rest too — one line, the check, its title, `done`, and a chevron,
+the body one click away — but a step that is not done never folds, so setup in
+progress is never behind a click.
 
 **The Frame-And-Column Rule.** 1080px is the page frame — the header band, the
 shell's `<main>`, and any page holding two kinds of content that belong side by
@@ -561,7 +555,7 @@ state, the Danger panel), **6px** for a control or a container of text you act
 on (button, input, select, command block, copy button, inline error, a list
 row's hover shape), **4px** for
 inline code inside a sentence, and **fully round** for anything stating a single
-word or numeral (type pills, status pills, the 1.2rem step numerals).
+word or numeral (status pills, the 1.2rem step numerals).
 
 Borders are `1px` everywhere. The one deliberate exception is the add-site form's
 conditional branch — the port, framework, and healthcheck fields sit behind a
@@ -678,8 +672,8 @@ exceptions to it.
   padding pulled back out with a matching negative margin so its hover ground
   reaches the content column's edges. Left: the hostname (Title face, shared
   suffix in Smoke) over its address in Data — a bare path, or `localhost:<port>`
-  with the framework after a middot. Right: the type pill, then the status pill
-  inside its reserved `9rem` column. A `1px` Hairline separates rows, dropped on
+  with the framework after a middot. Right: the status pill alone, right-aligned,
+  with no reserved column. A `1px` Hairline separates rows, dropped on
   the last. Hover fills the row with Hearth Lift over a 150ms color transition,
   gated behind `motion-safe:`.
 - **Empty state behavior:** Replaces the row list, and takes the section
@@ -719,10 +713,9 @@ exceptions to it.
 
 ### Pills
 
-- **Type pills** (`static` / `proxy`): 0.7rem mono, uppercase, tracking 0.06em,
-  4px × 10px, fully round. `static` is Chalk on Hairline with a Hairline Strong
-  edge; `proxy` is Ember Light on Ember Deep with no visible edge — the state
-  that means "a process runs here" is the one that carries color.
+- **There is no type pill.** The type is already in each row's address and in
+  the detail page's last hop, and a coloured type label competed with the status
+  pills beside it.
 - **Status pills:** 0.6875rem mono, uppercase, tracking 0.06em, prefixed with a
   decorative `●` that is `aria-hidden` so it never joins the accessible name,
   fully round, and colored by tone only: Clear on Clear Deep, Scorch on Scorch
@@ -746,9 +739,8 @@ services board's other two groups, each its own page since the board was split,
 and so peers of `services` rather than tabs beneath it.
 `aria-current="page"` is both the accessibility signal and the
 styling hook (the arbitrary `aria-[current=page]:` variant, since Tailwind ships
-no built-in one): Chalk text on a Hairline fill with a 2px Ember Edge left rule
-— deliberately not the `proxy` pill's Ember fill, so a nav item and a type pill
-never look alike. A header item's destination never changes with location, so
+no built-in one): Chalk text on a Hairline fill with a 2px Ember Edge left rule.
+A header item's destination never changes with location, so
 `/sites/:hostname` marks no item current; the breadcrumb carries the
 location instead.
 
@@ -773,7 +765,7 @@ than wraps, with a copy button absolutely positioned inside it. An optional
 caption beneath in 0.72rem Smoke names the directory the command must run in —
 a value you have to read, so it is not dimmed below Smoke. No current command
 takes one: the logs command reaches its container by compose project name
-(`docker compose -p <name> logs`), which runs from anywhere, and that is the
+(`docker compose -p <name> logs --tail 100`), which runs from anywhere, and that is the
 better shape whenever it is available.
 
 **A whole file is the one multi-line variant.** The repository card renders
@@ -836,9 +828,13 @@ for both, run concurrently with the per-site check and degrading to a neutral
 Cloudflare DNS, which this app does not touch at all (Tier 1 scope), so its
 sub-line reads `manual step` permanently: an indicator there would be invented
 health rather than a reading, and would go stale the moment a record is
-created. When the last hop is in a `bad` tone, the
-remediation appears *inside this card*, directly beneath the chain, as a command
-block — never as a numbered step that appears and disappears with container
+created. Every hop in a `bad` tone gets an entry in a
+"What to check" list *inside this card*, beneath the chain behind a Hairline
+rule, in request order — tunnel, Caddy, your app. Each entry is a Scorch mono
+hop key (a dot and the hop's name) beside a Body sentence and a command block;
+the key is a fixed column above `sm` and stacks over its sentence below it. Hop
+one never gets an entry, because it has no state to be bad. It is a list of
+what to check, never a numbered step that appears and disappears with container
 state.
 
 ### Service Row
@@ -909,7 +905,7 @@ action.
 
 A failed row carries the Repository Card's failure line, the same markup from
 the same function: the tag it tried, the reconciler's failed step in mono, and
-`journalctl -u lychee-reconcile` as a Command Block. It sits after the gate and
+`journalctl -u lychee-reconcile -u lychee-reconcile-app --since "1 hour ago"` as a Command Block. It sits after the gate and
 directly above the offer, so the order stays explanation, then action. The facts
 line still reads `failed · N attempts`; the failure line is what says which tag
 and why, which a service with no site page (palsave-api) has nowhere else to
@@ -997,7 +993,11 @@ column beside a Body Strong title — machine facts inside it set in mono, per T
 Mono-Carries-Facts Rule — over its body, 20px between steps. An open step's
 numeral is the remove dialog's: Ember, in a 1.2rem ring of Ember at 40%. A
 done step's numeral becomes a check in Smoke Light inside a Hairline Strong
-ring, and its title gains a mono `done` in Smoke. The numeral leaves Ember when
+ring, and its title gains a mono `done` in Smoke. A done scaffold or
+repository step (one and two) folds at rest into a native `<details>`, closed:
+its summary is that title line, `done`, step one's file names in mono, and a
+chevron, and its body stays in the page beneath. Step three
+(attach) and step four (deploy) never fold. The numeral leaves Ember when
 the step is done because there is nothing left to act on there — The Ember Is
 Interactive Rule, applied to a step rather than a button.
 
@@ -1043,7 +1043,7 @@ a tagged declaration.
 **The failure line** replaces "requested" when the reconciler tried a deploy
 and failed: a Body sentence naming the tag it tried, the step that failed as
 the reconciler recorded it — mono, in Smoke Light, the gate line's own
-treatment — and `journalctl -u lychee-reconcile` as a single-line Command Block.
+treatment — and `journalctl -u lychee-reconcile -u lychee-reconcile-app --since "1 hour ago"` as a single-line Command Block.
 It sits in step four before anything is installed and, after, in the
 collapsed card above the gate line. When a different, newer tag has been
 published, the offer line follows it in both places, exactly as a blocked row's
@@ -1131,8 +1131,9 @@ stops the container, and when.
 ### Don't:
 
 - **Don't** fold, cap, truncate, or add an inner scrollbar to content the
-  operator might read. One operator, one wide viewport. The one named fold is
-  The Show-It Rule's: a finished host action's log, at rest.
+  operator might read. One operator, one wide viewport. The two named folds
+  are The Show-It Rule's: a finished host action's log, and a finished
+  runbook step, at rest.
 - **Don't** use Poetsen One anywhere except the wordmark and a list row's
   hostname, and never above 1.5rem or at a weight it doesn't ship.
 - **Don't** fill a destructive button with Ember or make it the largest control
