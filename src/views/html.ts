@@ -9,7 +9,7 @@ import {
 } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
 import { ADD_STEPS } from "../lib/stepReport";
-import { resourceNameFor } from "../lib/siteResource";
+import { hostnameForResource, resourceNameFor } from "../lib/siteResource";
 import { isSiteName } from "../lib/declarationWriter";
 import type { BoardRow, ServiceBoard } from "../lib/serviceBoard";
 import type { ServiceGroup } from "../lib/serviceInventory";
@@ -475,7 +475,12 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
         ${rows
           .map(
             ([key, value]) =>
-              `<p class="${DETAIL_ROW}"><span class="${DETAIL_KEY}">${escapeHtml(key)}</span><span class="text-stone-50 break-all">${escapeHtml(value)}</span></p>`,
+              `<p class="${DETAIL_ROW}"><span class="${DETAIL_KEY}">${escapeHtml(key)}</span><span class="text-stone-50 break-all">${
+                // The resource is a row on the services board; the rest are plain facts.
+                key === "resource"
+                  ? `<a href="/services#service-${escapeHtml(value)}" class="text-stone-50 no-underline hover:underline ${FOCUS_RING}">${escapeHtml(value)}</a>`
+                  : escapeHtml(value)
+              }</span></p>`,
           )
           .join("\n        ")}`
             : ""
@@ -1331,6 +1336,7 @@ function renderServiceRow(
   now: Date,
   prunable: ReadonlySet<string>,
   domain: string,
+  managed: ReadonlySet<string>,
   run?: ActionState,
 ): string {
   // `target` is what the reconciler has been asked to run; `version` is what
@@ -1380,12 +1386,32 @@ function renderServiceRow(
     if (last) facts.push(`last run ${last}`);
   }
 
+  // A site's row links to its page, but only when the app manages that
+  // hostname: a name that merely ends in the suffix is not a site.
+  const siteHost = hostnameForResource(row.name, domain);
+  const name =
+    siteHost && managed.has(siteHost)
+      ? `<a href="/sites/${escapeHtml(siteHost)}" class="text-stone-50 no-underline hover:underline ${FOCUS_RING}">${escapeHtml(row.name)}</a>`
+      : escapeHtml(row.name);
+
+  // A pill that says `unknown` is a failed read, not a state; say which read.
+  // Not while an action is running: that word replaces the pill.
+  const unknownLine =
+    labels.pill === "unknown" && run?.state !== "running"
+      ? `<p class="${SERVICE_DETAIL}">${
+          row.kind === "container"
+            ? "lychee-admin couldn't read this container's state."
+            : "lychee-admin couldn't read this unit's state from systemd."
+        }</p>`
+      : "";
+
   return `
-      <li class="${SERVICE_ROW}" data-service="${escapeHtml(row.name)}">
+      <li class="${SERVICE_ROW}" id="service-${escapeHtml(row.name)}" data-service="${escapeHtml(row.name)}">
         <div class="pt-px" data-row-pill><span class="${TONE_PILL[labels.tone]}"><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span></div>
         <div class="flex flex-col gap-0.5 min-w-0">
-          <p class="${SERVICE_NAME}">${escapeHtml(row.name)}</p>
+          <p class="${SERVICE_NAME}">${name}</p>
           ${facts.length > 0 ? `<p class="${SERVICE_DETAIL}">${facts.map(escapeHtml).join(" · ")}</p>` : ""}
+          ${unknownLine}
           ${
             // In full, on its own row: the retry-cap string carries the recovery
             // command, and a clamped string would hide the one thing to do.
@@ -1451,6 +1477,7 @@ export function renderServicesPage(
   domain: string,
   lastRuns: Readonly<Record<string, ActionState>> = {},
   group: ServiceGroup = "service",
+  managed: ReadonlySet<string> = new Set(),
 ): string {
   const written = formatAge(board.generated, now);
   const freshness = board.inventoryAvailable
@@ -1462,7 +1489,7 @@ export function renderServicesPage(
   const rows = board.groups.find((g) => g.group === group)?.rows ?? [];
 
   const list = `
-      <ul class="list-none m-0 p-0 flex flex-col">${rows.map((r) => renderServiceRow(r, board, now, prunable, domain, Object.hasOwn(lastRuns, r.name) ? lastRuns[r.name] : undefined)).join("")}
+      <ul class="list-none m-0 p-0 flex flex-col">${rows.map((r) => renderServiceRow(r, board, now, prunable, domain, managed, Object.hasOwn(lastRuns, r.name) ? lastRuns[r.name] : undefined)).join("")}
       </ul>`;
 
   // The inventory is readable and declares something, just not here: a plain

@@ -2025,7 +2025,7 @@ describe("renderSiteDetail from a repository", () => {
   test("attached: resource and image join the request path's detail rows", () => {
     const html = renderSiteDetail(NEXT_SITE, { ...BASE, resource: RESOURCE, status: { kind: "awaiting-image" } });
     const path = html.split("Request path</h3>")[1].split("</section>")[0];
-    assert.match(path, /resource<\/span><span[^>]*>app-lychee-land</);
+    assert.match(path, /resource<\/span><span[^>]*><a [^>]*>app-lychee-land</);
     assert.match(path, /image<\/span><span[^>]*>ghcr\.io\/lycheehome\/app-site</);
   });
 
@@ -2510,5 +2510,76 @@ describe("host actions on the services board", () => {
       [PAL]: { unit: PAL, action: "restart", state: "failed", finishedAt: "2026-10-02T04:59:00Z", logTail: "<script>x</script>\n" },
     });
     assert.ok(html.includes("&lt;script&gt;x&lt;/script&gt;"));
+  });
+});
+
+describe("board rows link to their sites, and unknown explains itself", () => {
+  const NOW = new Date("2026-10-02T05:00:00Z");
+  type Run = Parameters<typeof renderServicesPage>[4];
+
+  function page(row: Record<string, unknown>, managed: ReadonlySet<string> = new Set(), lastRuns: Run = {}): string {
+    return renderServicesPage(
+      {
+        inventoryAvailable: true,
+        schedule: { next: null, last: null },
+        timerUnit: null,
+        generated: "2026-10-02T04:58:02Z",
+        groups: [{ group: "service", rows: [
+          { name: "x", kind: "unit", unit: "x.service", group: "service", reconciled: false, status: "running", since: null, ...row } as never,
+        ] }],
+      },
+      NOW, new Set(), "lychee.land", lastRuns, "service", managed,
+    );
+  }
+  const site = { name: "app-lychee-land", kind: "container", container: "app-lychee-land", version: "0.2.0", reconciled: true };
+  const UNIT_SENTENCE = "lychee-admin couldn't read this unit's state from systemd.";
+  const CONTAINER_SENTENCE = "lychee-admin couldn't read this container's state.";
+
+  test("every board row carries an anchor", () => {
+    assert.ok(page(site).includes('id="service-app-lychee-land"'));
+  });
+
+  test("a site page's resource row links to its board row", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...OPTS,
+      resource: RUNNING_RESOURCE,
+      status: { kind: "container", state: "running" },
+    });
+    assert.ok(html.includes('href="/services#service-app-lychee-land"'));
+  });
+
+  test("a managed site's board row links to its site", () => {
+    assert.ok(page(site, new Set(["app.lychee.land"])).includes('href="/sites/app.lychee.land"'));
+  });
+
+  test("a site row not in the managed set stays plain text", () => {
+    assert.ok(!withoutHeader(page(site, new Set())).includes('href="/sites/'));
+  });
+
+  test("a non-site row never links", () => {
+    const html = withoutHeader(page({ name: "palsave-api" }, new Set(["app.lychee.land", "palsave-api.lychee.land"])));
+    assert.ok(!html.includes('href="/sites/'));
+  });
+
+  test("an unknown unit row explains itself", () => {
+    assert.ok(page({ status: "unknown" }).includes(UNIT_SENTENCE));
+  });
+
+  test("an unknown container row explains itself", () => {
+    assert.ok(page({ ...site, status: "unknown" }).includes(CONTAINER_SENTENCE));
+  });
+
+  test("a known row has no unknown sentence", () => {
+    const html = page({ status: "running" });
+    assert.ok(!html.includes(UNIT_SENTENCE) && !html.includes(CONTAINER_SENTENCE));
+  });
+
+  test("a running host action suppresses the unknown sentence", () => {
+    const html = page(
+      { status: "unknown", actions: ["restart"] },
+      new Set(),
+      { x: { unit: "x", action: "restart", state: "running", logTail: "" } },
+    );
+    assert.ok(!html.includes(UNIT_SENTENCE) && !html.includes(CONTAINER_SENTENCE));
   });
 });

@@ -17,6 +17,19 @@ export function resourceNameFor(hostname: string, domain: string): string | null
   return `${label}${siteSuffixFor(domain)}`;
 }
 
+/**
+ * `test-lychee-land` -> `test.lychee.land`, the inverse of `resourceNameFor`
+ * for a name that is a site's. Null when the suffix is absent or nothing is
+ * left of it. Only a suffix strip: whether that hostname is one the app
+ * manages is for the caller's managed set to say.
+ */
+export function hostnameForResource(name: string, domain: string): string | null {
+  const suffix = siteSuffixFor(domain);
+  if (!name.endsWith(suffix)) return null;
+  const label = name.slice(0, name.length - suffix.length);
+  return label === "" ? null : `${label}.${domain}`;
+}
+
 const REPO_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
 
 /** Mirrors the reconciler's ghcr path component: lowercased, fullmatch. */

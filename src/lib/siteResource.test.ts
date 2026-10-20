@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { claimedPorts, normalizeRepo, parseDeclaration, resourceNameFor } from "./siteResource";
+import { claimedPorts, hostnameForResource, normalizeRepo, parseDeclaration, resourceNameFor } from "./siteResource";
 
 test("maps a hostname to its resource name", () => {
   assert.equal(resourceNameFor("test.lychee.land", "lychee.land"), "test-lychee-land");
@@ -44,4 +44,18 @@ test("resourceNameFor derives the suffix from the domain", () => {
   assert.equal(resourceNameFor("blog.example.test", "example.test"), "blog-example-test");
   assert.equal(resourceNameFor("x".repeat(52) + ".lychee.land", "lychee.land"), null);
   assert.equal(resourceNameFor("x".repeat(51) + ".lychee.land", "lychee.land")?.length, 63);
+});
+
+test("hostnameForResource inverts resourceNameFor", () => {
+  for (const h of ["test.lychee.land", "a-b.lychee.land"]) {
+    assert.equal(hostnameForResource(resourceNameFor(h, "lychee.land")!, "lychee.land"), h);
+  }
+});
+
+test("a non-site name maps to nothing", () => {
+  assert.equal(hostnameForResource("palsave-api", "lychee.land"), null);
+});
+
+test("no resource name maps to the apex", () => {
+  assert.equal(hostnameForResource("lychee-land", "lychee.land"), null);
 });
