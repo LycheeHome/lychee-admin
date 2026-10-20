@@ -25,7 +25,7 @@ import {
   renderSiteNotFound,
   type SiteResourceView,
 } from "../views/html";
-import type { SiteStatus } from "../lib/siteDisplay";
+import { hostProblems, hostProblemUnits, type SiteStatus } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
 import type { Site } from "../lib/caddyfile";
 import type { Deps } from "../deps";
@@ -209,7 +209,25 @@ export function createSitesRouter(deps: Deps): Router {
       const content = deps.fs.readFile(config.caddyfilePath);
       const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname, config.domain));
 
-      res.send(renderSiteList(sites, await computeStatuses(sites, deps), config.domain, undefined, { page: "sites" }, notice));
+      // Site pills and host-unit states are independent reads; the unit read
+      // degrades to "no problems" rather than failing the list.
+      const inventory = readInventory(deps.fs);
+      const [statuses, unitStates] = await Promise.all([
+        computeStatuses(sites, deps),
+        deps.commands.readUnitStates(hostProblemUnits(inventory)).catch(() => ({})),
+      ]);
+
+      res.send(
+        renderSiteList(
+          sites,
+          statuses,
+          config.domain,
+          undefined,
+          { page: "sites" },
+          notice,
+          hostProblems(unitStates, inventory),
+        ),
+      );
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
       res.status(500).send(renderSiteList([], {}, config.domain, message, { page: "sites" }, notice));

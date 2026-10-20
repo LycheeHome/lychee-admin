@@ -2815,3 +2815,57 @@ describe("failed redeploy of an installed site", () => {
     assert.equal(html.match(/id="cmd-reconcile-log"/g)?.length, 1);
   });
 });
+
+describe("host problems on the site list", () => {
+  const CADDY_DOWN = {
+    name: "caddy",
+    word: "exited",
+    consequence: "Every site is unreachable from outside",
+    page: "infrastructure" as const,
+    href: "/infrastructure" as const,
+  };
+
+  test("no problems renders no block", () => {
+    assert.doesNotMatch(renderSiteList(SITES, {}, "lychee.land"), /data-host-problems/);
+  });
+
+  test("a problem renders consequence first, red state words, a link", () => {
+    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, undefined, [CADDY_DOWN]);
+    assert.match(html, /<[^>]*role="status"[^>]*data-host-problems|<[^>]*data-host-problems[^>]*role="status"/);
+    const consequence = html.indexOf("Every site is unreachable from outside");
+    const phrase = html.indexOf("caddy has stopped");
+    assert.ok(consequence >= 0 && phrase > consequence, "consequence must come before the state phrase");
+    const consequenceTag = html.slice(html.lastIndexOf("<", consequence), consequence);
+    assert.doesNotMatch(consequenceTag, /text-red-/);
+    assert.match(html, /<span class="[^"]*text-red-300[^"]*">.*caddy has stopped/);
+    assert.match(html, /href="\/infrastructure"/);
+  });
+
+  test("several problems keep their order", () => {
+    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, undefined, [
+      CADDY_DOWN,
+      { name: "lychee-watch", word: "exited", consequence: "Changes wait for the 15-minute full run", page: "reconciler", href: "/reconciler" },
+    ]);
+    const first = html.indexOf("Every site is unreachable from outside");
+    const second = html.indexOf("Changes wait for the 15-minute full run");
+    assert.ok(first >= 0 && second > first);
+  });
+
+  test("problem values are escaped", () => {
+    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, undefined, [
+      { ...CADDY_DOWN, name: "<b>x</b>" },
+    ]);
+    assert.match(html, /&lt;b&gt;x&lt;\/b&gt;/);
+    assert.doesNotMatch(html, /<b>x<\/b>/);
+  });
+
+  test("the removed notice and host problems both render", () => {
+    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, "Removed blog.lychee.land.", [CADDY_DOWN]);
+    assert.match(html, /Removed blog\.lychee\.land\./);
+    assert.match(html, /data-host-problems/);
+  });
+
+  test("the error render has no host-problem block", () => {
+    assert.doesNotMatch(renderSiteList([], {}, "lychee.land", "boom"), /data-host-problems/);
+  });
+});

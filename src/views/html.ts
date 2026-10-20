@@ -3,6 +3,7 @@ import { computeFilesPath, type Site } from "../lib/caddyfile";
 import {
   describeStatus,
   splitHostnameForDisplay,
+  type HostProblem,
   type SiteStatus,
   type StatusTone,
 } from "../lib/siteDisplay";
@@ -116,7 +117,25 @@ export function renderSiteList(
   // manual action, so it belongs in flow with a close button — not in the
   // transient toast, which times out after four seconds.
   notice?: string,
+  // Host units that are down, each already phrased by hostProblems. Defaults
+  // to none, so the 500 fallback and every other caller render no block.
+  problems: HostProblem[] = [],
 ): string {
+  // Consequence first, in plain sans: it is what the operator needs to know,
+  // and only the machine fact (the unit and its state) is red.
+  const problemLines = problems
+    .map(
+      (problem) =>
+        `<p class="m-0 font-sans text-[0.85rem] leading-relaxed text-stone-50">${escapeHtml(problem.consequence)} &mdash; <span class="font-mono text-red-300"><span aria-hidden="true">&#9679;</span> ${escapeHtml(problem.name)} ${escapeHtml(statePhrase(problem.word))}</span> &middot; <a href="${escapeHtml(problem.href)}" class="text-stone-300 underline hover:text-stone-50 ${FOCUS_RING}">${escapeHtml(problem.page)} &rarr;</a></p>`,
+    )
+    .join("\n        ");
+  const problemBlock =
+    problems.length === 0
+      ? ""
+      : `<div role="status" data-host-problems class="flex flex-col gap-1.5 pb-4 mb-5 border-b border-stone-700">
+        ${problemLines}
+      </div>`;
+
   const rows = sites
     .map((site) => {
       const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
@@ -176,6 +195,7 @@ export function renderSiteList(
           sites.length === 0 ? "" : `<a href="/sites/new" class="${BUTTON_PRIMARY} no-underline">${icon("plus")}Add site</a>`
         }
       </div>
+      ${problemBlock}
       ${sites.length === 0 ? empty : `<div class="flex flex-col">${rows}\n      </div>`}
     </section>
     `,
