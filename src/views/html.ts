@@ -2,6 +2,7 @@ import path from "node:path";
 import { computeFilesPath, type Site } from "../lib/caddyfile";
 import {
   describeStatus,
+  deployTrouble,
   splitHostnameForDisplay,
   type SiteStatus,
   type StatusTone,
@@ -1368,7 +1369,11 @@ function renderServiceRow(
   // One fact with an arrow, not two: version and target are a single change.
   if (applying) facts.push(`${row.version} \u2192 ${row.target}`);
   else if (row.version) facts.push(row.version);
-  if (row.result) facts.push(row.result);
+  // The pill stays the thing's own health; a deploy that is blocked or failed
+  // gets its own line, so a healthy old build never reads as a broken one. An
+  // undeployed container's trouble is already its pill, so it gets no line.
+  const trouble = undeployed ? null : deployTrouble(row);
+  if (row.result && !trouble) facts.push(row.result);
   if (row.failedAttempts) facts.push(`${row.failedAttempts} ${row.failedAttempts === 1 ? "attempt" : "attempts"}`);
   const changed = formatAge(row.since, now);
   if (changed) facts.push(`changed ${changed}`);
@@ -1410,6 +1415,13 @@ function renderServiceRow(
         <div class="pt-px" data-row-pill><span class="${TONE_PILL[labels.tone]}"><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span></div>
         <div class="flex flex-col gap-0.5 min-w-0">
           <p class="${SERVICE_NAME}">${name}</p>
+          ${
+            trouble
+              ? `<p class="font-mono text-[0.8rem] leading-relaxed m-0" data-deploy-state><span class="${TONE_TEXT[trouble.tone]}"><span aria-hidden="true">&#9679;</span> deploy ${trouble.word}</span>${
+                  trouble.reason === `deploy ${trouble.word}` ? "" : ` <span class="text-stone-400">· ${escapeHtml(trouble.reason)}</span>`
+                }</p>`
+              : ""
+          }
           ${facts.length > 0 ? `<p class="${SERVICE_DETAIL}">${facts.map(escapeHtml).join(" · ")}</p>` : ""}
           ${unknownLine}
           ${

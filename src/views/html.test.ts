@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { withoutHeader } from "../dev/testHelpers";
 import { offeredTag, renderPruneControl, renderServicesPage, renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
-import { formatAge, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_SECONDARY_COMPACT, TYPE_PILL_PROXY } from "./shared";
+import { formatAge, SERVICE_DETAIL, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_SECONDARY_COMPACT, TYPE_PILL_PROXY } from "./shared";
 import { ADD_STEPS } from "../lib/stepReport";
 
 const STATIC_SITE: Site = { hostname: "blog.lychee.land", type: "static", target: "/var/www/blog.lychee.land" };
@@ -1556,7 +1556,7 @@ describe("renderServicesPage", () => {
   });
 
   /** The status word of each rendered row, in page order. */
-  const pills = (html: string): string[] => [...html.matchAll(/&#9679;<\/span> ([a-z ]+)<\/span>/g)].map((m) => m[1]);
+  const pills = (html: string): string[] => [...html.matchAll(/data-row-pill><span class="[^"]*"><span aria-hidden="true">&#9679;<\/span> ([a-z ]+)<\/span>/g)].map((m) => m[1]);
 
   function offerBoard(extra: Record<string, unknown>) {
     return renderServicesPage(
@@ -1639,6 +1639,81 @@ describe("renderServicesPage", () => {
     assert.deepEqual(pills(offerBoard({ version: "v0.2.0", target: "v0.3.0" })), ["running"]);
   });
 
+  /** The row's deploy line, tags stripped, or null when it has none. */
+  const deployLine = (html: string): string | null => {
+    const m = html.match(/<p [^>]*data-deploy-state>(.*?)<\/p>/s);
+    return m ? m[1].replace(/<[^>]+>/g, "").replace(/&#9679;/g, "\u25CF").replace(/\s+/g, " ").trim() : null;
+  };
+  /** The facts paragraph: the SERVICE_DETAIL one straight after the name/deploy lines. */
+  const factsLine = (html: string): string | null =>
+    html.match(new RegExp(`<p class="${SERVICE_DETAIL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}">([^<]*)</p>`))?.[1] ?? null;
+
+  test("a ci-failed row shows the deploy line in the bad tone", () => {
+    const html = offerBoard({ version: "v2.11.4", result: "blocked", gateCode: "ci-failed", status: "running" });
+    assert.ok(html.includes("data-deploy-state"));
+    assert.ok(html.includes(`<span class="${TONE_TEXT.bad}"><span aria-hidden="true">&#9679;</span> deploy blocked</span>`));
+    assert.ok(html.includes("\u00B7 CI failed"));
+    assert.deepEqual(pills(html), ["running"]);
+  });
+
+  test("the facts line drops the result word when the line shows", () => {
+    const html = offerBoard({ version: "v2.11.4", result: "blocked", gateCode: "ci-failed", status: "running" });
+    const facts = factsLine(html);
+    assert.ok(facts?.includes("v2.11.4"));
+    assert.ok(!facts?.includes("blocked"));
+  });
+
+  test("a ci-pending row shows the line in the neutral tone", () => {
+    const html = offerBoard({ version: "v2.11.4", result: "blocked", gateCode: "ci-pending", status: "running" });
+    assert.ok(html.includes(`<span class="${TONE_TEXT.neutral}"><span aria-hidden="true">&#9679;</span> deploy waiting</span>`));
+    assert.ok(!html.includes(`<span class="${TONE_TEXT.bad}">`));
+  });
+
+  test("an undeployed failed row has no deploy line", () => {
+    const html = offerBoard({ version: "", result: "failed", status: "exited" });
+    assert.ok(!html.includes("data-deploy-state"));
+  });
+
+  test("a blocked row with no gate code has no line and keeps blocked in its facts", () => {
+    const html = offerBoard({ version: "v1", result: "blocked", status: "running" });
+    assert.ok(!html.includes("data-deploy-state"));
+    assert.ok(factsLine(html)?.includes("blocked"));
+  });
+
+  test("a running host action does not hide the deploy line", () => {
+    const html = renderServicesPage(
+      {
+        inventoryAvailable: true,
+        schedule: NO_SCHEDULE, timerUnit: null,
+        generated: "2026-10-02T04:58:02Z",
+        groups: [{ group: "service", rows: [
+          { name: "notes", kind: "unit", unit: "notes.service", group: "service", reconciled: true,
+            version: "v1", result: "blocked", gateCode: "retry-capped", status: "running", since: null } as never,
+        ] }],
+      },
+      NOW, new Set(), "lychee.land",
+      { notes: { unit: "notes", action: "restart", state: "running", logTail: "" } },
+    );
+    assert.ok(html.includes("data-deploy-state"));
+    assert.ok(html.includes("retry limit reached"));
+  });
+
+  test("an installed failed row reads deploy failed once", () => {
+    const html = offerBoard({ version: "0.1.0", target: "0.2.0", result: "failed", status: "running" });
+    assert.equal(deployLine(html), "\u25CF deploy failed");
+  });
+
+  test("a unit row with ci-failed shows the line", () => {
+    const html = offerBoard({ kind: "unit", unit: "notes.service", result: "blocked", gateCode: "ci-failed" });
+    assert.ok(html.includes("data-deploy-state"));
+  });
+
+  test("a row whose only fact was the result renders no empty facts line", () => {
+    const html = offerBoard({ result: "blocked", gateCode: "ci-failed" });
+    assert.ok(html.includes("data-deploy-state"));
+    assert.ok(!html.includes(`<p class="${SERVICE_DETAIL}"></p>`));
+  });
+
   test("an available newer than version offers Deploy", () => {
     const html = offerBoard({ version: "v1.4.0", target: "v1.4.0", available: "v1.5.0" });
     assert.ok(html.includes("data-offer"));
@@ -1660,7 +1735,8 @@ describe("renderServicesPage", () => {
 
   test("a failed row with a newer tag shows its facts and gate, then the offer", () => {
     const html = offerBoard({ version: "v1.4.0", target: "v1.5.0", available: "v1.6.0", result: "failed", gate: "health check failed after install" });
-    assert.ok(html.includes("v1.4.0 · failed"));
+    assert.ok(html.includes("v1.4.0"));
+    assert.ok(html.includes("deploy failed"));
     assert.ok(html.includes("health check failed after install"));
     assert.ok(html.includes("v1.6.0 available"));
     assert.ok(html.includes('data-deploy="notes"'));
@@ -1675,7 +1751,8 @@ describe("renderServicesPage", () => {
     assert.ok(html.includes("Start the container: &lt;exit 1&gt; &amp; gone"));
     assert.ok(!html.includes("<exit 1>"));
     assert.match(html, /journalctl -u lychee-reconcile/);
-    assert.ok(html.includes("v1.4.0 · failed · 2 attempts"));
+    assert.ok(html.includes("v1.4.0 · 2 attempts"));
+    assert.ok(html.includes("deploy failed"));
     assert.ok(html.indexOf("data-deploy-failed") < html.indexOf("data-offer"));
   });
 
@@ -2362,7 +2439,7 @@ describe("host actions on the services board", () => {
   /** The opening tag of each action button, keyed by action. */
   const buttons = (html: string): Record<string, string> =>
     Object.fromEntries([...html.matchAll(/<button [^>]*data-host-action="([a-z]+)"[^>]*>/g)].map((m) => [m[1], m[0]]));
-  const pills = (html: string): string[] => [...html.matchAll(/&#9679;<\/span> ([a-z ]+)<\/span>/g)].map((m) => m[1]);
+  const pills = (html: string): string[] => [...html.matchAll(/data-row-pill><span class="[^"]*"><span aria-hidden="true">&#9679;<\/span> ([a-z ]+)<\/span>/g)].map((m) => m[1]);
   const elementWith = (html: string, attr: string): string => {
     const m = html.match(new RegExp(`<[a-z]+ [^>]*${attr}[^>]*>`));
     assert.ok(m, `no element with ${attr}`);
