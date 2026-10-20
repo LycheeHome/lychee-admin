@@ -3,6 +3,7 @@ import { computeFilesPath, type Site } from "../lib/caddyfile";
 import {
   describeStatus,
   splitHostnameForDisplay,
+  type HostProblem,
   type SiteStatus,
   type StatusTone,
   undeployedStatus,
@@ -28,8 +29,6 @@ import {
   FOCUS_RING,
   DETAIL_WIDTH,
   FRAME_WIDTH,
-  TYPE_PILL_STATIC,
-  TYPE_PILL_PROXY,
   CARD,
   CARD_LABEL,
   CARD_LABEL_BASE,
@@ -70,29 +69,13 @@ const SITE_ROW =
   `border-b border-stone-700 last:border-b-0 ` +
   `motion-safe:transition-colors motion-safe:duration-150 hover:bg-stone-800 ${FOCUS_RING}`;
 
-/** The size, casing and shape both pills share; only the colours differ. */
-const TYPE_PILL_BASE =
-  "inline-block shrink-0 font-mono text-[0.7rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border";
-
-/**
- * The status column reserves its width whether or not the row has a status to
- * put in it. Without this, a static row's type pill slides right into the
- * position a proxy row's status pill occupies, and the two pill columns stop
- * lining up — which is the entire reason the list is rows rather than cards.
- * Sized to the longest word in the vocabulary, "not responding", plus its dot.
- *
- * Only from `sm` up, though. Alignment is worth having where there is width to
- * align across; below the floor the reservation just starves the hostname —
- * measured at 380px, the pills held 215px and the address wrapped to a third
- * line. Below `sm` the slot sizes to its content instead, and the row that
- * has no status gives its width back to the name of the site.
- */
-const STATUS_SLOT = "flex justify-end sm:min-w-[9rem]";
+/** The slot right-aligns the status pill so the column lines up; a static row leaves it empty. */
+const STATUS_SLOT = "flex justify-end";
 
 /**
  * A comma only a screen reader hears. A row's accessible name is computed from
- * its contents, so without these the four facts run together as
- * "api.lychee.land localhost:4000 proxy not responding". Separators rather than an
+ * its contents, so without these the three facts run together as
+ * "api.lychee.land localhost:4000 not responding". Separators rather than an
  * aria-label, deliberately: the name keeps deriving from the visible text, so
  * it cannot drift from what is on screen the way a hand-written label does.
  * `sr-only` is absolutely positioned, so it contributes nothing to the flex
@@ -117,16 +100,34 @@ export function renderSiteList(
   // manual action, so it belongs in flow with a close button — not in the
   // transient toast, which times out after four seconds.
   notice?: string,
+  // Host units that are down, each already phrased by hostProblems. Defaults
+  // to none, so the 500 fallback and every other caller render no block.
+  problems: HostProblem[] = [],
 ): string {
+  // Consequence first, in plain sans: it is what the operator needs to know,
+  // and only the machine fact (the unit and its state) is red.
+  const problemLines = problems
+    .map(
+      (problem) =>
+        `<p class="m-0 font-sans text-[0.85rem] leading-relaxed text-stone-50">${escapeHtml(problem.consequence)} &mdash; <span class="font-mono text-red-300"><span aria-hidden="true">&#9679;</span> ${escapeHtml(problem.name)} ${escapeHtml(statePhrase(problem.word))}</span> &middot; <a href="${escapeHtml(problem.href)}" class="text-stone-300 underline hover:text-stone-50 ${FOCUS_RING}">${escapeHtml(problem.page)} <span aria-hidden="true">&rarr;</span></a></p>`,
+    )
+    .join("\n        ");
+  const problemBlock =
+    problems.length === 0
+      ? ""
+      : `<div role="status" data-host-problems class="flex flex-col gap-1.5 pb-4 mb-5 border-b border-stone-700">
+        ${problemLines}
+      </div>`;
+
   const rows = sites
     .map((site) => {
       const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
       const status = statuses[site.hostname];
       const labels = status ? describeStatus(status) : null;
       const { lead, dimmed } = splitHostnameForDisplay(site.hostname, domain);
-      // The type is stated by the pill, so the sub-line carries only the
-      // address: a path needs no "path:" label in front of it, and a port is
-      // meaningless without the host it is on.
+      // The address states the type: a path reads as static and localhost:port
+      // as a proxy, so neither needs a label — a path needs no "path:" in front
+      // of it, and a port is meaningless without the host it is on.
       const target =
         site.type === "static"
           ? site.target
@@ -140,10 +141,7 @@ export function renderSiteList(
           }</span>${SPOKEN_COMMA}
           <span class="font-mono text-stone-400 text-[0.8rem] leading-relaxed break-all">${escapeHtml(target)}</span>
         </span>
-        <span class="flex items-center gap-3 shrink-0" data-row-side>${SPOKEN_COMMA}
-          <span class="${TYPE_PILL_BASE} ${
-            site.type === "static" ? TYPE_PILL_STATIC : TYPE_PILL_PROXY
-          }">${site.type === "static" ? "static" : "proxy"}</span>
+        <span class="flex items-center gap-3 shrink-0" data-row-side>
           <span class="${STATUS_SLOT}" data-status-slot>${
             labels
               ? `${SPOKEN_COMMA}<span class="${TONE_PILL[labels.tone]}"><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span>`
@@ -177,6 +175,7 @@ export function renderSiteList(
           sites.length === 0 ? "" : `<a href="/sites/new" class="${BUTTON_PRIMARY} no-underline">${icon("plus")}Add site</a>`
         }
       </div>
+      ${problemBlock}
       ${sites.length === 0 ? empty : `<div class="flex flex-col">${rows}\n      </div>`}
     </section>
     `,
@@ -1133,12 +1132,9 @@ function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
             <h2 id="site-hostname" class="font-mono text-[1.7rem] leading-[1.2] tracking-[-0.01em] text-stone-50 m-0 break-all">${escapeHtml(lead)}${dimmed ? `<span class="text-stone-500">${escapeHtml(dimmed)}</span>` : ""}</h2>
             ${copyButton("site-hostname", "Copy hostname", "shrink-0")}
           </div>
-          <div class="flex items-center gap-2 mt-3 flex-wrap">
-            <span class="inline-block font-mono text-[0.7rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border ${
-              site.type === "static" ? TYPE_PILL_STATIC : TYPE_PILL_PROXY
-            }">${site.type === "static" ? "static" : "proxy"}</span>
-            ${labels ? `<span class="${TONE_PILL[labels.tone]}" data-state-pill><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span>` : ""}
-          </div>
+          ${labels ? `<div class="flex items-center gap-2 mt-3 flex-wrap">
+            <span class="${TONE_PILL[labels.tone]}" data-state-pill><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span>
+          </div>` : ""}
         </div>
         <a href="https://${escapeHtml(site.hostname)}" target="_blank" rel="noopener noreferrer" class="${BUTTON_PRIMARY} no-underline shrink-0">Visit ${icon("externalLink")}</a>
       </div>`;

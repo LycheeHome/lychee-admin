@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { withoutHeader } from "../dev/testHelpers";
 import { offeredTag, statePhrase, renderPruneControl, renderServicesPage, renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
-import { formatAge, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_SECONDARY_COMPACT, TYPE_PILL_PROXY } from "./shared";
+import { formatAge, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_SECONDARY_COMPACT } from "./shared";
 import { ADD_STEPS } from "../lib/stepReport";
 
 const STATIC_SITE: Site = { hostname: "blog.lychee.land", type: "static", target: "/var/www/blog.lychee.land" };
@@ -42,10 +42,6 @@ function tagById(html: string, id: string): string {
   const match = html.match(new RegExp(`<[a-z]+[^>]* id="${id}"[^>]*>`));
   assert.ok(match, `no element with id="${id}" was rendered`);
   return match[0];
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**
@@ -215,10 +211,37 @@ describe("renderSiteDetail header", () => {
     assert.match(html, /data-copy-icon="copied"/);
   });
 
-  test("a static site gets a type pill and no state pill", () => {
+  test("a static site's header has no pills", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
-    assert.match(html, />static</);
+    // The hostname switcher's dropdown hints say "static" per row, so the
+    // type-word check looks at the header alone, up to the Visit button.
+    const headerStart = html.indexOf('id="site-hostname"');
+    const header = html.slice(headerStart, html.indexOf("Visit", headerStart));
+    assert.ok(headerStart >= 0 && header.length > 0, "the header slice is empty");
+    assert.doesNotMatch(header, />static</);
     assert.doesNotMatch(html, /data-state-pill/);
+    assert.doesNotMatch(html, /<div class="flex items-center gap-2 mt-3/);
+  });
+
+  test("a proxy site's header shows its status pill and no type pill", () => {
+    const html = renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: false } });
+    assert.match(html, /data-state-pill>[\s\S]*not responding/);
+    const headerStart = html.indexOf('id="site-hostname"');
+    const header = html.slice(headerStart, html.indexOf("Visit", headerStart));
+    assert.ok(headerStart >= 0 && header.length > 0, "the header slice is empty");
+    assert.doesNotMatch(header, />proxy</);
+  });
+
+  test("a proxy site with no status has no pill row", () => {
+    const html = renderSiteDetail(PROXY_SITE, OPTS);
+    assert.doesNotMatch(html, /data-state-pill/);
+    assert.doesNotMatch(html, /<div class="flex items-center gap-2 mt-3/);
+  });
+
+  test("a created static site's notice still renders with no pill row", () => {
+    const html = renderSiteDetail(STATIC_SITE, { ...OPTS, created: true });
+    assert.match(html, /id="page-notice"/);
+    assert.doesNotMatch(html, /<div class="flex items-center gap-2 mt-3/);
   });
 
   test("a container site's pill uses the canonical state word, not live", () => {
@@ -293,7 +316,7 @@ describe("the hostname switcher", () => {
     assert.match(panel, /rounded-\[10px\]/);
   });
 
-  test("marks the current row without the proxy pill's ember fill", () => {
+  test("marks the current row without an ember fill", () => {
     const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
     assert.doesNotMatch(block, /bg-rose-950/);
   });
@@ -1055,32 +1078,30 @@ describe("the site list's ledger rows", () => {
     assert.match(row, /Next\.js/);
   });
 
-  // The whole point of the layout change: pills that line up down the page.
-  // A static row has no status to show, but it must still occupy the column,
-  // or its type pill slides into the position a proxy row's status pill holds.
-  test("a status-less row still reserves the status column so the pills align", () => {
+  test("every row keeps a right-aligned status slot", () => {
     const staticRow = rowFor(renderSiteList([STATIC_SITE], {}, "lychee.land"), "blog.lychee.land");
     const proxyRow = rowFor(
       renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lychee.land"),
       "api.lychee.land",
     );
-    assert.match(staticRow, /data-status-slot/);
-    assert.match(proxyRow, /data-status-slot/);
+    for (const row of [staticRow, proxyRow]) {
+      assert.match(row, /data-status-slot/);
+      assert.match(row, /class="flex justify-end" data-status-slot/);
+      assert.doesNotMatch(row, /min-w-\[9rem\]/);
+    }
     assert.doesNotMatch(staticRow, /&#9679;/);
   });
 
-  // The reserved column buys alignment, which is only worth having when there
-  // is width to align across. Below the sm floor it starves the hostname —
-  // measured at 380px, the pills held 215px while the hostname got 97 and the
-  // address wrapped — so the reservation starts at sm and not before.
-  test("the reserved status column starts at the sm floor, not below it", () => {
-    const row = rowFor(renderSiteList([STATIC_SITE], {}, "lychee.land"), "blog.lychee.land");
-    const slot = row.slice(row.indexOf("data-status-slot") - 200, row.indexOf("data-status-slot"));
-    assert.match(slot, /sm:min-w-/);
-    assert.doesNotMatch(slot, /(?<!sm:)\bmin-w-\[9rem\]/);
+  test("the list carries no type pill and no ember fill", () => {
+    const html = renderSiteList(SITES, { [PROXY_SITE.hostname]: { kind: "tcp", responding: false } }, "lychee.land");
+    // Scoped to the rows: the page around them legitimately uses rose-950 on
+    // its own buttons and notices.
+    const rows = SITES.map((site) => rowFor(html, site.hostname)).join("");
+    assert.doesNotMatch(rows, />static<\/span>|>proxy<\/span>/);
+    assert.doesNotMatch(rows, /rose-950/);
   });
 
-  test("both pills share one right-hand group, so the row has two halves not three", () => {
+  test("the right half holds the status pill alone", () => {
     const row = rowFor(
       renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lychee.land"),
       "api.lychee.land",
@@ -1088,8 +1109,8 @@ describe("the site list's ledger rows", () => {
     const at = row.indexOf("data-row-side");
     assert.notEqual(at, -1, "no element carrying data-row-side was rendered in the row");
     const side = row.slice(at);
-    assert.match(side, new RegExp(escapeRegex(TYPE_PILL_PROXY)));
     assert.match(side, /data-status-slot/);
+    assert.doesNotMatch(side, />proxy<|>static<|rose-950/);
   });
 });
 
@@ -1109,21 +1130,31 @@ function accessibleName(markup: string): string {
 }
 
 describe("what a site row announces", () => {
-  // "api.lychee.land localhost:4000 proxy not responding" is serviceable but runs
-  // four separate facts together. The separators are sr-only rather than an
+  // "api.lychee.land localhost:4000 responding" is serviceable but runs
+  // three separate facts together. The separators are sr-only rather than an
   // aria-label so the name still derives from the visible text and cannot
   // drift from it.
-  test("a proxy row's four facts are separated rather than run together", () => {
+  test("a proxy row's three facts are separated rather than run together", () => {
     const row = rowFor(
       renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lychee.land"),
       "api.lychee.land",
     );
-    assert.equal(accessibleName(row), "api.lychee.land, localhost:4000, proxy, responding");
+    assert.equal(accessibleName(row), "api.lychee.land, localhost:4000, responding");
   });
 
-  test("a status-less row ends after its type, with no trailing separator", () => {
+  test("a static row ends after its address, with no trailing separator", () => {
     const row = rowFor(renderSiteList([STATIC_SITE], {}, "lychee.land"), "blog.lychee.land");
-    assert.equal(accessibleName(row), "blog.lychee.land, /var/www/blog.lychee.land, static");
+    assert.equal(accessibleName(row), "blog.lychee.land, /var/www/blog.lychee.land");
+  });
+
+  test("the apex row reads host then address", () => {
+    const row = rowFor(renderSiteList([APEX_SITE], {}, "lychee.land"), "lychee.land");
+    assert.equal(accessibleName(row), "lychee.land, /var/www/lychee.land");
+  });
+
+  test("a proxy row with no status ends after its address", () => {
+    const row = rowFor(renderSiteList([PROXY_SITE], {}, "lychee.land"), "api.lychee.land");
+    assert.equal(accessibleName(row), "api.lychee.land, localhost:4000");
   });
 
   test("the status dot is still absent from the name", () => {
@@ -2916,5 +2947,59 @@ describe("failed redeploy of an installed site", () => {
       status: { kind: "failed" },
     });
     assert.equal(html.match(/id="cmd-reconcile-log"/g)?.length, 1);
+  });
+});
+
+describe("host problems on the site list", () => {
+  const CADDY_DOWN = {
+    name: "caddy",
+    word: "exited",
+    consequence: "Every site is unreachable from outside",
+    page: "infrastructure" as const,
+    href: "/infrastructure" as const,
+  };
+
+  test("no problems renders no block", () => {
+    assert.doesNotMatch(renderSiteList(SITES, {}, "lychee.land"), /data-host-problems/);
+  });
+
+  test("a problem renders consequence first, red state words, a link", () => {
+    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, undefined, [CADDY_DOWN]);
+    assert.match(html, /<[^>]*role="status"[^>]*data-host-problems|<[^>]*data-host-problems[^>]*role="status"/);
+    const consequence = html.indexOf("Every site is unreachable from outside");
+    const phrase = html.indexOf("caddy has stopped");
+    assert.ok(consequence >= 0 && phrase > consequence, "consequence must come before the state phrase");
+    const consequenceTag = html.slice(html.lastIndexOf("<", consequence), consequence);
+    assert.doesNotMatch(consequenceTag, /text-red-/);
+    assert.match(html, /<span class="[^"]*text-red-300[^"]*">.*caddy has stopped/);
+    assert.match(html, /href="\/infrastructure"/);
+  });
+
+  test("several problems keep their order", () => {
+    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, undefined, [
+      CADDY_DOWN,
+      { name: "lychee-watch", word: "exited", consequence: "Changes wait for the 15-minute full run", page: "reconciler", href: "/reconciler" },
+    ]);
+    const first = html.indexOf("Every site is unreachable from outside");
+    const second = html.indexOf("Changes wait for the 15-minute full run");
+    assert.ok(first >= 0 && second > first);
+  });
+
+  test("problem values are escaped", () => {
+    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, undefined, [
+      { ...CADDY_DOWN, name: "<b>x</b>" },
+    ]);
+    assert.match(html, /&lt;b&gt;x&lt;\/b&gt;/);
+    assert.doesNotMatch(html, /<b>x<\/b>/);
+  });
+
+  test("the removed notice and host problems both render", () => {
+    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, "Removed blog.lychee.land.", [CADDY_DOWN]);
+    assert.match(html, /Removed blog\.lychee\.land\./);
+    assert.match(html, /data-host-problems/);
+  });
+
+  test("the error render has no host-problem block", () => {
+    assert.doesNotMatch(renderSiteList([], {}, "lychee.land", "boom"), /data-host-problems/);
   });
 });
