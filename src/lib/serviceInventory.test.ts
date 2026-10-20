@@ -330,3 +330,22 @@ test("reads actions on unit entries: known only, de-duplicated, even when not re
   assert.equal(b.kind === "unit" && b.actions, undefined);
   assert.equal("actions" in c, false);
 });
+
+test("gate_code is read into gateCode", () => {
+  const inv = parseInventory(JSON.stringify({
+    generated: "x",
+    services: [{ name: "swee", kind: "unit", unit: "swee.service", group: "service", reconciled: true, result: "blocked", gate_code: "ci-failed" }],
+  }));
+  assert.equal(inv.entries[0].gateCode, "ci-failed");
+});
+
+// An inventory published before A-GATE-1 never carries it: absence is not an error.
+test("a missing or non-string gate_code leaves gateCode absent", () => {
+  for (const extra of [{}, { gate_code: 3 }]) {
+    const inv = parseInventory(JSON.stringify({
+      generated: "x",
+      services: [{ name: "swee", kind: "unit", unit: "swee.service", group: "service", reconciled: true, result: "blocked", ...extra }],
+    }));
+    assert.equal(inv.entries[0].gateCode, undefined, JSON.stringify(extra));
+  }
+});

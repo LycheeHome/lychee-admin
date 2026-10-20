@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { describeStatus, splitHostnameForDisplay, undeployedStatus } from "./siteDisplay";
+import { describeStatus, deployTrouble, splitHostnameForDisplay, undeployedStatus } from "./siteDisplay";
 
 describe("describeStatus", () => {
   // Scorch is for something that tried and failed: a first deploy the
@@ -164,5 +164,52 @@ describe("undeployedStatus", () => {
 
   test("an installed version has no opinion, whatever the last result", () => {
     assert.equal(undeployedStatus({ version: "0.1.0", result: "failed" }), null);
+  });
+});
+
+describe("deployTrouble", () => {
+  const rows: Array<[string, "bad" | "neutral", "blocked" | "waiting", string]> = [
+    ["ci-failed", "bad", "blocked", "CI failed"],
+    ["ci-unknown", "bad", "blocked", "CI result unknown"],
+    ["retry-capped", "bad", "blocked", "retry limit reached"],
+    ["pin-unresolved", "bad", "blocked", "tag didn't resolve"],
+    ["declaration-rejected", "bad", "blocked", "declaration rejected"],
+    ["not-applied", "bad", "blocked", "not applied"],
+    ["image-unavailable", "bad", "blocked", "image unavailable"],
+    ["provenance-failed", "bad", "blocked", "provenance check failed"],
+    ["token-missing", "bad", "blocked", "no GitHub token on the host"],
+    ["env-mismatch", "bad", "blocked", ".env doesn't match"],
+    ["ci-pending", "neutral", "waiting", "CI running"],
+    ["host-pending", "neutral", "waiting", "waiting for systemd"],
+  ];
+  for (const [gateCode, tone, word, reason] of rows) {
+    test(`blocked with ${gateCode} is ${tone} ${word}`, () => {
+      assert.deepEqual(deployTrouble({ result: "blocked", gateCode }), { tone, word, reason });
+    });
+  }
+
+  test("a failed run is bad with or without a code", () => {
+    const failed = { tone: "bad", word: "failed", reason: "deploy failed" };
+    assert.deepEqual(deployTrouble({ result: "failed" }), failed);
+    assert.deepEqual(deployTrouble({ result: "failed", gateCode: "ok" }), failed);
+  });
+
+  test("blocked with a benign, unknown or missing code is no trouble", () => {
+    for (const gateCode of ["ok", "up-to-date", "awaiting-image", "unknown", "made-up", undefined]) {
+      assert.equal(deployTrouble({ result: "blocked", gateCode }), null, String(gateCode));
+    }
+  });
+
+  test("a run that was not blocked or failed is no trouble", () => {
+    assert.equal(deployTrouble({ result: "skipped", gateCode: "up-to-date" }), null);
+    assert.equal(deployTrouble({ result: "deployed", gateCode: "ok" }), null);
+  });
+
+  test("an empty gate_code is no code", () => {
+    assert.equal(deployTrouble({ result: "blocked", gateCode: "" }), null);
+  });
+
+  test("an unknown result never produces a line", () => {
+    assert.equal(deployTrouble({ result: "unknown", gateCode: "ci-failed" }), null);
   });
 });

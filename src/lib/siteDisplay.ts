@@ -134,3 +134,40 @@ export function splitHostnameForDisplay(hostname: string, domain: string): Hostn
   }
   return { lead: hostname, dimmed: "" };
 }
+
+/** Why a reconciled site's deploy is not going through, as the board and the
+ *  site page show it. `bad` is something to act on; `neutral` is a wait. */
+export interface DeployTrouble { tone: "bad" | "neutral"; word: "blocked" | "failed" | "waiting"; reason: string }
+
+const BAD = "bad" as const;
+const NEUTRAL = "neutral" as const;
+
+// Keyed by the contract's gate_code (A-GATE-1). The codes that mean "nothing
+// is wrong" (ok, up-to-date, awaiting-image, unknown) are deliberately absent.
+const BLOCKED_TROUBLE: Record<string, DeployTrouble> = {
+  "ci-failed": { tone: BAD, word: "blocked", reason: "CI failed" },
+  "ci-unknown": { tone: BAD, word: "blocked", reason: "CI result unknown" },
+  "retry-capped": { tone: BAD, word: "blocked", reason: "retry limit reached" },
+  "pin-unresolved": { tone: BAD, word: "blocked", reason: "tag didn't resolve" },
+  "declaration-rejected": { tone: BAD, word: "blocked", reason: "declaration rejected" },
+  "not-applied": { tone: BAD, word: "blocked", reason: "not applied" },
+  "image-unavailable": { tone: BAD, word: "blocked", reason: "image unavailable" },
+  "provenance-failed": { tone: BAD, word: "blocked", reason: "provenance check failed" },
+  "token-missing": { tone: BAD, word: "blocked", reason: "no GitHub token on the host" },
+  "env-mismatch": { tone: BAD, word: "blocked", reason: ".env doesn't match" },
+  "ci-pending": { tone: NEUTRAL, word: "waiting", reason: "CI running" },
+  "host-pending": { tone: NEUTRAL, word: "waiting", reason: "waiting for systemd" },
+};
+
+/**
+ * Classifies a reconciled entry's last run. `failed` needs no code: a failed
+ * run is always trouble. `blocked` is trouble only for a code in the table, so
+ * a blocked row from an older inventory without gate_code, an empty code and a
+ * code this app does not know all read as no trouble rather than a guess.
+ * Any other result never produces a line.
+ */
+export function deployTrouble(entry: { result?: string; gateCode?: string }): DeployTrouble | null {
+  if (entry.result === "failed") return { tone: BAD, word: "failed", reason: "deploy failed" };
+  if (entry.result !== "blocked" || entry.gateCode === undefined) return null;
+  return Object.hasOwn(BLOCKED_TROUBLE, entry.gateCode) ? { ...BLOCKED_TROUBLE[entry.gateCode] } : null;
+}
