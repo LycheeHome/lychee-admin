@@ -457,6 +457,15 @@ status pill alone on the right, right-aligned so the pills share an edge down th
 page; the alignment is the entire reason the list is rows and not cards. A static
 site has no status and so nothing on the right.
 
+When Caddy, the sites tunnel or a reconciler unit is down, the list says so
+above its rows, between the section heading and the first row: one line per
+unit, consequence first in Chalk and plain sans (what the operator needs to
+know), then `● name phrase` in Scorch and Data (the machine fact, and the only
+red), then a Smoke Light link to the page that holds the unit's detail. A
+Hairline rule sits beneath the block and the block is absent entirely when
+nothing is down, so a healthy list is the list it always was. Per-site pills are
+unchanged: they speak for a site, these lines for the host beneath all of them.
+
 The page ground has 24px of horizontal padding and a 64px-tall header band
 (32px of content height under 16px top and bottom padding) holding the wordmark
 and the two host-level nav items, aligned to the same 1080px container as the

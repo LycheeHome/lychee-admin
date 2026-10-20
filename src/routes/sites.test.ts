@@ -1392,3 +1392,65 @@ describe("POST /sites/:hostname/detach", () => {
     assert.equal(lastLogEntry().action, "detach-site-failed");
   });
 });
+
+describe("host problems on the site list", () => {
+  // Its own app per case: readUnitStates is the one fake these need to vary,
+  // and every other test in this file wants the default.
+  async function listWith(readUnitStates: () => Promise<Record<string, { status: string; since: string | null }>>) {
+    const { createApp } = await import("../app");
+    const { createBackup } = await import("../lib/backup");
+    const { createLogger } = await import("../lib/logger");
+    const { createFakes } = await import("../dev/fakes");
+
+    const fakes = createFakes({ readUnitStates: readUnitStates as never });
+    fakes.fs.mkdir(SITES_ROOT);
+    fakes.fs.writeFile(CADDYFILE, SEED_CADDYFILE);
+    fakes.fs.writeFile(TUNNEL_CONFIG, SEED_TUNNEL);
+
+    const app = createApp({
+      commands: fakes.commands,
+      fs: fakes.fs,
+      backup: createBackup(fakes.fs),
+      logger: createLogger(fakes.fs),
+    });
+    const localServer = app.listen(0);
+    await once(localServer, "listening");
+    const address = localServer.address();
+    assert.ok(address && typeof address === "object");
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/`, { headers: { Authorization: AUTH } });
+      return { status: response.status, body: await response.text() };
+    } finally {
+      localServer.close();
+      await once(localServer, "close");
+    }
+  }
+
+  test("the list shows a stopped Caddy", async () => {
+    const { status, body } = await listWith(async () => ({
+      "caddy.service": { status: "exited", since: null },
+      "cloudflared-sites.service": { status: "running", since: null },
+    }));
+    assert.equal(status, 200);
+    assert.match(body, /data-host-problems/);
+    assert.match(body, /caddy has stopped/);
+  });
+
+  test("a failing unit read renders the list without the block", async () => {
+    const { status, body } = await listWith(async () => {
+      throw new Error("systemctl failed");
+    });
+    assert.equal(status, 200);
+    assert.doesNotMatch(body, /data-host-problems/);
+  });
+
+  test("healthy units render no block", async () => {
+    const { status, body } = await listWith(async () => ({
+      "caddy.service": { status: "running", since: null },
+      "cloudflared-sites.service": { status: "running", since: null },
+    }));
+    assert.equal(status, 200);
+    assert.doesNotMatch(body, /data-host-problems/);
+  });
+});
