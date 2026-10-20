@@ -629,7 +629,8 @@ exceptions to it.
   for danger. Deploying a newer version is not destructive, so wearing the danger
   colour would have said the wrong thing at a glance; borrowing its size says the
   right one, because both are in-row controls subordinate to the row they sit in.
-- **Compact primary:** Primary's colours, hover and focus at the offer's size
+- **Compact primary:** Primary's colours, hover, focus, disabled and
+  aria-disabled at the offer's size
   (0.8rem, 6px by 12px padding, 32px minimum height). Derived from Primary in
   `shared.ts`, as Compact secondary is from Secondary, so the two cannot drift.
   Used for the runbook's first Deploy and for the Prune under a site page's
@@ -900,11 +901,13 @@ cell on a board whose whole job is a five-second glance. A row with nothing to
 offer is byte-identical to one from before the feature existed.
 
 **The same line serves a site's own page.** An attached Next.js site's
-repository card carries the offer with the board's exact markup and the same
-Deploy control, posting to the same endpoint, and the rule for whether a tag is
+repository card carries the offer from the same renderer and the same Deploy
+control, posting to the same endpoint — a Compact primary during the first
+deploy, the board's outline offer otherwise — and the rule for whether a tag is
 on offer at all is one function shared by both pages — so a site's page and the
 board can never disagree about what is deployable. It lives in that card, not
-the page header, which keeps Visit the header's action while the site is serving.
+the page header, which keeps Visit the header's action while the site is
+serving.
 
 Where both appear, the gate line comes first and the offer second. A blocked
 service's gate string carries its own recovery instruction — on this host it
@@ -923,11 +926,11 @@ say.
 **The prune line.** A site row whose declaration is retired (`state: absent`)
 and still in `lychee-resources` grows one more line, last: a compact secondary
 `Prune old declaration` button (compact primary under a site page's retired
-warning, where it is the page's next step) and a mono caption naming the file it deletes and
-the condition it waits for — `deletes <name>.yml from lychee-resources · once
-its container is confirmed down`. The same markup, from the same function, sits
-under a site page's detached warning, and both post to the same route. On the board, Secondary
-rather than the offer's Ember outline or the danger button's Scorch: it removes
+warning, where it is the page's next step) and a mono caption naming the file it
+deletes and the condition it waits for — `deletes <name>.yml from
+lychee-resources · once its container is confirmed down`. The same markup, from
+the same function, sits under a site page's detached warning, and both post to
+the same route. On the board, Secondary rather than the offer's Ember outline or the danger button's Scorch: it removes
 a file already retired for a container already down, in a commit that can be
 reverted, so it is neither the row's way forward nor a destructive act, and no
 modal guards it. The button is shown only on evidence that the declaration is

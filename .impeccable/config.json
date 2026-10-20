@@ -26,7 +26,7 @@
           "src/views/html.test.ts"
         ],
         "createdAt": "2026-10-20T23:08:31.887Z",
-        "reason": "Claude (controller): test-file token lists assert BUTTON_PRIMARY's classes; shipped pair is Hearth-on-Ember Primary, logged as this detector's known false positive in the 2026-10-20 critique"
+        "reason": "Claude (controller): test-file token lists assert BUTTON_PRIMARY's classes; shipped pair is Hearth-on-Ember Primary, logged as this detector's known false positive in the 2026-10-20 critique. 1 hit, counted 2026-10-20 against impeccable 4.5 (`scripts/impeccable detect --no-config --json src/views`). The hit COUNT is the tripwire: if the detector reports more gray-on-color hits in this file than stated, something new is being silenced and the reason needs re-deriving."
       }
     ]
   }

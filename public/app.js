@@ -702,6 +702,10 @@ addSiteForm?.addEventListener("submit", async (event) => {
       addSiteError.classList.remove("hidden");
       addSiteError.textContent = error.message;
     }
+    // A debounced preview can have fired while the POST was in flight and read
+    // the half-written state ("already exists"). The add has failed and rolled
+    // back, so ask the server again rather than leave the form blocked on it.
+    refreshPreview();
   }
 });
 
