@@ -1662,6 +1662,13 @@ describe("renderServicesPage", () => {
     assert.ok(!html.includes("To recover"));
   });
 
+  test("a failed board row with no target says the log has the latest attempt, not that a tag is retried", () => {
+    const html = offerBoard({ version: "v1.4.0", result: "failed" });
+    assert.ok(html.includes("The reconciler's log for the last hour has the latest attempt:") || html.includes("The reconciler&#39;s log for the last hour has the latest attempt:"));
+    assert.ok(html.includes("journalctl -u lychee-reconcile -u lychee-reconcile-app --since &quot;1 hour ago&quot;"));
+    assert.ok(!html.includes("retries this tag"));
+  });
+
   test("rows that are not failed render no failure line", () => {
     for (const result of ["deployed", "skipped", "blocked", "awaiting-image", undefined]) {
       const html = offerBoard({ version: "v1.4.0", target: "v1.5.0", available: "v1.6.0", result, failedStep: "x" });
@@ -2037,6 +2044,9 @@ describe("what to check under the chain", () => {
       renderSiteDetail(NEXT_SITE, { ...BASE, resource: { ...RESOURCE, result: "failed" }, status: { kind: "failed" } }),
     );
     assert.ok(w.includes("The last deploy failed"));
+    assert.ok(w.includes("The reconciler's log for the last hour has the latest attempt:"));
+    assert.ok(!w.includes("retries this tag"));
+    assert.ok(w.includes(RECOVER));
     assert.ok(w.includes(TWO_UNIT));
     assert.ok(w.includes(RECOVER));
   });

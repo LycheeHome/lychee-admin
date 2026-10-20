@@ -923,6 +923,10 @@ function gateLine(resource: SiteResourceView): string {
  * step is a machine fact, so it is mono like the gate line. Empty unless
  * `result` is failed, so `blocked` keeps showing only its gate.
  *
+ * "Retries this tag on every run" is only true when a target tag exists. A
+ * failed row with none (lychee-admin's own row, a commit retried at most three
+ * times) says only that the log has the latest attempt.
+ *
  * One markup for a site's repository card and a services board row, which is
  * why it takes only the three facts both carry. The board passes a per-row
  * `commandId`, since several failed rows can share one page and the copy
@@ -938,10 +942,13 @@ function failureLine(resource: FailureFacts, extraClass = "", commandId = "cmd-r
   const step = resource.failedStep
     ? `<p class="${SERVICE_DETAIL} text-stone-300" data-failed-step>${escapeHtml(resource.failedStep)}</p>`
     : "";
+  const retry = resource.target
+    ? "The reconciler retries this tag on every run; its log for the last hour shows each attempt:"
+    : "The reconciler's log for the last hour has the latest attempt:";
   return `<div class="flex flex-col gap-2 ${extraClass}" data-deploy-failed>
             <p class="${BODY}">${what}</p>
             ${step}
-            <p class="${BODY}">The reconciler retries this tag on every run; its log for the last hour shows each attempt:</p>
+            <p class="${BODY}">${retry}</p>
             ${commandBlock(commandId, 'journalctl -u lychee-reconcile -u lychee-reconcile-app --since "1 hour ago"', "Copy journal command")}
           </div>`;
 }
