@@ -133,14 +133,14 @@ export const SEEDED_INVENTORY = JSON.stringify(
       { name: "lychee-watch-timer", kind: "unit", unit: "lychee-watch.timer", group: "reconciler", reconciled: false },
       { name: "lychee-admin", kind: "unit", unit: "lychee-admin.service", group: "service", reconciled: true,
         version: "a428e84", target: "", commit: "a428e842a101eb4da22ca29469297d71d0eda150",
-        result: "skipped", gate: "ok", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
+        result: "skipped", gate: "ok", gate_code: "up-to-date", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
       { name: "swee", kind: "unit", unit: "swee.service", group: "service", reconciled: true,
         version: "v2.11.4", target: "v2.12.0", commit: "af22c5683fcb100f8d27038fd2b71e744e46427a",
         // Pin moved, build blocked: must NOT read "applying", because nothing
         // is going to apply it. Neither the suite nor dev mode showed this
         // case before it was seeded. The gate is the producer's form
         // (roles/swee_app/tasks/decide_gate.yml): "job <check> concluded: <verdicts>".
-        result: "blocked", gate: "job test concluded: failure", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
+        result: "blocked", gate: "job test concluded: failure", gate_code: "ci-failed", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
       // The retry cap, on a unit row: swee-staging is a second instance of the
       // swee app, seeded at the cap. The result is "blocked", not "failed":
       // failed is the pre-cap state while the reconciler is still retrying and
@@ -152,12 +152,12 @@ export const SEEDED_INVENTORY = JSON.stringify(
       // and embedded recovery command are what the page has to lay out.
       { name: "swee-staging", kind: "unit", unit: "swee-staging.service", group: "service", reconciled: true,
         version: "v0.2.0", target: "", commit: "9fbb23a8348ea8ef93b81f01c93e811e980bcb09",
-        result: "blocked",
+        result: "blocked", gate_code: "retry-capped",
         gate: "v0.3.0 failed 3 times; not retrying (promote another tag, or rm /opt/swee-staging/.failed-tag)",
         last_run: "2026-10-02T04:58:02Z", failed_attempts: 3 },
       { name: "palsave-api", kind: "container", container: "palsave-api", group: "service", reconciled: true,
         version: "0.2.0", target: "0.2.0", commit: "",
-        result: "blocked",
+        result: "blocked", gate_code: "not-applied",
         // The form roles/resources_reconcile/tasks/reconcile.yml writes for a
         // refused declaration: "not applied: " plus the validator's reasons.
         gate: "not applied: port 8788 is claimed by another declaration (swee-lychee-land); image ghcr.io/lycheehome/palsave-api is not under the registry path the reconciler accepts",
@@ -176,34 +176,34 @@ export const SEEDED_INVENTORY = JSON.stringify(
       { name: "lychee-notes", kind: "container", container: "lychee-notes", group: "service", reconciled: true,
         version: "1.4.0", target: "1.4.0", available: "1.5.0",
         commit: "",
-        result: "skipped", gate: "pin unchanged (1.4.0)", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
+        result: "skipped", gate: "pin unchanged (1.4.0)", gate_code: "up-to-date", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
       // Two of the attached site resources (see SEED_CADDYFILE). preview is the
       // tagless declaration after the reconciler's first look: no compose
       // action, nothing installed, the pushed tag discovered. "" is what the
       // producer writes for "no tag", and the parser normalises it away.
       { name: "preview-lychee-land", kind: "container", container: "preview-lychee-land", group: "service", reconciled: true,
         version: "", target: "", available: "0.1.0",
-        result: "awaiting-image", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
+        result: "awaiting-image", gate_code: "awaiting-image", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
       // app is settled on 0.2.0 with a newer tag pushed, so its page shows the
       // installed card with the board's own offer line.
       { name: "app-lychee-land", kind: "container", container: "app-lychee-land", group: "service", reconciled: true,
         version: "0.2.0", target: "0.2.0", available: "0.3.0",
         commit: "5b7e2a9c0d14f3e68a9b1c2d3e4f5061728394a5",
-        result: "skipped", gate: "pin unchanged (0.2.0)", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
+        result: "skipped", gate: "pin unchanged (0.2.0)", gate_code: "up-to-date", last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
       // broken's first deploy failed before the retry cap: 0.1.0 is pinned and
       // retried every tick, nothing is installed, and the operator has since
       // pushed 0.1.1. A failed first deploy publishes an empty gate, so the
       // failed step is the only explanation the inventory carries.
       { name: "broken-lychee-land", kind: "container", container: "broken-lychee-land", group: "service", reconciled: true,
         version: "", target: "0.1.0", available: "0.1.1",
-        result: "failed", gate: "",
+        result: "failed", gate: "", gate_code: "ok",
         failed_step: "Start the container: dependency failed to start: container broken-lychee-land is unhealthy",
         last_run: "2026-10-02T04:58:02Z", failed_attempts: 1 },
       // gone is retired and confirmed down: its last run was a completed
       // `down` (result deployed) and nothing is installed, which is exactly
       // what the prune route accepts. Its declaration is state: absent.
       { name: "gone-lychee-land", kind: "container", container: "gone-lychee-land", group: "service", reconciled: true,
-        version: "", target: "", result: "deployed", gate: "",
+        version: "", target: "", result: "deployed", gate: "", gate_code: "ok",
         last_run: "2026-10-02T04:58:02Z", failed_attempts: 0 },
       { name: "caddy", kind: "unit", unit: "caddy.service", group: "infrastructure", reconciled: false },
       { name: "cloudflared-sites", kind: "unit", unit: "cloudflared-sites.service", group: "infrastructure", reconciled: false },

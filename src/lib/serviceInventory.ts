@@ -30,6 +30,10 @@ interface InventoryEntryBase {
   commit?: string;
   result?: string;
   gate?: string;
+  /** The machine-readable reason behind `gate` (lychee-contract A-GATE-1):
+   *  readers branch on this, never on the human text. Not validated against
+   *  the code list, so a code a newer producer adds still reads through. */
+  gateCode?: string;
   lastRun?: string;
   failedAttempts?: number;
   /** What the declaration pins, as opposed to `version`, which is what is
@@ -166,6 +170,7 @@ function toEntry(raw: Record<string, unknown>): InventoryEntry | null {
   if (gate !== undefined) entry.gate = gate;
   if (lastRun !== undefined) entry.lastRun = lastRun;
   if (typeof raw.result === "string") entry.result = raw.result;
+  if (typeof raw.gate_code === "string") entry.gateCode = raw.gate_code;
   if (typeof raw.failed_attempts === "number") entry.failedAttempts = raw.failed_attempts;
   return entry;
 }
