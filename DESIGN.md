@@ -918,6 +918,17 @@ resource name; a hand-declared service such as palsave-api is never pruned from
 here. Whether the container is down yet is the route's to answer, through the
 toast, rather than the page's to predict.
 
+**The name, and a pill that cannot be read.** Every row carries an anchor
+(`service-<name>`) so a site's page can link to it, and a site resource's name
+links back to its site, but only while that site is still in the Caddyfile: a
+retired declaration outlives its site, and a link to a page that answers not-found
+would be worse than plain text. A row whose pill reads `unknown` carries one Smoke
+sentence beneath its name saying lychee-admin could not read that unit's (or
+container's) state, since a neutral word alone does not say whether anything is
+wrong. A container row with nothing installed shows the word its site page
+shows, `failed` or `awaiting image`, from the one function both use, so the
+board and the page cannot name one container two ways.
+
 **Applying is a state of the pill, not a colour.** While a declaration pins a
 version the host has not installed yet, the pill reads `applying` in the neutral
 tone and the facts line states both versions as one fact, `v0.2.0 → v0.3.0`,
