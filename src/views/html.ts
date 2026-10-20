@@ -362,6 +362,27 @@ function renderHop(hop: Hop): string {
           </div>`;
 }
 
+/**
+ * A bad-tone status word as a predicate, so a unit and a container read alike
+ * in What to check. Only these four are bad-tone unit or container states; any
+ * other word falls back to a plain "is <word>" rather than a wrong claim.
+ * Exported so a test can pin the fallback.
+ */
+export function statePhrase(word: string): string {
+  switch (word) {
+    case "exited":
+      return "has stopped";
+    case "restarting":
+      return "keeps restarting";
+    case "paused":
+      return "is paused";
+    case "unhealthy":
+      return "is running but failing its health check";
+    default:
+      return `is ${word}`;
+  }
+}
+
 interface HopFix {
   hop: "tunnel" | "caddy" | "your app";
   /** Already-escaped HTML. */
@@ -390,17 +411,19 @@ function hopFixes(site: Site, opts: SiteDetailOptions): HopFix[] {
   const unitIsBad = (unit: string): boolean =>
     opts.unitStates !== undefined && rowLabels(opts.unitStates[unit]?.status ?? "unknown").tone === "bad";
 
+  const unitPhrase = (unit: string): string => statePhrase(rowLabels(opts.unitStates?.[unit]?.status ?? "unknown").pill);
+
   if (unitIsBad("cloudflared-sites.service")) {
     fixes.push({
       hop: "tunnel",
-      body: `<p class="${STEP_TEXT} !mb-0">The sites tunnel isn't running, so no request reaches Caddy. Its journal says why:</p>
+      body: `<p class="${STEP_TEXT} !mb-0">The sites tunnel ${unitPhrase("cloudflared-sites.service")}, so Cloudflare has nowhere to send this site's requests. Its last 50 log lines usually show why:</p>
           ${commandBlock("cmd-fix-tunnel", "journalctl -u cloudflared-sites -n 50", "Copy journal command")}`,
     });
   }
   if (unitIsBad("caddy.service")) {
     fixes.push({
       hop: "caddy",
-      body: `<p class="${STEP_TEXT} !mb-0">Caddy isn't running, which takes down every site on lychee, not just this one. Its journal says why:</p>
+      body: `<p class="${STEP_TEXT} !mb-0">Caddy ${unitPhrase("caddy.service")}. Every site on lychee goes through it, so all of them are down, not only this one. Its last 50 log lines usually show why:</p>
           ${commandBlock("cmd-fix-caddy", "journalctl -u caddy -n 50", "Copy journal command")}`,
     });
   }
@@ -409,17 +432,21 @@ function hopFixes(site: Site, opts: SiteDetailOptions): HopFix[] {
   if (status?.kind === "failed" && opts.resource && !opts.resource.version) {
     // Forced: the status is the page's verdict, and the resource's own `result`
     // can have moved on (a newer run) while the pill still reads failed.
-    fixes.push({ hop: "your app", body: failureLine({ ...opts.resource, result: "failed" }) });
+    fixes.push({
+      hop: "your app",
+      body: `${failureLine({ ...opts.resource, result: "failed" })}
+          <p class="${STEP_TEXT} !mb-0">To recover, publish a fixed tag; From a repository below offers it to deploy.</p>`,
+    });
   } else if (opts.resource && status?.kind === "container" && describeStatus(status).tone === "bad") {
     fixes.push({
       hop: "your app",
-      body: `<p class="${STEP_TEXT} !mb-0">Check the container's logs to see why:</p>
-          ${commandBlock("cmd-logs", `docker compose -p ${opts.resource.name} logs`, "Copy logs command")}`,
+      body: `<p class="${STEP_TEXT} !mb-0">The container ${statePhrase(describeStatus(status).pill)}. Its last 100 log lines usually show why:</p>
+          ${commandBlock("cmd-logs", `docker compose -p ${opts.resource.name} logs --tail 100`, "Copy logs command")}`,
     });
   } else if (status?.kind === "tcp" && !status.responding) {
     fixes.push({
       hop: "your app",
-      body: `<p class="${STEP_TEXT} !mb-0">Nothing answered on ${mono(`localhost:${site.target}`)}. lychee-admin doesn't run this process, so check that it's started and listening:</p>
+      body: `<p class="${STEP_TEXT} !mb-0">Nothing answered on ${mono(`localhost:${site.target}`)}. lychee-admin only routes requests to this port; whatever serves it is started outside the app. This shows what is listening there, and prints only its header row if nothing is:</p>
           ${commandBlock("cmd-fix-listen", `ss -ltn 'sport = :${site.target}'`, "Copy listen check")}`,
     });
   }
@@ -914,8 +941,8 @@ function failureLine(resource: FailureFacts, extraClass = "", commandId = "cmd-r
   return `<div class="flex flex-col gap-2 ${extraClass}" data-deploy-failed>
             <p class="${BODY}">${what}</p>
             ${step}
-            <p class="${BODY}">The reconciler's journal has the whole run:</p>
-            ${commandBlock(commandId, "journalctl -u lychee-reconcile", "Copy journal command")}
+            <p class="${BODY}">The reconciler retries this tag on every run; its log for the last hour shows each attempt:</p>
+            ${commandBlock(commandId, 'journalctl -u lychee-reconcile -u lychee-reconcile-app --since "1 hour ago"', "Copy journal command")}
           </div>`;
 }
 

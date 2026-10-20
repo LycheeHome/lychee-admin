@@ -2,7 +2,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { withoutHeader } from "../dev/testHelpers";
-import { offeredTag, renderPruneControl, renderServicesPage, renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
+import { offeredTag, statePhrase, renderPruneControl, renderServicesPage, renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
 import { formatAge, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_SECONDARY_COMPACT, TYPE_PILL_PROXY } from "./shared";
 import { ADD_STEPS } from "../lib/stepReport";
 
@@ -1655,6 +1655,13 @@ describe("renderServicesPage", () => {
     assert.ok(!html.includes("data-failed-step"));
   });
 
+  test("the board's failure line has the two-unit command and no recovery sentence", () => {
+    const html = offerBoard({ version: "v1.4.0", target: "v1.5.0", result: "failed" });
+    assert.ok(html.includes("The reconciler retries this tag on every run; its log for the last hour shows each attempt:"));
+    assert.ok(html.includes("journalctl -u lychee-reconcile -u lychee-reconcile-app --since &quot;1 hour ago&quot;"));
+    assert.ok(!html.includes("To recover"));
+  });
+
   test("rows that are not failed render no failure line", () => {
     for (const result of ["deployed", "skipped", "blocked", "awaiting-image", undefined]) {
       const html = offerBoard({ version: "v1.4.0", target: "v1.5.0", available: "v1.6.0", result, failedStep: "x" });
@@ -1969,6 +1976,97 @@ describe("what to check under the chain", () => {
     assert.match(w, /journalctl -u lychee-reconcile/);
   });
 
+  test("each bad state reads as a phrase", () => {
+    assert.equal(statePhrase("exited"), "has stopped");
+    assert.equal(statePhrase("restarting"), "keeps restarting");
+    assert.equal(statePhrase("paused"), "is paused");
+    assert.equal(statePhrase("unhealthy"), "is running but failing its health check");
+  });
+
+  test("an unmapped word falls back to is <word>", () => {
+    assert.equal(statePhrase("unknown"), "is unknown");
+  });
+
+  test("the tunnel and Caddy entries use the phrase", () => {
+    const w = whatToCheck(
+      renderSiteDetail(PROXY_SITE, {
+        ...OPTS,
+        status: { kind: "tcp", responding: true },
+        unitStates: {
+          "cloudflared-sites.service": { status: "restarting", since: null },
+          "caddy.service": EXITED,
+        },
+      }),
+    );
+    assert.ok(w.includes("The sites tunnel keeps restarting, so Cloudflare has nowhere to send this site's requests."));
+    assert.ok(w.includes("Caddy has stopped. Every site on lychee goes through it, so all of them are down, not only this one."));
+    assert.equal(w.split("Its last 50 log lines usually show why:").length - 1, 2);
+  });
+
+  test("the container entry uses the phrase and a bounded log command", () => {
+    const w = whatToCheck(
+      renderSiteDetail(NEXT_SITE, {
+        ...OPTS,
+        resource: RUNNING_RESOURCE,
+        status: { kind: "container", state: "running", health: "unhealthy" },
+      }),
+    );
+    assert.ok(w.includes("The container is running but failing its health check. Its last 100 log lines usually show why:"));
+    assert.ok(w.includes("docker compose -p app-lychee-land logs --tail 100"));
+  });
+
+  const TWO_UNIT = "journalctl -u lychee-reconcile -u lychee-reconcile-app --since &quot;1 hour ago&quot;";
+  const RECOVER = "To recover, publish a fixed tag; From a repository below offers it to deploy.";
+
+  test("a failed first deploy points at both reconciler units for the last hour, then recovery", () => {
+    const w = whatToCheck(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RESOURCE, result: "failed", target: "0.1.0", available: "0.1.1", failedStep: "Start the container: exit 1" },
+        status: { kind: "failed" },
+      }),
+    );
+    assert.ok(w.includes("The reconciler retries this tag on every run; its log for the last hour shows each attempt:"));
+    const pre = w.slice(w.indexOf('id="cmd-reconcile-log"'));
+    assert.ok(pre.includes(TWO_UNIT));
+    assert.ok(w.indexOf(RECOVER) > w.indexOf(TWO_UNIT));
+  });
+
+  test("a failed deploy with no target still offers recovery", () => {
+    const w = whatToCheck(
+      renderSiteDetail(NEXT_SITE, { ...BASE, resource: { ...RESOURCE, result: "failed" }, status: { kind: "failed" } }),
+    );
+    assert.ok(w.includes("The last deploy failed"));
+    assert.ok(w.includes(TWO_UNIT));
+    assert.ok(w.includes(RECOVER));
+  });
+
+  test("the plain-proxy entry says how to read the listen check", () => {
+    const w = whatToCheck(renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: false } }));
+    assert.ok(
+      w.includes(
+        "lychee-admin only routes requests to this port; whatever serves it is started outside the app. This shows what is listening there, and prints only its header row if nothing is:",
+      ),
+    );
+  });
+
+  test("no entry overpromises", () => {
+    const pages = [
+      renderSiteDetail(PROXY_SITE, {
+        ...OPTS,
+        status: { kind: "tcp", responding: false },
+        unitStates: { "caddy.service": EXITED, "cloudflared-sites.service": { status: "restarting", since: null } },
+      }),
+      renderSiteDetail(NEXT_SITE, { ...OPTS, resource: RUNNING_RESOURCE, status: { kind: "container", state: "paused" } }),
+      renderSiteDetail(NEXT_SITE, { ...BASE, resource: { ...RESOURCE, result: "failed" }, status: { kind: "failed" } }),
+    ];
+    for (const html of pages) {
+      const w = whatToCheck(html);
+      assert.ok(!w.includes("says why"));
+      assert.ok(!w.includes("isn't running"));
+    }
+  });
+
   test("a plain proxy not responding gets a listen check", () => {
     const w = whatToCheck(renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: false } }));
     assert.match(w, /id="cmd-fix-listen"/);
@@ -2000,6 +2098,8 @@ describe("what to check under the chain", () => {
     assert.ok(w.indexOf("cmd-fix-tunnel") < w.indexOf("cmd-fix-caddy"));
     assert.ok(w.indexOf("cmd-fix-caddy") < w.indexOf("cmd-fix-listen"));
     assert.match(w, /journalctl -u cloudflared-sites -n 50/);
+    assert.ok(w.includes("The sites tunnel has stopped"));
+    assert.ok(w.includes("Caddy has stopped"));
   });
 
   test("an exited container keeps its logs command, now in the list", () => {
