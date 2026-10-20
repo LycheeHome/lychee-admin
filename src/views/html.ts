@@ -23,6 +23,7 @@ import {
   escapeHtml,
   icon,
   BUTTON_PRIMARY,
+  BUTTON_PRIMARY_COMPACT,
   BUTTON_SECONDARY,
   BUTTON_SECONDARY_COMPACT,
   BUTTON_DANGER,
@@ -818,16 +819,20 @@ const mono = (value: string): string => `<span class="font-mono text-stone-50 br
  * for the site page's detached warning and a retired row on the services
  * board; app.js binds every [data-prune] to POST /resources/:name/prune.
  *
- * Secondary, not primary or danger, and no modal: it removes a file already
- * `state: absent` for a container the route checks is confirmed down, in a
- * revertible commit, so it is neither the page's forward action nor a
- * destructive one. Callers render it only for an absent declaration; whether
- * the container is down yet is the route's to answer, through the banner.
+ * Never danger, and no modal: it removes a file already `state: absent` for a
+ * container the route checks is confirmed down, in a revertible commit. It is
+ * Secondary by default, which is what the services board uses (a row there is
+ * housekeeping, not the page's step). Under a site page's retired warning the
+ * caller passes "primary": there Prune is the way forward, the page's one
+ * Ember, and Attach steps back. Callers render it only for an absent
+ * declaration; whether the container is down yet is the route's to answer,
+ * through the banner.
  */
-export function renderPruneControl(name: string): string {
+export function renderPruneControl(name: string, emphasis: "secondary" | "primary" = "secondary"): string {
   const safe = escapeHtml(name);
+  const cls = emphasis === "primary" ? BUTTON_PRIMARY_COMPACT : BUTTON_SECONDARY_COMPACT;
   return `<p class="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-prune-line>
-            <button type="button" class="${BUTTON_SECONDARY_COMPACT}" data-prune="${safe}">Prune old declaration</button>
+            <button type="button" class="${cls}" data-prune="${safe}">Prune old declaration</button>
             <span class="font-mono text-[0.72rem] text-stone-400 break-all">deletes ${safe}.yml from lychee-resources&nbsp;<span class="whitespace-nowrap">· once its container is confirmed down</span></span>
           </p>`;
 }
@@ -843,18 +848,20 @@ export function renderPruneControl(name: string): string {
  * refreshed on load but may still be stale (the refresh is bounded), so the
  * page warns and the writer decides: it pulls first, and refuses with the
  * same prune reason if the retired file is still there. The warning carries
- * the way out, the Prune control, after the sentence that explains it.
+ * the way out, the Prune control, after the sentence that explains it. While
+ * retired, Prune is the page's Primary and Attach steps back to Secondary,
+ * still enabled, so the one Ember sits on the step that is actually next.
  */
 function attachForm(site: Site, resourceName: string, detached: boolean): string {
   const warning = detached
     ? `<p id="attach-warning" class="${BODY} text-stone-300">${mono(`${resourceName}.yml`)} is retired (${mono("state: absent")}) and was still in lychee-resources when this page loaded. Attaching is refused while it is there. Prune it to re-attach; pressing Attach checks again.</p>
-              ${renderPruneControl(resourceName)}`
+              ${renderPruneControl(resourceName, "primary")}`
     : "";
   return `<form class="flex flex-col gap-1.5" data-attach="${escapeHtml(site.hostname)}" novalidate>
               <label for="attach-repo" class="text-[0.85rem] text-stone-400">Repository in LycheeHome</label>
               <div class="flex flex-wrap items-center gap-2.5">
                 ${repoField("attach", "", detached ? "attach-warning" : "")}
-                <button type="submit" class="${BUTTON_PRIMARY}"${detached ? ` aria-describedby="attach-warning"` : ""}>Attach repository</button>
+                <button type="submit" class="${detached ? BUTTON_SECONDARY : BUTTON_PRIMARY}"${detached ? ` aria-describedby="attach-warning"` : ""}>Attach repository</button>
               </div>
               <p class="font-mono text-[0.72rem] text-stone-400 m-0 break-all">writes ${escapeHtml(resourceName)}.yml to lychee-resources · no tag until the first deploy</p>
               ${warning}
@@ -982,7 +989,7 @@ function firstDeploy(resource: SiteResourceView | undefined): string {
     const pointer = resource.target
       ? `Deploying ${mono(resource.target)} failed; the reason is under the request path.`
       : "The last deploy failed; the reason is under the request path.";
-    return `<p class="${BODY}">${pointer}</p>${gateLine(resource)}${tag ? renderOfferLine(resource.name, tag) : ""}`;
+    return `<p class="${BODY}">${pointer}</p>${gateLine(resource)}${tag ? renderOfferLine(resource.name, tag, "primary") : ""}`;
   }
   if (resource.target && resource.target === resource.available) {
     const requested = `<p class="font-mono text-[0.8rem] text-stone-50 m-0">${escapeHtml(resource.target)} requested</p>`;
@@ -993,7 +1000,7 @@ function firstDeploy(resource: SiteResourceView | undefined): string {
   }
   // Nothing is installed here, so a found tag that is not the pin is on offer.
   const tag = offeredTag(resource);
-  if (tag) return `${gateLine(resource)}${renderOfferLine(resource.name, tag)}`;
+  if (tag) return `${gateLine(resource)}${renderOfferLine(resource.name, tag, "primary")}`;
   // Step three already says no image was found and why that might be.
   if (canChangeRepository(resource)) {
     return `<p class="${BODY}">Nothing to deploy until the image exists; its newest tag is offered here once the reconciler finds it.</p>${gateLine(resource)}`;
@@ -1013,7 +1020,10 @@ function firstDeploy(resource: SiteResourceView | undefined): string {
  * The offer is the services board's own line (renderOfferLine) and its
  * button the board's own [data-deploy] control, posting to the same
  * /services/:name/deploy. It lives in this card rather than the page header,
- * which keeps Visit as the header's one ember action.
+ * which keeps the header's Visit free to be Primary only while the site is
+ * serving. While a first deploy is the next step (awaiting image, failed with
+ * a newer tag) the offer is the page's Primary; beside an installed version it
+ * stays the board's quieter offer.
  *
  * The baked-in build and run commands close the card in every state. They are
  * what the Dockerfile runs inside the image, not commands to run yourself.
@@ -1306,10 +1316,11 @@ export function offeredTag(row: DeployFacts): string | null {
  * page: app.js binds every [data-deploy] to POST /services/:name/deploy, and
  * that route reads the tag from the inventory, never from the button.
  */
-function renderOfferLine(name: string, tag: string): string {
+function renderOfferLine(name: string, tag: string, emphasis: "offer" | "primary" = "offer"): string {
+  const cls = emphasis === "primary" ? BUTTON_PRIMARY_COMPACT : BUTTON_OFFER;
   return `<p class="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-offer>
             <span class="font-mono text-[0.8rem] text-rose-300">${escapeHtml(tag)} available</span>
-            <button type="button" class="${BUTTON_OFFER}" data-deploy="${escapeHtml(name)}" data-deploy-tag="${escapeHtml(tag)}">Deploy ${escapeHtml(tag)}</button>
+            <button type="button" class="${cls}" data-deploy="${escapeHtml(name)}" data-deploy-tag="${escapeHtml(tag)}">Deploy ${escapeHtml(tag)}</button>
           </p>`;
 }
 

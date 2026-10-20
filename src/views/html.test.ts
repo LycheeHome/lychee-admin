@@ -2023,7 +2023,8 @@ describe("Prune on the services board", () => {
     assert.doesNotMatch(rowOf(html, "app-lychee-land"), /data-prune/);
   });
 
-  test("the prune button is the compact secondary on both surfaces: the offer's 32px, secondary's look", () => {
+  test("the prune button is the compact secondary on the board and by default; primary only when asked", () => {
+    assert.ok(renderPruneControl("gone-lychee-land", "primary").includes(`class="${BUTTON_PRIMARY_COMPACT}"`));
     for (const markup of [renderPruneControl("gone-lychee-land"), rowOf(renderServicesPage(board(["gone-lychee-land"]), NOW, new Set(["gone-lychee-land"]), "lychee.land"), "gone-lychee-land")]) {
       assert.ok(markup.includes(`class="${BUTTON_SECONDARY_COMPACT}"`));
       assert.doesNotMatch(markup, /min-h-10/);
@@ -2479,11 +2480,30 @@ describe("renderSiteDetail from a repository", () => {
     const offer = c.match(/<p[^>]*data-offer>[\s\S]*?<\/p>/);
     assert.ok(offer, "expected the offer line");
     assert.match(offer[0], /0\.1\.0 available/);
-    assert.ok(offer[0].includes(`class="${BUTTON_OFFER}" data-deploy="app-lychee-land" data-deploy-tag="0.1.0">Deploy 0.1.0</button>`));
+    assert.ok(offer[0].includes(`class="${BUTTON_PRIMARY_COMPACT}" data-deploy="app-lychee-land" data-deploy-tag="0.1.0">Deploy 0.1.0</button>`));
     assert.ok(c.lastIndexOf("data-offer") > c.indexOf("ghcr.io/lycheehome/app-site"), "the offer comes after the attach step");
-    // Not in the page header: Visit stays the header's one ember control.
+    // Not in the page header, and the header holds no Ember: the offer has it.
     const header = withoutHeader(html).split("Request path</h3>")[0];
     assert.doesNotMatch(header, /data-deploy/);
+    assert.ok(!header.split(/[\s"]+/).includes("bg-rose-400"));
+  });
+
+  test("a failed first deploy offers the newer tag as the page's Primary", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...BASE,
+      resource: { ...RESOURCE, result: "failed", target: "0.1.0", available: "0.1.1" },
+      status: { kind: "failed" },
+    });
+    assert.ok(card(html).includes(`class="${BUTTON_PRIMARY_COMPACT}" data-deploy="app-lychee-land" data-deploy-tag="0.1.1">Deploy 0.1.1</button>`));
+  });
+
+  test("an installed version with a newer tag keeps the board's offer emphasis", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...BASE,
+      resource: { ...RUNNING_RESOURCE, available: "0.3.0" },
+      status: { kind: "container", state: "running", health: "healthy" },
+    });
+    assert.ok(card(html).includes(`class="${BUTTON_OFFER}" data-deploy="app-lychee-land" data-deploy-tag="0.3.0">Deploy 0.3.0</button>`));
   });
 
   test("the offer is the same markup the services board renders", () => {
@@ -2563,14 +2583,19 @@ describe("renderSiteDetail from a repository", () => {
 
   test("detached: the warning carries the Prune control for the site's resource", () => {
     const c = card(renderSiteDetail(NEXT_SITE, { ...BASE, detached: true, status: { kind: "container", state: "not-created" } }));
-    assert.ok(c.includes(renderPruneControl("app-lychee-land")));
+    assert.ok(c.includes(renderPruneControl("app-lychee-land", "primary")));
     const button = c.match(/<button[^>]*data-prune="app-lychee-land"[^>]*>([^<]*)<\/button>/);
     assert.ok(button);
     assert.equal(button[1], "Prune old declaration");
     assert.match(button[0], /type="button"/);
-    assert.ok(button[0].includes(`class="${BUTTON_SECONDARY_COMPACT}"`));
+    assert.ok(button[0].includes(`class="${BUTTON_PRIMARY_COMPACT}"`));
     // After the warning it acts on, so the reason is read before the action.
     assert.ok(c.indexOf("data-prune=") > c.indexOf('id="attach-warning"'));
+  });
+
+  test("detached: Attach steps back to Secondary and stays enabled", () => {
+    const c = card(renderSiteDetail(NEXT_SITE, { ...BASE, detached: true, status: { kind: "container", state: "not-created" } }));
+    assert.ok(c.includes(`<button type="submit" class="${BUTTON_SECONDARY}" aria-describedby="attach-warning">Attach repository</button>`));
   });
 
   test("not detached: no Prune control, whatever the resource's state", () => {
@@ -3139,4 +3164,37 @@ describe("host problems on the site list", () => {
   test("the error render has no host-problem block", () => {
     assert.doesNotMatch(renderSiteList([], {}, "lychee.land", "boom"), /data-host-problems/);
   });
+});
+
+describe("one Ember action per site page", () => {
+  const emberCount = (html: string): number =>
+    (html.match(/<(?:a|button)\b[^>]*>/g) ?? []).filter((tag) => {
+      const cls = tag.match(/\sclass="([^"]*)"/);
+      return cls !== null && cls[1].split(" ").includes("bg-rose-400");
+    }).length;
+  const page = (site: Site, opts: object): string => withoutHeader(renderSiteDetail(site, { ...BASE, ...opts }));
+
+  const zero: Array<[string, string]> = [
+    ["a proxy not responding", page(PROXY_SITE, { status: { kind: "tcp", responding: false } })],
+    ["starting", page(NEXT_SITE, { resource: RUNNING_RESOURCE, status: { kind: "container", state: "running", health: "starting" } })],
+    ["unknown", page(NEXT_SITE, { resource: RUNNING_RESOURCE, status: { kind: "container", state: "unknown" } })],
+  ];
+  for (const [name, html] of zero) {
+    test(`${name}: no Ember below the header`, () => assert.equal(emberCount(html), 0));
+  }
+
+  const atMostOne: Array<[string, string]> = [
+    ["a static site", page(STATIC_SITE, {})],
+    ["a proxy responding", page(PROXY_SITE, { status: { kind: "tcp", responding: true } })],
+    ["unattached", page(NEXT_SITE, { status: { kind: "container", state: "not-created" } })],
+    ["detached", page(NEXT_SITE, { detached: true, status: { kind: "container", state: "not-created" } })],
+    ["awaiting image with a tag on offer", page(NEXT_SITE, { resource: { ...RESOURCE, result: "awaiting-image", available: "0.1.0" }, status: { kind: "awaiting-image" } })],
+    ["a failed first deploy with a newer tag", page(NEXT_SITE, { resource: { ...RESOURCE, result: "failed", target: "0.1.0", available: "0.1.1" }, status: { kind: "failed" } })],
+    ["running with a newer tag", page(NEXT_SITE, { resource: { ...RUNNING_RESOURCE, available: "0.3.0" }, status: { kind: "container", state: "running", health: "healthy" } })],
+    ["starting", zero[1][1]],
+    ["unknown", zero[2][1]],
+  ];
+  for (const [name, html] of atMostOne) {
+    test(`${name}: at most one Ember below the header`, () => assert.ok(emberCount(html) <= 1, `${emberCount(html)}`));
+  }
 });
