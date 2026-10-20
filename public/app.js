@@ -531,6 +531,26 @@ function renderPreview(preview) {
   markSkips("add-site-steps", preview.steps);
 }
 
+// aria-disabled, not `disabled`: the button stays focusable and clickable, so a
+// keyboard or screen-reader user can reach it and be taken to the reason
+// (#preview-error) instead of meeting a dead control. The native `disabled`
+// attribute keeps its one other job, the in-flight submit. Only the value
+// "true" styles it, and clearing means removing the attribute.
+function setSubmitBlocked(blocked) {
+  const button = document.getElementById("add-site-submit");
+  if (!button) return;
+  const tokens = (button.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean);
+  const rest = tokens.filter((token) => token !== "preview-error");
+  if (blocked) {
+    button.setAttribute("aria-disabled", "true");
+    button.setAttribute("aria-describedby", [...rest, "preview-error"].join(" "));
+    return;
+  }
+  button.removeAttribute("aria-disabled");
+  if (rest.length) button.setAttribute("aria-describedby", rest.join(" "));
+  else button.removeAttribute("aria-describedby");
+}
+
 async function refreshPreview() {
   if (!previewBody || !addSiteForm) return;
 
@@ -551,18 +571,27 @@ async function refreshPreview() {
       }),
     });
     if (sequence !== previewSequence) return;
-    if (!response.ok) return;
+    if (!response.ok) {
+      // Not an answer, so not a rejection: a failed read never blocks.
+      setSubmitBlocked(false);
+      return;
+    }
 
     const result = await response.json();
     if (sequence !== previewSequence) return;
 
     if (result.ready) {
+      setSubmitBlocked(false);
       previewError?.classList.add("hidden");
       renderPreview(result.preview);
       return;
     }
 
     if (result.error) {
+      // A rejection is the server answering "no" to exactly this input, and it
+      // is the only thing that blocks. Set here, after both sequence checks, so
+      // a stale rejection can never re-block a newer valid input.
+      setSubmitBlocked(true);
       // Unhide before writing, for the same reason #add-site-error does:
       // role="status" does not announce a mutation inside a hidden subtree.
       previewError?.classList.remove("hidden");
@@ -571,15 +600,22 @@ async function refreshPreview() {
       return;
     }
 
+    setSubmitBlocked(false);
     previewError?.classList.add("hidden");
     restorePreviewEmpty();
   } catch {
     // A failed preview is a failed read. Keep the last good render and let the
     // submit's own validation be the gate — never block adding a site on it.
+    // A throw from a stale request must not unblock a newer rejection.
+    if (sequence === previewSequence) setSubmitBlocked(false);
   }
 }
 
 function schedulePreview() {
+  // Any edit makes the last rejection about input that no longer exists, so
+  // lift it at once rather than after the debounce: typing a fix and pressing
+  // Enter immediately must submit. The next answer re-blocks if it is still no.
+  setSubmitBlocked(false);
   clearTimeout(previewTimer);
   previewTimer = setTimeout(refreshPreview, 250);
 }
@@ -596,6 +632,12 @@ let addSiteInFlight = false;
 
 addSiteForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
+  // Blocked by an explicit preview rejection: send the reader to the reason
+  // rather than posting what the server already said no to. No banner, no fetch.
+  if (addSiteForm.querySelector("#add-site-submit")?.getAttribute("aria-disabled") === "true") {
+    previewError?.focus();
+    return;
+  }
   if (addSiteInFlight) return;
 
   const formData = new FormData(addSiteForm);
@@ -681,6 +723,9 @@ window.addEventListener("pageshow", (event) => {
   const submitButton = document.getElementById("add-site-submit");
   if (submitButton) submitButton.disabled = false;
   hideBanner();
+  // The restored heap may hold a rejection about input the form no longer
+  // shows (or the reverse); ask again rather than trust it.
+  refreshPreview();
 });
 
 document.querySelectorAll("[data-open-dialog]").forEach((trigger) => {

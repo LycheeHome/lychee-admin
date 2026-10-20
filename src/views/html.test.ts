@@ -1549,6 +1549,12 @@ describe("the add-site preview panel", () => {
     assert.match(error, /role="status"/);
   });
 
+  test("the error region is focusable by script, so a blocked submit can move the reader to the reason", () => {
+    const error = tagById(html, "preview-error");
+    assert.match(error, /tabindex="-1"/);
+    assert.match(error, /role="status"/);
+  });
+
   test("the panel itself is not a live region — announcing a config block per keystroke is hostile", () => {
     const panel = tagById(html, "write-preview");
     assert.doesNotMatch(panel, /aria-live/);
