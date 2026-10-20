@@ -1,4 +1,7 @@
 import type { ContainerHealth, ContainerState } from "./containerStatus";
+import type { ServiceInventory } from "./serviceInventory";
+import { findTimerUnit } from "./serviceBoard";
+import type { UnitState } from "./unitState";
 
 /**
  * How the detail page learned about a site's liveness. Plain reverse-proxy
@@ -115,4 +118,90 @@ export function splitHostnameForDisplay(hostname: string, domain: string): Hostn
     return { lead: hostname.slice(0, -suffix.length), dimmed: suffix };
   }
   return { lead: hostname, dimmed: "" };
+}
+
+export interface HostProblem {
+  /** The inventory's name for the unit, which is what the board's rows are keyed by. */
+  name: string;
+  /** The unit's status word, as the board would show it. */
+  word: string;
+  /** What the operator loses while it stays that way. */
+  consequence: string;
+  page: "infrastructure" | "reconciler";
+  href: "/infrastructure" | "/reconciler";
+}
+
+/**
+ * Caddy and the sites tunnel are named in code, not read from the inventory:
+ * they are what carries every site, and the sites list must still notice them
+ * down when the inventory is missing.
+ */
+const FIXED_UNITS = [
+  { name: "caddy", unit: "caddy.service", consequence: "Every site is unreachable from outside" },
+  { name: "cloudflared-sites", unit: "cloudflared-sites.service", consequence: "Every site is unreachable from outside" },
+] as const;
+
+const WATCH_TIMER = "lychee-watch.timer";
+
+/** The words that are bad on the board: this mirrors the bad tone rowLabels
+ *  gives them. starting, unknown and running are not problems. */
+const BAD_WORDS = new Set(["exited", "restarting", "paused", "unhealthy"]);
+
+/** The inventory's reconciler units, or none when it is missing or empty. */
+function reconcilerUnits(inventory: ServiceInventory | null) {
+  if (!inventory) return [];
+  const out: { name: string; unit: string }[] = [];
+  for (const e of inventory.entries) {
+    if (e.kind === "unit" && e.group === "reconciler") out.push({ name: e.name, unit: e.unit });
+  }
+  return out;
+}
+
+/** The unit names whose state the sites list must read to decide hostProblems. */
+export function hostProblemUnits(inventory: ServiceInventory | null): string[] {
+  const units: string[] = FIXED_UNITS.map((f) => f.unit);
+  for (const r of reconcilerUnits(inventory)) {
+    if (!units.includes(r.unit)) units.push(r.unit);
+  }
+  return units;
+}
+
+/**
+ * Host units that are down and what that costs, infrastructure first. The
+ * sites list reads no host state otherwise, so a Caddy outage would leave it
+ * green; this is the one place that says otherwise.
+ */
+export function hostProblems(
+  unitStates: Record<string, UnitState>,
+  inventory: ServiceInventory | null,
+): HostProblem[] {
+  const problems: HostProblem[] = [];
+  const word = (unit: string): string | null => {
+    const status = unitStates[unit]?.status;
+    return status && BAD_WORDS.has(status) ? status : null;
+  };
+
+  for (const f of FIXED_UNITS) {
+    const w = word(f.unit);
+    if (w) problems.push({ name: f.name, word: w, consequence: f.consequence, page: "infrastructure", href: "/infrastructure" });
+  }
+
+  // The watcher is matched by name so it can never be taken for the full-run
+  // timer, whatever order the inventory lists them in.
+  const units = reconcilerUnits(inventory);
+  const fullRun = inventory
+    ? findTimerUnit({ ...inventory, entries: inventory.entries.filter((e) => e.kind !== "unit" || e.unit !== WATCH_TIMER) })
+    : null;
+  for (const r of units) {
+    const w = word(r.unit);
+    if (!w) continue;
+    const consequence =
+      r.unit === WATCH_TIMER
+        ? "Changes wait for the 15-minute full run"
+        : r.unit === fullRun
+          ? "The 15-minute full run has stopped"
+          : "Deploys may not apply";
+    problems.push({ name: r.name, word: w, consequence, page: "reconciler", href: "/reconciler" });
+  }
+  return problems;
 }

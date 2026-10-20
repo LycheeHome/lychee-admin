@@ -1,6 +1,8 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { describeStatus, splitHostnameForDisplay } from "./siteDisplay";
+import { describeStatus, hostProblems, hostProblemUnits, splitHostnameForDisplay } from "./siteDisplay";
+import type { InventoryEntry, ServiceInventory } from "./serviceInventory";
+import type { UnitState } from "./unitState";
 
 describe("describeStatus", () => {
   // Scorch is for something that tried and failed: a first deploy the
@@ -144,5 +146,132 @@ describe("splitHostnameForDisplay", () => {
       lead: "notlychee.land",
       dimmed: "",
     });
+  });
+});
+
+const unitEntry = (name: string, unit: string, group: "reconciler" | "infrastructure"): InventoryEntry => ({
+  kind: "unit",
+  name,
+  unit,
+  group,
+  reconciled: true,
+});
+
+const HOST_INVENTORY: ServiceInventory = {
+  generated: null,
+  available: true,
+  entries: [
+    unitEntry("lychee-reconcile-timer", "lychee-reconcile.timer", "reconciler"),
+    unitEntry("lychee-watch-timer", "lychee-watch.timer", "reconciler"),
+    unitEntry("caddy", "caddy.service", "infrastructure"),
+    unitEntry("cloudflared-sites", "cloudflared-sites.service", "infrastructure"),
+  ],
+};
+
+// A string, not UnitStatus: the board's vocabulary has words (paused) a unit
+// state type does not, and hostProblems decides on the word alone.
+const states = (m: Record<string, string>): Record<string, UnitState> =>
+  Object.fromEntries(Object.entries(m).map(([k, status]) => [k, { status, since: null } as UnitState]));
+
+describe("hostProblems", () => {
+  test("caddy exited is a site-down problem", () => {
+    assert.deepEqual(hostProblems(states({ "caddy.service": "exited" }), HOST_INVENTORY), [
+      {
+        name: "caddy",
+        word: "exited",
+        consequence: "Every site is unreachable from outside",
+        page: "infrastructure",
+        href: "/infrastructure",
+      },
+    ]);
+  });
+
+  test("the tunnel restarting is its own problem", () => {
+    const [p] = hostProblems(states({ "cloudflared-sites.service": "restarting" }), HOST_INVENTORY);
+    assert.equal(p.name, "cloudflared-sites");
+    assert.equal(p.word, "restarting");
+  });
+
+  test("the watcher timer stopped delays changes", () => {
+    const [p] = hostProblems(states({ "lychee-watch.timer": "exited" }), HOST_INVENTORY);
+    assert.equal(p.name, "lychee-watch-timer");
+    assert.equal(p.consequence, "Changes wait for the 15-minute full run");
+    assert.equal(p.href, "/reconciler");
+    assert.equal(p.page, "reconciler");
+  });
+
+  test("the full-run timer stopped", () => {
+    const [p] = hostProblems(states({ "lychee-reconcile.timer": "exited" }), HOST_INVENTORY);
+    assert.equal(p.name, "lychee-reconcile-timer");
+    assert.equal(p.consequence, "The 15-minute full run has stopped");
+  });
+
+  test("the watcher is never misread as the full-run timer when inventory order flips", () => {
+    const flipped: ServiceInventory = { ...HOST_INVENTORY, entries: [...HOST_INVENTORY.entries].reverse() };
+    const [p] = hostProblems(states({ "lychee-watch.timer": "exited" }), flipped);
+    assert.equal(p.consequence, "Changes wait for the 15-minute full run");
+  });
+
+  test("any other reconciler unit", () => {
+    const inv: ServiceInventory = {
+      ...HOST_INVENTORY,
+      entries: [...HOST_INVENTORY.entries, unitEntry("foo", "foo.service", "reconciler")],
+    };
+    const [p] = hostProblems(states({ "foo.service": "paused" }), inv);
+    assert.equal(p.name, "foo");
+    assert.equal(p.word, "paused");
+    assert.equal(p.consequence, "Deploys may not apply");
+  });
+
+  test("unknown, starting, running and absent are not problems", () => {
+    const all = states({
+      "caddy.service": "unknown",
+      "cloudflared-sites.service": "starting",
+      "lychee-reconcile.timer": "running",
+    });
+    assert.deepEqual(hostProblems(all, HOST_INVENTORY), []);
+  });
+
+  test("infrastructure precedes reconciler", () => {
+    const got = hostProblems(states({ "lychee-watch.timer": "exited", "caddy.service": "exited" }), HOST_INVENTORY);
+    assert.deepEqual(got.map((p) => p.name), ["caddy", "lychee-watch-timer"]);
+  });
+
+  test("two infrastructure problems keep fixed order", () => {
+    const got = hostProblems(
+      states({ "cloudflared-sites.service": "exited", "caddy.service": "exited" }),
+      HOST_INVENTORY,
+    );
+    assert.deepEqual(got.map((p) => p.name), ["caddy", "cloudflared-sites"]);
+  });
+
+  test("an inventory entry for a fixed unit is not counted twice", () => {
+    assert.equal(hostProblems(states({ "caddy.service": "exited" }), HOST_INVENTORY).length, 1);
+  });
+
+  test("no inventory falls back to the fixed units", () => {
+    const got = hostProblems(states({ "caddy.service": "exited", "lychee-watch.timer": "exited" }), null);
+    assert.deepEqual(got.map((p) => p.name), ["caddy"]);
+  });
+
+  test("an inventory with no entries behaves like none", () => {
+    const empty: ServiceInventory = { generated: null, available: false, entries: [] };
+    const got = hostProblems(states({ "caddy.service": "exited", "lychee-watch.timer": "exited" }), empty);
+    assert.deepEqual(got.map((p) => p.name), ["caddy"]);
+  });
+});
+
+describe("hostProblemUnits", () => {
+  test("no inventory reads only the fixed units", () => {
+    assert.deepEqual(hostProblemUnits(null), ["caddy.service", "cloudflared-sites.service"]);
+  });
+
+  test("an inventory adds its reconciler units, without duplicates", () => {
+    assert.deepEqual(hostProblemUnits(HOST_INVENTORY), [
+      "caddy.service",
+      "cloudflared-sites.service",
+      "lychee-reconcile.timer",
+      "lychee-watch.timer",
+    ]);
   });
 });
