@@ -5,6 +5,7 @@ import {
   splitHostnameForDisplay,
   type SiteStatus,
   type StatusTone,
+  undeployedStatus,
 } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
 import { ADD_STEPS } from "../lib/stepReport";
@@ -1344,7 +1345,11 @@ function renderServiceRow(
   // while the live state is not already red: "applying" must never hide a
   // container that is actually failing.
   const applying = isApplying(row);
-  const live = rowLabels(row.status);
+  // A container with no installed version reads the reconciler's verdict, as
+  // the site page does: the container is not asked about a version that was
+  // never installed, and its live state would contradict that page.
+  const undeployed = row.kind === "container" ? undeployedStatus(row) : null;
+  const live = undeployed ? describeStatus(undeployed) : rowLabels(row.status);
   const labels =
     run?.state === "running"
       ? { ...live, pill: ACTION_RUNNING_WORD[run.action], tone: "neutral" as const }

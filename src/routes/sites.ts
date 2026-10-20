@@ -25,7 +25,7 @@ import {
   renderSiteNotFound,
   type SiteResourceView,
 } from "../views/html";
-import type { SiteStatus } from "../lib/siteDisplay";
+import { undeployedStatus, type SiteStatus } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
 import type { Site } from "../lib/caddyfile";
 import type { Deps } from "../deps";
@@ -142,7 +142,7 @@ async function resolveNextjsSite(site: Site, sources: ResourceSources, deps: Dep
     ...(entry?.failedStep !== undefined ? { failedStep: entry.failedStep } : {}),
   };
   if (!resource.version) {
-    return { status: { kind: resource.result === "failed" ? "failed" : "awaiting-image" }, resource, detached: false };
+    return { status: undeployedStatus(resource) ?? { kind: "awaiting-image" }, resource, detached: false };
   }
 
   const container = await deps.commands

@@ -1596,6 +1596,38 @@ describe("renderServicesPage", () => {
     assert.deepEqual(pills(html), ["exited"]);
   });
 
+  test("an undeployed failed container reads failed, not its live state", () => {
+    const html = offerBoard({ version: "", target: "0.1.0", result: "failed", status: "exited" });
+    assert.deepEqual(pills(html), ["failed"]);
+    assert.ok(html.includes(`${TONE_PILL.bad}"><span aria-hidden="true">&#9679;</span> failed`));
+  });
+
+  test("an undeployed awaiting-image container reads awaiting image", () => {
+    const html = offerBoard({ version: "", result: "awaiting-image", status: "not-created" });
+    assert.deepEqual(pills(html), ["awaiting image"]);
+    assert.ok(html.includes(`${TONE_PILL.neutral}"><span aria-hidden="true">&#9679;</span> awaiting image`));
+  });
+
+  test("an undeployed row with another result keeps its live state", () => {
+    const html = offerBoard({ version: "", result: "deployed", status: "not-created" });
+    assert.deepEqual(pills(html), ["not deployed"]);
+  });
+
+  test("a non-site undeployed failed container reads failed", () => {
+    const html = offerBoard({ name: "palsave-api", container: "palsave-api", version: "", result: "failed", status: "exited" });
+    assert.deepEqual(pills(html), ["failed"]);
+  });
+
+  test("an installed container still shows its live state", () => {
+    const html = offerBoard({ version: "0.2.0", result: "failed", status: "running" });
+    assert.deepEqual(pills(html), ["running"]);
+  });
+
+  test("a unit row is unaffected", () => {
+    const html = offerBoard({ kind: "unit", unit: "notes.service", version: "", result: "failed", status: "running" });
+    assert.deepEqual(pills(html), ["running"]);
+  });
+
   test("a blocked row with a moved pin does not read applying", () => {
     const html = offerBoard({ version: "v0.2.0", target: "v0.3.0", result: "blocked", gate: "job test concluded: failure" });
     assert.deepEqual(pills(html), ["running"]);
