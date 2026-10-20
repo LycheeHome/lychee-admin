@@ -3,8 +3,25 @@ import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { withoutHeader } from "../dev/testHelpers";
 import { offeredTag, statePhrase, renderPruneControl, renderServicesPage, renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
-import { formatAge, SERVICE_DETAIL, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_SECONDARY_COMPACT } from "./shared";
+import { formatAge, SERVICE_DETAIL, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_PRIMARY_COMPACT, BUTTON_SECONDARY, BUTTON_SECONDARY_COMPACT } from "./shared";
 import { ADD_STEPS } from "../lib/stepReport";
+
+describe("BUTTON_PRIMARY_COMPACT", () => {
+  const tokens = BUTTON_PRIMARY_COMPACT.split(" ");
+  test("takes the offer's size and keeps Primary's colours", () => {
+    for (const t of ["min-h-8", "px-3", "py-1.5", "text-[0.8rem]", "bg-rose-400", "text-stone-900", "hover:bg-rose-300", "focus-visible:outline-rose-400"]) {
+      assert.ok(tokens.includes(t), `missing ${t}`);
+    }
+    for (const t of ["min-h-10", "px-4", "py-2.5", "text-sm"]) assert.ok(!tokens.includes(t), `still has ${t}`);
+  });
+
+  test("BUTTON_PRIMARY carries the aria-disabled look", () => {
+    const primary = BUTTON_PRIMARY.split(" ");
+    for (const t of ["aria-disabled:cursor-not-allowed", "aria-disabled:text-stone-500", "aria-disabled:bg-rose-400/40", "aria-disabled:hover:bg-rose-400/40"]) {
+      assert.ok(primary.includes(t), `missing ${t}`);
+    }
+  });
+});
 
 const STATIC_SITE: Site = { hostname: "blog.lychee.land", type: "static", target: "/var/www/blog.lychee.land" };
 const APEX_SITE: Site = { hostname: "lychee.land", type: "static", target: "/var/www/lychee.land" };
@@ -201,6 +218,49 @@ describe("renderSiteDetail header", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     assert.match(html, /href="https:\/\/blog\.lychee\.land"/);
     assert.match(html, /rel="noopener noreferrer"/);
+  });
+
+  const visitTag = (html: string): string => {
+    const m = html.match(/<a [^>]*>Visit /);
+    assert.ok(m, "no Visit link rendered");
+    return m[0];
+  };
+  const PRIMARY_VISIT = `class="${BUTTON_PRIMARY} no-underline shrink-0"`;
+  const SECONDARY_VISIT = `class="${BUTTON_SECONDARY} no-underline shrink-0"`;
+
+  test("Visit leads for a static site, an unchecked proxy and a responding one", () => {
+    assert.ok(visitTag(renderSiteDetail(STATIC_SITE, OPTS)).includes(PRIMARY_VISIT));
+    assert.ok(visitTag(renderSiteDetail(PROXY_SITE, OPTS)).includes(PRIMARY_VISIT));
+    const up = renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: true } });
+    assert.ok(visitTag(up).includes(PRIMARY_VISIT));
+  });
+
+  test("Visit leads for a running container", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...OPTS,
+      resource: RUNNING_RESOURCE,
+      status: { kind: "container", state: "running" },
+    });
+    assert.ok(visitTag(html).includes(PRIMARY_VISIT));
+  });
+
+  test("Visit steps back to Secondary while the site is not serving, never disabled", () => {
+    const statuses = [
+      { kind: "tcp", responding: false },
+      { kind: "awaiting-image" },
+      { kind: "container", state: "not-created" },
+      { kind: "container", state: "running", health: "starting" },
+      { kind: "container", state: "unknown" },
+      { kind: "failed" },
+    ] as const;
+    for (const status of statuses) {
+      const site = status.kind === "tcp" ? PROXY_SITE : NEXT_SITE;
+      const tag = visitTag(renderSiteDetail(site, { ...OPTS, resource: RUNNING_RESOURCE, status }));
+      assert.ok(tag.includes(SECONDARY_VISIT), `secondary for ${JSON.stringify(status)}`);
+      assert.ok(tag.includes(`href="https://${site.hostname}"`));
+      assert.ok(tag.includes('target="_blank"'));
+      assert.doesNotMatch(tag, /\s(aria-)?disabled[=\s>]/);
+    }
   });
 
   test("wires the hostname copy button to the existing generic handler", () => {

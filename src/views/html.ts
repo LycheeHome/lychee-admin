@@ -8,6 +8,7 @@ import {
   type SiteStatus,
   type StatusTone,
   undeployedStatus,
+  visitIsForward,
 } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
 import { ADD_STEPS } from "../lib/stepReport";
@@ -1137,7 +1138,7 @@ function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
             <span class="${TONE_PILL[labels.tone]}" data-state-pill><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span>
           </div>` : ""}
         </div>
-        <a href="https://${escapeHtml(site.hostname)}" target="_blank" rel="noopener noreferrer" class="${BUTTON_PRIMARY} no-underline shrink-0">Visit ${icon("externalLink")}</a>
+        <a href="https://${escapeHtml(site.hostname)}" target="_blank" rel="noopener noreferrer" class="${visitIsForward(opts.status) ? BUTTON_PRIMARY : BUTTON_SECONDARY} no-underline shrink-0">Visit ${icon("externalLink")}</a>
       </div>`;
 }
 

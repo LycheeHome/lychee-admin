@@ -10,7 +10,18 @@ export function escapeHtml(value: string): string {
 }
 
 export const BUTTON_PRIMARY =
-  "font-sans font-semibold text-sm bg-rose-400 text-stone-900 border-none rounded-md min-h-10 px-4 py-2.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-rose-300 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-rose-400/40 disabled:hover:bg-rose-400/40";
+  "font-sans font-semibold text-sm bg-rose-400 text-stone-900 border-none rounded-md min-h-10 px-4 py-2.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-rose-300 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-rose-400/40 disabled:hover:bg-rose-400/40 aria-disabled:cursor-not-allowed aria-disabled:text-stone-500 aria-disabled:bg-rose-400/40 aria-disabled:hover:bg-rose-400/40";
+/**
+ * Primary's Ember look at the offer's size, for a primary action inside a card
+ * where the full-size button would outweigh its neighbours. Derived from
+ * BUTTON_PRIMARY so colours, hover, focus and disabled stay Primary's and only
+ * the sizing is the offer's; the sizing classes all appear literally in
+ * BUTTON_OFFER, so Tailwind's source scan still sees them.
+ */
+export const BUTTON_PRIMARY_COMPACT = BUTTON_PRIMARY.replace("text-sm", "text-[0.8rem]").replace(
+  "min-h-10 px-4 py-2.5",
+  "min-h-8 px-3 py-1.5",
+);
 export const BUTTON_SECONDARY =
   "font-sans font-semibold text-sm bg-stone-600 text-stone-50 border-none rounded-md min-h-10 px-4 py-2.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-stone-700 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-transparent disabled:hover:bg-transparent";
 /**
