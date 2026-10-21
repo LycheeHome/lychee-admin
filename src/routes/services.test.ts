@@ -4,6 +4,7 @@ import { once } from "node:events";
 import type { Server } from "node:http";
 import bcrypt from "bcrypt";
 import type { Deps } from "../deps";
+import type { ClientAssets } from "../views/clientShell";
 import type { SystemCommands } from "../lib/systemCommands";
 import { withoutHeader } from "../dev/testHelpers";
 
@@ -32,6 +33,7 @@ async function serve(
   inventoryJson: string | null,
   overrides: Partial<SystemCommands>,
   seed: { opRun?: { delayMs?: number } } = {},
+  clientAssets?: ClientAssets | null | (() => ClientAssets | null),
 ): Promise<{ base: string; fs: Deps["fs"]; get: (p: string) => Promise<Response>; actions: () => string[]; audit: () => Record<string, unknown>[]; close: () => Promise<void> }> {
   const { createApp } = await import("../app");
   const { createBackup } = await import("../lib/backup");
@@ -45,6 +47,10 @@ async function serve(
     backup: createBackup(fakes.fs),
     logger: createLogger(fakes.fs),
   };
+  // A function stands in for the dev server's getter, which re-reads the
+  // manifest on every use.
+  if (typeof clientAssets === "function") Object.defineProperty(deps, "clientAssets", { get: clientAssets });
+  else deps.clientAssets = clientAssets;
   const server: Server = createApp(deps).listen(0);
   await once(server, "listening");
   const address = server.address();
@@ -292,7 +298,6 @@ describe("the three board pages", () => {
   const PAGES = [
     { path: "/services", eyebrow: "Services", only: ["lychee-admin", "swee", "palsave-api"], never: ["lychee-reconcile-timer", "caddy"] },
     { path: "/reconciler", eyebrow: "Reconciler", only: ["lychee-reconcile-timer", "lychee-watch-timer"], never: ["swee", "caddy"] },
-    { path: "/infrastructure", eyebrow: "Infrastructure", only: ["caddy", "cloudflared-sites"], never: ["swee", "lychee-watch-timer"] },
   ];
 
   for (const page of PAGES) {
@@ -334,7 +339,7 @@ describe("the three board pages", () => {
 
   test("a readable inventory with nothing in a page's group says so in one sentence", async () => {
     const s = await start(inventory([SWEE]), {});
-    for (const path of ["/reconciler", "/infrastructure"]) {
+    for (const path of ["/reconciler"]) {
       const html = await (await s.get(path)).text();
       assert.ok(html.includes('id="group-empty"'), path);
       assert.ok(!html.includes('id="inventory-unavailable"'), path);
@@ -350,9 +355,61 @@ describe("the three board pages", () => {
     const s = await start(inventory([...RECONCILER, SWEE]), {
       readUnitStates: (units) => (calls.push(units), Promise.resolve({})),
     });
-    for (const path of ["/services", "/reconciler", "/infrastructure"]) await s.get(path);
-    assert.equal(calls.length, 3);
+    for (const path of ["/services", "/reconciler"]) await s.get(path);
+    assert.equal(calls.length, 2);
     for (const units of calls) assert.deepEqual(units, ["lychee-reconcile.timer", "lychee-reconcile.service", "swee.service"]);
+  });
+});
+
+describe("GET /infrastructure: the React mount", () => {
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  after(async () => {
+    await current?.close();
+  });
+  const ASSETS: ClientAssets = { script: "assets/main-abc.js", styles: ["assets/main-def.css"] };
+
+  test("serves the shell with the mount point and the bundle", async () => {
+    current = await serve(null, {}, {}, ASSETS);
+    const res = await current.get("/infrastructure");
+    assert.equal(res.status, 200);
+    const html = await res.text();
+    assert.ok(html.includes('id="app-root" data-page="infrastructure"'));
+    assert.ok(html.includes('<script type="module" src="/client/assets/main-abc.js">'));
+    assert.match(html, /<a href="\/infrastructure"[^>]*aria-current="page"/);
+    await current.close();
+  });
+
+  test("answers 500 when the bundle is missing", async () => {
+    current = await serve(null, {}, {}, null);
+    const res = await current.get("/infrastructure");
+    assert.equal(res.status, 500);
+    assert.equal(await res.text(), "client bundle missing; run npm run build");
+    await current.close();
+  });
+
+  test("requires authentication", async () => {
+    current = await serve(null, {}, {}, ASSETS);
+    assert.equal((await fetch(`${current.base}/infrastructure`)).status, 401);
+    await current.close();
+  });
+
+  test("the bundle's own files require authentication too", async () => {
+    current = await serve(null, {}, {}, ASSETS);
+    for (const path of ["/client/.vite/manifest.json", "/client/assets/main-abc.js", "/client/assets/main-def.css"]) {
+      assert.equal((await fetch(`${current.base}${path}`)).status, 401, path);
+    }
+    await current.close();
+  });
+
+  test("reads the bundle on every request, so the dev server's rebuilds are picked up", async () => {
+    let assets: ClientAssets | null = null;
+    current = await serve(null, {}, {}, () => assets);
+    assert.equal((await current.get("/infrastructure")).status, 500);
+    assets = ASSETS;
+    assert.ok((await (await current.get("/infrastructure")).text()).includes('src="/client/assets/main-abc.js"'));
+    assets = { script: "assets/main-new.js", styles: [] };
+    assert.ok((await (await current.get("/infrastructure")).text()).includes('src="/client/assets/main-new.js"'));
+    await current.close();
   });
 });
 
@@ -915,5 +972,81 @@ describe("GET /services: links to managed sites", () => {
     const res = await current.get("/services");
     assert.equal(res.status, 200);
     assert.ok(!withoutHeader(await res.text()).includes('href="/sites/'));
+  });
+});
+
+describe("GET /api/services", () => {
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  after(async () => {
+    await current?.close();
+  });
+
+  async function start(...args: Parameters<typeof serve>): Promise<Awaited<ReturnType<typeof serve>>> {
+    await current?.close();
+    current = await serve(...args);
+    return current;
+  }
+
+  test("returns only the requested group's rows in the envelope", async () => {
+    const { SEEDED_INVENTORY } = await import("../dev/seed");
+    const s = await start(SEEDED_INVENTORY, {});
+    const res = await s.get("/api/services?group=infrastructure");
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as {
+      ok: boolean;
+      now: string;
+      board: { groups: { group: string; rows: { name: string }[] }[] };
+    };
+    assert.equal(body.ok, true);
+    assert.ok(!Number.isNaN(Date.parse(body.now)));
+    assert.deepEqual(body.board.groups.map((g) => g.group), ["infrastructure"]);
+    assert.deepEqual(body.board.groups[0].rows.map((r) => r.name), ["caddy", "cloudflared-sites"]);
+  });
+
+  test("an unknown group is a 400 with the error envelope", async () => {
+    const s = await start(null, {});
+    const res = await s.get("/api/services?group=nope");
+    assert.equal(res.status, 400);
+    const body = (await res.json()) as { ok: boolean; reason: string };
+    assert.equal(body.ok, false);
+    assert.equal(typeof body.reason, "string");
+  });
+
+  test("requires authentication", async () => {
+    const s = await start(null, {});
+    assert.equal((await fetch(`${s.base}/api/services?group=service`)).status, 401);
+  });
+
+  test("a missing inventory still answers 200 with inventoryAvailable false", async () => {
+    const s = await start(null, {});
+    const res = await s.get("/api/services?group=service");
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { ok: boolean; board: { inventoryAvailable: boolean } };
+    assert.equal(body.ok, true);
+    assert.equal(body.board.inventoryAvailable, false);
+  });
+});
+
+describe("GET /api/services boardEmpty", () => {
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  after(async () => {
+    await current?.close();
+  });
+
+  test("an inventory declaring only other groups is not an empty board", async () => {
+    current = await serve(inventory([SWEE]), {});
+    const body = (await (await current.get("/api/services?group=infrastructure")).json()) as {
+      boardEmpty: boolean;
+      board: { groups: { group: string }[] };
+    };
+    assert.equal(body.boardEmpty, false);
+    assert.ok(!body.board.groups.some((g) => g.group === "infrastructure"));
+  });
+
+  test("an inventory with no entries is an empty board", async () => {
+    await current?.close();
+    current = await serve(inventory([]), {});
+    const body = (await (await current.get("/api/services?group=service")).json()) as { boardEmpty: boolean };
+    assert.equal(body.boardEmpty, true);
   });
 });

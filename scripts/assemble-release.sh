@@ -9,7 +9,7 @@ set -euo pipefail
 
 out="${1:?usage: assemble-release.sh <out-dir>}"
 
-for f in dist/server.js public/style.css package.json package-lock.json; do
+for f in dist/server.js public/style.css public/client/.vite/manifest.json package.json package-lock.json; do
   [ -f "$f" ] || { echo "assemble-release: missing $f (run npm run build first)" >&2; exit 1; }
 done
 

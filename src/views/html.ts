@@ -2,13 +2,11 @@ import path from "node:path";
 import { computeFilesPath, type Site } from "../lib/caddyfile";
 import {
   describeStatus,
-  deployTrouble,
   troubleGate,
   splitHostnameForDisplay,
   type HostProblem,
   type SiteStatus,
   type StatusTone,
-  undeployedStatus,
   visitIsForward,
 } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
@@ -20,6 +18,7 @@ import type { ServiceGroup } from "../lib/serviceInventory";
 import { type HostAction, IMAGE_PREFIX } from "../lib/platform";
 import type { ActionState } from "../lib/hostOperations";
 import { layout, type Nav } from "./shell";
+import { type DeployFacts, isApplying, rowLabels, summarizeRow } from "./boardFacts";
 import {
   escapeHtml,
   icon,
@@ -45,6 +44,11 @@ import {
   SERVICE_DETAIL,
   formatAge,
   formatDuration,
+  BODY,
+  CODE_LINE,
+  COPY_BUTTON,
+  COPY_IN_LINE,
+  MONO_FACT,
 } from "./shared";
 
 /**
@@ -54,7 +58,7 @@ import {
  * served over plain HTTP on the LAN.
  */
 function copyButton(targetId: string, label: string, extraClass = ""): string {
-  return `<button type="button" class="p-1 rounded-md bg-stone-800 border border-stone-700 text-stone-400 hover:text-stone-50 hover:bg-stone-700 cursor-pointer ${FOCUS_RING} ${extraClass}" data-copy-target="${targetId}" aria-label="${escapeHtml(label)}">
+  return `<button type="button" class="${COPY_BUTTON} ${extraClass}" data-copy-target="${targetId}" aria-label="${escapeHtml(label)}">
       <span data-copy-icon="idle">${icon("clipboard")}</span>
       <span data-copy-icon="copied" class="hidden">${icon("check")}</span>
     </button>`;
@@ -581,21 +585,6 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
 const STEP_NUMBER =
   "font-mono text-[0.6875rem] text-rose-400 border border-rose-400/40 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5";
 const STEP_TEXT = `text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5 ${PROSE_MEASURE}`;
-/**
- * Position for a copy button sitting in a single-line command box: vertically
- * centred, so it does not depend on the box's exact height.
- *
- * No font-size override here deliberately — the icon inherits 16px, matching
- * the multi-line workflow block's button, so all six copy buttons are one size.
- * That makes the button 26px, which CODE_LINE's py-2.5 is chosen to clear with
- * an even gap (6.6px above and below against 6px to the right), and pr-11 keeps
- * it off the command text. Those three values are coupled: changing the padding
- * on either the button or the box unbalances the gap.
- */
-const COPY_IN_LINE = "absolute top-1/2 -translate-y-1/2 right-1.5";
-
-const CODE_LINE =
-  "font-mono text-[0.72rem] bg-stone-900 border border-stone-700 rounded-md pl-2.5 pr-11 py-2.5 text-stone-50 overflow-x-auto whitespace-nowrap m-0";
 
 /**
  * A copyable command, optionally captioned with the directory it must run in.
@@ -775,7 +764,6 @@ export interface SiteDetailOptions {
   created?: boolean;
 }
 
-const BODY = `text-stone-400 text-[0.8rem] leading-snug m-0 ${PROSE_MEASURE}`;
 const STEP_DONE =
   "font-mono text-[0.6875rem] text-stone-300 border border-stone-600 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5";
 /**
@@ -827,7 +815,7 @@ function runbookStep(n: number, done: boolean, title: string, body: string, fold
         </div>`;
 }
 
-const mono = (value: string): string => `<span class="font-mono text-stone-50 break-all">${escapeHtml(value)}</span>`;
+const mono = (value: string): string => `<span class="${MONO_FACT}">${escapeHtml(value)}</span>`;
 
 /**
  * Prune: deletes a retired site declaration from lychee-resources. One markup
@@ -1284,27 +1272,6 @@ const GROUP_LABELS: Record<ServiceGroup, string> = {
   infrastructure: "Infrastructure",
 };
 
-/**
- * A board row's status through the same describeStatus() the site pages use,
- * so the services board cannot grow a second vocabulary. Rows are units and
- * containers alike, which is why this takes ServiceStatus rather than
- * UnitStatus: the two words a unit can never produce, `unhealthy` and
- * `paused`, are exactly the ones a container row needs. `starting` and
- * `unhealthy` are the pair that have to be mapped back onto a container's
- * state/health shape, since describeStatus() reads them from there.
- */
-function rowLabels(status: BoardRow["status"]) {
-  if (status === "starting") return describeStatus({ kind: "container", state: "running", health: "starting" });
-  if (status === "unhealthy") return describeStatus({ kind: "container", state: "running", health: "unhealthy" });
-  return describeStatus({ kind: "container", state: status });
-}
-
-type DeployFacts = Pick<BoardRow, "available" | "version" | "target" | "result">;
-
-function isApplying(row: DeployFacts): boolean {
-  const settled = row.result === "deployed" || row.result === "skipped";
-  return settled && Boolean(row.version && row.target && row.target !== row.version);
-}
 
 /**
  * The tag a row offers, or null. Nothing is offered while a deploy is in
@@ -1514,61 +1481,15 @@ function renderServiceRow(
   run?: ActionState,
   requestedTag?: string,
 ): string {
-  // `target` is what the reconciler has been asked to run; `version` is what
-  // it last confirmed running. "Applying" means the reconciler last ran
-  // cleanly (`deployed` or `skipped`) and the pin has since moved, so the next
-  // tick will install it. A moved pin on a `blocked` or `failed` row is NOT
-  // applying: the retry cap, an unresolvable pin and a red CI gate all leave
-  // target != version indefinitely while the old build keeps running, and
-  // calling that "applying" would promise progress that is never coming.
-  // An allowlist, not a denylist, because `result` can also be absent or
-  // `unknown`, and those must not read as applying either. Neutral, and only
-  // while the live state is not already red: "applying" must never hide a
-  // container that is actually failing.
-  const applying = isApplying(row);
-  // A container with no installed version reads the reconciler's verdict, as
-  // the site page does: the container is not asked about a version that was
-  // never installed, and its live state would contradict that page.
-  const undeployed = row.kind === "container" ? undeployedStatus(row) : null;
-  const live = undeployed ? describeStatus(undeployed) : rowLabels(row.status);
+  // The row's words, shared with the React board (boardFacts.ts). A running
+  // host action replaces the pill, neutral, the way `applying` does.
+  const summary = summarizeRow(row, board, now);
   const labels =
     run?.state === "running"
-      ? { ...live, pill: ACTION_RUNNING_WORD[run.action], tone: "neutral" as const }
-      : applying && live.tone !== "bad"
-        ? { ...live, pill: "applying", tone: "neutral" as const }
-        : live;
+      ? { ...summary.labels, pill: ACTION_RUNNING_WORD[run.action], tone: "neutral" as const }
+      : summary.labels;
+  const { trouble, gate, facts } = summary;
   const offer = offeredTag(row);
-
-  const facts: string[] = [];
-  // One fact with an arrow, not two: version and target are a single change.
-  if (applying) facts.push(`${row.version} \u2192 ${row.target}`);
-  else if (row.version) facts.push(row.version);
-  // The pill stays the thing's own health; a deploy that is blocked or failed
-  // gets its own line, so a healthy old build never reads as a broken one. An
-  // undeployed container's trouble is already its pill, so it gets no line.
-  const trouble = undeployed ? null : deployTrouble(row);
-  const gate = troubleGate(row);
-  // The raw result word is the reconciler's vocabulary (`skipped`, `deployed`,
-  // `awaiting-image`), not the operator's, so it is never printed. The one
-  // exception is a blocked run with no deploy line to say so: without it the
-  // row would not say the deploy is blocked at all.
-  if (row.result === "blocked" && !trouble) facts.push(row.result);
-  if (row.failedAttempts) facts.push(`${row.failedAttempts} ${row.failedAttempts === 1 ? "attempt" : "attempts"}`);
-  const changed = formatAge(row.since, now);
-  if (changed) facts.push(`changed ${changed}`);
-
-  // The full-run timer carries the schedule, as the board does; the watcher's
-  // timer row shows only its state.
-  if (row.kind === "unit" && row.unit === board.timerUnit) {
-    // Only a future time is a "next run". A timer that has just fired or not
-    // yet computed its next elapse is normal, and a past "next" would render
-    // as a negative interval, so it says nothing.
-    const upcoming = board.schedule.next && new Date(board.schedule.next).getTime() > now.getTime();
-    const next = upcoming ? formatAge(board.schedule.next, now) : null;
-    const last = formatAge(board.schedule.last, now);
-    if (next) facts.push(`next run ${next}`);
-    if (last) facts.push(`last run ${last}`);
-  }
 
   // A site's row links to its page, but only when the app manages that
   // hostname: a name that merely ends in the suffix is not a site.
