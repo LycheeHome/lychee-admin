@@ -61,6 +61,14 @@ export const DETAIL_WIDTH = "max-w-[760px] mx-auto w-full";
  * side by side; DETAIL_WIDTH is the reading column it caps to when it has one.
  */
 export const FRAME_WIDTH = "max-w-[1080px] mx-auto w-full";
+/**
+ * The measure every Smoke sentence holds: 25rem is about 70 characters of
+ * Nunito at 0.8rem. In rem, not ch, because a ch is the width of a zero —
+ * roughly 1.35 of Nunito's average letter — so `70ch` held about 95 letters.
+ * Only the prose stops here; the 760px card keeps its width, and mono beside
+ * it (commands, code, the request-path chain) stays full width.
+ */
+export const PROSE_MEASURE = "max-w-[25rem]";
 
 export const TONE_PILL: Record<StatusTone, string> = {
   ok: `${STATUS_PILL_BASE} text-green-300 bg-green-950/60`,

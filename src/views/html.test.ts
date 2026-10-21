@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { withoutHeader } from "../dev/testHelpers";
 import { offeredTag, renderRequestedLine, statePhrase, renderPruneControl, renderServicesPage, renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
-import { formatAge, SERVICE_DETAIL, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_PRIMARY_COMPACT, BUTTON_SECONDARY, BUTTON_SECONDARY_COMPACT } from "./shared";
+import { formatAge, SERVICE_DETAIL, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_PRIMARY_COMPACT, BUTTON_SECONDARY, BUTTON_SECONDARY_COMPACT, PROSE_MEASURE } from "./shared";
 import { ADD_STEPS } from "../lib/stepReport";
 
 describe("BUTTON_PRIMARY_COMPACT", () => {
@@ -2862,7 +2862,7 @@ describe("card order", () => {
 
   test("the Danger paragraph is held to a reading measure", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
-    assert.match(html.split(">Danger</h3>")[1], /^\s*<p class="[^"]*max-w-\[70ch\]/);
+    assert.match(html.split(">Danger</h3>")[1], /^\s*<p class="[^"]*max-w-\[25rem\]/);
   });
 
   test("no id repeats on a detail page", () => {
@@ -3396,5 +3396,62 @@ describe("the requested line", () => {
     assert.equal(count(boardWith({ available: "0.3.0", version: "0.2.0" }), "data-requested-template"), 1);
     assert.equal(count(renderSiteDetail(STATIC_SITE, OPTS), "data-requested-template"), 0);
     assert.equal(count(boardWith({ version: "0.2.0" }), "data-requested-template"), 0);
+  });
+});
+
+describe("Smoke sentences hold a readable measure", () => {
+  /** Every Smoke paragraph (Body classes, not mono) that lacks the 25rem cap. */
+  function uncappedSmoke(html: string): string[] {
+    return (html.match(/<p\b[^>]*>/g) ?? []).filter((tag) => {
+      const cls = tag.match(/class="([^"]*)"/)?.[1] ?? "";
+      return cls.includes("text-stone-400") && cls.includes("text-[0.8rem]") && !cls.includes("font-mono") && !cls.includes("max-w-[25rem]");
+    });
+  }
+
+  const failedBoard = renderServicesPage(
+    {
+      inventoryAvailable: true,
+      schedule: { next: null, last: null }, timerUnit: null,
+      generated: "2026-10-02T04:58:02Z",
+      groups: [{ group: "service", rows: [
+        { name: "notes", kind: "container", container: "notes", group: "service", reconciled: true, status: "running", since: null,
+          version: "v1.4.0", target: "v1.5.0", available: "v1.6.0", result: "failed", failedAttempts: 1,
+          failedStep: "Start the container: exit 1" } as never,
+      ] }],
+    },
+    new Date("2026-10-02T05:00:00Z"), new Set(), "lychee.land",
+  );
+
+  const pages: [string, string][] = [
+    ["static site", renderSiteDetail(STATIC_SITE, OPTS)],
+    ["proxy not responding", renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: false } })],
+    ["unattached Next.js (full runbook)", renderSiteDetail(NEXT_SITE, { ...BASE, status: { kind: "container", state: "not-created" } })],
+    ["awaiting image, 0.1.0 on offer", renderSiteDetail(NEXT_SITE, { ...BASE, resource: { ...RESOURCE, result: "awaiting-image", available: "0.1.0" }, status: { kind: "awaiting-image" } })],
+    ["failed first deploy", renderSiteDetail(NEXT_SITE, { ...BASE, resource: { ...RESOURCE, result: "failed", target: "0.1.0", available: "0.1.1", failedStep: "Start the container: exit 1" }, status: { kind: "failed" } })],
+    ["running, 0.3.0 on offer", renderSiteDetail(NEXT_SITE, { ...BASE, resource: { ...RUNNING_RESOURCE, available: "0.3.0" }, status: { kind: "container", state: "running" } })],
+    ["retired declaration", renderSiteDetail(NEXT_SITE, { ...BASE, detached: true, status: { kind: "container", state: "not-created" } })],
+    ["services board with a failed row", failedBoard],
+    ["add-site page", renderAddSite(SITES, "lychee.land", {}, PATHS)],
+  ];
+
+  test("the measure is 25rem, in rem and not ch", () => {
+    assert.equal(PROSE_MEASURE, "max-w-[25rem]");
+  });
+
+  for (const [name, html] of pages) {
+    test(`every Smoke paragraph carries the measure: ${name}`, () => {
+      assert.deepEqual(uncappedSmoke(html), []);
+    });
+  }
+
+  test("the Danger paragraph drops its 70ch, which held about 95 letters", () => {
+    for (const [, html] of pages) assert.ok(!html.includes("max-w-[70ch]"));
+  });
+
+  test("an offer row is a flex row of controls, not prose, and stays uncapped", () => {
+    const html = pages[5][1];
+    const offer = html.match(/<p\b[^>]*data-offer[^>]*>/)?.[0];
+    assert.ok(offer, "expected an offer line");
+    assert.ok(!offer.includes("max-w-[25rem]"));
   });
 });

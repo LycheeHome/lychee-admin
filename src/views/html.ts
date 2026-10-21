@@ -33,6 +33,7 @@ import {
   FOCUS_RING,
   DETAIL_WIDTH,
   FRAME_WIDTH,
+  PROSE_MEASURE,
   CARD,
   CARD_LABEL,
   CARD_LABEL_BASE,
@@ -301,7 +302,7 @@ export function renderAddSite(
               <p class="${PATH_LABEL}">${escapeHtml(paths.tunnelConfigPath)}</p>
               <p class="font-mono text-[0.72rem] text-stone-400 m-0">—</p>
             </div>
-            <p class="text-stone-400 text-[0.8rem] leading-snug m-0">Name the site and the exact block and route appear here, before anything is written.</p>
+            <p class="${BODY}">Name the site and the exact block and route appear here, before anything is written.</p>
           </div>
 
           <hr class="border-0 border-t border-stone-700 m-0" />
@@ -578,7 +579,7 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
 
 const STEP_NUMBER =
   "font-mono text-[0.6875rem] text-rose-400 border border-rose-400/40 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5";
-const STEP_TEXT = "text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5";
+const STEP_TEXT = `text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5 ${PROSE_MEASURE}`;
 /**
  * Position for a copy button sitting in a single-line command box: vertically
  * centred, so it does not depend on the box's exact height.
@@ -633,7 +634,7 @@ function renderStep(step: ManualStep, index: number): string {
             ${step.command ? block(step.command) : ""}
             ${
               step.then
-                ? `<p class="text-stone-400 text-[0.8rem] leading-snug m-0 mt-3 mb-2">${step.then.note}</p>
+                ? `<p class="${BODY} mt-3 mb-2">${step.then.note}</p>
             ${block(step.then.command)}`
                 : ""
             }
@@ -693,7 +694,7 @@ function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
   return `
       <section class="${CARD}">
         <h3 class="${CARD_LABEL}">Manual steps</h3>
-        <p class="text-stone-400 text-[0.8rem] leading-snug m-0 mb-4">Nothing on this page does these for you.</p>
+        <p class="${BODY} mb-4">Nothing on this page does these for you.</p>
         <div class="flex flex-col gap-4">
           ${steps.map((step, index) => renderStep(step, index)).join("\n          ")}
         </div>
@@ -720,7 +721,7 @@ function renderDangerZone(opts: { attached: boolean; deletableFiles: boolean }):
       <section class="border border-red-900/60 bg-red-950/20 rounded-[10px] p-5 mt-4 flex items-center justify-between gap-4 flex-wrap">
         <div class="min-w-0">
           <h3 class="${CARD_LABEL_BASE} text-red-300 m-0 mb-1.5">Danger</h3>
-          <p class="text-stone-400 text-[0.8rem] leading-snug m-0 max-w-[70ch]">${sentences.join(" ")}</p>
+          <p class="${BODY}">${sentences.join(" ")}</p>
         </div>
         <button type="button" class="${BUTTON_DANGER} shrink-0" data-open-dialog="confirm-remove-dialog">${icon("trash")}Remove site</button>
       </section>`;
@@ -773,7 +774,7 @@ export interface SiteDetailOptions {
   created?: boolean;
 }
 
-const BODY = "text-stone-400 text-[0.8rem] leading-snug m-0";
+const BODY = `text-stone-400 text-[0.8rem] leading-snug m-0 ${PROSE_MEASURE}`;
 const STEP_DONE =
   "font-mono text-[0.6875rem] text-stone-300 border border-stone-600 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5";
 /**
@@ -1710,7 +1711,7 @@ export function renderServicesPage(
     <div class="${FRAME_WIDTH} flex flex-col gap-8">
       <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">${label}</h2>
-        ${freshness ? `<p class="m-0 text-[0.8rem] text-stone-400" data-inventory-age>${escapeHtml(freshness)}</p>` : ""}
+        ${freshness ? `<p class="m-0 text-[0.8rem] text-stone-400 ${PROSE_MEASURE}" data-inventory-age>${escapeHtml(freshness)}</p>` : ""}
       </div>
       ${content}
     </div>
