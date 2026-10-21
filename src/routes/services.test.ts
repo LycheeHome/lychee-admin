@@ -917,3 +917,55 @@ describe("GET /services: links to managed sites", () => {
     assert.ok(!withoutHeader(await res.text()).includes('href="/sites/'));
   });
 });
+
+describe("GET /api/services", () => {
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  after(async () => {
+    await current?.close();
+  });
+
+  async function start(...args: Parameters<typeof serve>): Promise<Awaited<ReturnType<typeof serve>>> {
+    await current?.close();
+    current = await serve(...args);
+    return current;
+  }
+
+  test("returns only the requested group's rows in the envelope", async () => {
+    const { SEEDED_INVENTORY } = await import("../dev/seed");
+    const s = await start(SEEDED_INVENTORY, {});
+    const res = await s.get("/api/services?group=infrastructure");
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as {
+      ok: boolean;
+      now: string;
+      board: { groups: { group: string; rows: { name: string }[] }[] };
+    };
+    assert.equal(body.ok, true);
+    assert.ok(!Number.isNaN(Date.parse(body.now)));
+    assert.deepEqual(body.board.groups.map((g) => g.group), ["infrastructure"]);
+    assert.deepEqual(body.board.groups[0].rows.map((r) => r.name), ["caddy", "cloudflared-sites"]);
+  });
+
+  test("an unknown group is a 400 with the error envelope", async () => {
+    const s = await start(null, {});
+    const res = await s.get("/api/services?group=nope");
+    assert.equal(res.status, 400);
+    const body = (await res.json()) as { ok: boolean; reason: string };
+    assert.equal(body.ok, false);
+    assert.equal(typeof body.reason, "string");
+  });
+
+  test("requires authentication", async () => {
+    const s = await start(null, {});
+    assert.equal((await fetch(`${s.base}/api/services?group=service`)).status, 401);
+  });
+
+  test("a missing inventory still answers 200 with inventoryAvailable false", async () => {
+    const s = await start(null, {});
+    const res = await s.get("/api/services?group=service");
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { ok: boolean; board: { inventoryAvailable: boolean } };
+    assert.equal(body.ok, true);
+    assert.equal(body.board.inventoryAvailable, false);
+  });
+});

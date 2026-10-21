@@ -8,6 +8,8 @@ import { declaredTag, pendingTag } from "../lib/siteResource";
 import { isHostAction, readCheckedActionState, readLastRuns, requestAction } from "../lib/hostOperations";
 import { readInventory } from "../lib/serviceInventory";
 import { buildBoard, findTimerUnit } from "../lib/serviceBoard";
+import type { ServiceBoard } from "../lib/serviceBoard";
+import type { ApiError, ApiOk } from "../shared/board";
 import { renderServicesPage } from "../views/html";
 import type { ServiceGroup } from "../lib/serviceInventory";
 import type { ServiceStatus, TimerSchedule } from "../lib/unitState";
@@ -24,6 +26,82 @@ const BOARD_PAGES: ReadonlyArray<[path: string, group: ServiceGroup]> = [
   ["/infrastructure", "infrastructure"],
 ];
 
+const GROUPS: readonly ServiceGroup[] = ["reconciler", "service", "infrastructure"];
+const isServiceGroup = (value: string): value is ServiceGroup => (GROUPS as readonly string[]).includes(value);
+
+export interface BoardPageData {
+  board: ServiceBoard;
+  prunable: Set<string>;
+  managed: Set<string>;
+  requested: Map<string, string>;
+  lastRuns: Awaited<ReturnType<typeof readLastRuns>>;
+  now: Date;
+}
+
+/**
+ * The whole board, read and joined: one data path for the HTML pages and
+ * /api/services. Every read degrades on its own; the board always comes back.
+ * `group` is accepted for symmetry with the callers, which narrow the result.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- the brief fixes this signature
+export async function loadBoardPage(deps: Deps, _group: ServiceGroup): Promise<BoardPageData> {
+  const inventory = readInventory(deps.fs);
+  const timer = findTimerUnit(inventory);
+
+  // The sites the app manages, so a site's row can link to its page. An
+  // unreadable Caddyfile is an empty set: the board renders, unlinked.
+  let managed = new Set<string>();
+  try {
+    managed = new Set(
+      caddyfile
+        .parseSites(deps.fs.readFile(config.caddyfilePath))
+        .filter((site) => isManagedHostname(site.hostname, config.domain))
+        .map((site) => site.hostname),
+    );
+  } catch {
+    // degrade to no links
+  }
+
+  // Each read degrades independently; the page must render without either.
+  const units = inventory.entries.flatMap((e) => (e.kind === "unit" ? [e.unit] : []));
+  const projects = inventory.entries.flatMap((e) => (e.kind === "container" ? [e.container] : []));
+  const [states, schedule, statuses, declarations, lastRuns] = await Promise.all([
+    deps.commands.readUnitStates(units).catch(() => ({})),
+    timer ? deps.commands.readTimerSchedule(timer).catch(noSchedule) : noSchedule(),
+    // One wrapper call per project, concurrently; each degrades alone.
+    Promise.all(
+      projects.map(async (p): Promise<[string, ServiceStatus]> => [
+        p,
+        await deps.commands.readResourceStatus(p).catch((): ServiceStatus => "unknown"),
+      ]),
+    ),
+    // Which site rows can be pruned. null (an unreadable clone) and a
+    // failed read both mean no Prune control anywhere: the button is
+    // offered only on evidence that the declaration is absent.
+    deps.commands.readDeclarations().catch(() => null),
+    // Host actions: one systemd read for every listed action of every row
+    // that has them. Degrades to no last-run line by itself.
+    readLastRuns(deps, inventory.entries),
+  ]);
+  const board = buildBoard(inventory, states, schedule, Object.fromEntries(statuses));
+  const prunable = new Set(
+    (declarations ?? []).filter((d) => d.state === "absent" && isSiteName(d.name, config.domain)).map((d) => d.name),
+  );
+
+  // A Deploy this app committed that the reconciler has not reported yet.
+  // An unreadable clone has no declarations, so every row keeps its offer.
+  const requested = new Map<string, string>();
+  for (const g of board.groups) {
+    for (const row of g.rows) {
+      if (row.kind !== "container") continue;
+      const tag = pendingTag(row, declaredTag((declarations ?? []).find((d) => d.name === row.name)));
+      if (tag !== null) requested.set(row.name, tag);
+    }
+  }
+
+  return { board, prunable, managed, requested, lastRuns, now: new Date() };
+}
+
 export function createServicesRouter(deps: Deps): express.Router {
   const router = express.Router();
 
@@ -38,65 +116,29 @@ export function createServicesRouter(deps: Deps): express.Router {
     // here because Express 4 does not catch an async handler's rejection, and
     // these are the pages whose design goal is that they never error.
     try {
-      const inventory = readInventory(deps.fs);
-      const timer = findTimerUnit(inventory);
-
-      // The sites the app manages, so a site's row can link to its page. An
-      // unreadable Caddyfile is an empty set: the board renders, unlinked.
-      let managed = new Set<string>();
-      try {
-        managed = new Set(
-          caddyfile
-            .parseSites(deps.fs.readFile(config.caddyfilePath))
-            .filter((site) => isManagedHostname(site.hostname, config.domain))
-            .map((site) => site.hostname),
-        );
-      } catch {
-        // degrade to no links
-      }
-
-      // Each read degrades independently; the page must render without either.
-      const units = inventory.entries.flatMap((e) => (e.kind === "unit" ? [e.unit] : []));
-      const projects = inventory.entries.flatMap((e) => (e.kind === "container" ? [e.container] : []));
-      const [states, schedule, statuses, declarations, lastRuns] = await Promise.all([
-        deps.commands.readUnitStates(units).catch(() => ({})),
-        timer ? deps.commands.readTimerSchedule(timer).catch(noSchedule) : noSchedule(),
-        // One wrapper call per project, concurrently; each degrades alone.
-        Promise.all(
-          projects.map(async (p): Promise<[string, ServiceStatus]> => [
-            p,
-            await deps.commands.readResourceStatus(p).catch((): ServiceStatus => "unknown"),
-          ]),
-        ),
-        // Which site rows can be pruned. null (an unreadable clone) and a
-        // failed read both mean no Prune control anywhere: the button is
-        // offered only on evidence that the declaration is absent.
-        deps.commands.readDeclarations().catch(() => null),
-        // Host actions: one systemd read for every listed action of every row
-        // that has them. Degrades to no last-run line by itself.
-        readLastRuns(deps, inventory.entries),
-      ]);
-      const board = buildBoard(inventory, states, schedule, Object.fromEntries(statuses));
-      const prunable = new Set(
-        (declarations ?? []).filter((d) => d.state === "absent" && isSiteName(d.name, config.domain)).map((d) => d.name),
-      );
-
-      // A Deploy this app committed that the reconciler has not reported yet.
-      // An unreadable clone has no declarations, so every row keeps its offer.
-      const requested = new Map<string, string>();
-      for (const g of board.groups) {
-        for (const row of g.rows) {
-          if (row.kind !== "container") continue;
-          const tag = pendingTag(row, declaredTag((declarations ?? []).find((d) => d.name === row.name)));
-          if (tag !== null) requested.set(row.name, tag);
-        }
-      }
-
-      res.type("html").send(renderServicesPage(board, new Date(), prunable, config.domain, lastRuns, group, managed, requested));
+      const { board, prunable, managed, requested, lastRuns, now } = await loadBoardPage(deps, group);
+      res.type("html").send(renderServicesPage(board, now, prunable, config.domain, lastRuns, group, managed, requested));
     } catch (error) {
       res.status(500).type("text/plain").send(`Could not render services: ${String(error)}`);
     }
   }
+
+  // The same board as JSON, for the client. Sets and Maps do not serialise, so
+  // only the board itself goes out, narrowed to the requested group.
+  router.get("/api/services", async (req, res) => {
+    const group = req.query.group;
+    if (typeof group !== "string" || !isServiceGroup(group)) {
+      const reason: ApiError["reason"] = "group must be one of reconciler, service, infrastructure";
+      return res.status(400).json({ ok: false, reason } satisfies ApiError);
+    }
+    try {
+      const { board, now } = await loadBoardPage(deps, group);
+      const only: ServiceBoard = { ...board, groups: board.groups.filter((g) => g.group === group) };
+      return res.json({ ok: true, board: only, now: now.toISOString() } satisfies ApiOk<{ board: ServiceBoard; now: string }>);
+    } catch (error) {
+      return res.status(500).json({ ok: false, reason: `Could not read services: ${String(error)}` } satisfies ApiError);
+    }
+  });
 
   // Host actions (start/stop/restart/update) on a declared unit, as the
   // operator. A refusal is always JSON, never a redirect, like the routes below.
