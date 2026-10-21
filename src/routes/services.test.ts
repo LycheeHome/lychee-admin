@@ -33,7 +33,7 @@ async function serve(
   inventoryJson: string | null,
   overrides: Partial<SystemCommands>,
   seed: { opRun?: { delayMs?: number } } = {},
-  clientAssets?: ClientAssets | null,
+  clientAssets?: ClientAssets | null | (() => ClientAssets | null),
 ): Promise<{ base: string; fs: Deps["fs"]; get: (p: string) => Promise<Response>; actions: () => string[]; audit: () => Record<string, unknown>[]; close: () => Promise<void> }> {
   const { createApp } = await import("../app");
   const { createBackup } = await import("../lib/backup");
@@ -46,8 +46,11 @@ async function serve(
     fs: fakes.fs,
     backup: createBackup(fakes.fs),
     logger: createLogger(fakes.fs),
-    clientAssets,
   };
+  // A function stands in for the dev server's getter, which re-reads the
+  // manifest on every use.
+  if (typeof clientAssets === "function") Object.defineProperty(deps, "clientAssets", { get: clientAssets });
+  else deps.clientAssets = clientAssets;
   const server: Server = createApp(deps).listen(0);
   await once(server, "listening");
   const address = server.address();
@@ -387,6 +390,25 @@ describe("GET /infrastructure: the React mount", () => {
   test("requires authentication", async () => {
     current = await serve(null, {}, {}, ASSETS);
     assert.equal((await fetch(`${current.base}/infrastructure`)).status, 401);
+    await current.close();
+  });
+
+  test("the bundle's own files require authentication too", async () => {
+    current = await serve(null, {}, {}, ASSETS);
+    for (const path of ["/client/.vite/manifest.json", "/client/assets/main-abc.js", "/client/assets/main-def.css"]) {
+      assert.equal((await fetch(`${current.base}${path}`)).status, 401, path);
+    }
+    await current.close();
+  });
+
+  test("reads the bundle on every request, so the dev server's rebuilds are picked up", async () => {
+    let assets: ClientAssets | null = null;
+    current = await serve(null, {}, {}, () => assets);
+    assert.equal((await current.get("/infrastructure")).status, 500);
+    assets = ASSETS;
+    assert.ok((await (await current.get("/infrastructure")).text()).includes('src="/client/assets/main-abc.js"'));
+    assets = { script: "assets/main-new.js", styles: [] };
+    assert.ok((await (await current.get("/infrastructure")).text()).includes('src="/client/assets/main-new.js"'));
     await current.close();
   });
 });

@@ -14,6 +14,10 @@ export interface Deps {
   fs: FileSystem;
   backup: ReturnType<typeof createBackup>;
   logger: ReturnType<typeof createLogger>;
-  /** The built client bundle, read once at startup; null when it is missing. */
+  /**
+   * The built client bundle; null when it is missing. Production reads it
+   * once at startup (a release never changes); the dev server re-reads it on
+   * every use, so routes must read this per request, never cache it.
+   */
   clientAssets?: ClientAssets | null;
 }

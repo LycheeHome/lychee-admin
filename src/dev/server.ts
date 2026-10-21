@@ -20,7 +20,13 @@ const deps: Deps = {
   fs,
   backup: createBackup(fs),
   logger: createLogger(fs),
-  clientAssets: readClientManifest(path.join(__dirname, "..", "..", "public")),
+  // Re-read on every use, unlike production's once-at-startup read: `vite
+  // build --watch` replaces the hashed bundle (and empties public/client) on
+  // each client edit, and on a fresh start it finishes after this server is
+  // listening. A cached read would keep serving a deleted script, or a 500.
+  get clientAssets() {
+    return readClientManifest(path.join(__dirname, "..", "..", "public"));
+  },
 };
 
 createApp(deps).listen(config.port, config.host, () => {
