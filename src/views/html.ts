@@ -1348,7 +1348,7 @@ function renderOfferLine(name: string, tag: string, emphasis: "offer" | "primary
  */
 export function renderRequestedLine(tag: string): string {
   return `<p class="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-requested role="status" tabindex="-1">
-            <span class="font-mono text-[0.8rem] text-stone-50">${escapeHtml(tag)} requested</span><span class="text-stone-400">· applies on the next run</span>
+            <span class="font-mono text-[0.8rem] text-stone-50"><span data-requested-tag>${escapeHtml(tag)}</span> requested</span><span class="text-stone-400">· applies on the next run</span>
           </p>`;
 }
 

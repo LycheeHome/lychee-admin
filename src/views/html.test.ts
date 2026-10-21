@@ -3342,6 +3342,16 @@ describe("the requested line", () => {
     assert.ok(!html.includes("<button"));
   });
 
+  test("the tag has its own hook, so a client can set it without erasing 'requested'", () => {
+    const line = renderRequestedLine("0.3.0");
+    assert.match(line, /<span data-requested-tag>0\.3\.0<\/span>/);
+    assert.equal(text(line), "0.3.0 requested · applies on the next run");
+    const page = renderSiteDetail(NEXT_SITE, { ...BASE, resource: { ...RUNNING_RESOURCE, available: "0.3.0" } });
+    const template = page.match(/<template data-requested-template>([\s\S]*?)<\/template>/);
+    assert.ok(template, "page carries the template");
+    assert.match(template[1], /<span data-requested-tag>TAG<\/span>/);
+  });
+
   test("a board row whose pending tag equals the offer shows the requested line, not Deploy", () => {
     const html = boardWith({ available: "0.3.0", version: "0.2.0" }, new Map([["notes", "0.3.0"]]));
     assert.ok(html.includes("data-requested"));
