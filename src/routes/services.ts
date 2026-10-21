@@ -41,10 +41,9 @@ export interface BoardPageData {
 /**
  * The whole board, read and joined: one data path for the HTML pages and
  * /api/services. Every read degrades on its own; the board always comes back.
- * `group` is accepted for symmetry with the callers, which narrow the result.
+ * It reads the whole board; each caller narrows it to its own group.
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- the brief fixes this signature
-export async function loadBoardPage(deps: Deps, _group: ServiceGroup): Promise<BoardPageData> {
+export async function loadBoardPage(deps: Deps): Promise<BoardPageData> {
   const inventory = readInventory(deps.fs);
   const timer = findTimerUnit(inventory);
 
@@ -116,7 +115,7 @@ export function createServicesRouter(deps: Deps): express.Router {
     // here because Express 4 does not catch an async handler's rejection, and
     // these are the pages whose design goal is that they never error.
     try {
-      const { board, prunable, managed, requested, lastRuns, now } = await loadBoardPage(deps, group);
+      const { board, prunable, managed, requested, lastRuns, now } = await loadBoardPage(deps);
       res.type("html").send(renderServicesPage(board, now, prunable, config.domain, lastRuns, group, managed, requested));
     } catch (error) {
       res.status(500).type("text/plain").send(`Could not render services: ${String(error)}`);
@@ -132,9 +131,12 @@ export function createServicesRouter(deps: Deps): express.Router {
       return res.status(400).json({ ok: false, reason } satisfies ApiError);
     }
     try {
-      const { board, now } = await loadBoardPage(deps, group);
+      const { board, now } = await loadBoardPage(deps);
       const only: ServiceBoard = { ...board, groups: board.groups.filter((g) => g.group === group) };
-      return res.json({ ok: true, board: only, now: now.toISOString() } satisfies ApiOk<{ board: ServiceBoard; now: string }>);
+      // The page's "unavailable" vs "lists no X" choice depends on the whole
+      // board, which the narrowing above discards, so it travels separately.
+      const boardEmpty = board.groups.length === 0;
+      return res.json({ ok: true, board: only, boardEmpty, now: now.toISOString() } satisfies ApiOk<{ board: ServiceBoard; boardEmpty: boolean; now: string }>);
     } catch (error) {
       return res.status(500).json({ ok: false, reason: `Could not read services: ${String(error)}` } satisfies ApiError);
     }

@@ -969,3 +969,27 @@ describe("GET /api/services", () => {
     assert.equal(body.board.inventoryAvailable, false);
   });
 });
+
+describe("GET /api/services boardEmpty", () => {
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  after(async () => {
+    await current?.close();
+  });
+
+  test("an inventory declaring only other groups is not an empty board", async () => {
+    current = await serve(inventory([SWEE]), {});
+    const body = (await (await current.get("/api/services?group=infrastructure")).json()) as {
+      boardEmpty: boolean;
+      board: { groups: { group: string }[] };
+    };
+    assert.equal(body.boardEmpty, false);
+    assert.ok(!body.board.groups.some((g) => g.group === "infrastructure"));
+  });
+
+  test("an inventory with no entries is an empty board", async () => {
+    await current?.close();
+    current = await serve(inventory([]), {});
+    const body = (await (await current.get("/api/services?group=service")).json()) as { boardEmpty: boolean };
+    assert.equal(body.boardEmpty, true);
+  });
+});
