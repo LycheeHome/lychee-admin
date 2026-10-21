@@ -429,8 +429,12 @@ says its own name and names a site.
   gets the brightest of the dim tones, not the dimmest. 0.6875rem is exactly
   11px — the floor below which small UI text stops being reliably legible.
 - **Body** (Nunito, 0.8rem, line-height 1.375, Smoke): Every explanatory
-  sentence. Longer prose sits inside cards no wider than 760px, which keeps it
-  near 70ch. Dialog paragraphs step up to 1rem with relaxed leading.
+  sentence. Every Body sentence is capped at 25rem, about 70 characters at
+  0.8rem; the card keeps its 760px width, and mono content beside the prose
+  stays full width. The cap is in rem because a `ch` is the width of a zero,
+  so `70ch` held about 95 Nunito letters. The one narrower measure is the
+  empty state's pitch, which keeps its own 46ch (about 62 letters). Dialog
+  paragraphs step up to 1rem with relaxed leading.
 - **Body Strong** (Nunito, 0.9rem, weight 600, Chalk): The title line of a
   selectable option row, sitting above the Body sentence that explains what the
   choice commits you to. One step above Body on purpose — the title has to win
@@ -524,7 +528,9 @@ progress is never behind a click.
 **The Frame-And-Column Rule.** 1080px is the page frame — the header band, the
 shell's `<main>`, and any page holding two kinds of content that belong side by
 side. 760px is a reading column, applied *inside* that frame by a page holding
-one. No width ever lengthens a line of prose past ~70ch: on the add-site page
+one. No width ever lengthens a line of prose past about 70 characters: every
+Body sentence carries the prose measure (25rem), a cap on text rather than a
+third page width, so the column can stay wide for commands. On the add-site page
 the frame buys a second column and the form column is 656px, narrower than the
 760 it replaced. The site list fills the frame because its rows need the width
 to align a reserved status column; the detail page caps at 760 because
