@@ -475,7 +475,7 @@
       },
       {
         "name": "The Frame-And-Column Rule",
-        "body": "1080px is the page frame — the header band, the shell's <main>, and any page holding two kinds of content that belong side by side. 760px is a reading column, applied *inside* that frame by a page holding one. No width ever lengthens a line of prose past ~70ch: on the add-site page the frame buys a second column and the form column is 656px, narrower than the 760 it replaced. The site list fills the frame because its rows need the width to align a reserved status column; the detail page caps at 760 because everything on it is a sentence to read or a command to copy and it has nothing to put beside them. The system holds exactly two numbers and never a third.",
+        "body": "1080px is the page frame — the header band, the shell's <main>, and any page holding two kinds of content that belong side by side. 760px is a reading column, applied *inside* that frame by a page holding one. No width ever lengthens a line of prose past about 70 characters: every Body sentence carries the prose measure (25rem), a cap on text rather than a third page width, so the column can stay wide for commands. On the add-site page the frame buys a second column and the form column is 656px, narrower than the 760 it replaced. The site list fills the frame because its rows need the width to align a reserved status column; the detail page caps at 760 because everything on it is a sentence to read or a command to copy and it has nothing to put beside them. The system holds exactly two numbers and never a third.",
         "section": "layout"
       },
       {
