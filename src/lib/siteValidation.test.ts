@@ -8,6 +8,7 @@ import {
   maxSiteLabelLength,
   siteNamePatternFor,
   siteSuffixFor,
+  portConflictMessage,
   type SiteEnv,
 } from "./siteValidation";
 
@@ -16,11 +17,22 @@ const ENV: SiteEnv = {
   sitesRoot: "/var/www",
   caddyfilePath: "/etc/caddy/Caddyfile",
   tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
-  reservedPorts: [8787, 2019],
+  reservedPorts: new Map([[8787, "lychee-admin itself"], [2019, "Caddy's admin API"]]),
   reservedHostnames: ["admin.lychee.land"],
 };
 
 const NO_DECLARED = new Map<number, string>();
+
+describe("portConflictMessage", () => {
+  test("one sentence per owner, each naming exactly one", () => {
+    assert.equal(portConflictMessage(2019, { kind: "reserved", who: "Caddy's admin API" }), "Port 2019 is reserved for Caddy's admin API.");
+    assert.equal(portConflictMessage(4000, { kind: "site", hostname: "api.lychee.land" }), "Port 4000 is already used by api.lychee.land.");
+    assert.equal(
+      portConflictMessage(3400, { kind: "declared", name: "gone-lychee-land" }),
+      "Port 3400 is already claimed by gone-lychee-land in lychee-resources.",
+    );
+  });
+});
 
 const CADDYFILE = `{
 \tauto_https off
@@ -157,11 +169,19 @@ describe("validateAgainstExisting", () => {
     assert.deepEqual(result, { ok: false, error: "blog.lychee.land already exists in the Caddyfile" });
   });
 
-  test("rejects a reserved port before it can reach a conflict check", () => {
+  test("rejects a reserved port before it can reach a conflict check, naming its one owner", () => {
     const input = readSiteInput({ hostname: "x.lychee.land", type: "reverse-proxy", port: "2019" });
     assert.deepEqual(validateAgainstExisting(input, CADDYFILE, ENV, NO_DECLARED), {
       ok: false,
-      error: "Port 2019 is reserved (used by lychee-admin itself or Caddy's admin API)",
+      error: "Port 2019 is reserved for Caddy's admin API.",
+    });
+  });
+
+  test("names lychee-admin, not Caddy, for the app's own port", () => {
+    const input = readSiteInput({ hostname: "x.lychee.land", type: "reverse-proxy", port: "8787" });
+    assert.deepEqual(validateAgainstExisting(input, CADDYFILE, ENV, NO_DECLARED), {
+      ok: false,
+      error: "Port 8787 is reserved for lychee-admin itself.",
     });
   });
 
@@ -169,7 +189,7 @@ describe("validateAgainstExisting", () => {
     const input = readSiteInput({ hostname: "x.lychee.land", type: "reverse-proxy", port: "4000" });
     assert.deepEqual(validateAgainstExisting(input, CADDYFILE, ENV, NO_DECLARED), {
       ok: false,
-      error: "Port 4000 is already used by api.lychee.land",
+      error: "Port 4000 is already used by api.lychee.land.",
     });
   });
 

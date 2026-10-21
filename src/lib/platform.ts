@@ -16,7 +16,13 @@ export function escapeRegex(value: string): string {
 // lychee-admin's own PORT and Caddy's admin API. A reserved or privileged port
 // is the last guard before a declaration the reconciler's validator would
 // refuse, and a refused declaration freezes the whole set for the tick.
-export const RESERVED_PORTS: readonly number[] = [8787, 2019];
+// Who each one is reserved for, so a refusal names one owner rather than
+// hedging between two. RESERVED_PORTS is derived from it, in the same order.
+export const RESERVED_PORT_OWNERS: ReadonlyMap<number, string> = new Map([
+  [8787, "lychee-admin itself"],
+  [2019, "Caddy's admin API"],
+]);
+export const RESERVED_PORTS: readonly number[] = [...RESERVED_PORT_OWNERS.keys()];
 export const SITE_MIN_PORT = 1024;
 
 export const FLOATING_TAGS: readonly string[] = ["latest"];

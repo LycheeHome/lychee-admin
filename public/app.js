@@ -374,14 +374,17 @@ syncFrameworkFields();
 
 function validatePortField() {
   if (!portField || !portError) return;
-  const owner = portOwners[portField.value];
-  if (owner) {
-    portField.setCustomValidity(`Port ${portField.value} is already in use by ${owner}`);
+  // The server's finished sentence (portConflictMessage), shown as is: the
+  // preview panel reports the same conflict in the same words, so the client
+  // adds no wording of its own.
+  const sentence = portOwners[portField.value];
+  if (sentence) {
+    portField.setCustomValidity(sentence);
     // Unhide before writing: a mutation inside a display:none subtree is not
     // announced, and revealing an element that already holds its text
     // generally isn't either — see the same fix beside #add-site-error.
     portError.classList.remove("hidden");
-    portError.textContent = `Already in use by ${owner}`;
+    portError.textContent = sentence;
   } else {
     portField.setCustomValidity("");
     portError.classList.add("hidden");
