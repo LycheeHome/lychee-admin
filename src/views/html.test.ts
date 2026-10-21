@@ -2,7 +2,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { withoutHeader } from "../dev/testHelpers";
-import { offeredTag, statePhrase, renderPruneControl, renderServicesPage, renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
+import { offeredTag, renderRequestedLine, statePhrase, renderPruneControl, renderServicesPage, renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
 import { formatAge, SERVICE_DETAIL, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_PRIMARY_COMPACT, BUTTON_SECONDARY, BUTTON_SECONDARY_COMPACT } from "./shared";
 import { ADD_STEPS } from "../lib/stepReport";
 
@@ -3309,5 +3309,80 @@ describe("DNS step and Danger card copy", () => {
     for (const html of [renderSiteDetail(STATIC_SITE, OPTS), renderSiteDetail(NEXT_SITE, { ...BASE, resource: RESOURCE })]) {
       assert.ok(!danger(html).includes("unless you ask otherwise"));
     }
+  });
+});
+
+describe("the requested line", () => {
+  const NOW_REQ = new Date("2026-10-02T05:00:00Z");
+  const text = (html: string) => html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const repoCard = (html: string) => html.split("From a repository</h3>")[1].split("</section>")[0];
+  const count = (html: string, needle: string) => html.split(needle).length - 1;
+
+  function boardWith(extra: Record<string, unknown>, requested?: ReadonlyMap<string, string>) {
+    return renderServicesPage(
+      {
+        inventoryAvailable: true,
+        schedule: { next: null, last: null }, timerUnit: null,
+        generated: "2026-10-02T04:58:02Z",
+        groups: [{ group: "service", rows: [
+          { name: "notes", kind: "container", container: "notes", group: "service", reconciled: true,
+            status: "running", since: null, ...extra } as never,
+        ] }],
+      },
+      NOW_REQ, new Set(), "lychee.land", {}, "service", new Set(), requested,
+    );
+  }
+
+  test("renderRequestedLine is a focusable status line with no button", () => {
+    const html = renderRequestedLine("0.3.0");
+    assert.ok(html.includes("data-requested"));
+    assert.ok(html.includes('role="status"'));
+    assert.ok(html.includes('tabindex="-1"'));
+    assert.equal(text(html), "0.3.0 requested · applies on the next run");
+    assert.ok(!html.includes("<button"));
+  });
+
+  test("a board row whose pending tag equals the offer shows the requested line, not Deploy", () => {
+    const html = boardWith({ available: "0.3.0", version: "0.2.0" }, new Map([["notes", "0.3.0"]]));
+    assert.ok(html.includes("data-requested"));
+    assert.ok(!html.includes('data-deploy="'));
+  });
+
+  test("an empty map, or a different pending tag, leaves the offer as it was", () => {
+    for (const requested of [new Map<string, string>(), new Map([["notes", "0.2.5"]])]) {
+      const html = boardWith({ available: "0.3.0", version: "0.2.0" }, requested);
+      assert.ok(html.includes('data-deploy="notes"'));
+      // The inert template carries one requested line by design; the row must not.
+      assert.ok(!html.replace(/<template[\s\S]*?<\/template>/, "").includes("data-requested"));
+    }
+  });
+
+  test("the first-deploy step shows the requested line in the offer's place", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...BASE,
+      resource: { ...RESOURCE, result: "awaiting-image", available: "0.1.0", requestedTag: "0.1.0" },
+      status: { kind: "awaiting-image" },
+    });
+    const c = repoCard(html);
+    assert.ok(c.includes("data-requested"));
+    assert.ok(!c.includes("data-deploy"));
+  });
+
+  test("the installed card shows the requested line in the offer's place", () => {
+    const html = renderSiteDetail(NEXT_SITE, {
+      ...BASE,
+      resource: { ...RUNNING_RESOURCE, available: "0.3.0", requestedTag: "0.3.0" },
+    });
+    const c = repoCard(html);
+    assert.ok(c.includes("data-requested"));
+    assert.ok(!c.includes("data-deploy"));
+  });
+
+  test("the template rides on every page that renders an offer, once, and on no other", () => {
+    const site = renderSiteDetail(NEXT_SITE, { ...BASE, resource: { ...RUNNING_RESOURCE, available: "0.3.0" } });
+    assert.equal(count(site, "data-requested-template"), 1);
+    assert.equal(count(boardWith({ available: "0.3.0", version: "0.2.0" }), "data-requested-template"), 1);
+    assert.equal(count(renderSiteDetail(STATIC_SITE, OPTS), "data-requested-template"), 0);
+    assert.equal(count(boardWith({ version: "0.2.0" }), "data-requested-template"), 0);
   });
 });

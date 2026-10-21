@@ -743,6 +743,8 @@ export interface SiteResourceView {
   gate?: string;
   /** The reconciler task that failed, with its error, when `result` is failed. */
   failedStep?: string;
+  /** A tag the declaration holds that the reconciler has not applied yet (`pendingTag`). It replaces the offer only when it equals the offered tag. */
+  requestedTag?: string;
 }
 
 export interface SiteDetailOptions {
@@ -1001,7 +1003,7 @@ function firstDeploy(resource: SiteResourceView | undefined): string {
     const pointer = resource.target
       ? `Deploying ${mono(resource.target)} failed; the reason is under the request path.`
       : "The last deploy failed; the reason is under the request path.";
-    return `<p class="${BODY}">${pointer}</p>${gateLine(resource)}${tag ? renderOfferLine(resource.name, tag, "primary") : ""}`;
+    return `<p class="${BODY}">${pointer}</p>${gateLine(resource)}${tag ? offerOrRequested(resource.name, tag, resource.requestedTag, "primary") : ""}`;
   }
   if (resource.target && resource.target === resource.available) {
     const requested = `<p class="font-mono text-[0.8rem] text-stone-50 m-0">${escapeHtml(resource.target)} requested</p>`;
@@ -1012,7 +1014,7 @@ function firstDeploy(resource: SiteResourceView | undefined): string {
   }
   // Nothing is installed here, so a found tag that is not the pin is on offer.
   const tag = offeredTag(resource);
-  if (tag) return `${gateLine(resource)}${renderOfferLine(resource.name, tag, "primary")}`;
+  if (tag) return `${gateLine(resource)}${offerOrRequested(resource.name, tag, resource.requestedTag, "primary")}`;
   // Step three already says no image was found and why that might be.
   if (canChangeRepository(resource)) {
     return `<p class="${BODY}">Nothing to deploy until the image exists; its newest tag is offered here once the reconciler finds it.</p>${gateLine(resource)}`;
@@ -1031,7 +1033,8 @@ function firstDeploy(resource: SiteResourceView | undefined): string {
  *
  * The offer is the services board's own line (renderOfferLine) and its
  * button the board's own [data-deploy] control, posting to the same
- * /services/:name/deploy. It lives in this card rather than the page header,
+ * /services/:name/deploy; once that tag is requested the line gives way to
+ * the requested line (no button). It lives in this card rather than the page header,
  * which keeps the header's Visit free to be Primary only while the site is
  * serving. While a first deploy is the next step (awaiting image, failed with
  * a newer tag) the offer is the page's Primary; beside an installed version it
@@ -1064,7 +1067,7 @@ function renderRepositoryCard(site: Site, opts: SiteDetailOptions, resourceName:
         ${rows.map(([key, value]) => `<p class="${DETAIL_ROW}"><span class="${DETAIL_KEY}">${escapeHtml(key)}</span><span class="text-stone-50 break-all">${escapeHtml(value)}</span></p>`).join("\n        ")}
         ${failureLine(resource, "mt-3")}
         ${gateLine(resource)}
-        ${tag ? renderOfferLine(resource.name, tag) : ""}
+        ${tag ? offerOrRequested(resource.name, tag, resource.requestedTag) : ""}
         ${baked}
       </section>`;
   }
@@ -1212,7 +1215,7 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
 
   return layout(
     site.hostname,
-    `
+    withRequestedTemplate(`
     <div class="${DETAIL_WIDTH} flex flex-col gap-5">
       ${renderDetailHeader(site, opts)}
 
@@ -1251,7 +1254,7 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
         <button type="button" id="confirm-remove-submit" class="${BUTTON_DANGER}" data-hostname="${escapeHtml(site.hostname)}">${icon("trash")}Remove ${escapeHtml(site.hostname)}</button>
       </div>
     </dialog>
-    `,
+    `),
     {
       nav: {},
       banner: opts.created ? { message: addedBanner(site) } : undefined,
@@ -1334,6 +1337,37 @@ function renderOfferLine(name: string, tag: string, emphasis: "offer" | "primary
             <span class="font-mono text-[0.8rem] text-rose-300">${escapeHtml(tag)} available</span>
             <button type="button" class="${cls}" data-deploy="${escapeHtml(name)}" data-deploy-tag="${escapeHtml(tag)}">Deploy ${escapeHtml(tag)}</button>
           </p>`;
+}
+
+/**
+ * What stands where an offer stood once its tag has been written into the
+ * declaration and the reconciler has not applied it yet. It has no button: a
+ * second request for the same tag would only race the first. Focusable
+ * (tabindex -1) so the client can move focus to it when it swaps it in for
+ * the offer after a Deploy.
+ */
+export function renderRequestedLine(tag: string): string {
+  return `<p class="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-requested role="status" tabindex="-1">
+            <span class="font-mono text-[0.8rem] text-stone-50">${escapeHtml(tag)} requested</span><span class="text-stone-400">· applies on the next run</span>
+          </p>`;
+}
+
+/**
+ * The offer, or the requested line in its place when the declaration already
+ * holds that very tag. A pending tag that is not the offered one leaves the
+ * offer alone: it is a different request.
+ */
+function offerOrRequested(name: string, tag: string, pending: string | undefined, emphasis: "offer" | "primary" = "offer"): string {
+  return pending === tag ? renderRequestedLine(tag) : renderOfferLine(name, tag, emphasis);
+}
+
+/**
+ * Appends the inert template app.js clones to swap an offer for the requested
+ * line after a Deploy, on pages whose body renders an offer and no others.
+ * The tag is a placeholder the client overwrites.
+ */
+function withRequestedTemplate(body: string): string {
+  return body.includes("data-offer") ? `${body}\n    <template data-requested-template>${renderRequestedLine("TAG")}</template>` : body;
 }
 
 /** A run in progress names itself on the pill, neutral, the way `applying` does. */
@@ -1476,6 +1510,7 @@ function renderServiceRow(
   domain: string,
   managed: ReadonlySet<string>,
   run?: ActionState,
+  requestedTag?: string,
 ): string {
   // `target` is what the reconciler has been asked to run; `version` is what
   // it last confirmed running. "Applying" means the reconciler last ran
@@ -1587,8 +1622,9 @@ function renderServiceRow(
             // Last, after the gate: a blocked service's gate string carries the
             // recovery instruction, so explanation comes first and the thing to
             // do about it second. Its own line so a row with nothing to offer
-            // is exactly the row it was before this existed.
-            offer ? renderOfferLine(row.name, offer) : ""
+            // is exactly the row it was before this existed. Once the offered
+            // tag is already in the declaration, the requested line stands here.
+            offer ? offerOrRequested(row.name, offer, requestedTag) : ""
           }
           ${
             // A retired site's declaration, still in lychee-resources. Site
@@ -1627,7 +1663,9 @@ const GROUP_NONE: Record<ServiceGroup, string> = {
  * newer tag on offer carries a Deploy button, a site row named in `prunable`
  * (its declaration is `state: absent`) carries Prune, and a unit whose entry
  * lists host actions carries their strip, with `lastRuns[name]` as its most
- * recent run. `now` is a parameter so ages are testable.
+ * recent run. `requested` maps a row to a tag already written into its
+ * declaration and not yet applied; it replaces that row's offer when it equals
+ * the offered tag. `now` is a parameter so ages are testable.
  */
 export function renderServicesPage(
   board: ServiceBoard,
@@ -1637,6 +1675,7 @@ export function renderServicesPage(
   lastRuns: Readonly<Record<string, ActionState>> = {},
   group: ServiceGroup = "service",
   managed: ReadonlySet<string> = new Set(),
+  requested: ReadonlyMap<string, string> = new Map(),
 ): string {
   const written = formatAge(board.generated, now);
   const freshness = board.inventoryAvailable
@@ -1648,7 +1687,7 @@ export function renderServicesPage(
   const rows = board.groups.find((g) => g.group === group)?.rows ?? [];
 
   const list = `
-      <ul class="list-none m-0 p-0 flex flex-col">${rows.map((r) => renderServiceRow(r, board, now, prunable, domain, managed, Object.hasOwn(lastRuns, r.name) ? lastRuns[r.name] : undefined)).join("")}
+      <ul class="list-none m-0 p-0 flex flex-col">${rows.map((r) => renderServiceRow(r, board, now, prunable, domain, managed, Object.hasOwn(lastRuns, r.name) ? lastRuns[r.name] : undefined, requested.get(r.name))).join("")}
       </ul>`;
 
   // The inventory is readable and declares something, just not here: a plain
@@ -1667,7 +1706,7 @@ export function renderServicesPage(
 
   return layout(
     label,
-    `
+    withRequestedTemplate(`
     <div class="${FRAME_WIDTH} flex flex-col gap-8">
       <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">${label}</h2>
@@ -1675,7 +1714,7 @@ export function renderServicesPage(
       </div>
       ${content}
     </div>
-    `,
+    `),
     { nav: { page: GROUP_PAGES[group] } },
   );
 }
