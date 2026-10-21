@@ -871,20 +871,24 @@ The row shape of the services board (`GET /services`, `/reconciler` and
 `/infrastructure`), and the one place a
 status pill leads. A fixed-width left column holds the pill; the right column
 holds the unit's name on one line and its facts beneath, as prose rather than
-columns — `v0.2.0 · blocked · 3 attempts`, then the reconciler's own gate string
-on its own line, in full.
+columns — `v0.2.0 · 3 attempts`, with no raw reconciler `result` word (the one
+exception is `blocked`, kept on a row whose `gate_code` the app cannot classify,
+since such a row gets no deploy line). The reconciler's own gate string follows
+on its own line, in full, only for a blocked or failed run that has one; a
+healthy run's gate text is not shown.
 
 A deploy that is blocked or failed gets its own line directly under the name,
 `● deploy blocked · <reason>`, because the pill stays the unit's own health and a
 healthy old build must never read as a broken one. Scorch marks trouble the
 operator has to act on and Smoke marks a deploy that is only waiting (`deploy
 waiting`); the colour sits on the `deploy <word>` alone and the reason beside it
-stays Smoke, and is left out when it would only repeat the word. A blocked
+stays Smoke, and is left out when it would only repeat the word or when the
+gate string sits beneath the line and already gives the reason. A blocked
 deploy is classified by the reconciler's `gate_code`, never by the sentence beside
 it, and a failed one by its `result`; a blocked row with no code, or with a code
 the app does not know, gets no line. A container row with
 nothing installed whose pill already reads `failed` or `awaiting image` gets no
-line either, and a row that has one drops the `result` word from its facts line rather than say it twice.
+line either.
 
 Prose and not a table, deliberately: half the rows have no deploy state at all
 and never will, because the game server, Caddy and the tunnel are not things the

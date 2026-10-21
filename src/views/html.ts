@@ -3,6 +3,7 @@ import { computeFilesPath, type Site } from "../lib/caddyfile";
 import {
   describeStatus,
   deployTrouble,
+  troubleGate,
   splitHostnameForDisplay,
   type HostProblem,
   type SiteStatus,
@@ -659,7 +660,7 @@ function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
   // CNAME leads and the command is a fallback for a machine that has a login.
   const dnsStep: ManualStep = opts.tunnelId
     ? {
-        html: `Create the DNS record, once per hostname: in the Cloudflare dashboard, add a proxied CNAME named <code class="${INLINE_CODE}">${escapeHtml(recordName)}</code> pointing at the target below. Until it exists this page still reports the site running, because lychee-admin only checks localhost.`,
+        html: `Create the DNS record, once per hostname: in the Cloudflare dashboard, add a proxied CNAME named <code class="${INLINE_CODE}">${escapeHtml(recordName)}</code> pointing at the target below. Until it exists, the site can't be reached from the internet even while every check on this page passes: lychee-admin checks lychee itself, never Cloudflare.`,
         command: {
           id: "cmd-dns-target",
           value: `${opts.tunnelId}.cfargotunnel.com`,
@@ -675,7 +676,7 @@ function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
         },
       }
     : {
-        text: "Create the DNS record, once per hostname — add a CNAME for this hostname to your tunnel from the Cloudflare dashboard. Until it exists this page still reports the site running, because lychee-admin only checks localhost.",
+        text: "Create the DNS record, once per hostname — add a CNAME for this hostname to your tunnel from the Cloudflare dashboard. Until it exists, the site can't be reached from the internet even while every check on this page passes: lychee-admin checks lychee itself, never Cloudflare.",
       };
   const steps: ManualStep[] = [dnsStep];
 
@@ -703,13 +704,23 @@ function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
  * Destructive action, isolated and labelled. The consequence line states what
  * actually happens because the ordering matters: files are a separate second
  * request, so a failed config removal can never cascade into a deletion.
+ * It says only what lychee-admin does: the declaration sentence appears when
+ * the site is attached (the dialog's fifth step), the files sentence only
+ * where the dialog offers its delete-files checkbox, and the DNS record is
+ * never touched, so the last sentence always says so.
  */
-function renderDangerZone(): string {
+function renderDangerZone(opts: { attached: boolean; deletableFiles: boolean }): string {
+  const sentences = [
+    "Removing takes the site out of the Caddyfile and the tunnel route, reloads Caddy, then restarts the sites tunnel.",
+    ...(opts.attached ? ["It then retires the site's declaration, which stops its container."] : []),
+    ...(opts.deletableFiles ? ["The site's files stay unless you tick the box when you confirm."] : []),
+    "lychee-admin never touches the DNS record; delete it in Cloudflare afterwards.",
+  ];
   return `
       <section class="border border-red-900/60 bg-red-950/20 rounded-[10px] p-5 mt-4 flex items-center justify-between gap-4 flex-wrap">
         <div class="min-w-0">
           <h3 class="${CARD_LABEL_BASE} text-red-300 m-0 mb-1.5">Danger</h3>
-          <p class="text-stone-400 text-[0.8rem] leading-snug m-0 max-w-[70ch]">Removing takes the site out of the Caddyfile and the tunnel route, reloads Caddy, then restarts the sites tunnel. Your DNS record and files stay unless you ask otherwise.</p>
+          <p class="text-stone-400 text-[0.8rem] leading-snug m-0 max-w-[70ch]">${sentences.join(" ")}</p>
         </div>
         <button type="button" class="${BUTTON_DANGER} shrink-0" data-open-dialog="confirm-remove-dialog">${icon("trash")}Remove site</button>
       </section>`;
@@ -925,9 +936,10 @@ function changeRepositoryForm(site: Site, resource: SiteResourceView & { repo: s
             </form>`;
 }
 
-/** The gate string, in full, as the services board shows it. */
+/** The gate string, in full, as the services board shows it, and only for a blocked or failed run (`troubleGate`). */
 function gateLine(resource: SiteResourceView): string {
-  return resource.gate ? `<p class="${SERVICE_DETAIL} text-stone-300" data-gate>${escapeHtml(resource.gate)}</p>` : "";
+  const gate = troubleGate(resource);
+  return gate ? `<p class="${SERVICE_DETAIL} text-stone-300" data-gate>${escapeHtml(gate)}</p>` : "";
 }
 
 /**
@@ -1209,7 +1221,7 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       ${manualSteps}` : `${manualSteps}
       ${repositoryCard}`}
 
-      ${renderDangerZone()}
+      ${renderDangerZone({ attached: attachedName !== null, deletableFiles: Boolean(filesPath && opts.filesExist) })}
     </div>
 
     <dialog id="confirm-remove-dialog"${attachedName ? ` data-attached="true"` : ""} aria-labelledby="confirm-remove-title" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
@@ -1498,7 +1510,12 @@ function renderServiceRow(
   // gets its own line, so a healthy old build never reads as a broken one. An
   // undeployed container's trouble is already its pill, so it gets no line.
   const trouble = undeployed ? null : deployTrouble(row);
-  if (row.result && !trouble) facts.push(row.result);
+  const gate = troubleGate(row);
+  // The raw result word is the reconciler's vocabulary (`skipped`, `deployed`,
+  // `awaiting-image`), not the operator's, so it is never printed. The one
+  // exception is a blocked run with no deploy line to say so: without it the
+  // row would not say the deploy is blocked at all.
+  if (row.result === "blocked" && !trouble) facts.push(row.result);
   if (row.failedAttempts) facts.push(`${row.failedAttempts} ${row.failedAttempts === 1 ? "attempt" : "attempts"}`);
   const changed = formatAge(row.since, now);
   if (changed) facts.push(`changed ${changed}`);
@@ -1543,7 +1560,10 @@ function renderServiceRow(
           ${
             trouble
               ? `<p class="font-mono text-[0.8rem] leading-relaxed m-0" data-deploy-state><span class="${TONE_TEXT[trouble.tone]}"><span aria-hidden="true">&#9679;</span> deploy ${trouble.word}</span>${
-                  trouble.reason === `deploy ${trouble.word}` ? "" : ` <span class="text-stone-400">· ${escapeHtml(trouble.reason)}</span>`
+                  // When the gate line below carries the full sentence, the short
+                  // reason would only repeat it; otherwise the reason stays,
+                  // unless it merely restates `deploy <word>`.
+                  gate !== null || trouble.reason === `deploy ${trouble.word}` ? "" : ` <span class="text-stone-400">· ${escapeHtml(trouble.reason)}</span>`
                 }</p>`
               : ""
           }
@@ -1552,7 +1572,9 @@ function renderServiceRow(
           ${
             // In full, on its own row: the retry-cap string carries the recovery
             // command, and a clamped string would hide the one thing to do.
-            row.gate ? `<p class="${SERVICE_DETAIL} text-stone-300" data-gate>${escapeHtml(row.gate)}</p>` : ""
+            // Only for a blocked or failed run: on a skipped or deployed one the
+            // sentence ("pin unchanged") explains nothing the operator needs.
+            gate ? `<p class="${SERVICE_DETAIL} text-stone-300" data-gate>${escapeHtml(gate)}</p>` : ""
           }
           ${
             // A failed deploy's tag, step and journal, as a site's page shows

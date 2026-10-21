@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { describeStatus, deployTrouble, hostProblems, hostProblemUnits, splitHostnameForDisplay, undeployedStatus, visitIsForward, type SiteStatus } from "./siteDisplay";
+import { describeStatus, deployTrouble, hostProblems, hostProblemUnits, splitHostnameForDisplay, troubleGate, undeployedStatus, visitIsForward, type SiteStatus } from "./siteDisplay";
 import type { InventoryEntry, ServiceInventory } from "./serviceInventory";
 import type { UnitState } from "./unitState";
 
@@ -241,6 +241,34 @@ describe("deployTrouble", () => {
 
   test("an unknown result never produces a line", () => {
     assert.equal(deployTrouble({ result: "unknown", gateCode: "ci-failed" }), null);
+  });
+});
+
+describe("troubleGate", () => {
+  test("a blocked or failed run shows its gate sentence, whatever the code", () => {
+    for (const entry of [
+      { result: "blocked", gateCode: "retry-capped", gate: "G" },
+      { result: "blocked", gateCode: "not-applied", gate: "G" },
+      { result: "blocked", gateCode: "ci-pending", gate: "G" },
+      { result: "blocked", gateCode: "some-new-code", gate: "G" },
+      { result: "blocked", gate: "G" },
+      { result: "failed", gate: "G" },
+    ]) {
+      assert.equal(troubleGate(entry), "G", JSON.stringify(entry));
+    }
+  });
+
+  test("a run with no trouble to explain shows no gate sentence", () => {
+    for (const entry of [
+      { result: "blocked", gateCode: "ci-failed", gate: "" },
+      { result: "failed", gate: "" },
+      { result: "skipped", gateCode: "up-to-date", gate: "pin unchanged (1.4.0)" },
+      { result: "deployed", gateCode: "ok", gate: "ok" },
+      { result: "awaiting-image", gateCode: "awaiting-image", gate: "no tag yet" },
+      { gate: "G" },
+    ]) {
+      assert.equal(troubleGate(entry), null, JSON.stringify(entry));
+    }
   });
 });
 

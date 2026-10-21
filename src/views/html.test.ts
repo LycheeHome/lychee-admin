@@ -570,9 +570,9 @@ describe("renderSiteDetail manual steps", () => {
     );
   });
 
-  test("warns that a missing DNS record still reads as running here", () => {
+  test("warns that a missing DNS record leaves the site unreachable despite passing checks", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
-    assert.match(html, /only checks localhost/);
+    assert.match(html, /checks lychee itself, never Cloudflare/);
   });
 
   test("never emits a command with an empty tunnel id", () => {
@@ -1679,7 +1679,8 @@ describe("renderServicesPage", () => {
   test("target different from version renders as applying, showing both as one fact", () => {
     const html = offerBoard({ version: "v0.2.0", target: "v0.3.0", result: "deployed" });
     assert.deepEqual(pills(html), ["applying"]);
-    assert.ok(html.includes("v0.2.0 \u2192 v0.3.0 · deployed"));
+    assert.ok(html.includes("v0.2.0 \u2192 v0.3.0"));
+    assert.ok(!html.includes("v0.3.0 · deployed"));
   });
 
   test("applying is neutral, never red", () => {
@@ -1775,6 +1776,54 @@ describe("renderServicesPage", () => {
     const html = offerBoard({ version: "v1", result: "blocked", status: "running" });
     assert.ok(!html.includes("data-deploy-state"));
     assert.ok(factsLine(html)?.includes("blocked"));
+  });
+
+  test("facts never print the raw reconciler result words", () => {
+    const rows: Record<string, unknown>[] = [
+      { version: "v1.4.0", result: "skipped", gateCode: "up-to-date", gate: "pin unchanged (1.4.0)" },
+      { result: "deployed", gateCode: "ok" },
+      { result: "awaiting-image", gateCode: "awaiting-image" },
+      { version: "v1.4.0", result: "failed", failedAttempts: 1 },
+      { version: "v2.11.4", result: "blocked", gateCode: "ci-failed", gate: "job test concluded: failure" },
+    ];
+    for (const extra of rows) {
+      const facts = factsLine(offerBoard(extra)) ?? "";
+      for (const word of ["skipped", "deployed", "failed", "awaiting-image", "blocked"]) {
+        assert.ok(!facts.includes(word), `${JSON.stringify(extra)} printed ${word}`);
+      }
+    }
+  });
+
+  test("a skipped up-to-date row shows no gate line", () => {
+    const html = offerBoard({ version: "v1.4.0", result: "skipped", gateCode: "up-to-date", gate: "pin unchanged (1.4.0)" });
+    assert.ok(!html.includes("data-gate"));
+  });
+
+  test("a retry-capped row's deploy line is the bare word and the gate line carries the full sentence", () => {
+    const gate = "v0.2.0 failed 3 times; not retrying (promote another tag, or rm /opt/x/.failed-tag)";
+    const html = offerBoard({ result: "blocked", gateCode: "retry-capped", gate });
+    assert.equal(deployLine(html), "● deploy blocked");
+    assert.ok(html.includes(gate));
+    assert.ok(html.includes("data-gate"));
+  });
+
+  test("a not-applied row with no gate keeps its reason on the deploy line", () => {
+    const html = offerBoard({ result: "blocked", gateCode: "not-applied" });
+    assert.equal(deployLine(html), "● deploy blocked · not applied");
+    assert.ok(!html.includes("data-gate"));
+  });
+
+  test("a blocked row with a gate and no code keeps blocked in its facts and its gate line", () => {
+    const html = offerBoard({ version: "v0.2.0", result: "blocked", gate: "job test concluded: failure" });
+    assert.ok(!html.includes("data-deploy-state"));
+    assert.ok(factsLine(html)?.includes("blocked"));
+    assert.ok(html.includes("data-gate"));
+    assert.ok(html.includes("job test concluded: failure"));
+  });
+
+  test("a failed row keeps its gate line; an empty gate renders none", () => {
+    assert.ok(offerBoard({ version: "v1.4.0", result: "failed", gate: "health check failed after install" }).includes("data-gate"));
+    assert.ok(!offerBoard({ result: "failed", gate: "" }).includes("data-gate"));
   });
 
   test("a running host action does not hide the deploy line", () => {
@@ -2671,6 +2720,17 @@ describe("renderSiteDetail from a repository", () => {
     assert.doesNotMatch(c, /data-deploy-failed/);
   });
 
+  test("a running, skipped site shows no gate line", () => {
+    const c = card(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RUNNING_RESOURCE, result: "skipped", gate: "pin unchanged (0.2.0)", available: "0.3.0" },
+        status: { kind: "container", state: "running" },
+      }),
+    );
+    assert.doesNotMatch(c, /data-gate/);
+  });
+
   test("a requested tag whose deploy failed shows the gate, not a promise of the next run", () => {
     for (const result of ["failed", "blocked"]) {
       const c = card(
@@ -2740,7 +2800,8 @@ describe("renderSiteDetail from a repository", () => {
     assert.match(c, /v0\.1\.0/);
     assert.match(c, /repository name is wrong/);
     assert.doesNotMatch(c, /No tag found/);
-    assert.match(c, /no image yet/);
+    // An awaiting-image run is waiting, not in trouble: its gate sentence is not shown.
+    assert.doesNotMatch(c, /no image yet|data-gate/);
     const form = c.match(/<form[^>]*data-change-repository="app\.lychee\.land"[\s\S]*?<\/form>/);
     assert.ok(form, "no change-repository form");
     const input = form[0].match(/<input[^>]*>/);
@@ -3203,4 +3264,50 @@ describe("one Ember action per site page", () => {
   for (const [name, html] of atMostOne) {
     test(`${name}: at most one Ember below the header`, () => assert.ok(emberCount(html) <= 1, `${emberCount(html)}`));
   }
+});
+
+describe("DNS step and Danger card copy", () => {
+  const DNS = "Until it exists, the site can't be reached from the internet even while every check on this page passes: lychee-admin checks lychee itself, never Cloudflare.";
+  const S1 = "Removing takes the site out of the Caddyfile and the tunnel route, reloads Caddy, then restarts the sites tunnel.";
+  const S2 = "It then retires the site's declaration, which stops its container.";
+  const S3 = "The site's files stay unless you tick the box when you confirm.";
+  const S4 = "lychee-admin never touches the DNS record; delete it in Cloudflare afterwards.";
+
+  function danger(html: string): string {
+    const [, after] = html.split(">Danger</h3>");
+    assert.ok(after, "expected a Danger card");
+    const m = after.match(/<p[^>]*>([\s\S]*?)<\/p>/);
+    assert.ok(m, "expected a Danger paragraph");
+    return m[1];
+  }
+
+  const dnsPages: [string, string][] = [
+    ["with a tunnel id", renderSiteDetail(STATIC_SITE, OPTS)],
+    ["apex", renderSiteDetail(APEX_SITE, OPTS)],
+    ["without a tunnel id", renderSiteDetail(STATIC_SITE, { ...OPTS, tunnelId: "" })],
+  ];
+  for (const [name, html] of dnsPages) {
+    test(`DNS step ${name} states what lychee-admin checks`, () => {
+      assert.ok(html.includes(DNS));
+      assert.ok(!html.includes("still reports the site running"));
+    });
+  }
+
+  test("static site with files: sentences 1, 3, 4", () => {
+    assert.equal(danger(renderSiteDetail(STATIC_SITE, { ...OPTS, filesExist: true })), `${S1} ${S3} ${S4}`);
+  });
+  test("plain proxy: sentences 1 and 4", () => {
+    assert.equal(danger(renderSiteDetail(PROXY_SITE, OPTS)), `${S1} ${S4}`);
+  });
+  test("attached Next.js without files: sentences 1, 2, 4", () => {
+    assert.equal(danger(renderSiteDetail(NEXT_SITE, { ...BASE, resource: RESOURCE })), `${S1} ${S2} ${S4}`);
+  });
+  test("attached Next.js with files: sentences 1, 2, 3, 4", () => {
+    assert.equal(danger(renderSiteDetail(NEXT_SITE, { ...BASE, resource: RESOURCE, filesExist: true })), `${S1} ${S2} ${S3} ${S4}`);
+  });
+  test("no Danger paragraph says 'unless you ask otherwise'", () => {
+    for (const html of [renderSiteDetail(STATIC_SITE, OPTS), renderSiteDetail(NEXT_SITE, { ...BASE, resource: RESOURCE })]) {
+      assert.ok(!danger(html).includes("unless you ask otherwise"));
+    }
+  });
 });

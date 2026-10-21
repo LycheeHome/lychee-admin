@@ -189,6 +189,20 @@ export function deployTrouble(entry: { result?: string; gateCode?: string }): De
   return Object.hasOwn(BLOCKED_TROUBLE, entry.gateCode) ? { ...BLOCKED_TROUBLE[entry.gateCode] } : null;
 }
 
+/**
+ * The reconciler's gate sentence, when it is worth showing beside a row. It
+ * appears only for a blocked or failed run, because the sentence explains why
+ * a deploy did not go through; on a run that went fine, or is simply waiting,
+ * it is noise. Whether the run is trouble is decided by `result`, never by the
+ * sentence's text (contract A-GATE-1), so an empty sentence shows nothing and a
+ * blocked run whose code deployTrouble does not know still keeps its sentence:
+ * a new gate code must not go silent on the board.
+ */
+export function troubleGate(entry: { result?: string; gateCode?: string; gate?: string }): string | null {
+  if (entry.result !== "blocked" && entry.result !== "failed") return null;
+  return typeof entry.gate === "string" && entry.gate !== "" ? entry.gate : null;
+}
+
 export interface HostProblem {
   /** The inventory's name for the unit, which is what the board's rows are keyed by. */
   name: string;
