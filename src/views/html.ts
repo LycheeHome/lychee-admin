@@ -2,13 +2,11 @@ import path from "node:path";
 import { computeFilesPath, type Site } from "../lib/caddyfile";
 import {
   describeStatus,
-  deployTrouble,
   troubleGate,
   splitHostnameForDisplay,
   type HostProblem,
   type SiteStatus,
   type StatusTone,
-  undeployedStatus,
   visitIsForward,
 } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
@@ -20,6 +18,7 @@ import type { ServiceGroup } from "../lib/serviceInventory";
 import { type HostAction, IMAGE_PREFIX } from "../lib/platform";
 import type { ActionState } from "../lib/hostOperations";
 import { layout, type Nav } from "./shell";
+import { type DeployFacts, isApplying, rowLabels, summarizeRow } from "./boardFacts";
 import {
   escapeHtml,
   icon,
@@ -1273,27 +1272,6 @@ const GROUP_LABELS: Record<ServiceGroup, string> = {
   infrastructure: "Infrastructure",
 };
 
-/**
- * A board row's status through the same describeStatus() the site pages use,
- * so the services board cannot grow a second vocabulary. Rows are units and
- * containers alike, which is why this takes ServiceStatus rather than
- * UnitStatus: the two words a unit can never produce, `unhealthy` and
- * `paused`, are exactly the ones a container row needs. `starting` and
- * `unhealthy` are the pair that have to be mapped back onto a container's
- * state/health shape, since describeStatus() reads them from there.
- */
-function rowLabels(status: BoardRow["status"]) {
-  if (status === "starting") return describeStatus({ kind: "container", state: "running", health: "starting" });
-  if (status === "unhealthy") return describeStatus({ kind: "container", state: "running", health: "unhealthy" });
-  return describeStatus({ kind: "container", state: status });
-}
-
-type DeployFacts = Pick<BoardRow, "available" | "version" | "target" | "result">;
-
-function isApplying(row: DeployFacts): boolean {
-  const settled = row.result === "deployed" || row.result === "skipped";
-  return settled && Boolean(row.version && row.target && row.target !== row.version);
-}
 
 /**
  * The tag a row offers, or null. Nothing is offered while a deploy is in
@@ -1503,61 +1481,15 @@ function renderServiceRow(
   run?: ActionState,
   requestedTag?: string,
 ): string {
-  // `target` is what the reconciler has been asked to run; `version` is what
-  // it last confirmed running. "Applying" means the reconciler last ran
-  // cleanly (`deployed` or `skipped`) and the pin has since moved, so the next
-  // tick will install it. A moved pin on a `blocked` or `failed` row is NOT
-  // applying: the retry cap, an unresolvable pin and a red CI gate all leave
-  // target != version indefinitely while the old build keeps running, and
-  // calling that "applying" would promise progress that is never coming.
-  // An allowlist, not a denylist, because `result` can also be absent or
-  // `unknown`, and those must not read as applying either. Neutral, and only
-  // while the live state is not already red: "applying" must never hide a
-  // container that is actually failing.
-  const applying = isApplying(row);
-  // A container with no installed version reads the reconciler's verdict, as
-  // the site page does: the container is not asked about a version that was
-  // never installed, and its live state would contradict that page.
-  const undeployed = row.kind === "container" ? undeployedStatus(row) : null;
-  const live = undeployed ? describeStatus(undeployed) : rowLabels(row.status);
+  // The row's words, shared with the React board (boardFacts.ts). A running
+  // host action replaces the pill, neutral, the way `applying` does.
+  const summary = summarizeRow(row, board, now);
   const labels =
     run?.state === "running"
-      ? { ...live, pill: ACTION_RUNNING_WORD[run.action], tone: "neutral" as const }
-      : applying && live.tone !== "bad"
-        ? { ...live, pill: "applying", tone: "neutral" as const }
-        : live;
+      ? { ...summary.labels, pill: ACTION_RUNNING_WORD[run.action], tone: "neutral" as const }
+      : summary.labels;
+  const { trouble, gate, facts } = summary;
   const offer = offeredTag(row);
-
-  const facts: string[] = [];
-  // One fact with an arrow, not two: version and target are a single change.
-  if (applying) facts.push(`${row.version} \u2192 ${row.target}`);
-  else if (row.version) facts.push(row.version);
-  // The pill stays the thing's own health; a deploy that is blocked or failed
-  // gets its own line, so a healthy old build never reads as a broken one. An
-  // undeployed container's trouble is already its pill, so it gets no line.
-  const trouble = undeployed ? null : deployTrouble(row);
-  const gate = troubleGate(row);
-  // The raw result word is the reconciler's vocabulary (`skipped`, `deployed`,
-  // `awaiting-image`), not the operator's, so it is never printed. The one
-  // exception is a blocked run with no deploy line to say so: without it the
-  // row would not say the deploy is blocked at all.
-  if (row.result === "blocked" && !trouble) facts.push(row.result);
-  if (row.failedAttempts) facts.push(`${row.failedAttempts} ${row.failedAttempts === 1 ? "attempt" : "attempts"}`);
-  const changed = formatAge(row.since, now);
-  if (changed) facts.push(`changed ${changed}`);
-
-  // The full-run timer carries the schedule, as the board does; the watcher's
-  // timer row shows only its state.
-  if (row.kind === "unit" && row.unit === board.timerUnit) {
-    // Only a future time is a "next run". A timer that has just fired or not
-    // yet computed its next elapse is normal, and a past "next" would render
-    // as a negative interval, so it says nothing.
-    const upcoming = board.schedule.next && new Date(board.schedule.next).getTime() > now.getTime();
-    const next = upcoming ? formatAge(board.schedule.next, now) : null;
-    const last = formatAge(board.schedule.last, now);
-    if (next) facts.push(`next run ${next}`);
-    if (last) facts.push(`last run ${last}`);
-  }
 
   // A site's row links to its page, but only when the app manages that
   // hostname: a name that merely ends in the suffix is not a site.

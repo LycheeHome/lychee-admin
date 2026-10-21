@@ -133,6 +133,19 @@ describe("InfrastructureBoard parity with renderServicesPage", () => {
     }
   });
 
+  test("a row that owns the board's timer schedule", () => {
+    // Not an infrastructure unit today, but the builder is shared, so the
+    // branch is pinned here: a future next run and a past last run.
+    const server = assertParity(
+      infraBoard([unit("tick", { unit: "tick.timer" } as Partial<BoardRow>)], {
+        timerUnit: "tick.timer",
+        schedule: { next: new Date("2026-10-02T05:10:00Z"), last: new Date("2026-10-02T04:55:00Z") },
+      }),
+    );
+    assert.ok(server.includes("next run in 10 minutes"), "fixture never reached next run");
+    assert.ok(server.includes("last run 5 minutes ago"), "fixture never reached last run");
+  });
+
   test("a mismatch is caught", () => {
     const board = infraBoard([unit("caddy")]);
     const server = serverRegion(renderServicesPage(board, NOW, new Set(), "lychee.land", {}, "infrastructure"));
@@ -167,7 +180,8 @@ describe("InfrastructurePage", () => {
           <InfrastructurePage />
         </QueryClientProvider>,
       );
-      const alert = await screen.findByRole("alert");
+      // A generous timeout: the default 1s flakes when the whole suite runs in parallel.
+      const alert = await screen.findByRole("alert", {}, { timeout: 5000 });
       assert.match(alert.textContent ?? "", /boom/);
     } finally {
       globalThis.fetch = original;

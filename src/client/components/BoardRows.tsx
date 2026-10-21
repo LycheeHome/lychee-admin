@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { deployTrouble, describeStatus, troubleGate, undeployedStatus } from "../../lib/siteDisplay";
 import type { BoardRow, ServiceBoard } from "../../shared/board";
+import { summarizeRow } from "../../views/boardFacts";
 import {
   BODY,
   CODE_LINE,
@@ -27,18 +27,6 @@ import {
  * offer, Prune, and the host-action strip. A row that lists actions renders
  * without the strip.
  */
-
-/** The same mapping as html.ts's rowLabels: the board's word onto describeStatus's shape. */
-function rowLabels(status: BoardRow["status"]) {
-  if (status === "starting") return describeStatus({ kind: "container", state: "running", health: "starting" });
-  if (status === "unhealthy") return describeStatus({ kind: "container", state: "running", health: "unhealthy" });
-  return describeStatus({ kind: "container", state: status });
-}
-
-function isApplying(row: BoardRow): boolean {
-  const settled = row.result === "deployed" || row.result === "skipped";
-  return settled && Boolean(row.version && row.target && row.target !== row.version);
-}
 
 function Dot() {
   return <span aria-hidden="true">{"●"}</span>;
@@ -118,28 +106,8 @@ function FailureLine({ row, extraClass, commandId }: { row: BoardRow; extraClass
 }
 
 export function ServiceRow({ row, board, now }: { row: BoardRow; board: ServiceBoard; now: Date }) {
-  const applying = isApplying(row);
-  const undeployed = row.kind === "container" ? undeployedStatus(row) : null;
-  const live = undeployed ? describeStatus(undeployed) : rowLabels(row.status);
-  const labels = applying && live.tone !== "bad" ? { ...live, pill: "applying", tone: "neutral" as const } : live;
-
-  const facts: string[] = [];
-  if (applying) facts.push(`${row.version} → ${row.target}`);
-  else if (row.version) facts.push(row.version);
-  const trouble = undeployed ? null : deployTrouble(row);
-  const gate = troubleGate(row);
-  if (row.result === "blocked" && !trouble) facts.push(row.result);
-  if (row.failedAttempts) facts.push(`${row.failedAttempts} ${row.failedAttempts === 1 ? "attempt" : "attempts"}`);
-  const changed = formatAge(row.since, now);
-  if (changed) facts.push(`changed ${changed}`);
-
-  if (row.kind === "unit" && row.unit === board.timerUnit) {
-    const upcoming = board.schedule.next && new Date(board.schedule.next).getTime() > now.getTime();
-    const next = upcoming ? formatAge(board.schedule.next, now) : null;
-    const last = formatAge(board.schedule.last, now);
-    if (next) facts.push(`next run ${next}`);
-    if (last) facts.push(`last run ${last}`);
-  }
+  // The row's words come from the same builder the HTML board uses.
+  const { labels, trouble, gate, facts } = summarizeRow(row, board, now);
 
   return (
     <li className={SERVICE_ROW} id={`service-${row.name}`} data-service={row.name}>
