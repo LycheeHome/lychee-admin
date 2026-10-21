@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { claimedPorts, hostnameForResource, normalizeRepo, parseDeclaration, resourceNameFor } from "./siteResource";
+import { describe } from "node:test";
+import {
+  claimedPorts,
+  declaredTag,
+  hostnameForResource,
+  normalizeRepo,
+  parseDeclaration,
+  pendingTag,
+  resourceNameFor,
+} from "./siteResource";
 
 test("maps a hostname to its resource name", () => {
   assert.equal(resourceNameFor("test.lychee.land", "lychee.land"), "test-lychee-land");
@@ -58,4 +67,46 @@ test("a non-site name maps to nothing", () => {
 
 test("no resource name maps to the apex", () => {
   assert.equal(hostnameForResource("lychee-land", "lychee.land"), null);
+});
+
+describe("declaredTag", () => {
+  const decl = (image: string, state = "present") => ({ name: "x", port: 3000, state, image });
+
+  test("reads the tag from the last path segment", () => {
+    assert.equal(declaredTag(decl("ghcr.io/lycheehome/app:0.3.0")), "0.3.0");
+    assert.equal(declaredTag(decl("host:5000/app:1.2.0")), "1.2.0");
+  });
+
+  test("a registry port is never read as a tag", () => {
+    assert.equal(declaredTag(decl("ghcr.io/lycheehome/app")), null);
+    assert.equal(declaredTag(decl("host:5000/app")), null);
+  });
+
+  test("a digest is not a tag", () => {
+    assert.equal(declaredTag(decl("ghcr.io/lycheehome/app@sha256:abc")), null);
+  });
+
+  test("an absent or missing declaration has no tag", () => {
+    assert.equal(declaredTag(decl("ghcr.io/lycheehome/app:0.3.0", "absent")), null);
+    assert.equal(declaredTag(undefined), null);
+  });
+});
+
+describe("pendingTag", () => {
+  test("a declared tag already applied is not pending", () => {
+    assert.equal(pendingTag({ target: "0.3.0" }, "0.3.0"), null);
+    assert.equal(pendingTag({ version: "0.3.0" }, "0.3.0"), null);
+  });
+
+  test("nothing declared is nothing pending", () => {
+    assert.equal(pendingTag({ version: "0.2.0" }, null), null);
+  });
+
+  test("a declared tag differing from both version and target is pending", () => {
+    assert.equal(pendingTag({ version: "0.2.0", target: "0.2.0" }, "0.3.0"), "0.3.0");
+  });
+
+  test("an entry with no version or target leaves the declared tag pending", () => {
+    assert.equal(pendingTag({}, "0.1.0"), "0.1.0");
+  });
 });

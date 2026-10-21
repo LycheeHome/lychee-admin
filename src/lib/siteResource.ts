@@ -70,6 +70,33 @@ export function parseDeclaration(name: string, content: string): DeclarationSumm
   };
 }
 
+/**
+ * The tag a declaration's `image:` line names, or null. Null for an absent or
+ * missing declaration, a digest reference, or a line with no tag. The colon is
+ * read only in the last path segment, so a registry port (`host:5000/app`) is
+ * never mistaken for a tag.
+ */
+export function declaredTag(decl: DeclarationSummary | undefined): string | null {
+  if (!decl || decl.state === "absent" || decl.image.includes("@")) return null;
+  const segment = decl.image.slice(decl.image.lastIndexOf("/") + 1);
+  const colon = segment.lastIndexOf(":");
+  if (colon < 0) return null;
+  const tag = segment.slice(colon + 1);
+  return tag === "" ? null : tag;
+}
+
+/**
+ * A tag the app has committed to a declaration that the reconciler has not yet
+ * reported. The declaration is the app's own commit, so it can be ahead of the
+ * inventory; the inventory's `version` and `target` are what the reconciler has
+ * already acted on. Null once either of those names the declared tag, so an
+ * applied tag never reads as requested.
+ */
+export function pendingTag(entry: { version?: string; target?: string }, declared: string | null): string | null {
+  if (declared === null) return null;
+  return declared !== entry.target && declared !== entry.version ? declared : null;
+}
+
 /** Port -> declaration name. Every state counts: an absent declaration still reserves its port. */
 export function claimedPorts(decls: DeclarationSummary[]): Map<number, string> {
   const claimed = new Map<number, string>();
