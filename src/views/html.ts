@@ -45,6 +45,11 @@ import {
   SERVICE_DETAIL,
   formatAge,
   formatDuration,
+  BODY,
+  CODE_LINE,
+  COPY_BUTTON,
+  COPY_IN_LINE,
+  MONO_FACT,
 } from "./shared";
 
 /**
@@ -54,7 +59,7 @@ import {
  * served over plain HTTP on the LAN.
  */
 function copyButton(targetId: string, label: string, extraClass = ""): string {
-  return `<button type="button" class="p-1 rounded-md bg-stone-800 border border-stone-700 text-stone-400 hover:text-stone-50 hover:bg-stone-700 cursor-pointer ${FOCUS_RING} ${extraClass}" data-copy-target="${targetId}" aria-label="${escapeHtml(label)}">
+  return `<button type="button" class="${COPY_BUTTON} ${extraClass}" data-copy-target="${targetId}" aria-label="${escapeHtml(label)}">
       <span data-copy-icon="idle">${icon("clipboard")}</span>
       <span data-copy-icon="copied" class="hidden">${icon("check")}</span>
     </button>`;
@@ -581,21 +586,6 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
 const STEP_NUMBER =
   "font-mono text-[0.6875rem] text-rose-400 border border-rose-400/40 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5";
 const STEP_TEXT = `text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5 ${PROSE_MEASURE}`;
-/**
- * Position for a copy button sitting in a single-line command box: vertically
- * centred, so it does not depend on the box's exact height.
- *
- * No font-size override here deliberately — the icon inherits 16px, matching
- * the multi-line workflow block's button, so all six copy buttons are one size.
- * That makes the button 26px, which CODE_LINE's py-2.5 is chosen to clear with
- * an even gap (6.6px above and below against 6px to the right), and pr-11 keeps
- * it off the command text. Those three values are coupled: changing the padding
- * on either the button or the box unbalances the gap.
- */
-const COPY_IN_LINE = "absolute top-1/2 -translate-y-1/2 right-1.5";
-
-const CODE_LINE =
-  "font-mono text-[0.72rem] bg-stone-900 border border-stone-700 rounded-md pl-2.5 pr-11 py-2.5 text-stone-50 overflow-x-auto whitespace-nowrap m-0";
 
 /**
  * A copyable command, optionally captioned with the directory it must run in.
@@ -775,7 +765,6 @@ export interface SiteDetailOptions {
   created?: boolean;
 }
 
-const BODY = `text-stone-400 text-[0.8rem] leading-snug m-0 ${PROSE_MEASURE}`;
 const STEP_DONE =
   "font-mono text-[0.6875rem] text-stone-300 border border-stone-600 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5";
 /**
@@ -827,7 +816,7 @@ function runbookStep(n: number, done: boolean, title: string, body: string, fold
         </div>`;
 }
 
-const mono = (value: string): string => `<span class="font-mono text-stone-50 break-all">${escapeHtml(value)}</span>`;
+const mono = (value: string): string => `<span class="${MONO_FACT}">${escapeHtml(value)}</span>`;
 
 /**
  * Prune: deletes a retired site declaration from lychee-resources. One markup

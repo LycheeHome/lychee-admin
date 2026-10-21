@@ -9,7 +9,7 @@ import { isHostAction, readCheckedActionState, readLastRuns, requestAction } fro
 import { readInventory } from "../lib/serviceInventory";
 import { buildBoard, findTimerUnit } from "../lib/serviceBoard";
 import type { ServiceBoard } from "../lib/serviceBoard";
-import type { ApiError, ApiOk } from "../shared/board";
+import type { ApiError, ApiOk, BoardPayload } from "../shared/board";
 import { renderServicesPage } from "../views/html";
 import { renderClientPage } from "../views/clientShell";
 import type { ServiceGroup } from "../lib/serviceInventory";
@@ -144,7 +144,7 @@ export function createServicesRouter(deps: Deps): express.Router {
       // The page's "unavailable" vs "lists no X" choice depends on the whole
       // board, which the narrowing above discards, so it travels separately.
       const boardEmpty = board.groups.length === 0;
-      return res.json({ ok: true, board: only, boardEmpty, now: now.toISOString() } satisfies ApiOk<{ board: ServiceBoard; boardEmpty: boolean; now: string }>);
+      return res.json({ ok: true, board: only, boardEmpty, now: now.toISOString() } satisfies ApiOk<BoardPayload>);
     } catch (error) {
       return res.status(500).json({ ok: false, reason: `Could not read services: ${String(error)}` } satisfies ApiError);
     }

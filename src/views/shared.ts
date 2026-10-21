@@ -94,6 +94,28 @@ export const SERVICE_NAME = "font-mono text-base leading-6 text-stone-50 break-w
 /** Detail and gate lines: Smoke (the dim-text floor), mono, wrapping rather than truncating. */
 export const SERVICE_DETAIL = "font-mono text-[0.8rem] leading-relaxed text-stone-400 break-words m-0";
 
+/** A Smoke sentence inside a card or row, at the prose measure. */
+export const BODY = `text-stone-400 text-[0.8rem] leading-snug m-0 ${PROSE_MEASURE}`;
+/** A machine fact inline in a sentence: mono, at Chalk. */
+export const MONO_FACT = "font-mono text-stone-50 break-all";
+/** A single-line copyable command box. */
+export const CODE_LINE =
+  "font-mono text-[0.72rem] bg-stone-900 border border-stone-700 rounded-md pl-2.5 pr-11 py-2.5 text-stone-50 overflow-x-auto whitespace-nowrap m-0";
+/** The copy button app.js binds by [data-copy-target]; callers append its position. */
+export const COPY_BUTTON = `p-1 rounded-md bg-stone-800 border border-stone-700 text-stone-400 hover:text-stone-50 hover:bg-stone-700 cursor-pointer ${FOCUS_RING}`;
+/**
+ * Position for a copy button sitting in a single-line command box: vertically
+ * centred, so it does not depend on the box's exact height.
+ *
+ * No font-size override here deliberately — the icon inherits 16px, matching
+ * the multi-line workflow block's button, so all six copy buttons are one size.
+ * That makes the button 26px, which CODE_LINE's py-2.5 is chosen to clear with
+ * an even gap (6.6px above and below against 6px to the right), and pr-11 keeps
+ * it off the command text. Those three values are coupled: changing the padding
+ * on either the button or the box unbalances the gap.
+ */
+export const COPY_IN_LINE = "absolute top-1/2 -translate-y-1/2 right-1.5";
+
 export const CARD = "bg-stone-800 border border-stone-700 rounded-[10px] p-5";
 /**
  * The size, weight, and tracking every card label shares. Split out because
