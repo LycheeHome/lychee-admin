@@ -133,6 +133,38 @@ describe("renderAddSite heading", () => {
   });
 });
 
+describe("the add-site page describes Next.js as it actually works", () => {
+  const NEXTJS_DESCRIPTION =
+    "Routes to a container the reconciler runs on this port, built from the site's own repository. After you add it, the site's page has the steps to attach and deploy.";
+  const PROXY_DESCRIPTION =
+    "Routes to a process you already run and manage yourself on a local port (e.g. next start). lychee-admin only wires up the routing — it won't start, stop, or restart that process for you.";
+  /** The text inside the span with this id, tags stripped (the descriptions hold no nested span). */
+  const textOf = (html: string, id: string): string => {
+    const inner = html.match(new RegExp(`<span id="${id}"[^>]*>([\\s\\S]*?)</span>`))?.[1];
+    assert.ok(inner !== undefined, `no span with id="${id}"`);
+    return inner.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  };
+  const html = renderAddSite(SITES, "lychee.land", {}, PATHS);
+
+  test("the framework option says the repository builds it and the reconciler runs it", () => {
+    assert.ok(html.includes('<option value="nextjs">Next.js — built from its own repository; the reconciler runs it</option>'));
+  });
+
+  test("nothing on the page promises a compose file", () => {
+    assert.ok(!html.includes("docker-compose"));
+  });
+
+  test("the plain-proxy description is unchanged", () => {
+    assert.equal(textOf(html, "type-proxy-description"), PROXY_DESCRIPTION);
+  });
+
+  test("a Next.js description exists, hidden until Next.js is picked", () => {
+    const tag = tagById(html, "type-proxy-description-nextjs");
+    assert.match(tag, /class="[^"]*\bhidden\b/);
+    assert.equal(textOf(html, "type-proxy-description-nextjs"), NEXTJS_DESCRIPTION);
+  });
+});
+
 describe("the hostname field", () => {
   test("the hostname field affixes the domain instead of hiding it in a placeholder", () => {
     const html = renderAddSite(SITES, "lychee.land", {}, PATHS);

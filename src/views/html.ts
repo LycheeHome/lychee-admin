@@ -249,6 +249,7 @@ export function renderAddSite(
                 Reverse proxy
               </span>
               <span id="type-proxy-description" class="text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]">Routes to a process you already run and manage yourself on a local port (e.g. <code class="font-mono">next start</code>). lychee-admin only wires up the routing — it won't start, stop, or restart that process for you.</span>
+              <span id="type-proxy-description-nextjs" class="hidden text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]">Routes to a container the reconciler runs on this port, built from the site's own repository. After you add it, the site's page has the steps to attach and deploy.</span>
             </label>
           </fieldset>
 
@@ -262,7 +263,7 @@ export function renderAddSite(
               Framework (optional)
               <select name="framework" class="${INPUT}" id="framework-field">
                 <option value="none">None</option>
-                <option value="nextjs">Next.js — generates a Dockerfile + docker-compose.yml</option>
+                <option value="nextjs">Next.js — built from its own repository; the reconciler runs it</option>
               </select>
             </label>
             <label class="hidden flex-col gap-1.5 text-[0.85rem] text-stone-400" id="healthcheck-field-wrapper">

@@ -364,9 +364,22 @@ syncPortField();
 const frameworkField = document.getElementById("framework-field");
 const healthcheckFieldWrapper = document.getElementById("healthcheck-field-wrapper");
 
+const proxyDescription = document.getElementById("type-proxy-description");
+const proxyDescriptionNextjs = document.getElementById("type-proxy-description-nextjs");
+const proxyRadio = document.querySelector('input[name="type"][value="reverse-proxy"]');
+
 function syncFrameworkFields() {
   const isNextjs = frameworkField?.value === "nextjs";
   if (healthcheckFieldWrapper) healthcheckFieldWrapper.style.display = isNextjs ? "flex" : "none";
+  // The plain-proxy sentence ("won't start, stop, or restart that process") is
+  // false for Next.js, where the reconciler runs the container. Swap which one
+  // is visible, and which one the radio's description points at, so a screen
+  // reader hears the true one too.
+  if (proxyDescription && proxyDescriptionNextjs) {
+    proxyDescription.classList.toggle("hidden", isNextjs);
+    proxyDescriptionNextjs.classList.toggle("hidden", !isNextjs);
+    proxyRadio?.setAttribute("aria-describedby", isNextjs ? "type-proxy-description-nextjs" : "type-proxy-description");
+  }
 }
 
 frameworkField?.addEventListener("change", syncFrameworkFields);
