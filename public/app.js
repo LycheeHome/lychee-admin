@@ -882,9 +882,14 @@ if (siteSwitcher) {
 }
 
 // The services board's Deploy control. The server decides the tag from the
-// inventory, so only the name is sent. Success states what happens next in
-// the reconciler's terms (it is asked, not done), and the button stays
-// disabled: a second click would be a second request for the same change.
+// inventory, so only the name is sent. On success the offer is replaced, in
+// place, by the same "<tag> requested" line the server renders on a reload:
+// that line is the feedback, not a toast, because it is still true after the
+// toast would have faded and it takes the button's place, so a second click
+// for the same change is impossible. Its markup comes from the page's own
+// <template>, not a copy here, so the two can never drift; only the tag is
+// filled in, as text. If the template is missing the old behaviour stands: a
+// success toast and a button that stays disabled.
 document.querySelectorAll("[data-deploy]").forEach((button) => {
   button.addEventListener("click", async () => {
     const name = button.dataset.deploy;
@@ -895,6 +900,18 @@ document.querySelectorAll("[data-deploy]").forEach((button) => {
       const response = await fetch(`/services/${encodeURIComponent(name)}/deploy`, { method: "POST" });
       const body = await response.json().catch(() => ({}));
       if (response.ok && body.ok) {
+        const line = document
+          .querySelector("template[data-requested-template]")
+          ?.content.firstElementChild?.cloneNode(true);
+        const tagSlot = line?.querySelector("[data-requested-tag]");
+        const offer = button.closest("[data-offer]");
+        if (line && tagSlot && offer) {
+          tagSlot.textContent = tag;
+          offer.replaceWith(line);
+          hideBanner();
+          line.focus();
+          return;
+        }
         showBanner(`Requested ${tag} for ${name}. The reconciler applies it on its next run.`, "success");
         return;
       }
