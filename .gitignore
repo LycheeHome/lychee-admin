@@ -5,6 +5,7 @@ dist/
 .idea/
 .DS_Store
 public/style.css
+public/client/
 .claude/worktrees/
 .superpowers/
 # Snapshots and console logs the Playwright MCP browser tools write into the
