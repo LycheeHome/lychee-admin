@@ -1006,6 +1006,23 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     assert.doesNotMatch(html, /data-attach=/);
   });
 
+  test("a tag the declaration carries ahead of the inventory replaces the offer with the requested line", async () => {
+    declarations([{ ...TEST_DECLARATION, image: "ghcr.io/lycheehome/test-site:0.1.0" }]);
+    writeInventory([siteEntry({ result: "awaiting-image", available: "0.1.0" })]);
+    const html = (await page()).replace(/<template[\s\S]*?<\/template>/g, "");
+    assert.match(html, /data-requested/);
+    assert.doesNotMatch(html, /data-deploy="test-lychee-land"/);
+  });
+
+  test("an unreadable clone still renders the offer", async () => {
+    fakeCommands.readDeclarations = () => Promise.reject(new Error("no clone"));
+    writeInventory([siteEntry({ result: "awaiting-image", available: "0.1.0" })]);
+    const response = await request("/sites/test.lychee.land");
+    assert.equal(response.status, 200);
+    const html = (await response.text()).replace(/<template[\s\S]*?<\/template>/g, "");
+    assert.doesNotMatch(html, /data-requested/);
+  });
+
   test("a deployed resource reads its last hop from the resource's container", async () => {
     declarations([TEST_DECLARATION]);
     writeInventory([siteEntry({ result: "deployed", version: "0.1.0", target: "0.1.0" })]);
