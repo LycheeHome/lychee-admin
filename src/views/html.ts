@@ -3,6 +3,7 @@ import { computeFilesPath, type Site } from "../lib/caddyfile";
 import {
   describeStatus,
   deployTrouble,
+  troubleGate,
   splitHostnameForDisplay,
   type HostProblem,
   type SiteStatus,
@@ -925,9 +926,10 @@ function changeRepositoryForm(site: Site, resource: SiteResourceView & { repo: s
             </form>`;
 }
 
-/** The gate string, in full, as the services board shows it. */
+/** The gate string, in full, as the services board shows it, and only for a blocked or failed run (`troubleGate`). */
 function gateLine(resource: SiteResourceView): string {
-  return resource.gate ? `<p class="${SERVICE_DETAIL} text-stone-300" data-gate>${escapeHtml(resource.gate)}</p>` : "";
+  const gate = troubleGate(resource);
+  return gate ? `<p class="${SERVICE_DETAIL} text-stone-300" data-gate>${escapeHtml(gate)}</p>` : "";
 }
 
 /**
@@ -1498,7 +1500,11 @@ function renderServiceRow(
   // gets its own line, so a healthy old build never reads as a broken one. An
   // undeployed container's trouble is already its pill, so it gets no line.
   const trouble = undeployed ? null : deployTrouble(row);
-  if (row.result && !trouble) facts.push(row.result);
+  // The raw result word is the reconciler's vocabulary (`skipped`, `deployed`,
+  // `awaiting-image`), not the operator's, so it is never printed. The one
+  // exception is a blocked run with no deploy line to say so: without it the
+  // row would not say the deploy is blocked at all.
+  if (row.result === "blocked" && !trouble) facts.push(row.result);
   if (row.failedAttempts) facts.push(`${row.failedAttempts} ${row.failedAttempts === 1 ? "attempt" : "attempts"}`);
   const changed = formatAge(row.since, now);
   if (changed) facts.push(`changed ${changed}`);
@@ -1543,7 +1549,10 @@ function renderServiceRow(
           ${
             trouble
               ? `<p class="font-mono text-[0.8rem] leading-relaxed m-0" data-deploy-state><span class="${TONE_TEXT[trouble.tone]}"><span aria-hidden="true">&#9679;</span> deploy ${trouble.word}</span>${
-                  trouble.reason === `deploy ${trouble.word}` ? "" : ` <span class="text-stone-400">· ${escapeHtml(trouble.reason)}</span>`
+                  // When the gate line below carries the full sentence, the short
+                  // reason would only repeat it; otherwise the reason stays,
+                  // unless it merely restates `deploy <word>`.
+                  troubleGate(row) !== null || trouble.reason === `deploy ${trouble.word}` ? "" : ` <span class="text-stone-400">· ${escapeHtml(trouble.reason)}</span>`
                 }</p>`
               : ""
           }
@@ -1552,7 +1561,9 @@ function renderServiceRow(
           ${
             // In full, on its own row: the retry-cap string carries the recovery
             // command, and a clamped string would hide the one thing to do.
-            row.gate ? `<p class="${SERVICE_DETAIL} text-stone-300" data-gate>${escapeHtml(row.gate)}</p>` : ""
+            // Only for a blocked or failed run: on a skipped or deployed one the
+            // sentence ("pin unchanged") explains nothing the operator needs.
+            troubleGate(row) ? `<p class="${SERVICE_DETAIL} text-stone-300" data-gate>${escapeHtml(troubleGate(row) ?? "")}</p>` : ""
           }
           ${
             // A failed deploy's tag, step and journal, as a site's page shows

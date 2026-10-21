@@ -1679,7 +1679,8 @@ describe("renderServicesPage", () => {
   test("target different from version renders as applying, showing both as one fact", () => {
     const html = offerBoard({ version: "v0.2.0", target: "v0.3.0", result: "deployed" });
     assert.deepEqual(pills(html), ["applying"]);
-    assert.ok(html.includes("v0.2.0 \u2192 v0.3.0 · deployed"));
+    assert.ok(html.includes("v0.2.0 \u2192 v0.3.0"));
+    assert.ok(!html.includes("v0.3.0 · deployed"));
   });
 
   test("applying is neutral, never red", () => {
@@ -1775,6 +1776,54 @@ describe("renderServicesPage", () => {
     const html = offerBoard({ version: "v1", result: "blocked", status: "running" });
     assert.ok(!html.includes("data-deploy-state"));
     assert.ok(factsLine(html)?.includes("blocked"));
+  });
+
+  test("facts never print the raw reconciler result words", () => {
+    const rows: Record<string, unknown>[] = [
+      { version: "v1.4.0", result: "skipped", gateCode: "up-to-date", gate: "pin unchanged (1.4.0)" },
+      { result: "deployed", gateCode: "ok" },
+      { result: "awaiting-image", gateCode: "awaiting-image" },
+      { version: "v1.4.0", result: "failed", failedAttempts: 1 },
+      { version: "v2.11.4", result: "blocked", gateCode: "ci-failed", gate: "job test concluded: failure" },
+    ];
+    for (const extra of rows) {
+      const facts = factsLine(offerBoard(extra)) ?? "";
+      for (const word of ["skipped", "deployed", "failed", "awaiting-image", "blocked"]) {
+        assert.ok(!facts.includes(word), `${JSON.stringify(extra)} printed ${word}`);
+      }
+    }
+  });
+
+  test("a skipped up-to-date row shows no gate line", () => {
+    const html = offerBoard({ version: "v1.4.0", result: "skipped", gateCode: "up-to-date", gate: "pin unchanged (1.4.0)" });
+    assert.ok(!html.includes("data-gate"));
+  });
+
+  test("a retry-capped row's deploy line is the bare word and the gate line carries the full sentence", () => {
+    const gate = "v0.2.0 failed 3 times; not retrying (promote another tag, or rm /opt/x/.failed-tag)";
+    const html = offerBoard({ result: "blocked", gateCode: "retry-capped", gate });
+    assert.equal(deployLine(html), "● deploy blocked");
+    assert.ok(html.includes(gate));
+    assert.ok(html.includes("data-gate"));
+  });
+
+  test("a not-applied row with no gate keeps its reason on the deploy line", () => {
+    const html = offerBoard({ result: "blocked", gateCode: "not-applied" });
+    assert.equal(deployLine(html), "● deploy blocked · not applied");
+    assert.ok(!html.includes("data-gate"));
+  });
+
+  test("a blocked row with a gate and no code keeps blocked in its facts and its gate line", () => {
+    const html = offerBoard({ version: "v0.2.0", result: "blocked", gate: "job test concluded: failure" });
+    assert.ok(!html.includes("data-deploy-state"));
+    assert.ok(factsLine(html)?.includes("blocked"));
+    assert.ok(html.includes("data-gate"));
+    assert.ok(html.includes("job test concluded: failure"));
+  });
+
+  test("a failed row keeps its gate line; an empty gate renders none", () => {
+    assert.ok(offerBoard({ version: "v1.4.0", result: "failed", gate: "health check failed after install" }).includes("data-gate"));
+    assert.ok(!offerBoard({ result: "failed", gate: "" }).includes("data-gate"));
   });
 
   test("a running host action does not hide the deploy line", () => {
@@ -2671,6 +2720,17 @@ describe("renderSiteDetail from a repository", () => {
     assert.doesNotMatch(c, /data-deploy-failed/);
   });
 
+  test("a running, skipped site shows no gate line", () => {
+    const c = card(
+      renderSiteDetail(NEXT_SITE, {
+        ...BASE,
+        resource: { ...RUNNING_RESOURCE, result: "skipped", gate: "pin unchanged (0.2.0)", available: "0.3.0" },
+        status: { kind: "container", state: "running" },
+      }),
+    );
+    assert.doesNotMatch(c, /data-gate/);
+  });
+
   test("a requested tag whose deploy failed shows the gate, not a promise of the next run", () => {
     for (const result of ["failed", "blocked"]) {
       const c = card(
@@ -2740,7 +2800,8 @@ describe("renderSiteDetail from a repository", () => {
     assert.match(c, /v0\.1\.0/);
     assert.match(c, /repository name is wrong/);
     assert.doesNotMatch(c, /No tag found/);
-    assert.match(c, /no image yet/);
+    // An awaiting-image run is waiting, not in trouble: its gate sentence is not shown.
+    assert.doesNotMatch(c, /no image yet|data-gate/);
     const form = c.match(/<form[^>]*data-change-repository="app\.lychee\.land"[\s\S]*?<\/form>/);
     assert.ok(form, "no change-repository form");
     const input = form[0].match(/<input[^>]*>/);
