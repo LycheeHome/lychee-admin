@@ -283,7 +283,7 @@
       "name": "Offer Button",
       "kind": "button",
       "refersTo": "button-offer",
-      "description": "The one action on a service row: deploy the newer published version. Danger's geometry in the Ember family, because it is an in-row control but not a destructive one.",
+      "description": "The one action on a service row: deploy the newer published version. Danger's geometry in the Ember family, because it is an in-row control but not a destructive one. After a successful Deploy the button is replaced, in the same position, by the requested line: the tag and 'requested' in mono Chalk, then '· applies on the next run' in Smoke, with no control. It is swapped in place from a server-rendered template and takes focus; the server renders it from the declaration until the reconciler's inventory catches up, and only while the pending tag is the offered tag.",
       "html": "<button class=\"ds-btn-offer\">Deploy v1.5.0</button>",
       "css": ".ds-btn-offer { font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-weight: 600; font-size: 0.8rem; background: transparent; color: oklch(81% 0.117 11.638); border: 1px solid oklch(45.5% 0.188 13.697); border-radius: 6px; min-height: 32px; padding: 6px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: color 150ms, background-color 150ms; } .ds-btn-offer:hover { background: oklch(27.1% 0.105 12.094); color: oklch(86.9% 0.005 56.366); } .ds-btn-offer:focus-visible { outline: 2px solid oklch(71.2% 0.194 13.428); outline-offset: 2px; } .ds-btn-offer:active { transform: translateY(1px); } .ds-btn-offer:disabled { cursor: not-allowed; color: oklch(55.3% 0.013 58.071); border-color: oklch(37.4% 0.01 67.558); background: transparent; }"
     },

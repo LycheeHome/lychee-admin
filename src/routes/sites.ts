@@ -4,7 +4,7 @@ import { config } from "../config";
 import * as caddyfile from "../lib/caddyfile";
 import * as tunnelConfig from "../lib/tunnelConfig";
 import { CommandError } from "../lib/systemCommands";
-import { claimedPorts, normalizeRepo, resourceNameFor, type DeclarationSummary } from "../lib/siteResource";
+import { claimedPorts, declaredTag, normalizeRepo, pendingTag, resourceNameFor, type DeclarationSummary } from "../lib/siteResource";
 import { getFrameworkScaffold, getScaffoldFiles } from "../lib/frameworkScaffold";
 import { readInventory, type InventoryEntry } from "../lib/serviceInventory";
 import { checkPortOpen } from "../lib/portStatus";
@@ -141,6 +141,8 @@ async function resolveNextjsSite(site: Site, sources: ResourceSources, deps: Dep
     ...(entry?.gate !== undefined ? { gate: entry.gate } : {}),
     ...(entry?.failedStep !== undefined ? { failedStep: entry.failedStep } : {}),
   };
+  const requestedTag = pendingTag(entry ?? {}, declaredTag(declaration));
+  if (requestedTag !== null) resource.requestedTag = requestedTag;
   if (!resource.version) {
     return { status: undeployedStatus(resource) ?? { kind: "awaiting-image" }, resource, detached: false };
   }

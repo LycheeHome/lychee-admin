@@ -462,6 +462,38 @@ describe("POST /services/:name/deploy", () => {
   });
 });
 
+describe("GET /services — a pending Deploy", () => {
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  after(async () => {
+    await current?.close();
+  });
+  const ROW = { name: "notes", kind: "container", container: "notes", group: "service", reconciled: true,
+    version: "v1.4.0", target: "v1.4.0", available: "v1.5.0" };
+  const ahead = [{ name: "notes", port: 3000, state: "running", image: "ghcr.io/lycheehome/notes:v1.5.0" }];
+
+  async function rowHtml(overrides: Partial<SystemCommands>): Promise<string> {
+    await current?.close();
+    current = await serve(inventory([ROW]), overrides);
+    const res = await current.get("/services");
+    assert.equal(res.status, 200);
+    return (await res.text()).replace(/<template[\s\S]*?<\/template>/g, "");
+  }
+
+  test("a declaration ahead of the inventory shows the requested line, not the offer", async () => {
+    const html = await rowHtml({ readDeclarations: () => Promise.resolve(ahead) });
+    assert.match(html, /data-requested/);
+    assert.doesNotMatch(html, /data-deploy="notes"/);
+  });
+
+  test("an unreadable clone renders the offer", async () => {
+    for (const readDeclarations of [() => Promise.resolve(null), () => Promise.reject(new Error("x"))]) {
+      const html = await rowHtml({ readDeclarations });
+      assert.doesNotMatch(html, /data-requested/);
+      assert.match(html, /data-deploy="notes"/);
+    }
+  });
+});
+
 describe("POST /resources/:name/prune", () => {
   let current: Awaited<ReturnType<typeof serve>> | undefined;
   after(async () => {

@@ -4,6 +4,7 @@ import type { Deps } from "../deps";
 import * as caddyfile from "../lib/caddyfile";
 import { isManagedHostname } from "../lib/siteValidation";
 import { isSiteName } from "../lib/declarationWriter";
+import { declaredTag, pendingTag } from "../lib/siteResource";
 import { isHostAction, readCheckedActionState, readLastRuns, requestAction } from "../lib/hostOperations";
 import { readInventory } from "../lib/serviceInventory";
 import { buildBoard, findTimerUnit } from "../lib/serviceBoard";
@@ -80,7 +81,18 @@ export function createServicesRouter(deps: Deps): express.Router {
         (declarations ?? []).filter((d) => d.state === "absent" && isSiteName(d.name, config.domain)).map((d) => d.name),
       );
 
-      res.type("html").send(renderServicesPage(board, new Date(), prunable, config.domain, lastRuns, group, managed));
+      // A Deploy this app committed that the reconciler has not reported yet.
+      // An unreadable clone has no declarations, so every row keeps its offer.
+      const requested = new Map<string, string>();
+      for (const g of board.groups) {
+        for (const row of g.rows) {
+          if (row.kind !== "container") continue;
+          const tag = pendingTag(row, declaredTag((declarations ?? []).find((d) => d.name === row.name)));
+          if (tag !== null) requested.set(row.name, tag);
+        }
+      }
+
+      res.type("html").send(renderServicesPage(board, new Date(), prunable, config.domain, lastRuns, group, managed, requested));
     } catch (error) {
       res.status(500).type("text/plain").send(`Could not render services: ${String(error)}`);
     }
