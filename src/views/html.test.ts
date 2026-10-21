@@ -570,9 +570,9 @@ describe("renderSiteDetail manual steps", () => {
     );
   });
 
-  test("warns that a missing DNS record still reads as running here", () => {
+  test("warns that a missing DNS record leaves the site unreachable despite passing checks", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
-    assert.match(html, /only checks localhost/);
+    assert.match(html, /checks lychee itself, never Cloudflare/);
   });
 
   test("never emits a command with an empty tunnel id", () => {
@@ -3264,4 +3264,50 @@ describe("one Ember action per site page", () => {
   for (const [name, html] of atMostOne) {
     test(`${name}: at most one Ember below the header`, () => assert.ok(emberCount(html) <= 1, `${emberCount(html)}`));
   }
+});
+
+describe("DNS step and Danger card copy", () => {
+  const DNS = "Until it exists, the site can't be reached from the internet even while every check on this page passes: lychee-admin checks lychee itself, never Cloudflare.";
+  const S1 = "Removing takes the site out of the Caddyfile and the tunnel route, reloads Caddy, then restarts the sites tunnel.";
+  const S2 = "It then retires the site's declaration, which stops its container.";
+  const S3 = "The site's files stay unless you tick the box when you confirm.";
+  const S4 = "lychee-admin never touches the DNS record; delete it in Cloudflare afterwards.";
+
+  function danger(html: string): string {
+    const [, after] = html.split(">Danger</h3>");
+    assert.ok(after, "expected a Danger card");
+    const m = after.match(/<p[^>]*>([\s\S]*?)<\/p>/);
+    assert.ok(m, "expected a Danger paragraph");
+    return m[1];
+  }
+
+  const dnsPages: [string, string][] = [
+    ["with a tunnel id", renderSiteDetail(STATIC_SITE, OPTS)],
+    ["apex", renderSiteDetail(APEX_SITE, OPTS)],
+    ["without a tunnel id", renderSiteDetail(STATIC_SITE, { ...OPTS, tunnelId: "" })],
+  ];
+  for (const [name, html] of dnsPages) {
+    test(`DNS step ${name} states what lychee-admin checks`, () => {
+      assert.ok(html.includes(DNS));
+      assert.ok(!html.includes("still reports the site running"));
+    });
+  }
+
+  test("static site with files: sentences 1, 3, 4", () => {
+    assert.equal(danger(renderSiteDetail(STATIC_SITE, { ...OPTS, filesExist: true })), `${S1} ${S3} ${S4}`);
+  });
+  test("plain proxy: sentences 1 and 4", () => {
+    assert.equal(danger(renderSiteDetail(PROXY_SITE, OPTS)), `${S1} ${S4}`);
+  });
+  test("attached Next.js without files: sentences 1, 2, 4", () => {
+    assert.equal(danger(renderSiteDetail(NEXT_SITE, { ...BASE, resource: RESOURCE })), `${S1} ${S2} ${S4}`);
+  });
+  test("attached Next.js with files: sentences 1, 2, 3, 4", () => {
+    assert.equal(danger(renderSiteDetail(NEXT_SITE, { ...BASE, resource: RESOURCE, filesExist: true })), `${S1} ${S2} ${S3} ${S4}`);
+  });
+  test("no Danger paragraph says 'unless you ask otherwise'", () => {
+    for (const html of [renderSiteDetail(STATIC_SITE, OPTS), renderSiteDetail(NEXT_SITE, { ...BASE, resource: RESOURCE })]) {
+      assert.ok(!danger(html).includes("unless you ask otherwise"));
+    }
+  });
 });

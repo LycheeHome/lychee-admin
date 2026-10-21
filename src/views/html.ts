@@ -660,7 +660,7 @@ function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
   // CNAME leads and the command is a fallback for a machine that has a login.
   const dnsStep: ManualStep = opts.tunnelId
     ? {
-        html: `Create the DNS record, once per hostname: in the Cloudflare dashboard, add a proxied CNAME named <code class="${INLINE_CODE}">${escapeHtml(recordName)}</code> pointing at the target below. Until it exists this page still reports the site running, because lychee-admin only checks localhost.`,
+        html: `Create the DNS record, once per hostname: in the Cloudflare dashboard, add a proxied CNAME named <code class="${INLINE_CODE}">${escapeHtml(recordName)}</code> pointing at the target below. Until it exists, the site can't be reached from the internet even while every check on this page passes: lychee-admin checks lychee itself, never Cloudflare.`,
         command: {
           id: "cmd-dns-target",
           value: `${opts.tunnelId}.cfargotunnel.com`,
@@ -676,7 +676,7 @@ function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
         },
       }
     : {
-        text: "Create the DNS record, once per hostname — add a CNAME for this hostname to your tunnel from the Cloudflare dashboard. Until it exists this page still reports the site running, because lychee-admin only checks localhost.",
+        text: "Create the DNS record, once per hostname — add a CNAME for this hostname to your tunnel from the Cloudflare dashboard. Until it exists, the site can't be reached from the internet even while every check on this page passes: lychee-admin checks lychee itself, never Cloudflare.",
       };
   const steps: ManualStep[] = [dnsStep];
 
@@ -704,13 +704,23 @@ function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
  * Destructive action, isolated and labelled. The consequence line states what
  * actually happens because the ordering matters: files are a separate second
  * request, so a failed config removal can never cascade into a deletion.
+ * It says only what lychee-admin does: the declaration sentence appears when
+ * the site is attached (the dialog's fifth step), the files sentence only
+ * where the dialog offers its delete-files checkbox, and the DNS record is
+ * never touched, so the last sentence always says so.
  */
-function renderDangerZone(): string {
+function renderDangerZone(opts: { attached: boolean; deletableFiles: boolean }): string {
+  const sentences = [
+    "Removing takes the site out of the Caddyfile and the tunnel route, reloads Caddy, then restarts the sites tunnel.",
+    ...(opts.attached ? ["It then retires the site's declaration, which stops its container."] : []),
+    ...(opts.deletableFiles ? ["The site's files stay unless you tick the box when you confirm."] : []),
+    "lychee-admin never touches the DNS record; delete it in Cloudflare afterwards.",
+  ];
   return `
       <section class="border border-red-900/60 bg-red-950/20 rounded-[10px] p-5 mt-4 flex items-center justify-between gap-4 flex-wrap">
         <div class="min-w-0">
           <h3 class="${CARD_LABEL_BASE} text-red-300 m-0 mb-1.5">Danger</h3>
-          <p class="text-stone-400 text-[0.8rem] leading-snug m-0 max-w-[70ch]">Removing takes the site out of the Caddyfile and the tunnel route, reloads Caddy, then restarts the sites tunnel. Your DNS record and files stay unless you ask otherwise.</p>
+          <p class="text-stone-400 text-[0.8rem] leading-snug m-0 max-w-[70ch]">${sentences.join(" ")}</p>
         </div>
         <button type="button" class="${BUTTON_DANGER} shrink-0" data-open-dialog="confirm-remove-dialog">${icon("trash")}Remove site</button>
       </section>`;
@@ -1211,7 +1221,7 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
       ${manualSteps}` : `${manualSteps}
       ${repositoryCard}`}
 
-      ${renderDangerZone()}
+      ${renderDangerZone({ attached: attachedName !== null, deletableFiles: Boolean(filesPath && opts.filesExist) })}
     </div>
 
     <dialog id="confirm-remove-dialog"${attachedName ? ` data-attached="true"` : ""} aria-labelledby="confirm-remove-title" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
