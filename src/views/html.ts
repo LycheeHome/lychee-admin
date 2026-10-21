@@ -1510,6 +1510,7 @@ function renderServiceRow(
   // gets its own line, so a healthy old build never reads as a broken one. An
   // undeployed container's trouble is already its pill, so it gets no line.
   const trouble = undeployed ? null : deployTrouble(row);
+  const gate = troubleGate(row);
   // The raw result word is the reconciler's vocabulary (`skipped`, `deployed`,
   // `awaiting-image`), not the operator's, so it is never printed. The one
   // exception is a blocked run with no deploy line to say so: without it the
@@ -1562,7 +1563,7 @@ function renderServiceRow(
                   // When the gate line below carries the full sentence, the short
                   // reason would only repeat it; otherwise the reason stays,
                   // unless it merely restates `deploy <word>`.
-                  troubleGate(row) !== null || trouble.reason === `deploy ${trouble.word}` ? "" : ` <span class="text-stone-400">· ${escapeHtml(trouble.reason)}</span>`
+                  gate !== null || trouble.reason === `deploy ${trouble.word}` ? "" : ` <span class="text-stone-400">· ${escapeHtml(trouble.reason)}</span>`
                 }</p>`
               : ""
           }
@@ -1573,7 +1574,7 @@ function renderServiceRow(
             // command, and a clamped string would hide the one thing to do.
             // Only for a blocked or failed run: on a skipped or deployed one the
             // sentence ("pin unchanged") explains nothing the operator needs.
-            troubleGate(row) ? `<p class="${SERVICE_DETAIL} text-stone-300" data-gate>${escapeHtml(troubleGate(row) ?? "")}</p>` : ""
+            gate ? `<p class="${SERVICE_DETAIL} text-stone-300" data-gate>${escapeHtml(gate)}</p>` : ""
           }
           ${
             // A failed deploy's tag, step and journal, as a site's page shows
