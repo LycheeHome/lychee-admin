@@ -4,6 +4,7 @@ import { once } from "node:events";
 import type { Server } from "node:http";
 import bcrypt from "bcrypt";
 import type { Deps } from "../deps";
+import type { ClientAssets } from "../views/clientShell";
 import type { SystemCommands } from "../lib/systemCommands";
 import { withoutHeader } from "../dev/testHelpers";
 
@@ -32,6 +33,7 @@ async function serve(
   inventoryJson: string | null,
   overrides: Partial<SystemCommands>,
   seed: { opRun?: { delayMs?: number } } = {},
+  clientAssets?: ClientAssets | null,
 ): Promise<{ base: string; fs: Deps["fs"]; get: (p: string) => Promise<Response>; actions: () => string[]; audit: () => Record<string, unknown>[]; close: () => Promise<void> }> {
   const { createApp } = await import("../app");
   const { createBackup } = await import("../lib/backup");
@@ -44,6 +46,7 @@ async function serve(
     fs: fakes.fs,
     backup: createBackup(fakes.fs),
     logger: createLogger(fakes.fs),
+    clientAssets,
   };
   const server: Server = createApp(deps).listen(0);
   await once(server, "listening");
@@ -292,7 +295,6 @@ describe("the three board pages", () => {
   const PAGES = [
     { path: "/services", eyebrow: "Services", only: ["lychee-admin", "swee", "palsave-api"], never: ["lychee-reconcile-timer", "caddy"] },
     { path: "/reconciler", eyebrow: "Reconciler", only: ["lychee-reconcile-timer", "lychee-watch-timer"], never: ["swee", "caddy"] },
-    { path: "/infrastructure", eyebrow: "Infrastructure", only: ["caddy", "cloudflared-sites"], never: ["swee", "lychee-watch-timer"] },
   ];
 
   for (const page of PAGES) {
@@ -334,7 +336,7 @@ describe("the three board pages", () => {
 
   test("a readable inventory with nothing in a page's group says so in one sentence", async () => {
     const s = await start(inventory([SWEE]), {});
-    for (const path of ["/reconciler", "/infrastructure"]) {
+    for (const path of ["/reconciler"]) {
       const html = await (await s.get(path)).text();
       assert.ok(html.includes('id="group-empty"'), path);
       assert.ok(!html.includes('id="inventory-unavailable"'), path);
@@ -350,9 +352,42 @@ describe("the three board pages", () => {
     const s = await start(inventory([...RECONCILER, SWEE]), {
       readUnitStates: (units) => (calls.push(units), Promise.resolve({})),
     });
-    for (const path of ["/services", "/reconciler", "/infrastructure"]) await s.get(path);
-    assert.equal(calls.length, 3);
+    for (const path of ["/services", "/reconciler"]) await s.get(path);
+    assert.equal(calls.length, 2);
     for (const units of calls) assert.deepEqual(units, ["lychee-reconcile.timer", "lychee-reconcile.service", "swee.service"]);
+  });
+});
+
+describe("GET /infrastructure: the React mount", () => {
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  after(async () => {
+    await current?.close();
+  });
+  const ASSETS: ClientAssets = { script: "assets/main-abc.js", styles: ["assets/main-def.css"] };
+
+  test("serves the shell with the mount point and the bundle", async () => {
+    current = await serve(null, {}, {}, ASSETS);
+    const res = await current.get("/infrastructure");
+    assert.equal(res.status, 200);
+    const html = await res.text();
+    assert.ok(html.includes('id="app-root" data-page="infrastructure"'));
+    assert.ok(html.includes('<script type="module" src="/client/assets/main-abc.js">'));
+    assert.match(html, /<a href="\/infrastructure"[^>]*aria-current="page"/);
+    await current.close();
+  });
+
+  test("answers 500 when the bundle is missing", async () => {
+    current = await serve(null, {}, {}, null);
+    const res = await current.get("/infrastructure");
+    assert.equal(res.status, 500);
+    assert.equal(await res.text(), "client bundle missing; run npm run build");
+    await current.close();
+  });
+
+  test("requires authentication", async () => {
+    current = await serve(null, {}, {}, ASSETS);
+    assert.equal((await fetch(`${current.base}/infrastructure`)).status, 401);
+    await current.close();
   });
 });
 

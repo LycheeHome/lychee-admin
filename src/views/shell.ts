@@ -12,6 +12,10 @@ export interface Banner {
 export interface LayoutOptions {
   nav: Nav;
   banner?: Banner;
+  /** Markup inserted before `</head>`. */
+  head?: string;
+  /** Markup inserted before the shell's own scripts. */
+  bodyEnd?: string;
 }
 
 const HEADER_ITEM =
@@ -141,7 +145,7 @@ export function layout(title: string, body: string, opts: LayoutOptions): string
     href="https://fonts.googleapis.com/css2?family=Poetsen+One&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;1,500&family=DM+Mono:wght@300;400;500&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/style.css" />${opts.head ? `\n  ${opts.head}` : ""}
 </head>
 <body class="min-h-screen bg-stone-900 font-sans text-stone-50 m-0 px-6 pb-16">
   ${renderHeader(opts.nav)}
@@ -158,7 +162,7 @@ export function layout(title: string, body: string, opts: LayoutOptions): string
     <span id="copy-status" class="sr-only" role="status" aria-live="polite"></span>
     ${renderPageNotice(opts.banner)}
     ${body}
-  </main>
+  </main>${opts.bodyEnd ? `\n  ${opts.bodyEnd}` : ""}
   <script src="/actionPoll.js"></script>
   <script src="/app.js"></script>
 </body>

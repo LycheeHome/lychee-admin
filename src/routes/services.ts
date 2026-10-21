@@ -11,6 +11,7 @@ import { buildBoard, findTimerUnit } from "../lib/serviceBoard";
 import type { ServiceBoard } from "../lib/serviceBoard";
 import type { ApiError, ApiOk } from "../shared/board";
 import { renderServicesPage } from "../views/html";
+import { renderClientPage } from "../views/clientShell";
 import type { ServiceGroup } from "../lib/serviceInventory";
 import type { ServiceStatus, TimerSchedule } from "../lib/unitState";
 
@@ -23,7 +24,6 @@ const CONFIRM_DOWN_REASON = "the container hasn't been confirmed down yet; try a
 const BOARD_PAGES: ReadonlyArray<[path: string, group: ServiceGroup]> = [
   ["/services", "service"],
   ["/reconciler", "reconciler"],
-  ["/infrastructure", "infrastructure"],
 ];
 
 const GROUPS: readonly ServiceGroup[] = ["reconciler", "service", "infrastructure"];
@@ -109,6 +109,14 @@ export function createServicesRouter(deps: Deps): express.Router {
   // group. Reading only one group's units would be a second path to keep in
   // step with this one, for the price of a few systemctl properties.
   for (const [path, group] of BOARD_PAGES) router.get(path, (_req, res) => renderBoardPage(res, group));
+
+  // Migrated to the client: the shared shell around a React mount point. The
+  // data comes from /api/services, so nothing here reads the board.
+  router.get("/infrastructure", (_req, res) => {
+    const assets = deps.clientAssets;
+    if (!assets) return res.status(500).type("text/plain").send("client bundle missing; run npm run build");
+    return res.type("html").send(renderClientPage("Infrastructure", "infrastructure", { page: "infrastructure" }, assets));
+  });
 
   async function renderBoardPage(res: express.Response, group: ServiceGroup): Promise<void> {
     // Every read below already degrades, so this should be unreachable; it is

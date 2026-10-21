@@ -8,6 +8,7 @@ import type { Deps } from "../deps";
 import { createBackup } from "../lib/backup";
 import { createLogger } from "../lib/logger";
 import { type ClientConfig, startClientSockets } from "../lib/clients";
+import { readClientManifest } from "../views/clientShell";
 import { createFakes } from "./fakes";
 import { applySeed, SEEDED_DECLARATIONS } from "./seed";
 
@@ -19,6 +20,7 @@ const deps: Deps = {
   fs,
   backup: createBackup(fs),
   logger: createLogger(fs),
+  clientAssets: readClientManifest(path.join(__dirname, "..", "..", "public")),
 };
 
 createApp(deps).listen(config.port, config.host, () => {

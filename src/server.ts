@@ -1,4 +1,6 @@
+import path from "node:path";
 import { config } from "./config";
+import { readClientManifest } from "./views/clientShell";
 import { createApp } from "./app";
 import type { Deps } from "./deps";
 import { createBackup } from "./lib/backup";
@@ -13,6 +15,8 @@ const deps: Deps = {
   fs: realFileSystem,
   backup: createBackup(realFileSystem),
   logger: createLogger(realFileSystem),
+  // The same public directory app.ts serves, for dist/ and tsx-run src alike.
+  clientAssets: readClientManifest(path.join(__dirname, "..", "public")),
 };
 
 createApp(deps).listen(config.port, config.host, () => {
