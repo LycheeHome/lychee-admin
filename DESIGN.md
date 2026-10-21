@@ -922,6 +922,18 @@ the two that can ever carry an action, and eight of them would hold an empty
 cell on a board whose whole job is a five-second glance. A row with nothing to
 offer is byte-identical to one from before the feature existed.
 
+**The requested line.** Once Deploy succeeds, the offer is replaced in the same
+position by the requested line: the tag and the word `requested` in mono Chalk,
+then `· applies on the next run` in Smoke, with no control, because there is
+nothing left to press. It is swapped in place from a template the server
+rendered into the page, so the client never composes its markup, and it takes
+focus so the change is announced. The server renders the same line from the
+declaration it just committed, not from the inventory, until the reconciler's
+inventory catches up; it shows only while the pending tag is the offered tag,
+and the pill and every other line on the row are unchanged. When the inventory
+catches up, the row's own states (`applying`, step four's "requested") take
+over.
+
 **The same line serves a site's own page.** An attached Next.js site's
 repository card carries the offer from the same renderer and the same Deploy
 control, posting to the same endpoint — a Compact primary during the first
