@@ -762,39 +762,42 @@ document.querySelectorAll("[data-close-dialog]").forEach((trigger) => {
 
 const copyStatus = document.getElementById("copy-status");
 
-document.querySelectorAll("[data-copy-target]").forEach((button) => {
+// Delegated from the document rather than bound per button, so a copy button
+// in markup rendered after this script ran (the React pages under #app-root)
+// works the same as one the server rendered.
+document.addEventListener("click", async (event) => {
+  const button = event.target instanceof Element ? event.target.closest("[data-copy-target]") : null;
+  if (!button) return;
   const idleIcon = button.querySelector('[data-copy-icon="idle"]');
   const copiedIcon = button.querySelector('[data-copy-icon="copied"]');
-  button.addEventListener("click", async () => {
-    const target = document.getElementById(button.dataset.copyTarget);
-    if (!target) return;
-    const originalLabel = button.getAttribute("aria-label") ?? "Copy to clipboard";
-    try {
-      await navigator.clipboard.writeText(target.textContent ?? "");
-      button.setAttribute("aria-label", "Copied!");
-      if (copyStatus) copyStatus.textContent = "Copied to clipboard";
-      idleIcon?.classList.add("hidden");
-      copiedIcon?.classList.remove("hidden");
-    } catch {
-      // Insecure context (plain http over the LAN, which is how this app is
-      // actually deployed — see CLAUDE.md) or clipboard permission denied.
-      // navigator.clipboard is undefined outside secure contexts, so even
-      // accessing .writeText throws synchronously; select the text so the
-      // user can still copy it manually with Ctrl+C. No icon change here —
-      // the selected/highlighted text is the real signal for this case.
-      window.getSelection()?.selectAllChildren(target);
-      button.setAttribute("aria-label", "Press Ctrl+C to copy");
-      // The selection is the whole affordance in this branch, and a selection
-      // is not something a screen reader announces on its own.
-      if (copyStatus) copyStatus.textContent = "Text selected — press Ctrl+C to copy";
-    }
-    setTimeout(() => {
-      button.setAttribute("aria-label", originalLabel);
-      if (copyStatus) copyStatus.textContent = "";
-      idleIcon?.classList.remove("hidden");
-      copiedIcon?.classList.add("hidden");
-    }, 1500);
-  });
+  const target = document.getElementById(button.dataset.copyTarget);
+  if (!target) return;
+  const originalLabel = button.getAttribute("aria-label") ?? "Copy to clipboard";
+  try {
+    await navigator.clipboard.writeText(target.textContent ?? "");
+    button.setAttribute("aria-label", "Copied!");
+    if (copyStatus) copyStatus.textContent = "Copied to clipboard";
+    idleIcon?.classList.add("hidden");
+    copiedIcon?.classList.remove("hidden");
+  } catch {
+    // Insecure context (plain http over the LAN, which is how this app is
+    // actually deployed — see CLAUDE.md) or clipboard permission denied.
+    // navigator.clipboard is undefined outside secure contexts, so even
+    // accessing .writeText throws synchronously; select the text so the
+    // user can still copy it manually with Ctrl+C. No icon change here —
+    // the selected/highlighted text is the real signal for this case.
+    window.getSelection()?.selectAllChildren(target);
+    button.setAttribute("aria-label", "Press Ctrl+C to copy");
+    // The selection is the whole affordance in this branch, and a selection
+    // is not something a screen reader announces on its own.
+    if (copyStatus) copyStatus.textContent = "Text selected — press Ctrl+C to copy";
+  }
+  setTimeout(() => {
+    button.setAttribute("aria-label", originalLabel);
+    if (copyStatus) copyStatus.textContent = "";
+    idleIcon?.classList.remove("hidden");
+    copiedIcon?.classList.add("hidden");
+  }, 1500);
 });
 
 document.querySelectorAll("dialog.modal").forEach((dialog) => {
