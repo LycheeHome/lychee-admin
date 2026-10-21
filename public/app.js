@@ -364,9 +364,22 @@ syncPortField();
 const frameworkField = document.getElementById("framework-field");
 const healthcheckFieldWrapper = document.getElementById("healthcheck-field-wrapper");
 
+const proxyDescription = document.getElementById("type-proxy-description");
+const proxyDescriptionNextjs = document.getElementById("type-proxy-description-nextjs");
+const proxyRadio = document.querySelector('input[name="type"][value="reverse-proxy"]');
+
 function syncFrameworkFields() {
   const isNextjs = frameworkField?.value === "nextjs";
   if (healthcheckFieldWrapper) healthcheckFieldWrapper.style.display = isNextjs ? "flex" : "none";
+  // The plain-proxy sentence ("won't start, stop, or restart that process") is
+  // false for Next.js, where the reconciler runs the container. Swap which one
+  // is visible, and which one the radio's description points at, so a screen
+  // reader hears the true one too.
+  if (proxyDescription && proxyDescriptionNextjs) {
+    proxyDescription.classList.toggle("hidden", isNextjs);
+    proxyDescriptionNextjs.classList.toggle("hidden", !isNextjs);
+    proxyRadio?.setAttribute("aria-describedby", isNextjs ? "type-proxy-description-nextjs" : "type-proxy-description");
+  }
 }
 
 frameworkField?.addEventListener("change", syncFrameworkFields);
@@ -374,14 +387,17 @@ syncFrameworkFields();
 
 function validatePortField() {
   if (!portField || !portError) return;
-  const owner = portOwners[portField.value];
-  if (owner) {
-    portField.setCustomValidity(`Port ${portField.value} is already in use by ${owner}`);
+  // The server's finished sentence (portConflictMessage), shown as is: the
+  // preview panel reports the same conflict in the same words, so the client
+  // adds no wording of its own.
+  const sentence = portOwners[portField.value];
+  if (sentence) {
+    portField.setCustomValidity(sentence);
     // Unhide before writing: a mutation inside a display:none subtree is not
     // announced, and revealing an element that already holds its text
     // generally isn't either — see the same fix beside #add-site-error.
     portError.classList.remove("hidden");
-    portError.textContent = `Already in use by ${owner}`;
+    portError.textContent = sentence;
   } else {
     portField.setCustomValidity("");
     portError.classList.add("hidden");

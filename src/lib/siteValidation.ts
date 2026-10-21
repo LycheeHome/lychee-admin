@@ -20,13 +20,36 @@ export interface SiteEnv {
   sitesRoot: string;
   caddyfilePath: string;
   tunnelConfigPath: string;
-  /** lychee-admin's own port and Caddy's admin API, which no site may claim. */
-  reservedPorts: readonly number[];
+  /** Ports no site may claim, each mapped to who reserves it (lychee-admin itself, Caddy's admin API). */
+  reservedPorts: ReadonlyMap<number, string>;
   /** Hostnames served by config this app never parses; add-site refuses them. */
   reservedHostnames: readonly string[];
 }
 
 export type Validation = { ok: true } | { ok: false; error: string };
+
+/** Whatever already holds a port an add-site request asked for. */
+export type PortOwner =
+  | { kind: "reserved"; who: string }
+  | { kind: "site"; hostname: string }
+  | { kind: "declared"; name: string };
+
+/**
+ * The one sentence for a port conflict. The validator returns it and the
+ * add-site route hands the same string to the form's port field, so the field
+ * and the preview panel never describe one conflict two ways, and the client
+ * composes no wording of its own.
+ */
+export function portConflictMessage(port: number, owner: PortOwner): string {
+  switch (owner.kind) {
+    case "reserved":
+      return `Port ${port} is reserved for ${owner.who}.`;
+    case "site":
+      return `Port ${port} is already used by ${owner.hostname}.`;
+    case "declared":
+      return `Port ${port} is already claimed by ${owner.name} in lychee-resources.`;
+  }
+}
 
 const HEALTHCHECK_PATH_PATTERN = /^\/[A-Za-z0-9._~\-/]{0,199}$/;
 
@@ -135,25 +158,24 @@ export function validateAgainstExisting(
 
   if (input.type !== "reverse-proxy") return { ok: true };
 
-  if (env.reservedPorts.includes(Number(input.port))) {
-    return {
-      ok: false,
-      error: `Port ${input.port} is reserved (used by lychee-admin itself or Caddy's admin API)`,
-    };
+  const port = Number(input.port);
+  const reservedFor = env.reservedPorts.get(port);
+  if (reservedFor) {
+    return { ok: false, error: portConflictMessage(port, { kind: "reserved", who: reservedFor }) };
   }
 
   // Every claim counts, absent declarations included: two declarations on one
   // port make the reconciler reject both.
-  const claimant = declaredPorts.get(Number(input.port));
+  const claimant = declaredPorts.get(port);
   if (claimant) {
-    return { ok: false, error: `Port ${input.port} is already claimed by ${claimant} in lychee-resources.` };
+    return { ok: false, error: portConflictMessage(port, { kind: "declared", name: claimant }) };
   }
 
   const conflicting = parseSites(caddyfileContent).find(
     (site) => site.type === "reverse-proxy" && site.target === input.port,
   );
   if (conflicting) {
-    return { ok: false, error: `Port ${input.port} is already used by ${conflicting.hostname}` };
+    return { ok: false, error: portConflictMessage(port, { kind: "site", hostname: conflicting.hostname }) };
   }
 
   return { ok: true };

@@ -12,6 +12,7 @@ import { ADD_STEPS, REMOVE_STEPS, createStepReport } from "../lib/stepReport";
 import {
   isManagedHostname,
   isValidHostname,
+  portConflictMessage,
   readSiteInput,
   validateAgainstExisting,
   validateSiteInput,
@@ -29,17 +30,19 @@ import { hostProblems, hostProblemUnits, undeployedStatus, type SiteStatus } fro
 import type { UnitState } from "../lib/unitState";
 import type { Site } from "../lib/caddyfile";
 import type { Deps } from "../deps";
-import { IMAGE_PREFIX, RESERVED_PORTS } from "../lib/platform";
+import { IMAGE_PREFIX, RESERVED_PORT_OWNERS } from "../lib/platform";
 
-// Reserved ports come from the platform's one RESERVED_PORTS: this app's own
+// Reserved ports come from the platform's RESERVED_PORT_OWNERS: this app's own
 // port and Caddy's built-in admin API, which is always on localhost regardless
-// of what's in the Caddyfile, so parsing existing sites can't catch it.
+// of what's in the Caddyfile, so parsing existing sites can't catch it. Each
+// keeps its owner, so a refusal names one; config.port is added last so the
+// app's actual port is always named as its own, whatever the default was.
 const SITE_ENV: SiteEnv = {
   domain: config.domain,
   sitesRoot: config.sitesRoot,
   caddyfilePath: config.caddyfilePath,
   tunnelConfigPath: config.tunnelConfigPath,
-  reservedPorts: [...new Set([config.port, ...RESERVED_PORTS])],
+  reservedPorts: new Map([...RESERVED_PORT_OWNERS, [config.port, "lychee-admin itself"]]),
   reservedHostnames: config.reservedHostnames,
 };
 
@@ -47,13 +50,19 @@ const PLACEHOLDER_INDEX_HTML = (hostname: string) =>
   `<!doctype html>\n<html><head><title>${hostname}</title></head><body><h1>${hostname}</h1><p>Site created by lychee-admin. Replace this file with your content.</p></body></html>\n`;
 
 // Ports already spoken for, so the add-site form can flag a conflict
-// client-side as the user types instead of only on submit.
+// client-side as the user types instead of only on submit. Each maps to the
+// finished sentence the validator would return (portConflictMessage), so the
+// field and the preview panel show the same words; the client adds none.
+// Declared claims are left to the preview: only the server reads the clone.
 function computePortOwners(sites: Site[]): Record<string, string> {
   const portOwners: Record<string, string> = {};
-  for (const port of RESERVED_PORTS) portOwners[String(port)] = "reserved (Caddy admin API)";
-  portOwners[String(config.port)] = "reserved (lychee-admin itself)";
+  for (const [port, who] of SITE_ENV.reservedPorts) {
+    portOwners[String(port)] = portConflictMessage(port, { kind: "reserved", who });
+  }
   for (const site of sites) {
-    if (site.type === "reverse-proxy") portOwners[site.target] = site.hostname;
+    if (site.type === "reverse-proxy" && !portOwners[site.target]) {
+      portOwners[site.target] = portConflictMessage(Number(site.target), { kind: "site", hostname: site.hostname });
+    }
   }
   return portOwners;
 }
@@ -577,7 +586,7 @@ export function createSitesRouter(deps: Deps): Router {
       }
 
       const port = Number(site.target);
-      if (SITE_ENV.reservedPorts.includes(port)) {
+      if (SITE_ENV.reservedPorts.has(port)) {
         res.status(400).json({ ok: false, reason: `Port ${port} is reserved and cannot be declared.` });
         return;
       }

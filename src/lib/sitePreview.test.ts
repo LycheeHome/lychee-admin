@@ -10,7 +10,7 @@ const ENV: SiteEnv = {
   sitesRoot: "/var/www",
   caddyfilePath: "/etc/caddy/Caddyfile",
   tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
-  reservedPorts: [8787, 2019],
+  reservedPorts: new Map([[8787, "lychee-admin itself"], [2019, "Caddy's admin API"]]),
   reservedHostnames: [],
 };
 

@@ -478,14 +478,38 @@ describe("POST /sites — reverse proxy", () => {
   test("rejects a reserved port", async () => {
     const response = await request("/sites", form({ hostname: "clash.lychee.land", type: "reverse-proxy", port: "2019" }));
     assert.equal(response.status, 400);
-    assert.equal((await json<{ error: string }>(response)).error, "Port 2019 is reserved (used by lychee-admin itself or Caddy's admin API)");
+    assert.equal((await json<{ error: string }>(response)).error, "Port 2019 is reserved for Caddy's admin API.");
   });
 
-  test("the preview rejects 2019 with the same message, and the form labels it", async () => {
-    const preview = await json<{ error: string }>(await request("/sites/preview", form({ hostname: "clash.lychee.land", type: "reverse-proxy", port: "2019" })));
-    assert.equal(preview.error, "Port 2019 is reserved (used by lychee-admin itself or Caddy's admin API)");
+  /** The add-site page's field map: port → the finished sentence the field shows. */
+  async function portOwners(): Promise<Record<string, string>> {
     const body = await (await request("/sites/new")).text();
-    assert.match(body, /"2019":"reserved \(Caddy admin API\)"/);
+    const raw = body.match(/<script type="application\/json" id="port-owners-data">([^<]*)<\/script>/)?.[1];
+    assert.ok(raw, "expected the port-owners-data script");
+    return JSON.parse(raw);
+  }
+
+  test("the preview and the field show the identical sentence for 2019", async () => {
+    const preview = await json<{ error: string }>(await request("/sites/preview", form({ hostname: "clash.lychee.land", type: "reverse-proxy", port: "2019" })));
+    assert.equal(preview.error, "Port 2019 is reserved for Caddy's admin API.");
+    assert.equal((await portOwners())["2019"], preview.error);
+  });
+
+  test("the app's own port is lychee-admin's in the field and the panel", async () => {
+    const owners = await portOwners();
+    const own = Object.entries(owners).find(([, sentence]) => sentence.includes("lychee-admin itself"));
+    assert.ok(own, "expected the app's own port in the field map");
+    const [port, sentence] = own;
+    assert.equal(sentence, `Port ${port} is reserved for lychee-admin itself.`);
+    const preview = await json<{ error: string }>(await request("/sites/preview", form({ hostname: "clash.lychee.land", type: "reverse-proxy", port })));
+    assert.equal(preview.error, sentence);
+  });
+
+  test("a site's port in the field map is the validator's sentence", async () => {
+    const owners = await portOwners();
+    assert.equal(owners["4000"], "Port 4000 is already used by api.lychee.land.");
+    const response = await request("/sites", form({ hostname: "clash.lychee.land", type: "reverse-proxy", port: "4000" }));
+    assert.equal((await json<{ error: string }>(response)).error, owners["4000"]);
   });
 
   test("rejects a missing or out-of-range port", async () => {
@@ -1203,6 +1227,13 @@ describe("POST /sites/:hostname/attach", () => {
     });
     const entry = JSON.parse(fakeFs.readFile(LOG_FILE).trim().split("\n").at(-1)!);
     assert.equal(entry.action, "attach-site-failed");
+  });
+
+  test("a site whose Caddy port is reserved is refused and writes nothing", async () => {
+    writeFixtures(NEXT_CADDYFILE.replace("reverse_proxy localhost:3000", "reverse_proxy localhost:2019"));
+    const response = await request("/sites/test.lychee.land/attach", form({ repo: "test-site" }));
+    assert.equal(response.status, 400);
+    assert.deepEqual(created, []);
   });
 
   test("an unknown site or a site that is not Next.js is a 404", async () => {
