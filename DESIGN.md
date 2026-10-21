@@ -432,8 +432,9 @@ says its own name and names a site.
   sentence. Every Body sentence is capped at 25rem, about 70 characters at
   0.8rem; the card keeps its 760px width, and mono content beside the prose
   stays full width. The cap is in rem because a `ch` is the width of a zero,
-  so `70ch` held about 95 Nunito letters. Dialog paragraphs step up to 1rem
-  with relaxed leading.
+  so `70ch` held about 95 Nunito letters. The one narrower measure is the
+  empty state's pitch, which keeps its own 46ch (about 62 letters). Dialog
+  paragraphs step up to 1rem with relaxed leading.
 - **Body Strong** (Nunito, 0.9rem, weight 600, Chalk): The title line of a
   selectable option row, sitting above the Body sentence that explains what the
   choice commits you to. One step above Body on purpose — the title has to win

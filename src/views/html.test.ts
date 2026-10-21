@@ -3400,11 +3400,16 @@ describe("the requested line", () => {
 });
 
 describe("Smoke sentences hold a readable measure", () => {
-  /** Every Smoke paragraph (Body classes, not mono) that lacks the 25rem cap. */
+  /**
+   * Every Smoke paragraph (Body classes, not mono) that lacks the 25rem cap.
+   * The one sanctioned narrower measure is the Empty State component's
+   * `max-w-[46ch]` (about 62 letters), which DESIGN.md's Body entry names.
+   */
   function uncappedSmoke(html: string): string[] {
     return (html.match(/<p\b[^>]*>/g) ?? []).filter((tag) => {
       const cls = tag.match(/class="([^"]*)"/)?.[1] ?? "";
-      return cls.includes("text-stone-400") && cls.includes("text-[0.8rem]") && !cls.includes("font-mono") && !cls.includes("max-w-[25rem]");
+      const capped = cls.includes("max-w-[25rem]") || cls.includes("max-w-[46ch]");
+      return cls.includes("text-stone-400") && cls.includes("text-[0.8rem]") && !cls.includes("font-mono") && !capped;
     });
   }
 
@@ -3432,6 +3437,8 @@ describe("Smoke sentences hold a readable measure", () => {
     ["retired declaration", renderSiteDetail(NEXT_SITE, { ...BASE, detached: true, status: { kind: "container", state: "not-created" } })],
     ["services board with a failed row", failedBoard],
     ["add-site page", renderAddSite(SITES, "lychee.land", {}, PATHS)],
+    ["sites list, empty", renderSiteList([], {}, "lychee.land")],
+    ["sites list, populated", renderSiteList(SITES, {}, "lychee.land")],
   ];
 
   test("the measure is 25rem, in rem and not ch", () => {
