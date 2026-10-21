@@ -3346,7 +3346,9 @@ describe("the requested line", () => {
     const line = renderRequestedLine("0.3.0");
     assert.match(line, /<span data-requested-tag>0\.3\.0<\/span>/);
     assert.equal(text(line), "0.3.0 requested · applies on the next run");
-    const page = renderSiteDetail(NEXT_SITE, { ...BASE, resource: { ...RUNNING_RESOURCE, available: "0.3.0" } });
+    // What role="status" announces: tags removed with nothing inserted in their place.
+    assert.equal(line.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim(), "0.3.0 requested · applies on the next run");
+    const page =renderSiteDetail(NEXT_SITE, { ...BASE, resource: { ...RUNNING_RESOURCE, available: "0.3.0" } });
     const template = page.match(/<template data-requested-template>([\s\S]*?)<\/template>/);
     assert.ok(template, "page carries the template");
     assert.match(template[1], /<span data-requested-tag>TAG<\/span>/);

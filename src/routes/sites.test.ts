@@ -1021,6 +1021,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     assert.equal(response.status, 200);
     const html = (await response.text()).replace(/<template[\s\S]*?<\/template>/g, "");
     assert.doesNotMatch(html, /data-requested/);
+    assert.match(html, /data-deploy="test-lychee-land"/);
   });
 
   test("a deployed resource reads its last hop from the resource's container", async () => {

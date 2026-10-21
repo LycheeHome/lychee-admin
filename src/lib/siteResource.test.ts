@@ -82,6 +82,10 @@ describe("declaredTag", () => {
     assert.equal(declaredTag(decl("host:5000/app")), null);
   });
 
+  test("an empty tag is no tag", () => {
+    assert.equal(declaredTag(decl("ghcr.io/lycheehome/app:")), null);
+  });
+
   test("a digest is not a tag", () => {
     assert.equal(declaredTag(decl("ghcr.io/lycheehome/app@sha256:abc")), null);
   });
