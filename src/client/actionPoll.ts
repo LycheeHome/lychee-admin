@@ -1,12 +1,12 @@
 /*
  * What the services board does with one answer from a host action's state
  * route: keep going, show the running state, or stop and re-read the board so
- * the server's reading decides. A typed port of public/actionPoll.js, with
- * the same constants and the same decisions; its tests are ported too
+ * the server's reading decides. A typed port of the retired public/actionPoll.js,
+ * with the same constants and the same decisions; its tests were ported too
  * (actionPoll.test.ts). The one property that matters: the poll always ends.
  *
  * "reload" keeps its name from the original, where it reloaded the page. The
- * React board re-fetches the board instead (HostActions in BoardRows.tsx).
+ * React board re-fetches the board instead (components/HostActions.tsx).
  */
 
 /**

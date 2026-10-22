@@ -52,8 +52,9 @@ describe("renderClientPage", () => {
   });
 
   test("puts the module script before the shell's own scripts", () => {
-    assert.ok(html.indexOf("/client/assets/main-abc.js") < html.indexOf('src="/actionPoll.js"'));
-    assert.ok(html.indexOf('src="/actionPoll.js"') < html.indexOf('src="/app.js"'));
+    assert.ok(html.indexOf("/client/assets/main-abc.js") < html.indexOf('src="/app.js"'));
+    // actionPoll.js is retired: its decision moved into the bundle.
+    assert.ok(!html.includes("actionPoll"));
   });
 
   test("loads each bundle tag exactly once", () => {

@@ -22,9 +22,9 @@ import {
 import { BUTTON_DANGER, BUTTON_OFFER, BUTTON_SECONDARY_COMPACT, SERVICE_DETAIL, TONE_PILL, TONE_TEXT } from "../../views/shared";
 
 /*
- * The host-action strip: html.ts's renderHostActions in JSX, element for
- * element (the parity tests compare the two), with the behaviour of the
- * [data-host-actions] block in public/app.js.
+ * The host-action strip: the retired renderHostActions (html.ts) in JSX,
+ * element for element (the parity tests compare it with that markup, frozen),
+ * with the behaviour of the [data-host-actions] block public/app.js had.
  *
  * Start posts at once; Stop, Restart and Update replace the strip with their
  * inline confirmation, focus on its Cancel, and Esc or Cancel gives focus back

@@ -1,5 +1,5 @@
-// The host-action poll's decision, ported from public/actionPoll.js to a
-// typed module the React board imports. Every case of
+// The host-action poll's decision, ported from public/actionPoll.js (retired)
+// to a typed module the React board imports. Every case of the retired
 // src/views/actionPoll.test.ts is here, against the port: the one property
 // that matters is that the poll always ends.
 import { describe, test } from "node:test";

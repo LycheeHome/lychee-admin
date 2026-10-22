@@ -11,7 +11,7 @@ import { hideToast, showToast } from "./toast";
  * [data-deploy] and [data-prune] handlers in public/app.js (which the
  * server-rendered site page still uses); both send only the name: the server
  * reads Deploy's tag from the inventory and re-checks Prune's guards after a
- * fresh pull. The host actions' POST keeps the [data-host-actions] block's
+ * fresh pull. The host actions' POST keeps the retired [data-host-actions] block's
  * (useHostAction, below; the strip itself is HostActions.tsx).
  *
  * Unlike app.js, success does not swap markup or reload. It invalidates the
@@ -128,8 +128,8 @@ export function usePrune() {
 export type HostActionVars = { name: string; action: HostAction };
 
 /**
- * A host action's POST, as the [data-host-actions] block in public/app.js
- * sends it (Accept: JSON, no body). Only a 202 starts a run; its body's state
+ * A host action's POST, as the retired [data-host-actions] block in
+ * public/app.js sent it (Accept: JSON, no body). Only a 202 starts a run; its body's state
  * is what the row shows until the first poll answers. A refusal or a network
  * failure toasts app.js's copy, and the strip returns to rest.
  */

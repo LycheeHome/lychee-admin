@@ -159,7 +159,6 @@ export function layout(title: string, body: string, opts: LayoutOptions): string
   </main>
   </div>${opts.bodyEnd ? `\n  ${opts.bodyEnd}` : ""}
   <div id="react-root"></div>${bundleScript(opts.shell.assets)}
-  <script src="/actionPoll.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>`;

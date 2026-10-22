@@ -10,7 +10,6 @@ import { readInventory } from "../lib/serviceInventory";
 import { buildBoard, findTimerUnit } from "../lib/serviceBoard";
 import type { ServiceBoard } from "../lib/serviceBoard";
 import type { ApiError, ApiOk, BoardPayload } from "../shared/board";
-import { renderServicesPage } from "../views/html";
 import { GROUP_LABELS } from "../views/boardRowModel";
 import { renderClientPage } from "../views/clientShell";
 import { loadShell } from "./loadShell";
@@ -67,8 +66,8 @@ export function clearBoardCache(): void {
 }
 
 /**
- * The whole board, read and joined: one data path for the HTML pages and
- * /api/services. Every read degrades on its own; the board always comes back.
+ * The whole board, read and joined: one data path for /api/services and
+ * /api/health. Every read degrades on its own; the board always comes back.
  * It reads the whole board; each caller narrows it to its own group.
  */
 export function loadBoardPage(deps: Deps, opts: { now?: () => number } = {}): Promise<BoardPageData> {
@@ -159,23 +158,6 @@ export function createServicesRouter(deps: Deps): express.Router {
       if (!shell.assets) return res.status(500).type("text/plain").send("client bundle missing; run npm run build");
       return res.type("html").send(renderClientPage(GROUP_LABELS[group], GROUP_PAGES[group], shell));
     });
-  }
-
-  // The server-rendered board, no longer routed. Task 6 retires it with
-  // renderServicesPage; until then the parity tests still read that renderer.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async function renderBoardPage(res: express.Response, group: ServiceGroup): Promise<void> {
-    // Every read below already degrades, so this should be unreachable; it is
-    // here because Express 4 does not catch an async handler's rejection, and
-    // these are the pages whose design goal is that they never error.
-    try {
-      const { board, prunable, managed, requested, lastRuns, now } = await loadBoardPage(deps);
-      res.type("html").send(
-        renderServicesPage(board, now, prunable, config.domain, lastRuns, group, managed, requested, loadShell(deps, { page: GROUP_PAGES[group] })),
-      );
-    } catch (error) {
-      res.status(500).type("text/plain").send(`Could not render services: ${String(error)}`);
-    }
   }
 
   // The same board as JSON, for the client. Sets and Maps do not serialise, so

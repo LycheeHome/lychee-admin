@@ -34,12 +34,15 @@ import {
 } from "../../views/shared";
 
 /*
- * The services board's markup in JSX. It mirrors renderServicesPage,
- * renderServiceRow, renderHostActions, renderOfferLine, renderRequestedLine
- * and renderPruneControl in src/views/html.ts element for element (the
- * parity test compares the two), and takes every decision from the same
- * node-free modules (boardFacts.ts, boardRowModel.ts), so a change to the
- * markup belongs in both until the server board is retired.
+ * The services board's markup in JSX. It was ported element for element from
+ * the server board (renderServicesPage and its row helpers, now retired); the
+ * parity tests compare it with that board's output, frozen in
+ * src/client/test/fixtures/board/. It takes every decision from the same
+ * node-free modules (boardFacts.ts, boardRowModel.ts) as the server-rendered
+ * site page, whose offer, requested line and Prune control are still
+ * renderOfferLine, renderRequestedLine and renderPruneControl in
+ * src/views/html.ts: a change to one of those three belongs in both
+ * (BoardMarkup.test.tsx checks the offer and Prune line are the same DOM).
  *
  * The controls render as the server's do (same data-* attributes, classes and
  * text) and are wired through `controls`: Deploy, Prune and the host actions
