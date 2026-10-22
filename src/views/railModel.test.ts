@@ -2,7 +2,21 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import type { BoardRow, ServiceBoard } from "../shared/board";
+import * as railModel from "./railModel";
 import { attentionCounts, buildHealth, siteHealth, unitHealth } from "./railModel";
+
+// DESIGN.md's Dim-Text Rule: Smoke Deep (stone-500) is readable only at
+// Headline size, and every rail string is far smaller. A disabled control is
+// the rule's one exemption, so only the plain utility is refused, not
+// `aria-disabled:` or `disabled:` variants of it.
+describe("rail text clears the Dim-Text Rule", () => {
+  test("no RAIL_* class string sets plain Smoke Deep text", () => {
+    for (const [name, value] of Object.entries(railModel)) {
+      if (!name.startsWith("RAIL_") || typeof value !== "string") continue;
+      assert.doesNotMatch(value, /(^|\s)text-stone-500(\s|$)/, name);
+    }
+  });
+});
 
 const staticSite: Site = { hostname: "blog.lychee.land", type: "static", target: "/var/www/blog.lychee.land" };
 const proxy: Site = { hostname: "api.lychee.land", type: "reverse-proxy", target: "4000" };

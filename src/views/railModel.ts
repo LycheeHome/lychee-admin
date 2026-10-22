@@ -182,4 +182,4 @@ export const FIND_EMPTY = RAIL_NOTE;
 export const FIND_TROUBLE = "font-mono text-[0.72rem] text-red-300";
 
 export const RAIL_COUNT_BAD ="font-mono text-[0.75rem] rounded-full px-1.5 bg-red-950/60 text-red-300";
-export const RAIL_COUNT_ZERO = "font-mono text-[0.75rem] text-stone-500";
+export const RAIL_COUNT_ZERO = "font-mono text-[0.75rem] text-stone-400";
