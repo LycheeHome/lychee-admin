@@ -450,6 +450,87 @@ describe("host actions: the poll always ends (fake timers)", () => {
     assert.equal(statePolls().length, 1);
   });
 
+  const MIDRUN = runState("restart", "running", { startedAt: "2026-10-22T11:59:00Z" });
+  const midRun = (lastRun: ActionState) => payload([unitRow()], { lastRuns: { [UNIT]: lastRun } });
+  const boardAt = (p: BoardPayload, api: HostActionsApi) => <Board payload={p} group="infrastructure" controls={{ hostActions: api }} />;
+  const hostButtons = () => Array.from(box().querySelectorAll<HTMLButtonElement>("[data-host-action]"));
+
+  test("a followed run the board's own re-read shows finished: the strip renders from the board and stops polling", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: T0 });
+    stateAnswer = () => json(200, { ok: true, state: { ...MIDRUN, logTail: "x\n" } });
+    const api = stubApi();
+    const { rerender } = render(boardAt(midRun(MIDRUN), api));
+    t.mock.timers.tick(2000);
+    await flush();
+    assert.equal(statePolls().length, 1);
+    assert.equal(box().querySelector("[data-action-tail]")!.textContent, "x", "the poll's answer is showing");
+    // The board's re-read lands before the next poll, with the run over.
+    rerender(boardAt(midRun({ ...MIDRUN, state: "succeeded", finishedAt: "2026-10-22T12:00:01Z", logTail: "ok\n" }), api));
+    await flush();
+    t.mock.timers.tick(30_000);
+    await flush();
+    assert.equal(pill(), "● running");
+    assert.ok(hostButtons().length > 0);
+    assert.ok(hostButtons().every((b) => !b.disabled), "every action is live again");
+    assert.ok(!box().dataset.running);
+    assert.ok(!document.querySelector<HTMLElement>("[data-action-busy]:not([hidden])"), "no busy note");
+    assert.equal(statePolls().length, 1, "no poll after the board showed the run finished");
+    assert.equal(api.settles, 0);
+  });
+
+  test("a followed run the board replaces with another: the strip follows the new one", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: T0 });
+    stateAnswer = () => json(200, { ok: true, state: { ...MIDRUN, logTail: "x\n" } });
+    const api = stubApi();
+    const { rerender } = render(boardAt(midRun(MIDRUN), api));
+    t.mock.timers.tick(2000);
+    await flush();
+    const update = runState("update", "running", { startedAt: "2026-10-22T12:00:01Z", logTail: "" });
+    rerender(boardAt(midRun(update), api));
+    await flush();
+    assert.equal(pill(), "● updating");
+    assert.equal(box().dataset.running, "update");
+    t.mock.timers.tick(2000);
+    await flush();
+    assert.equal(statePolls().at(-1)!.url, `/services/${UNIT}/actions/update/state`);
+  });
+
+  test("the poll settles a run the board still shows running: no flicker back and no second poll", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: T0 });
+    stateAnswer = () =>
+      json(200, { ok: true, state: { ...MIDRUN, state: "succeeded", finishedAt: "2026-10-22T12:00:01Z", logTail: "ok\n" } });
+    const api = stubApi();
+    const { rerender } = render(boardAt(midRun(MIDRUN), api));
+    assert.equal(pill(), "● restarting");
+    t.mock.timers.tick(2000);
+    await flush();
+    assert.equal(api.settles, 1);
+    // settle() has resolved, and the board's data has not caught up.
+    assert.equal(pill(), "● running", "the settled run, not the board's stale running one");
+    assert.ok(hostButtons().every((b) => !b.disabled));
+    assert.match(box().querySelector("[data-action-fact]")!.textContent ?? "", /^restart succeeded/);
+    // A re-render with the same stale data (the board's next poll) changes nothing.
+    rerender(boardAt(midRun({ ...MIDRUN }), api));
+    await flush();
+    t.mock.timers.tick(30_000);
+    await flush();
+    assert.equal(pill(), "● running");
+    assert.equal(statePolls().length, 1, "no second poll");
+    assert.equal(api.settles, 1);
+    // The board catches up: its own reading takes over.
+    rerender(boardAt(midRun({ ...MIDRUN, state: "succeeded", finishedAt: "2026-10-22T12:00:01Z", logTail: "ok\n" }), api));
+    await flush();
+    assert.equal(pill(), "● running");
+    assert.match(box().querySelector("[data-action-fact]")!.textContent ?? "", /^restart succeeded/);
+    // And a new run the board shows later is followed again.
+    rerender(boardAt(midRun(runState("restart", "running", { startedAt: "2026-10-22T12:05:00Z" })), api));
+    await flush();
+    assert.equal(pill(), "● restarting");
+    t.mock.timers.tick(2000);
+    await flush();
+    assert.equal(statePolls().length, 2);
+  });
+
   test("unmounting mid-poll: no fetch fires after unmount", async (t) => {
     t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: T0 });
     const api = stubApi();

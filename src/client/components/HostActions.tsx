@@ -168,6 +168,19 @@ function polledState(outcome: PollOutcome): ActionState | null {
   return state && typeof state === "object" ? state : null;
 }
 
+/** A finished run's state from a 2xx answer, or null (a refusal, a failure, a run still going, an idle unit). */
+function settledState(outcome: PollOutcome): ActionState | null {
+  if (outcome.kind !== "response" || outcome.status < 200 || outcome.status >= 300) return null;
+  if ((outcome.body as { ok?: unknown } | null)?.ok !== true) return null;
+  const state = polledState(outcome);
+  return state && (state.state === "succeeded" || state.state === "failed") ? state : null;
+}
+
+/** One run's identity across reads: its action and when it started. */
+function runKey(run: ActionState): string {
+  return `${run.action}@${run.startedAt ?? ""}`;
+}
+
 export function HostActions({ row, run, live, onLive, now, api }: HostActionsProps) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [confirming, setConfirming] = useState<HostAction | null>(null);
@@ -181,8 +194,12 @@ export function HostActions({ row, run, live, onLive, now, api }: HostActionsPro
   const mounted = useRef(false);
   // The latest callbacks, for the poll's timer: they change identity every
   // render, and the poll must not restart because of it.
-  const latest = useRef({ api, onLive, row });
-  latest.current = { api, onLive, row };
+  // Runs the poll has seen settle (runKey), which the board's data may still
+  // show as running for a while: those are never followed again, and the
+  // settled state the poll read stands in for them until the board catches up.
+  const [settledKeys, setSettledKeys] = useState<readonly string[]>([]);
+  const latest = useRef({ api, onLive, row, run });
+  latest.current = { api, onLive, row, run };
   const stripFocus = useRef<{ row: BoardRow; action: HostAction } | null>(null);
 
   useEffect(() => {
@@ -195,10 +212,23 @@ export function HostActions({ row, run, live, onLive, now, api }: HostActionsPro
   // Which run to poll, if any: the one this strip started, else one the
   // board shows under way (a run started elsewhere, or before this page
   // loaded), which app.js followed with clickedAt null.
-  const target =
-    !api || settling ? null : (follow ?? (isRunning(run) ? { action: run.action, clickedAt: null } : null));
+  const boardRunning = isRunning(run) && !settledKeys.includes(runKey(run)) ? run : null;
+  const target = !api || settling ? null : (follow ?? (boardRunning ? { action: boardRunning.action, clickedAt: null } : null));
   const targetAction = target?.action ?? null;
   const targetClickedAt = target?.clickedAt ?? null;
+
+  // `live` stands only while it says something the board's data does not
+  // yet: a run this strip is following, or one the poll saw settle that the
+  // board still shows running. Once it is neither, the board decides again;
+  // otherwise a run the board's own re-read showed finished (or replaced
+  // with another) would leave the row running for ever, with nothing polling.
+  useEffect(() => {
+    if (!live || settling) return;
+    const stale = isRunning(live)
+      ? live.action !== targetAction
+      : !(isRunning(run) && settledKeys.includes(runKey(run)));
+    if (stale) onLive(null);
+  }, [live, settling, targetAction, run, settledKeys, onLive]);
 
   useEffect(() => {
     if (targetAction === null) return;
@@ -209,7 +239,8 @@ export function HostActions({ row, run, live, onLive, now, api }: HostActionsPro
     let timer: ReturnType<typeof setTimeout> | undefined;
     let memo: PollMemo = { failingSince: null, stalePolls: 0 };
 
-    const settle = () => {
+    /** `settled`: the run's end as the poll read it, or null when the poll gave up or was refused. */
+    const settle = (settled: ActionState | null) => {
       // Read before re-rendering: is focus still in this strip (the run fact
       // has it after a click), or nowhere at all?
       const active = document.activeElement;
@@ -217,7 +248,18 @@ export function HostActions({ row, run, live, onLive, now, api }: HostActionsPro
       setSettling(true);
       void Promise.resolve(latest.current.api?.settle()).finally(() => {
         if (!mounted.current) return;
-        latest.current.onLive(null);
+        if (settled) {
+          // The board's data may still show this run running (its re-read can
+          // lag the state route): the poll's reading stands in until it
+          // catches up, and that running entry is never followed again. The
+          // run the board showed at settle time is the same run, whatever
+          // start time each read carries.
+          const shown = latest.current.run;
+          setSettledKeys([runKey(settled), ...(isRunning(shown) ? [runKey(shown)] : [])]);
+        }
+        // Gave up or refused: as app.js's reload did, the board decides, and
+        // a run it still shows running is followed afresh.
+        latest.current.onLive(settled);
         setFollow(null);
         setSettling(false);
         if (keep) {
@@ -242,7 +284,7 @@ export function HostActions({ row, run, live, onLive, now, api }: HostActionsPro
       const decision = decidePoll(outcome, memo, Date.now(), clickedAt);
       memo = decision.memo;
       if (decision.next === "reload") {
-        settle();
+        settle(settledState(outcome));
         return;
       }
       if (decision.next === "update") {
