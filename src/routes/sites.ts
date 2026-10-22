@@ -170,7 +170,7 @@ async function resolveNextjsSite(site: Site, sources: ResourceSources, deps: Dep
  * 500ms one. The list does not refresh the clone: it is the five-second
  * glance, and a git pull per view would make it the slowest page.
  */
-async function computeStatuses(sites: Site[], deps: Deps): Promise<Record<string, SiteStatus>> {
+export async function computeStatuses(sites: Site[], deps: Deps): Promise<Record<string, SiteStatus>> {
   const proxies = sites.filter((site) => site.type === "reverse-proxy");
   const sources = proxies.some((site) => site.framework) ? await readResourceSources(deps) : null;
   const entries = await Promise.all(
