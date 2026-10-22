@@ -1,30 +1,16 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ActionState, BoardPayload, BoardRow, ServiceBoard, ServiceGroup } from "../../shared/board";
-import type { HostAction } from "../../lib/platform";
 import type { BoardControlsApi } from "../mutations";
+import { HostActions } from "./HostActions";
 import { summarizeRow } from "../../views/boardFacts";
 import {
-  ACTION_CONFIRM,
-  ACTION_LABEL,
-  CONFIRM_DANGER,
-  CONFIRM_QUIET,
   GROUP_LABELS,
-  LOG_SUMMARY,
-  LOG_TAIL,
-  RUNNING_DOT,
   SITE_NAME_LINK,
-  actionBusy,
-  actionFact,
-  actionLog,
-  actionTail,
   boardContent,
   groupNoneSentence,
-  hasHostActions,
   inventoryFreshness,
-  isRunning,
   rowOffer,
   rowPill,
-  shownActions,
   showsPrune,
   siteLinkHost,
   unavailableSentence,
@@ -32,7 +18,6 @@ import {
 } from "../../views/boardRowModel";
 import {
   BODY,
-  BUTTON_DANGER,
   BUTTON_OFFER,
   BUTTON_SECONDARY_COMPACT,
   CODE_LINE,
@@ -57,11 +42,11 @@ import {
  * markup belongs in both until the server board is retired.
  *
  * The controls render as the server's do (same data-* attributes, classes and
- * text) and are wired through `controls`: Deploy and Prune today, the host
- * actions in Task 4. Without `controls` they are inert.
+ * text) and are wired through `controls`: Deploy, Prune and the host actions
+ * (the strip is HostActions.tsx). Without `controls` they are inert.
  */
 
-/** The board's writes. Absent, or a member absent, that control renders as inert markup, byte for byte what it is wired. Task 4 adds host actions. */
+/** The board's writes. Absent, or a member absent, that control renders as inert markup, byte for byte what it is wired. */
 export type BoardControls = Partial<BoardControlsApi>;
 
 function Dot() {
@@ -214,113 +199,6 @@ function PruneLine({ name, controls }: { name: string; controls?: BoardControls 
   );
 }
 
-/** html.ts's actionFact: the last run as a fact line's content. */
-function ActionFactText({ run, now }: { run: ActionState | undefined; now: Date }) {
-  const fact = actionFact(run, now);
-  if (!fact) return null;
-  if (fact.running) {
-    return (
-      <>
-        <span className={RUNNING_DOT} aria-hidden="true"></span>
-        {`${fact.action} running${fact.started ? ` · started ${fact.started}` : ""}`}
-      </>
-    );
-  }
-  const rest = [fact.age, fact.took ? `took ${fact.took}` : null].filter((p): p is string => Boolean(p));
-  return (
-    <>
-      {`${fact.action} `}
-      <span className={TONE_TEXT[fact.tone]}>{fact.state}</span>
-      {rest.map((p) => ` · ${p}`).join("")}
-    </>
-  );
-}
-
-/** html.ts's actionLog: a finished run's log, open when it failed. */
-function ActionLog({ run }: { run: ActionState | undefined }) {
-  const log = actionLog(run);
-  if (!log) return null;
-  if (log.body === null) {
-    return (
-      <p className={SERVICE_DETAIL} data-action-log="">
-        log · no output
-      </p>
-    );
-  }
-  return (
-    <details className="mt-0.5" data-action-log="" open={log.open}>
-      <summary className={`${SERVICE_DETAIL} ${LOG_SUMMARY}`}>{`log · ${log.lines} ${log.lines === 1 ? "line" : "lines"}`}</summary>
-      <pre className={LOG_TAIL}>{log.body}</pre>
-    </details>
-  );
-}
-
-/** One inline confirmation, hidden until its action is pressed. */
-function ActionConfirm({ unit, action }: { unit: string; action: HostAction }) {
-  const c = ACTION_CONFIRM[action];
-  if (!c) return null;
-  const textId = `action-confirm-${unit}-${action}`;
-  const stop = action === "stop";
-  return (
-    <div className={stop ? CONFIRM_DANGER : CONFIRM_QUIET} data-action-confirm={action} role="group" aria-labelledby={textId} hidden>
-      <p id={textId} className="m-0 flex-[1_1_28ch] text-[0.85rem] leading-snug text-stone-300">
-        {c.copy(unit)}
-      </p>
-      <div className="flex items-center gap-2.5">
-        <button type="button" className={BUTTON_SECONDARY_COMPACT} data-action-cancel="">
-          Cancel
-        </button>
-        <button type="button" className={stop ? BUTTON_DANGER : BUTTON_OFFER} data-action-go={action}>
-          {c.go}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/** html.ts's renderHostActions: the last run, its log, the strip and the confirmations. */
-function HostActions({ row, run, now }: { row: BoardRow; run: ActionState | undefined; now: Date }) {
-  if (!hasHostActions(row)) return null;
-  const shown = shownActions(row);
-  const running = isRunning(run);
-  const fact = actionFact(run, now);
-  return (
-    <div
-      className="flex flex-col gap-0.5"
-      data-host-actions={row.name}
-      data-neutral-pill={TONE_PILL.neutral}
-      data-running={running ? run.action : undefined}
-    >
-      <p className={SERVICE_DETAIL} data-action-fact="" hidden={!fact}>
-        <ActionFactText run={run} now={now} />
-      </p>
-      <ActionLog run={run} />
-      <pre className={LOG_TAIL} data-action-tail="" aria-live="off" hidden={!running}>
-        {actionTail(run)}
-      </pre>
-      <div className="mt-2 flex flex-wrap items-center gap-2" data-action-strip="">
-        {shown.map((a) => (
-          <button
-            key={a}
-            type="button"
-            className={a === "stop" ? BUTTON_DANGER : BUTTON_SECONDARY_COMPACT}
-            data-host-action={a}
-            disabled={running}
-          >
-            {ACTION_LABEL[a]}
-          </button>
-        ))}
-        <span className="text-[0.8rem] text-stone-400" data-action-busy="" role="status" hidden={!running}>
-          {actionBusy(row.name)}
-        </span>
-      </div>
-      {shown.map((a) => (
-        <ActionConfirm key={a} unit={row.name} action={a} />
-      ))}
-    </div>
-  );
-}
-
 type RowContext = {
   board: ServiceBoard;
   now: Date;
@@ -339,7 +217,12 @@ function own<T>(record: Readonly<Record<string, T>>, key: string): T | undefined
 
 export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
   const { board, now, domain, prunable, managed } = ctx;
-  const run = own(ctx.lastRuns, row.name);
+  const payloadRun = own(ctx.lastRuns, row.name);
+  // A host action this row is following (HostActions sets it from a 202 and
+  // each poll answer) outranks the payload until the run settles and the
+  // board has been re-read: a board read mid-run can still show the last run.
+  const [live, setLive] = useState<ActionState | null>(null);
+  const run = live ?? payloadRun;
   // The row's words come from the same builders the HTML board uses.
   const summary = summarizeRow(row, board, now);
   const labels = rowPill(summary.labels, run);
@@ -388,7 +271,7 @@ export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
         <FailureLine row={row} extraClass="mt-1.5" commandId={`cmd-reconcile-log-${row.name}`} />
         {offer ? offer.requested ? <RequestedLine tag={offer.tag} name={row.name} controls={ctx.controls} /> : <OfferLine name={row.name} tag={offer.tag} controls={ctx.controls} /> : null}
         {showsPrune(row.name, prunable, domain) ? <PruneLine name={row.name} controls={ctx.controls} /> : null}
-        <HostActions row={row} run={run} now={now} />
+        <HostActions row={row} run={payloadRun} live={live} onLive={setLive} now={now} api={ctx.controls?.hostActions} />
       </div>
     </li>
   );
@@ -397,7 +280,7 @@ export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
 export type BoardProps = {
   payload: BoardPayload;
   group: ServiceGroup;
-  /** Absent, the controls are inert markup. Task 4 wires the host actions. */
+  /** Absent, the controls are inert markup: nothing posts, opens or polls. */
   controls?: BoardControls;
 };
 

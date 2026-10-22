@@ -115,7 +115,10 @@ function HealthObserver() {
 }
 
 function mount(): QueryClient {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // A mutation still observed at unmount arms a 5-minute garbage-collection
+  // timer that client.clear() leaves running, which held this file's process
+  // open for five minutes after its last test: collect it at once instead.
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { gcTime: 0 } } });
   render(
     <QueryClientProvider client={client}>
       <HealthObserver />

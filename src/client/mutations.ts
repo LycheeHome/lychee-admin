@@ -1,15 +1,18 @@
 import { useMutation, useMutationState, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { BoardPayload } from "../shared/board";
+import type { ActionState, BoardPayload } from "../shared/board";
+import type { HostAction } from "../lib/platform";
 import { BOARD_QUERY_ROOT } from "./api";
 import { HEALTH_QUERY } from "./health";
 import { hideToast, showToast } from "./toast";
 
 /*
- * The board's two writes, same endpoints and same copy as the [data-deploy]
- * and [data-prune] handlers in public/app.js (which the server-rendered site
- * page still uses). Both send only the name: the server reads Deploy's tag
- * from the inventory and re-checks Prune's guards after a fresh pull.
+ * The board's writes. Deploy and Prune keep the endpoints and copy of the
+ * [data-deploy] and [data-prune] handlers in public/app.js (which the
+ * server-rendered site page still uses); both send only the name: the server
+ * reads Deploy's tag from the inventory and re-checks Prune's guards after a
+ * fresh pull. The host actions' POST keeps the [data-host-actions] block's
+ * (useHostAction, below; the strip itself is HostActions.tsx).
  *
  * Unlike app.js, success does not swap markup or reload. It invalidates the
  * board and the rail's health and waits for the board to be re-read, and the
@@ -122,10 +125,50 @@ export function usePrune() {
   });
 }
 
+export type HostActionVars = { name: string; action: HostAction };
+
+/**
+ * A host action's POST, as the [data-host-actions] block in public/app.js
+ * sends it (Accept: JSON, no body). Only a 202 starts a run; its body's state
+ * is what the row shows until the first poll answers. A refusal or a network
+ * failure toasts app.js's copy, and the strip returns to rest.
+ */
+export function useHostAction() {
+  const client = useQueryClient();
+  return useMutation<Partial<ActionState>, Error, HostActionVars>({
+    mutationKey: ["host-action"],
+    onSettled: (_data, _error, { name }) => void inFlightFor(client).delete(`host-action:${name}`),
+    mutationFn: async ({ name, action }) => {
+      const response = await fetch(`/services/${encodeURIComponent(name)}/actions/${action}`, {
+        method: "POST",
+        headers: { Accept: "application/json" },
+      });
+      const body = (await response.json().catch(() => ({}))) as Answer & { state?: Partial<ActionState> };
+      if (response.status === 202 && body.ok) return body.state ?? {};
+      throw new Refused(body.reason ?? `Could not ${action} ${name} (HTTP ${response.status}).`);
+    },
+    onError: (error, { name, action }) =>
+      showToast(error instanceof Refused ? error.message : `Could not reach the server to ${action} ${name}.`, "error"),
+  });
+}
+
+/** The host-action strip's two calls out of the row (HostActions in BoardRows.tsx owns the confirm, the run and its poll). */
+export type HostActionsApi = {
+  /**
+   * Posts the action. Resolves with the run's state on a 202, or null when it
+   * was refused (the toast is already up) or a post for this unit is already
+   * in flight.
+   */
+  request: (name: string, action: HostAction) => Promise<Partial<ActionState> | null>;
+  /** Where app.js reloaded the page: re-read the board and the rail's health, resolving once the board has landed. */
+  settle: () => Promise<unknown>;
+};
+
 /** What the board needs to wire its controls: the writes, and which rows are mid-write. */
 export type BoardControlsApi = {
   deploy: (name: string, tag: string) => void;
   prune: (name: string) => void;
+  hostActions: HostActionsApi;
   /** Names with a write in flight, until the board has been re-read. */
   busy: ReadonlySet<string>;
   /** The row whose requested line should take focus now, until `focused` is called. */
@@ -138,6 +181,7 @@ export function useBoardControls(): BoardControlsApi {
   const [focusRequested, setFocusRequested] = useState<string | null>(null);
   const deploy = useDeploy(setFocusRequested);
   const prune = usePrune();
+  const hostAction = useHostAction();
   const deploying = useMutationState({
     filters: { mutationKey: ["deploy"], status: "pending" },
     select: (m) => (m.state.variables as DeployVars).name,
@@ -152,6 +196,14 @@ export function useBoardControls(): BoardControlsApi {
     },
     prune: (name) => {
       if (begin(client, `prune:${name}`)) prune.mutate(name);
+    },
+    hostActions: {
+      request: (name, action) => {
+        // Per unit, not per action: one unit takes one action at a time.
+        if (!begin(client, `host-action:${name}`)) return Promise.resolve(null);
+        return hostAction.mutateAsync({ name, action }).catch(() => null);
+      },
+      settle: () => refresh(client),
     },
     busy: new Set([...deploying, ...pruning]),
     focusRequested,
