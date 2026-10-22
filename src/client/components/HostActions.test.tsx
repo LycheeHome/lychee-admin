@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import { afterEach, before, beforeEach, after, describe, test } from "node:test";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import type { ActionState, BoardPayload, BoardRow } from "../../shared/board";
-import { renderServicesPage } from "../../views/html";
 import { BoardPage } from "../pages/BoardPage";
 import { Board } from "./BoardRows";
 import type { HostActionsApi } from "../mutations";
@@ -198,17 +199,9 @@ describe("host actions: posting", () => {
     const client = mount();
     try {
       fireEvent.click(await screen.findByRole("button", { name: "Update" }, TIMEOUT));
-      const html = renderServicesPage(
-        current.board,
-        new Date(current.now),
-        new Set(),
-        current.domain,
-        current.lastRuns,
-        "infrastructure",
-        new Set(),
-        new Map(),
-        { rail: { sites: [], hostAvailable: true, current: { page: "infrastructure" }, domain: current.domain }, assets: null },
-      );
+      // What the retired renderServicesPage rendered for this payload
+      // (payload([unitRow()]), the default `current`), frozen.
+      const html = readFileSync(path.join(__dirname, "../test/fixtures/board/infrastructure-host-action-strip.html"), "utf8");
       const template = document.createElement("template");
       template.innerHTML = html;
       const server = template.content.querySelector<HTMLElement>(`[data-host-actions="${UNIT}"]`)!;

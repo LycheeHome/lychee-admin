@@ -1,0 +1,52 @@
+<div class="max-w-[1080px] mx-auto w-full flex flex-col gap-8">
+      <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Infrastructure</h2>
+        <p class="m-0 text-[0.8rem] text-stone-400 max-w-[25rem]" data-inventory-age>Inventory written 2 minutes ago</p>
+      </div>
+      
+      <ul class="list-none m-0 p-0 flex flex-col">
+      <li class="grid grid-cols-1 sm:grid-cols-[9.5rem_minmax(0,1fr)] gap-x-4 gap-y-1.5 items-start py-4 border-b border-stone-700 last:border-b-0" id="service-palworld" data-service="palworld">
+        <div class="pt-px" data-row-pill><span class="inline-flex items-center gap-1 shrink-0 font-mono text-[0.6875rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-transparent text-stone-300 bg-stone-700"><span aria-hidden="true">&#9679;</span> updating</span></div>
+        <div class="flex flex-col gap-0.5 min-w-0">
+          <p class="font-mono text-base leading-6 text-stone-50 break-words m-0">palworld</p>
+          
+          <p class="font-mono text-[0.8rem] leading-relaxed text-stone-400 break-words m-0">changed 24 hours ago</p>
+          
+          
+          
+          
+          
+          <div class="flex flex-col gap-0.5" data-host-actions="palworld" data-neutral-pill="inline-flex items-center gap-1 shrink-0 font-mono text-[0.6875rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-transparent text-stone-300 bg-stone-700" data-running="update">
+          <p class="font-mono text-[0.8rem] leading-relaxed text-stone-400 break-words m-0" data-action-fact><span class="inline-block h-1.5 w-1.5 rounded-full bg-stone-400 motion-safe:animate-pulse align-middle mr-1.5" aria-hidden="true"></span>update running</p>
+          
+          <pre class="font-mono text-[0.72rem] leading-[1.6] bg-stone-900 border border-stone-700 rounded-md px-3 py-2.5 text-stone-300 whitespace-pre-wrap [overflow-wrap:anywhere] m-0 mt-1.5" data-action-tail aria-live="off">no output yet</pre>
+          <div class="mt-2 flex flex-wrap items-center gap-2" data-action-strip>
+            <button type="button" class="font-sans font-semibold text-[0.8rem] bg-stone-600 text-stone-50 border-none rounded-md min-h-8 px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-stone-700 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-transparent disabled:hover:bg-transparent" data-host-action="restart" disabled>Restart</button><button type="button" class="font-sans font-semibold text-[0.8rem] bg-stone-600 text-stone-50 border-none rounded-md min-h-8 px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-stone-700 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-transparent disabled:hover:bg-transparent" data-host-action="update" disabled>Update</button><button type="button" class="font-sans font-semibold text-[0.8rem] bg-transparent text-red-300 border border-red-800 rounded-md min-h-8 px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-red-900 hover:text-stone-50 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:border-stone-700 disabled:hover:bg-transparent disabled:hover:text-stone-500" data-host-action="stop" disabled>Stop</button>
+            <span class="text-[0.8rem] text-stone-400" data-action-busy role="status">an action is already running on palworld</span>
+          </div>
+          <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md px-3 py-2.5 border border-stone-700 bg-stone-800" data-action-confirm="restart" role="group" aria-labelledby="action-confirm-palworld-restart" hidden>
+            <p id="action-confirm-palworld-restart" class="m-0 flex-[1_1_28ch] text-[0.85rem] leading-snug text-stone-300">Restart palworld? Everyone on the server is disconnected for about a minute.</p>
+            <div class="flex items-center gap-2.5">
+              <button type="button" class="font-sans font-semibold text-[0.8rem] bg-stone-600 text-stone-50 border-none rounded-md min-h-8 px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-stone-700 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-transparent disabled:hover:bg-transparent" data-action-cancel>Cancel</button>
+              <button type="button" class="font-sans font-semibold text-[0.8rem] bg-transparent text-rose-300 border border-rose-800 rounded-md min-h-8 px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-rose-950 hover:text-rose-200 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:border-stone-700 disabled:hover:bg-transparent disabled:hover:text-stone-500" data-action-go="restart">Restart server</button>
+            </div>
+          </div><div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md px-3 py-2.5 border border-stone-700 bg-stone-800" data-action-confirm="update" role="group" aria-labelledby="action-confirm-palworld-update" hidden>
+            <p id="action-confirm-palworld-update" class="m-0 flex-[1_1_28ch] text-[0.85rem] leading-snug text-stone-300">Update palworld? The server stops, steamcmd updates it, then it starts again; everyone is disconnected until it's back.</p>
+            <div class="flex items-center gap-2.5">
+              <button type="button" class="font-sans font-semibold text-[0.8rem] bg-stone-600 text-stone-50 border-none rounded-md min-h-8 px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-stone-700 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-transparent disabled:hover:bg-transparent" data-action-cancel>Cancel</button>
+              <button type="button" class="font-sans font-semibold text-[0.8rem] bg-transparent text-rose-300 border border-rose-800 rounded-md min-h-8 px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-rose-950 hover:text-rose-200 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:border-stone-700 disabled:hover:bg-transparent disabled:hover:text-stone-500" data-action-go="update">Update server</button>
+            </div>
+          </div><div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md px-3 py-2.5 border border-red-900/60 bg-red-950/20" data-action-confirm="stop" role="group" aria-labelledby="action-confirm-palworld-stop" hidden>
+            <p id="action-confirm-palworld-stop" class="m-0 flex-[1_1_28ch] text-[0.85rem] leading-snug text-stone-300">Stop palworld? Everyone on the server is disconnected, and it stays down until someone starts it.</p>
+            <div class="flex items-center gap-2.5">
+              <button type="button" class="font-sans font-semibold text-[0.8rem] bg-stone-600 text-stone-50 border-none rounded-md min-h-8 px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-stone-700 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-transparent disabled:hover:bg-transparent" data-action-cancel>Cancel</button>
+              <button type="button" class="font-sans font-semibold text-[0.8rem] bg-transparent text-red-300 border border-red-800 rounded-md min-h-8 px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-red-900 hover:text-stone-50 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:border-stone-700 disabled:hover:bg-transparent disabled:hover:text-stone-500" data-action-go="stop">Stop server</button>
+            </div>
+          </div>
+        </div>
+        </div>
+      </li>
+      </ul>
+    </div>
+    
+  
