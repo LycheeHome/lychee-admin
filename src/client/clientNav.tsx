@@ -43,6 +43,8 @@ export function boardRouteOf(href: string): BoardRoute | null {
 export interface ClientNav {
   /** The router's current pathname. */
   pathname: string;
+  /** The router's current entry; it changes on every in-app move, a hash-only one included. */
+  locationKey: string;
   /** The router's own navigate. */
   navigate: (href: string) => void;
   /**

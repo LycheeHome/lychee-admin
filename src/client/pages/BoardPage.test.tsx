@@ -8,6 +8,7 @@ import { boardQueryKey } from "../api";
 import { createQueryClient } from "../queryClient";
 import { seedHealth } from "../test/healthFixture";
 import { BoardPage } from "./BoardPage";
+import { ACTION_POLL_MS } from "../components/HostActions";
 
 /*
  * The live board page: one group's board, re-read every 15s (3s while a row
@@ -282,32 +283,77 @@ describe("BoardPage controls", () => {
   });
 
   test("a board refetch mid-run neither starts a second state poll nor restarts the first", async () => {
-    current = payload([unitRow()]);
-    mount();
-    const start = await waitFor(() => {
-      const b = document.querySelector<HTMLButtonElement>(`[data-host-actions="${UNIT}"] [data-host-action="start"]`);
-      assert.ok(b);
-      return b;
-    }, TIMEOUT);
-    fireEvent.click(start);
+    // The state poll's own timers are held here instead of running on the
+    // clock, so the test fires each poll itself and needs no sleeps: a second
+    // poll would show up as a second held timer, a restart as a cleared one.
+    const held = new Map<number, () => void>();
+    const cleared: number[] = [];
+    let nextId = 1;
+    const realSetTimeout = globalThis.setTimeout;
+    const realClearTimeout = globalThis.clearTimeout;
+    globalThis.setTimeout = ((fn: (...a: unknown[]) => void, ms?: number, ...args: unknown[]) => {
+      if (ms !== ACTION_POLL_MS) return realSetTimeout(fn, ms, ...args);
+      const id = -nextId++;
+      held.set(id, () => fn(...args));
+      return id;
+    }) as typeof setTimeout;
+    globalThis.clearTimeout = ((id?: Parameters<typeof clearTimeout>[0]) => {
+      if (typeof id === "number" && held.has(id)) {
+        held.delete(id);
+        cleared.push(id);
+        return;
+      }
+      realClearTimeout(id);
+    }) as typeof clearTimeout;
     const statePolls = () => calls.filter((c) => c.method === "GET" && c.url.endsWith("/state")).length;
-    // The first poll lands ACTION_POLL_MS (2s) after the 202.
-    await waitFor(() => assert.equal(statePolls(), 1), TIMEOUT);
-    const first = Date.now();
+    /** Fires the one held poll timer and waits for its fetch to have been made. */
+    const firePoll = async (expected: number) => {
+      assert.equal(held.size, 1, `held poll timers: ${held.size}`);
+      const [[id, fn]] = [...held];
+      held.delete(id);
+      await act(async () => fn());
+      await waitFor(() => assert.equal(statePolls(), expected), TIMEOUT);
+    };
 
-    // Halfway to the next poll, the board is re-read and now shows the run
-    // too, as the server's would: a restarted poll would fire 2s from here,
-    // a second one would fire beside the first.
-    await new Promise((r) => setTimeout(r, 1000));
-    current = payload([unitRow()], {
-      lastRuns: { [UNIT]: { unit: UNIT, action: "start", state: "running", logTail: "", startedAt: new Date().toISOString() } as ActionState },
-    });
-    await refetch();
-    assert.equal(interval(), 3_000);
+    try {
+      current = payload([unitRow()]);
+      mount();
+      const start = await waitFor(() => {
+        const b = document.querySelector<HTMLButtonElement>(`[data-host-actions="${UNIT}"] [data-host-action="start"]`);
+        assert.ok(b);
+        return b;
+      }, TIMEOUT);
+      fireEvent.click(start);
+      // The 202 starts the poll: one timer, nothing fetched yet.
+      await waitFor(() => assert.equal(held.size, 1), TIMEOUT);
+      assert.equal(statePolls(), 0);
 
-    // 2.6s after the first poll: exactly the one at 2s since it, on its own schedule.
-    await new Promise((r) => setTimeout(r, Math.max(0, 2600 - (Date.now() - first))));
-    assert.equal(statePolls(), 2);
+      await firePoll(1);
+      // The poll re-armed itself for its next tick.
+      await waitFor(() => assert.equal(held.size, 1), TIMEOUT);
+      const armed = [...held.keys()];
+
+      // Between two polls the board is re-read and now shows the run too, as
+      // the server's would: the page moves to 3s, and the poll is untouched.
+      // A second row marks the re-read board as rendered: the cache landing is
+      // not enough, the rows must have re-rendered with it.
+      current = payload([unitRow(), container("marker")], {
+        lastRuns: { [UNIT]: { unit: UNIT, action: "start", state: "running", logTail: "", startedAt: new Date().toISOString() } as ActionState },
+      });
+      await refetch();
+      await waitFor(() => assert.ok(document.querySelector('[data-service="marker"]')), TIMEOUT);
+      await act(async () => {});
+      assert.equal(interval(), 3_000);
+      assert.deepEqual([...held.keys()], armed, "the refetch armed a second poll or replaced the first");
+      assert.deepEqual(cleared, []);
+      assert.equal(statePolls(), 1);
+
+      // The same poll's next tick: exactly one more state read.
+      await firePoll(2);
+    } finally {
+      globalThis.setTimeout = realSetTimeout;
+      globalThis.clearTimeout = realClearTimeout;
+    }
   });
 });
 

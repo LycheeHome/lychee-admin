@@ -2,9 +2,18 @@ import { StrictMode, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
-import { createBrowserRouter, Outlet, ScrollRestoration, useLocation, useNavigate, type DataRouter, type RouteObject } from "react-router";
+import {
+  createBrowserRouter,
+  Outlet,
+  ScrollRestoration,
+  useLocation,
+  useNavigate,
+  type DataRouter,
+  type Location,
+  type RouteObject,
+} from "react-router";
 import { RouterProvider } from "react-router/dom";
-import { BOARD_ROUTES, ClientNavContext, type ClientNav } from "./clientNav";
+import { BOARD_ROUTES, ClientNavContext, isClientRoute, type ClientNav } from "./clientNav";
 import { RailPortal } from "./RailIsland";
 import { BoardPage, boardQuery } from "./pages/BoardPage";
 
@@ -22,7 +31,7 @@ export { BOARD_ROUTES, isClientRoute } from "./clientNav";
 const Nothing = () => null;
 
 /** The layout every route shares: the rail, the page, and scroll restoration for back and forward. */
-function AppLayout() {
+function AppLayout({ scrollKey }: { scrollKey: (location: Location) => string }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [appRoot] = useState(() => document.getElementById("app-root"));
@@ -33,16 +42,36 @@ function AppLayout() {
   if (!moved && location.key !== firstKey) setMoved(true);
   const documentLoad = !moved && location.key === firstKey;
   const nav = useMemo<ClientNav>(
-    () => ({ pathname: location.pathname, navigate: (href) => void navigate(href), documentLoad }),
-    [location.pathname, navigate, documentLoad],
+    () => ({ pathname: location.pathname, locationKey: location.key, navigate: (href) => void navigate(href), documentLoad }),
+    [location.pathname, location.key, navigate, documentLoad],
   );
   return (
     <ClientNavContext.Provider value={nav}>
       <RailPortal />
       {appRoot ? createPortal(<Outlet />, appRoot) : null}
-      <ScrollRestoration />
+      {isClientRoute(location.pathname) ? <ScrollRestoration getKey={scrollKey} /> : null}
     </ClientNavContext.Provider>
   );
+}
+
+/*
+ * Scroll restoration is for the entries the router pushes between client
+ * routes, and nothing else.
+ *
+ * - On a server page it is not rendered at all: rendered, it would switch the
+ *   browser's own per-entry restoration off (`history.scrollRestoration =
+ *   "manual"`) and save every unload under one shared key.
+ * - Every entry the router did not push (a fresh document load, a reload of
+ *   one) carries the key "default" (react-router 8.4.0, history.js), so the
+ *   default key would hand each fresh load whatever position the last
+ *   "default" page unloaded at. `getKey` gives that entry a key of this
+ *   document's own instead: a fresh load finds nothing saved and starts at the
+ *   top (or at its #hash row), while back to it within this document still
+ *   restores. Router-pushed entries keep their own unique keys.
+ */
+function documentScrollKey(): (location: Location) => string {
+  const documentEntry = `document-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`;
+  return (location) => (location.key === "default" ? documentEntry : location.key);
 }
 
 /**
@@ -55,7 +84,8 @@ function AppLayout() {
 export function appRoutes(client: QueryClient): RouteObject[] {
   return [
     {
-      Component: AppLayout,
+      // One scroll key per router, which is one per document.
+      element: <AppLayout scrollKey={documentScrollKey()} />,
       children: [
         ...Object.entries(BOARD_ROUTES).map(([path, group]): RouteObject => ({
           path,

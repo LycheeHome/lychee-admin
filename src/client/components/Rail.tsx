@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { splitHostnameForDisplay } from "../../lib/siteDisplay";
 import type { HealthPayload, Tone } from "../../shared/health";
@@ -303,12 +303,20 @@ export function TopBar({ health, hostnames, healthError, onOpen }: TopBarProps) 
  * modals. Shown in a layout effect, so it is open before find (a passive
  * effect) takes focus inside it.
  */
-function Drawer({ onClose, children }: { onClose: () => void; children: ReactNode }) {
-  const ref = useRef<HTMLDialogElement>(null);
+function Drawer({
+  onClose,
+  dialogRef: ref,
+  children,
+}: {
+  onClose: () => void;
+  /** The dialog, for Navigation to close at once when the router moves. */
+  dialogRef: RefObject<HTMLDialogElement | null>;
+  children: ReactNode;
+}) {
   useLayoutEffect(() => {
     const dialog = ref.current;
     if (dialog && !dialog.open) dialog.showModal();
-  }, []);
+  }, [ref]);
 
   const onClick = (e: MouseEvent<HTMLDialogElement>) => {
     const dialog = e.currentTarget;
@@ -384,22 +392,42 @@ export function Navigation({ topBar, ...props }: NavigationProps) {
   };
 
   // Idempotent: Escape's cancel and a native `close` event can both arrive.
+  // A close because the router moved returns focus nowhere: the new page's
+  // heading takes it.
   const close = () => {
     if (!drawer) return;
-    restoreTo.current = drawer.opener;
+    restoreTo.current = navigatedAway.current ? null : drawer.opener;
     setDrawer(null);
   };
 
   // Focus goes back to whatever opened the drawer, once the rail is back in the aside.
   useEffect(() => {
     if (drawer) return;
+    navigatedAway.current = false;
     const target = restoreTo.current;
     restoreTo.current = null;
     if (target?.isConnected) target.focus();
   }, [drawer]);
 
-  // Widening past 900px brings the rail back beside the content: the drawer goes.
+  // An in-app move from inside the drawer (a rail link, find's Enter) leaves
+  // the page behind it changed: the drawer closes. Natively first, in this
+  // layout effect, so the page is no longer inert by the time the new page's
+  // own effect moves focus to its heading; then in state.
   const isOpen = drawer !== null;
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const navigatedAway = useRef(false);
+  const locationKey = useClientNav()?.locationKey;
+  const seenKey = useRef(locationKey);
+  useLayoutEffect(() => {
+    if (locationKey === seenKey.current) return;
+    seenKey.current = locationKey;
+    if (!isOpen) return;
+    navigatedAway.current = true;
+    dialogRef.current?.close();
+    setDrawer(null);
+  }, [locationKey, isOpen]);
+
+  // Widening past 900px brings the rail back beside the content: the drawer goes.
   useEffect(() => {
     if (!isOpen || typeof window.matchMedia !== "function") return;
     const wide = window.matchMedia(RAIL_WIDE_QUERY);
@@ -427,7 +455,11 @@ export function Navigation({ topBar, ...props }: NavigationProps) {
         ? createPortal(
             <>
               <TopBar health={props.health} hostnames={(props.rail.sites ?? []).map((s) => s.hostname)} healthError={props.healthError} onOpen={open} />
-              {drawer ? <Drawer onClose={close}>{rail}</Drawer> : null}
+              {drawer ? (
+                <Drawer onClose={close} dialogRef={dialogRef}>
+                  {rail}
+                </Drawer>
+              ) : null}
             </>,
             topBar,
           )

@@ -97,7 +97,10 @@ export function BoardPage({ group }: { group: ServiceGroup }) {
         // An undecodable hash names no row.
       }
     }
-    if (document.activeElement?.id === "find") return;
+    // A find box inside the drawer is not one being typed in: the move came
+    // from it, and the drawer has just closed.
+    const active = document.activeElement;
+    if (active?.id === "find" && !active.closest("dialog")) return;
     // Scrolling is done: to the top, a saved position, or a #service- row.
     heading.current?.focus({ preventScroll: true });
   }, [hasBoard, latestFailed, loadHash]);

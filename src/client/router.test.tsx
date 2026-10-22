@@ -20,8 +20,9 @@ import { BOARD_ROUTES, isClientRoute, mountApp } from "./router";
 const TIMEOUT = { timeout: 5000 };
 const originalFetch = globalThis.fetch;
 const originalScrollIntoView = Element.prototype.scrollIntoView;
+const originalScrollTo = window.scrollTo;
 
-type HappyDOM = { setURL(url: string): void };
+type HappyDOM = { setURL(url: string): void; setViewport(v: { width: number }): void };
 const happyDOM = (globalThis as unknown as { happyDOM: HappyDOM }).happyDOM;
 
 let app: ReturnType<typeof mountApp> = null;
@@ -35,6 +36,11 @@ afterEach(() => {
   client = null;
   globalThis.fetch = originalFetch;
   Element.prototype.scrollIntoView = originalScrollIntoView;
+  window.scrollTo = originalScrollTo;
+  window.scrollTo(0, 0);
+  sessionStorage.clear();
+  window.history.scrollRestoration = "auto";
+  happyDOM.setViewport({ width: 1024 });
   document.body.innerHTML = "";
   document.title = "";
   happyDOM.setURL("http://localhost/");
@@ -275,5 +281,115 @@ describe("the single root", () => {
     assert.deepEqual(marked(), ["/sites/broken.lychee.land"]);
     // Nothing on a server page reads a board.
     assert.ok(!fetched.some((u) => u.startsWith("/api/services")));
+  });
+});
+
+/** Records every window.scrollTo(…, y) while still scrolling, so scrollY stays real. */
+function recordScrolls(): number[] {
+  const ys: number[] = [];
+  window.scrollTo = ((...args: unknown[]) => {
+    const y = typeof args[0] === "object" && args[0] !== null ? (args[0] as ScrollToOptions).top : args[1];
+    if (typeof y === "number") ys.push(y);
+    (originalScrollTo as (...a: unknown[]) => void).apply(window, args);
+  }) as typeof window.scrollTo;
+  return ys;
+}
+
+describe("scroll restoration", () => {
+  // Every entry the router did not push itself has the key "default": a
+  // position saved under it belongs to whatever page last unloaded.
+  const stale = () => sessionStorage.setItem("react-router-scroll-positions", JSON.stringify({ default: 500 }));
+
+  test("a fresh load of a board page does not restore the shared 'default' position", async () => {
+    stale();
+    const ys = recordScrolls();
+    load("/services");
+    await waitFor(() => assert.ok(row("swee")), TIMEOUT);
+    await act(async () => {});
+    assert.ok(!ys.includes(500), `scrolled to ${ys.join(",")}`);
+    assert.equal(window.scrollY, 0);
+  });
+
+  test("a server page neither restores the shared position nor takes scrolling over from the browser", async () => {
+    stale();
+    const ys = recordScrolls();
+    load("/sites/broken.lychee.land");
+    await railLive();
+    assert.ok(!ys.includes(500), `scrolled to ${ys.join(",")}`);
+    assert.equal(window.scrollY, 0);
+    assert.equal(window.history.scrollRestoration, "auto");
+  });
+
+  test("back to an entry the router left restores that entry's position", async () => {
+    stale();
+    load("/services");
+    await waitFor(() => assert.ok(row("swee")), TIMEOUT);
+    act(() => window.scrollTo(0, 400));
+    const entry = window.history.state as unknown;
+    act(() => {
+      fireEvent.click(railLink("/reconciler") as HTMLAnchorElement);
+    });
+    await waitFor(() => assert.ok(row("lychee-watch")), TIMEOUT);
+    await waitFor(() => assert.equal(window.scrollY, 0), TIMEOUT);
+
+    act(() => {
+      window.history.replaceState(entry, "", "/services");
+      window.dispatchEvent(new PopStateEvent("popstate", { state: entry }));
+    });
+    await waitFor(() => assert.ok(row("swee")), TIMEOUT);
+    await waitFor(() => assert.equal(window.scrollY, 400), TIMEOUT);
+  });
+});
+
+describe("the narrow-screen drawer", () => {
+  const dialog = () => document.querySelector("dialog");
+
+  async function openOnBoard(opener: "#rail-menu" | "#rail-find"): Promise<void> {
+    happyDOM.setViewport({ width: 600 });
+    load("/services");
+    await railLive();
+    await waitFor(() => assert.ok(row("swee")), TIMEOUT);
+    act(() => {
+      fireEvent.click(document.querySelector(opener) as HTMLElement);
+    });
+    await waitFor(() => assert.ok(dialog()?.open), TIMEOUT);
+  }
+
+  test("a rail link in the drawer closes it, and the new page's heading takes focus", async () => {
+    await openOnBoard("#rail-menu");
+    const link = dialog()?.querySelector<HTMLAnchorElement>('a[href="/reconciler"]');
+    assert.ok(link);
+    act(() => {
+      fireEvent.click(link);
+    });
+    await waitFor(() => assert.ok(row("lychee-watch")), TIMEOUT);
+    await waitFor(() => assert.ok(!dialog()), TIMEOUT);
+    await waitFor(() => assert.equal(document.activeElement?.textContent, "Reconciler"), TIMEOUT);
+    assert.equal(document.activeElement?.tagName, "H2");
+  });
+
+  test("find's Enter in the drawer closes it, and the new page's heading takes focus", async () => {
+    await openOnBoard("#rail-find");
+    const find = dialog()?.querySelector<HTMLInputElement>("#find");
+    assert.ok(find);
+    await waitFor(() => assert.equal(document.activeElement, find), TIMEOUT);
+    fireEvent.change(find, { target: { value: "lychee-watch" } });
+    await waitFor(() => assert.ok(document.querySelector('[role="option"]')), TIMEOUT);
+    act(() => {
+      fireEvent.keyDown(find, { key: "Enter" });
+    });
+    await waitFor(() => assert.ok(row("lychee-watch")), TIMEOUT);
+    await waitFor(() => assert.ok(!dialog()), TIMEOUT);
+    await waitFor(() => assert.equal(document.activeElement?.textContent, "Reconciler"), TIMEOUT);
+    assert.equal(document.activeElement?.tagName, "H2");
+  });
+
+  test("Escape still closes it and returns focus to its opener", async () => {
+    await openOnBoard("#rail-menu");
+    act(() => {
+      fireEvent.keyDown(dialog() as HTMLDialogElement, { key: "Escape" });
+    });
+    await waitFor(() => assert.ok(!dialog()), TIMEOUT);
+    await waitFor(() => assert.equal(document.activeElement, document.querySelector("#rail-menu")), TIMEOUT);
   });
 });
