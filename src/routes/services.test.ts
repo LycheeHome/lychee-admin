@@ -988,7 +988,8 @@ describe("GET /services: links to managed sites", () => {
     );
     const res = await current.get("/services");
     assert.equal(res.status, 200);
-    assert.ok((await res.text()).includes('href="/sites/app.lychee.land"'));
+    // Without the shell: the rail lists app.lychee.land from the same Caddyfile.
+    assert.ok(withoutShell(await res.text()).includes('href="/sites/app.lychee.land"'));
   });
 
   test("an unreadable Caddyfile renders the board without site links", async () => {

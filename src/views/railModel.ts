@@ -7,7 +7,7 @@ import { hostnameForResource } from "../lib/siteResource";
 import type { BoardRow, ServiceBoard, ServiceGroup } from "../shared/board";
 import type { HealthPayload, SiteHealth, Tone, UnitHealth } from "../shared/health";
 import { rowLabels } from "./boardFacts";
-import { FOCUS_RING } from "./shared";
+import { BUTTON_SECONDARY_COMPACT, FOCUS_RING, INPUT } from "./shared";
 
 /** A static site (no status) is hollow and never needs attention. */
 export function siteHealth(site: Site, status: SiteStatus | undefined): SiteHealth {
@@ -93,6 +93,25 @@ export const RAIL_HEADING = `flex items-center justify-between font-mono text-[0
 
 /** A section heading that is also a link (`sites`): the heading's type, a row's current and focus treatment. */
 export const RAIL_HEADING_LINK = `${RAIL_HEADING} no-underline rounded-md hover:text-stone-50 ${RAIL_CURRENT} ${FOCUS_RING}`;
+
+/**
+ * Add site, at the rail's foot: Secondary, not Ember. The rail is on every
+ * page, and an always-present Ember button would compete with each page's own
+ * primary (Visit, a Deploy offer, the add form's submit), undoing "Ember
+ * follows state". It takes the rows' current-item treatment, so
+ * `aria-current="page"` on /sites/new stays visible.
+ */
+export const RAIL_ADD_SITE = `${BUTTON_SECONDARY_COMPACT} no-underline w-full justify-center ${RAIL_CURRENT}`;
+
+/** The find box: the shared input, full width, with room on the right for the printed shortcut. */
+export const RAIL_FIND = `${INPUT} w-full pr-10 text-[0.8rem]`;
+
+/** The shortcut printed inside the find box, `⌘K` or `Ctrl K`. */
+export const RAIL_FIND_HINT =
+  "pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 font-mono text-[0.72rem] text-stone-400";
+
+/** The narrow-screen top bar's menu button, which opens the rail as a drawer. */
+export const RAIL_MENU = `inline-flex items-center justify-center size-9 rounded-md bg-transparent border border-stone-700 text-stone-400 hover:text-stone-50 hover:bg-stone-800 cursor-pointer text-lg ${FOCUS_RING}`;
 
 /** A line the rail prints in place of what it could not read. A sentence, so sans. */
 export const RAIL_NOTE = "m-0 px-2 py-1 font-sans text-[0.8rem] leading-snug text-stone-400";

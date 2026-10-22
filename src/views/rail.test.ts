@@ -1,8 +1,8 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { renderRail } from "./rail";
-import { BUTTON_PRIMARY } from "./shared";
-import { RAIL_DOT } from "./railModel";
+import { renderRail, renderTopBar } from "./rail";
+import { BUTTON_PRIMARY, BUTTON_SECONDARY_COMPACT } from "./shared";
+import { RAIL_ADD_SITE, RAIL_DOT, RAIL_FIND, RAIL_MENU } from "./railModel";
 import { SEEDED_RAIL_SITES, testShell } from "../dev/testHelpers";
 import type { RailData } from "./shell";
 
@@ -120,10 +120,26 @@ describe("renderRail", () => {
     for (const tag of rail().match(/<a\b[^>]*>/g) ?? []) assert.match(tag, /focus-visible:outline-rose-400/, tag);
   });
 
-  test("Add site is the rail's one primary action", () => {
+  // The rail is on every page, so an Ember button there would compete with each
+  // page's own primary (Visit, a Deploy offer, the add form's submit).
+  test("spends no Ember: Add site is Secondary", () => {
     const html = rail();
-    assert.equal(html.split(BUTTON_PRIMARY).length - 1, 1, "BUTTON_PRIMARY appears more than once");
-    assert.match(html, new RegExp(`<a href="/sites/new" class="${BUTTON_PRIMARY.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^"]*"[^>]*>[\\s\\S]*?Add site</a>`));
+    assert.ok(!html.includes(BUTTON_PRIMARY), "the rail carries BUTTON_PRIMARY");
+    assert.doesNotMatch(html, /\bbg-rose-400\b/);
+    assert.ok(html.includes(`<a href="/sites/new" class="${RAIL_ADD_SITE}"`), "Add site does not carry RAIL_ADD_SITE");
+    assert.ok(RAIL_ADD_SITE.startsWith(BUTTON_SECONDARY_COMPACT));
+  });
+
+  test("Add site keeps the current-item treatment, so /sites/new stays visibly current", () => {
+    for (const cls of ["aria-[current=page]:bg-stone-700", "aria-[current=page]:border-l-2", "aria-[current=page]:border-l-rose-800"]) {
+      assert.ok(RAIL_ADD_SITE.split(" ").includes(cls), cls);
+    }
+    assert.match(rail({ current: { page: "new" } }), /<a href="\/sites\/new" class="[^"]*" aria-current="page">/);
+  });
+
+  test("the find box and the menu button carry their shared class strings", () => {
+    assert.ok(rail().includes(`<input id="find" type="text" autocomplete="off" spellcheck="false" placeholder="find" aria-label="Find a site or unit" class="${RAIL_FIND}" />`));
+    assert.ok(renderTopBar().includes(`id="rail-menu" aria-label="Open navigation" class="${RAIL_MENU}"`));
   });
 
   test("the find box prints the ⌘K hint", () => {

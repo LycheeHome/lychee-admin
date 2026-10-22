@@ -163,7 +163,7 @@ describe("the add-site page", () => {
     assert.doesNotMatch(html, /id="add-site-form"/);
   });
 
-  test("the list page with sites has no Add site button of its own: the rail's is the one", () => {
+  test("the list page with sites has no Add site button of its own: the rail carries it", () => {
     // Asserted against the body with the shell removed, since the rail
     // carries Add site on every page.
     const body = withoutShell(list());

@@ -4,8 +4,19 @@
 // railModel.ts so the island's first render can match this one exactly.
 import { splitHostnameForDisplay } from "../lib/siteDisplay";
 import type { RailCurrent, RailData } from "./shell";
-import { BUTTON_PRIMARY, FOCUS_RING, INPUT, escapeHtml, icon } from "./shared";
-import { RAIL_DOT, RAIL_HEADING, RAIL_HEADING_LINK, RAIL_HINT, RAIL_NOTE, RAIL_ROW } from "./railModel";
+import { FOCUS_RING, escapeHtml, icon } from "./shared";
+import {
+  RAIL_ADD_SITE,
+  RAIL_DOT,
+  RAIL_FIND,
+  RAIL_FIND_HINT,
+  RAIL_HEADING,
+  RAIL_HEADING_LINK,
+  RAIL_HINT,
+  RAIL_MENU,
+  RAIL_NOTE,
+  RAIL_ROW,
+} from "./railModel";
 
 type RailPage = Extract<RailCurrent, { page: string }>["page"];
 
@@ -70,8 +81,8 @@ export function renderRail(rail: RailData): string {
     <div class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-5 px-3 py-5">
       <h1 class="m-0 px-2 text-base font-normal leading-none">${renderWordmark()}</h1>
       <div class="relative">
-        <input id="find" type="text" autocomplete="off" spellcheck="false" placeholder="find" aria-label="Find a site or unit" class="${INPUT} w-full pr-10 text-[0.8rem]" />
-        <kbd data-find-hint class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 font-mono text-[0.72rem] text-stone-400">⌘K</kbd>
+        <input id="find" type="text" autocomplete="off" spellcheck="false" placeholder="find" aria-label="Find a site or unit" class="${RAIL_FIND}" />
+        <kbd data-find-hint class="${RAIL_FIND_HINT}">⌘K</kbd>
       </div>
       <nav aria-label="Sites" class="flex flex-col gap-0.5">
         <a href="/" class="${RAIL_HEADING_LINK}"${ariaCurrent(isPage(rail.current, "sites"))}>sites<span data-count="sites"></span></a>
@@ -83,12 +94,11 @@ export function renderRail(rail: RailData): string {
       </nav>
     </div>
     <div class="shrink-0 border-t border-stone-700 px-3 py-3">
-      <a href="/sites/new" class="${BUTTON_PRIMARY} no-underline w-full justify-center"${ariaCurrent(isPage(rail.current, "new"))}>${icon("plus")}Add site</a>
+      <a href="/sites/new" class="${RAIL_ADD_SITE}"${ariaCurrent(isPage(rail.current, "new"))}>${icon("plus")}Add site</a>
     </div>
   </aside>`;
 }
 
-const MENU_BUTTON = `inline-flex items-center justify-center size-9 rounded-md bg-transparent border border-stone-700 text-stone-400 hover:text-stone-50 hover:bg-stone-800 cursor-pointer text-lg ${FOCUS_RING}`;
 
 /**
  * Below 900px the rail is hidden and this bar stands in for it: the wordmark
@@ -98,6 +108,6 @@ const MENU_BUTTON = `inline-flex items-center justify-center size-9 rounded-md b
 export function renderTopBar(): string {
   return `<header id="top-bar" class="min-[900px]:hidden flex items-center justify-between gap-4 px-4 py-3 border-b border-stone-700">
     ${renderWordmark()}
-    <button type="button" id="rail-menu" aria-label="Open navigation" class="${MENU_BUTTON}">${icon("menu")}</button>
+    <button type="button" id="rail-menu" aria-label="Open navigation" class="${RAIL_MENU}">${icon("menu")}</button>
   </header>`;
 }

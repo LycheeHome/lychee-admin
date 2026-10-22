@@ -1321,23 +1321,33 @@ describe("the site list with no sites", () => {
     assert.equal(ctas.length, 1, "the section header and the empty state both offered Add site");
   });
 
-  // The rail's Add site is now the view's one Ember action on every page, so
-  // the section header carries none even when there are sites.
-  test("the section header has no Add site button once there are sites: the rail's is the one", () => {
+  // The rail carries a quiet Secondary Add site on every page, so the section
+  // header carries none even when there are sites.
+  test("the section header has no Add site button once there are sites: the rail carries it", () => {
     const body = withoutShell(renderSiteList(SITES, {}, "lychee.land"));
     assert.doesNotMatch(body, /href="\/sites\/new"/);
     assert.ok(!body.includes(BUTTON_PRIMARY), "the list body still spends Ember");
+  });
+
+  // With no sites, adding one is the page's one thing to do, so the empty
+  // state's own button stays Ember: the rail's Secondary is too quiet for it.
+  test("the empty state's call to action stays Ember", () => {
+    const cta = tagById(withoutShell(renderSiteList([], {}, "lychee.land")), "empty-state-cta");
+    assert.ok(cta.includes(`class="${BUTTON_PRIMARY} no-underline"`), cta);
+    assert.match(cta, /href="\/sites\/new"/);
   });
 });
 
 describe("hardening: browser defaults never carry the design", () => {
   test("every interactive element the design draws gets the project focus ring", () => {
-    const list = renderSiteList(SITES, {}, "lychee.land");
+    // Page bodies only: the rail's own api.lychee.land row and the top bar's
+    // wordmark (the first href="/") would otherwise answer for them.
+    const list = withoutShell(renderSiteList(SITES, {}, "lychee.land"));
     const card = list.match(/<a href="\/sites\/api\.lychee\.land"[^>]*>/);
     assert.ok(card, "no site-card link rendered");
     assert.match(card[0], /focus-visible:outline-rose-400/);
 
-    const notFound = renderSiteNotFound("nope.lychee.land");
+    const notFound = withoutShell(renderSiteNotFound("nope.lychee.land"));
     const back = notFound.match(/<a href="\/"[^>]*>/);
     assert.ok(back, "no back link rendered");
     assert.match(back[0], /focus-visible:outline-rose-400/);
@@ -3179,7 +3189,8 @@ describe("board rows link to their sites, and unknown explains itself", () => {
   });
 
   test("a managed site's board row links to its site", () => {
-    assert.ok(page(site, new Set(["app.lychee.land"])).includes('href="/sites/app.lychee.land"'));
+    // Without the shell: the rail links every seeded site, app.lychee.land included.
+    assert.ok(withoutShell(page(site, new Set(["app.lychee.land"]))).includes('href="/sites/app.lychee.land"'));
   });
 
   test("a site row not in the managed set stays plain text", () => {
@@ -3247,7 +3258,9 @@ describe("host problems on the site list", () => {
     const consequenceTag = html.slice(html.lastIndexOf("<", consequence), consequence);
     assert.doesNotMatch(consequenceTag, /text-red-/);
     assert.match(html, /<span class="[^"]*text-red-300[^"]*">.*caddy has stopped/);
-    assert.match(html, /href="\/infrastructure"/);
+    // The problem block's own link, not the rail's host link to the same page.
+    const block = withoutShell(html).match(/<div role="status" data-host-problems[\s\S]*?<\/div>/)?.[0] ?? "";
+    assert.match(block, /href="\/infrastructure"/);
   });
 
   test("several problems keep their order", () => {

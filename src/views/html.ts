@@ -160,10 +160,10 @@ export function renderSiteList(
     })
     .join("");
 
-  // The heading carries no Add site button: the rail's is the view's one
-  // Ember action, on every page. With no sites that is too far from the one
+  // The heading carries no Add site button: the rail's quiet Secondary one is
+  // on every page. With no sites that is too quiet and too far from the one
   // thing there is to do, so the empty state states what a site is and
-  // carries its own button.
+  // carries its own button, in Ember: the page's one primary action.
   const empty = `
       <div id="empty-state" class="flex flex-col items-center text-center gap-4 border border-stone-700 rounded-[10px] bg-stone-800 px-6 py-6">
         <h3 class="font-sans font-semibold text-base text-stone-50 m-0">No sites yet</h3>
