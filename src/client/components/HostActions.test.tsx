@@ -5,7 +5,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ActionState, BoardPayload, BoardRow } from "../../shared/board";
 import { renderServicesPage } from "../../views/html";
-import { InfrastructurePage } from "../pages/InfrastructurePage";
+import { BoardPage } from "../pages/BoardPage";
 import { Board } from "./BoardRows";
 import type { HostActionsApi } from "../mutations";
 import { useHealth } from "../health";
@@ -132,7 +132,7 @@ function mount(): QueryClient {
   render(
     <QueryClientProvider client={client}>
       <HealthObserver />
-      <InfrastructurePage />
+      <BoardPage group="infrastructure" />
     </QueryClientProvider>,
   );
   return client;

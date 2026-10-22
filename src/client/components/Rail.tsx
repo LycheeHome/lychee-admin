@@ -20,13 +20,19 @@ import {
 import { FOCUS_RING, ICONS, formatAge } from "../../views/shared";
 import type { RailCurrent, RailData } from "../../views/shell";
 import { FindPanel } from "./FindPanel";
+import { RailLink, boardRouteOf, useClientNav, type BoardRoute } from "../clientNav";
 
 /*
  * The rail's children in JSX. It mirrors renderRail in src/views/rail.ts
  * element for element — with `health: null` its render equals the server
  * aside's inner markup, which the parity test pins — so a change to either
  * belongs in both until the server rail is retired. The aside itself stays
- * the server's: the island mounts onto it and renders only what is inside.
+ * the server's: the app's root renders into it through a portal and renders
+ * only what is inside.
+ *
+ * Every link goes through RailLink (clientNav.tsx): a router link only
+ * between two client routes, otherwise the same plain anchor the server
+ * renders, which is all the parity test (rendering outside any router) sees.
  */
 
 export interface RailProps {
@@ -43,7 +49,7 @@ export interface RailProps {
   now?: Date;
   /** What the server's find box held when the island mounted over it. */
   findInitial?: { query: string; focused: boolean };
-  /** Opens a find result; `location.assign` by default. */
+  /** Opens a find result; by default the router between client routes, `location.assign` otherwise. */
   navigate?: (href: string) => void;
   /** This rail is the narrow-screen drawer's, not the aside's. */
   inDrawer?: boolean;
@@ -61,13 +67,13 @@ const ariaCurrent = (on: boolean): "page" | undefined => (on ? "page" : undefine
 
 function Wordmark() {
   return (
-    <a
+    <RailLink
       href="/"
       aria-label="lychee-admin"
       className={`font-display text-2xl tracking-wide text-stone-50 m-0 no-underline ${FOCUS_RING}`}
     >
       lychee<span className="font-mono text-[0.85rem] tracking-[0.02em] text-stone-300 ml-[0.35em]">admin</span>
-    </a>
+    </RailLink>
   );
 }
 
@@ -113,6 +119,13 @@ const HOST_LINKS = [
   { href: "/infrastructure", label: "infrastructure", page: "infrastructure", count: "infrastructure" },
 ] as const;
 
+/** Each board route's rail item. */
+const ROUTE_PAGE: Record<BoardRoute, "services" | "reconciler" | "infrastructure"> = {
+  "/services": "services",
+  "/reconciler": "reconciler",
+  "/infrastructure": "infrastructure",
+};
+
 export function Rail({
   rail,
   health,
@@ -125,6 +138,13 @@ export function Rail({
   inDrawer,
   onNarrowShortcut,
 }: RailProps) {
+  // On a client route the router's location is where the operator is: the
+  // server's marker described the document's first URL, and an in-app move
+  // keeps the document. Anywhere else the server's marker stands.
+  const nav = useClientNav();
+  const route = nav ? boardRouteOf(nav.pathname) : null;
+  const current: RailCurrent = route ? { page: ROUTE_PAGE[route] } : rail.current;
+
   // A failed poll shows nothing it remembers: TanStack keeps the last data,
   // and a green dot from it would be a lie about now.
   const live = healthError ? null : health;
@@ -159,10 +179,10 @@ export function Rail({
           onNarrowShortcut={onNarrowShortcut}
         />
         <nav aria-label="Sites" className="flex flex-col gap-0.5">
-          <a href="/" className={RAIL_HEADING_LINK} aria-current={ariaCurrent(isPage(rail.current, "sites"))}>
+          <RailLink href="/" className={RAIL_HEADING_LINK} aria-current={ariaCurrent(isPage(current, "sites"))}>
             sites
             <Count name="sites" value={counts ? counts.sites : null} />
-          </a>
+          </RailLink>
           {rail.sites === null ? (
             <p className={RAIL_NOTE}>Can&apos;t read the Caddyfile</p>
           ) : (
@@ -172,11 +192,11 @@ export function Rail({
                 const dot = dotFor(site.hostname, site.hint);
                 return (
                   <li key={site.hostname}>
-                    <a
+                    <RailLink
                       href={`/sites/${encodeURIComponent(site.hostname)}`}
                       className={RAIL_ROW}
                       data-site={site.hostname}
-                      aria-current={ariaCurrent(isSite(rail.current, site.hostname))}
+                      aria-current={ariaCurrent(isSite(current, site.hostname))}
                     >
                       <span className={RAIL_DOT[dot.tone]} data-dot="" aria-hidden="true" />
                       <span className={RAIL_HOSTNAME}>
@@ -187,7 +207,7 @@ export function Rail({
                       <span className="sr-only">, </span>
                       <span className={RAIL_HINT}>{site.hint}</span>
                       {dot.label ? <span className="sr-only">, {dot.label}</span> : null}
-                    </a>
+                    </RailLink>
                   </li>
                 );
               })}
@@ -202,15 +222,15 @@ export function Rail({
         <nav aria-label="Host" className="flex flex-col gap-0.5">
           <p className={`${RAIL_HEADING} m-0`}>host</p>
           {HOST_LINKS.map((link) => (
-            <a
+            <RailLink
               key={link.href}
               href={link.href}
               className={`${RAIL_ROW} justify-between`}
-              aria-current={ariaCurrent(isPage(rail.current, link.page))}
+              aria-current={ariaCurrent(isPage(current, link.page))}
             >
               {link.label}
               {rail.hostAvailable ? <Count name={link.count} value={counts ? counts[link.count] : null} /> : null}
-            </a>
+            </RailLink>
           ))}
           {rail.hostAvailable ? null : <p className={RAIL_NOTE}>Inventory unavailable</p>}
         </nav>
@@ -337,7 +357,7 @@ interface DrawerState {
 
 /**
  * The rail and the top bar together, with the narrow-screen drawer between
- * them. Mounted on the rail's aside, it renders the rail there and the top
+ * them. Portalled into the rail's aside, it renders the rail there and the top
  * bar's children into the server's header through a portal, removing the
  * server's own once React's are in.
  *

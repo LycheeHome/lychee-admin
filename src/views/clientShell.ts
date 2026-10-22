@@ -27,12 +27,17 @@ export function readClientManifest(publicDir: string): ClientAssets | null {
   }
 }
 
+/** The pages the client renders, by the name their mount point carries. */
+export type ClientPage = "services" | "reconciler" | "infrastructure";
+
 /**
  * The shared shell around an empty mount point the client renders into. The
  * bundle's tags come from layout(), which emits them on every page from
  * `shell.assets`; a migrated route answers 500 before calling this when that
- * is null, because the page has nothing else to show.
+ * is null, because the page has nothing else to show. `title` is the one the
+ * client sets again on every in-app navigation to this page, so the two are
+ * read from the same constant.
  */
-export function renderClientPage(title: string, page: string, shell: ShellData): string {
+export function renderClientPage(title: string, page: ClientPage, shell: ShellData): string {
   return layout(title, `<div id="app-root" data-page="${escapeHtml(page)}"></div>`, { shell });
 }

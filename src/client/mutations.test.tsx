@@ -6,7 +6,7 @@ import { after, afterEach, before, beforeEach, describe, test } from "node:test"
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { BoardPayload, BoardRow } from "../shared/board";
-import { InfrastructurePage } from "./pages/InfrastructurePage";
+import { BoardPage } from "./pages/BoardPage";
 import { useHealth } from "./health";
 import { seedHealth } from "./test/healthFixture";
 
@@ -122,7 +122,7 @@ function mount(): QueryClient {
   render(
     <QueryClientProvider client={client}>
       <HealthObserver />
-      <InfrastructurePage />
+      <BoardPage group="infrastructure" />
     </QueryClientProvider>,
   );
   return client;

@@ -6,6 +6,8 @@ import bcrypt from "bcrypt";
 import type { Deps } from "../deps";
 import type { ClientAssets } from "../views/clientShell";
 import type { SystemCommands } from "../lib/systemCommands";
+import type { ServiceGroup } from "../lib/serviceInventory";
+import type { BoardPayload } from "../shared/board";
 import { RETIRED_SWITCHER, withoutShell } from "../dev/testHelpers";
 
 const PASSWORD = "test-password";
@@ -34,7 +36,7 @@ async function serve(
   overrides: Partial<SystemCommands>,
   seed: { opRun?: { delayMs?: number } } = {},
   clientAssets?: ClientAssets | null | (() => ClientAssets | null),
-): Promise<{ base: string; fs: Deps["fs"]; get: (p: string) => Promise<Response>; actions: () => string[]; audit: () => Record<string, unknown>[]; close: () => Promise<void> }> {
+): Promise<{ base: string; fs: Deps["fs"]; get: (p: string) => Promise<Response>; board: (p: BoardPath) => Promise<Response>; actions: () => string[]; audit: () => Record<string, unknown>[]; close: () => Promise<void> }> {
   const { createApp } = await import("../app");
   const { createBackup } = await import("../lib/backup");
   const { createLogger } = await import("../lib/logger");
@@ -60,6 +62,7 @@ async function serve(
     base,
     fs: fakes.fs,
     get: (p) => fetch(`${base}${p}`, { headers: { Authorization: AUTH } }),
+    board: (p) => boardHtml(base, p),
     audit: () => {
       const file = process.env.LOG_FILE as string;
       if (!fakes.fs.exists(file)) return [];
@@ -79,6 +82,44 @@ async function serve(
       await once(server, "close");
     },
   };
+}
+
+type BoardPath = "/services" | "/reconciler" | "/infrastructure";
+const BOARD_GROUP: Record<BoardPath, ServiceGroup> = { "/services": "service", "/reconciler": "reconciler", "/infrastructure": "infrastructure" };
+const BOARD_PAGE: Record<BoardPath, "services" | "reconciler" | "infrastructure"> = {
+  "/services": "services",
+  "/reconciler": "reconciler",
+  "/infrastructure": "infrastructure",
+};
+
+/**
+ * A board page's markup as these tests read it now the page is the client's:
+ * the route's own data, from GET /api/services, rendered by the server board
+ * the React board keeps parity with. It covers the data path (loadBoardPage
+ * and the payload) end to end; Task 6 retires renderServicesPage and moves
+ * these assertions onto the client. A non-ok answer is returned as it came.
+ */
+async function boardHtml(base: string, p: BoardPath): Promise<Response> {
+  const group = BOARD_GROUP[p];
+  const res = await fetch(`${base}/api/services?group=${group}`, { headers: { Authorization: AUTH } });
+  if (!res.ok) return res;
+  const body = (await res.json()) as BoardPayload;
+  const { renderServicesPage } = await import("../views/html");
+  // The payload narrows the board to one group and carries "the whole board
+  // is empty" beside it; the server renderer reads that from the groups.
+  const board = !body.boardEmpty && body.board.groups.length === 0 ? { ...body.board, groups: [{ group, rows: [] }] } : body.board;
+  const html = renderServicesPage(
+    board,
+    new Date(body.now),
+    new Set(body.prunable),
+    body.domain,
+    body.lastRuns,
+    group,
+    new Set(body.managed),
+    new Map(Object.entries(body.requested)),
+    { rail: { sites: [], hostAvailable: true, current: { page: BOARD_PAGE[p] }, domain: body.domain }, assets: null },
+  );
+  return new Response(html, { status: 200, headers: { "content-type": "text/html" } });
 }
 
 /** The status word of each rendered row, in page order. */
@@ -119,7 +160,7 @@ describe("GET /services", () => {
         return Promise.resolve({ next: new Date(Date.now() + 180_000), last: null });
       },
     });
-    const res = await s.get("/services");
+    const res = await s.board("/services");
     assert.equal(res.status, 200);
     const html = await res.text();
     assert.equal(stateCalls, 1);
@@ -127,7 +168,7 @@ describe("GET /services", () => {
     assert.deepEqual(timers, ["lychee-reconcile.timer"]);
     assert.deepEqual(pills(html), ["running"]);
     // The schedule is shown where the timer's row is: on the reconciler page.
-    assert.match(await (await s.get("/reconciler")).text(), /next run in 3 minutes/);
+    assert.match(await (await s.board("/reconciler")).text(), /next run in 3 minutes/);
   });
 
   test("a reconciler entry that is not a timer is not mistaken for one", async () => {
@@ -138,7 +179,7 @@ describe("GET /services", () => {
         return Promise.resolve({ next: null, last: null });
       },
     });
-    const html = await (await s.get("/reconciler")).text();
+    const html = await (await s.board("/reconciler")).text();
     assert.deepEqual(timers, []);
     assert.ok(!html.includes("next run"));
   });
@@ -149,13 +190,13 @@ describe("GET /services", () => {
       inventory([{ name: "x", unit: "x.timer", group: "service", reconciled: false }]),
       { readTimerSchedule: (t) => (timers.push(t), Promise.resolve({ next: null, last: null })) },
     );
-    await s.get("/services");
+    await s.board("/services");
     assert.deepEqual(timers, []);
   });
 
   test("a missing inventory yields a page, not an error", async () => {
     const s = await start(null, {});
-    const res = await s.get("/services");
+    const res = await s.board("/services");
     assert.equal(res.status, 200);
     const html = await res.text();
     assert.ok(html.includes("inventory-unavailable"));
@@ -167,8 +208,8 @@ describe("GET /services", () => {
       readUnitStates: () => Promise.reject(new Error("systemctl not found")),
     });
     const statuses: string[] = [];
-    for (const page of ["/services", "/reconciler"]) {
-      const res = await s.get(page);
+    for (const page of ["/services", "/reconciler"] as const) {
+      const res = await s.board(page);
       assert.equal(res.status, 200);
       statuses.push(...pills(await res.text()));
     }
@@ -181,10 +222,10 @@ describe("GET /services", () => {
       readUnitStates: () => Promise.resolve({ "swee.service": { status: "running", since: null } }),
       readTimerSchedule: () => Promise.reject(new Error("boom")),
     });
-    const res = await s.get("/reconciler");
+    const res = await s.board("/reconciler");
     assert.equal(res.status, 200);
     assert.ok(!(await res.text()).includes("next run"));
-    assert.deepEqual(pills(await (await s.get("/services")).text()), ["running"]);
+    assert.deepEqual(pills(await (await s.board("/services")).text()), ["running"]);
   });
 
   test("the two reads run concurrently", async () => {
@@ -201,7 +242,7 @@ describe("GET /services", () => {
         return Promise.resolve({ next: null, last: null });
       },
     });
-    const res = await s.get("/services");
+    const res = await s.board("/services");
     assert.equal(res.status, 200);
     assert.ok(scheduleStarted);
   });
@@ -223,7 +264,7 @@ describe("GET /services", () => {
         return Promise.resolve("unhealthy");
       },
     });
-    const html = await (await s.get("/services")).text();
+    const html = await (await s.board("/services")).text();
     assert.deepEqual(requested, ["swee.service"]);
     assert.deepEqual(projects, ["palsave-api"]);
     assert.deepEqual(pills(html), ["running", "unhealthy"]);
@@ -234,7 +275,7 @@ describe("GET /services", () => {
       readUnitStates: () => Promise.resolve({ "swee.service": { status: "running", since: null } }),
       readResourceStatus: () => Promise.reject(new Error("docker not found")),
     });
-    const res = await s.get("/services");
+    const res = await s.board("/services");
     assert.equal(res.status, 200);
     assert.deepEqual(pills(await res.text()), ["running", "unknown"]);
   });
@@ -243,7 +284,7 @@ describe("GET /services", () => {
     const s = await start(inventory([CONTAINER]), {
       readResourceStatus: () => Promise.resolve("unknown"),
     });
-    const html = await (await s.get("/services")).text();
+    const html = await (await s.board("/services")).text();
     const { TONE_PILL } = await import("../views/shared");
     assert.ok(html.includes(TONE_PILL.neutral));
     assert.ok(!html.includes(TONE_PILL.bad));
@@ -253,7 +294,7 @@ describe("GET /services", () => {
     const s = await start(inventory([SWEE]), {
       readUnitStates: () => Promise.resolve({ "swee.service": { status: "running", since: null } }),
     });
-    assert.deepEqual(pills(await (await s.get("/services")).text()), ["running"]);
+    assert.deepEqual(pills(await (await s.board("/services")).text()), ["running"]);
   });
 
   test("container reads run concurrently with each other", async () => {
@@ -270,7 +311,7 @@ describe("GET /services", () => {
           }),
       },
     );
-    const res = await s.get("/services");
+    const res = await s.board("/services");
     assert.equal(res.status, 200);
     assert.equal(started, 2);
   });
@@ -295,7 +336,7 @@ describe("the three board pages", () => {
   const currentItems = (html: string): string[] =>
     [...html.matchAll(/<a href="([^"]+)"[^>]*aria-current="page"/g)].map((m) => m[1]);
 
-  const PAGES = [
+  const PAGES: Array<{ path: BoardPath; eyebrow: string; only: string[]; never: string[] }> = [
     { path: "/services", eyebrow: "Services", only: ["lychee-admin", "swee", "palsave-api"], never: ["lychee-reconcile-timer", "caddy"] },
     { path: "/reconciler", eyebrow: "Reconciler", only: ["lychee-reconcile-timer", "lychee-watch-timer"], never: ["swee", "caddy"] },
   ];
@@ -304,7 +345,7 @@ describe("the three board pages", () => {
     test(`${page.path} renders only its own group's rows, under its own eyebrow`, async () => {
       const { SEEDED_INVENTORY } = await import("../dev/seed");
       const s = await start(SEEDED_INVENTORY, {});
-      const res = await s.get(page.path);
+      const res = await s.board(page.path);
       assert.equal(res.status, 200);
       const html = await res.text();
       const names = rows(html);
@@ -318,13 +359,14 @@ describe("the three board pages", () => {
 
     test(`${page.path} marks exactly its own header item current`, async () => {
       const { SEEDED_INVENTORY } = await import("../dev/seed");
-      const s = await start(SEEDED_INVENTORY, {});
+      // The real route, with the bundle: the shell's rail marks the page.
+      const s = await start(SEEDED_INVENTORY, {}, {}, { script: "assets/main-abc.js", styles: [] });
       assert.deepEqual(currentItems(await (await s.get(page.path)).text()), [page.path]);
     });
 
     test(`${page.path} explains a missing inventory instead of erroring`, async () => {
       const s = await start(null, {});
-      const res = await s.get(page.path);
+      const res = await s.board(page.path);
       assert.equal(res.status, 200);
       const html = await res.text();
       assert.ok(html.includes('id="inventory-unavailable"'));
@@ -339,13 +381,13 @@ describe("the three board pages", () => {
 
   test("a readable inventory with nothing in a page's group says so in one sentence", async () => {
     const s = await start(inventory([SWEE]), {});
-    for (const path of ["/reconciler"]) {
-      const html = await (await s.get(path)).text();
+    for (const path of ["/reconciler"] as const) {
+      const html = await (await s.board(path)).text();
       assert.ok(html.includes('id="group-empty"'), path);
       assert.ok(!html.includes('id="inventory-unavailable"'), path);
       assert.deepEqual(rows(html), [], path);
     }
-    const services = await (await s.get("/services")).text();
+    const services = await (await s.board("/services")).text();
     assert.ok(!services.includes('id="group-empty"'));
     assert.deepEqual(rows(services), ["swee"]);
   });
@@ -355,43 +397,72 @@ describe("the three board pages", () => {
     const s = await start(inventory([...RECONCILER, SWEE]), {
       readUnitStates: (units) => (calls.push(units), Promise.resolve({})),
     });
-    for (const path of ["/services", "/reconciler"]) await s.get(path);
+    for (const path of ["/services", "/reconciler"] as const) await s.board(path);
     assert.equal(calls.length, 1);
     for (const units of calls) assert.deepEqual(units, ["lychee-reconcile.timer", "lychee-reconcile.service", "swee.service"]);
   });
 });
 
-describe("GET /infrastructure: the React mount", () => {
+describe("GET /services, /reconciler and /infrastructure: the React mount", () => {
   let current: Awaited<ReturnType<typeof serve>> | undefined;
   after(async () => {
     await current?.close();
   });
   const ASSETS: ClientAssets = { script: "assets/main-abc.js", styles: ["assets/main-def.css"] };
+  const MOUNTS = [
+    { path: "/services", page: "services", title: "Services" },
+    { path: "/reconciler", page: "reconciler", title: "Reconciler" },
+    { path: "/infrastructure", page: "infrastructure", title: "Infrastructure" },
+  ] as const;
 
-  test("serves the shell with the mount point and the bundle", async () => {
-    current = await serve(null, {}, {}, ASSETS);
-    const res = await current.get("/infrastructure");
-    assert.equal(res.status, 200);
-    const html = await res.text();
-    assert.ok(html.includes('id="app-root" data-page="infrastructure"'));
-    assert.ok(html.includes('<script type="module" src="/client/assets/main-abc.js">'));
-    assert.match(html, /<a href="\/infrastructure"[^>]*aria-current="page"/);
-    // layout() is the bundle's only emitter, so each tag appears once.
-    assert.equal(html.split("/client/assets/main-abc.js").length - 1, 1);
-    assert.equal(html.split("/client/assets/main-def.css").length - 1, 1);
-    await current.close();
-  });
+  for (const { path, page, title } of MOUNTS) {
+    test(`${path} serves the shell with its mount point, its title, its rail mark and the bundle`, async () => {
+      await current?.close();
+      current = await serve(null, {}, {}, ASSETS);
+      const res = await current.get(path);
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.ok(html.includes(`<div id="app-root" data-page="${page}"></div>`), path);
+      assert.ok(html.includes(`<title>${title}</title>`), path);
+      assert.ok(html.includes('<script type="module" src="/client/assets/main-abc.js">'));
+      const marked = [...html.matchAll(/<a\b[^>]*\baria-current="page"[^>]*>/g)].map((m) => m[0].match(/href="([^"]+)"/)?.[1]);
+      assert.deepEqual(marked, [path]);
+      // The server renders no board: the client reads it from /api/services.
+      assert.ok(!html.includes("data-service="), path);
+      // The one root mounts here, ahead of the bundle.
+      assert.ok(html.includes('<div id="react-root"></div>'), path);
+      assert.ok(html.indexOf('<div id="react-root"></div>') < html.indexOf('<script type="module"'), path);
+      // layout() is the bundle's only emitter, so each tag appears once.
+      assert.equal(html.split("/client/assets/main-abc.js").length - 1, 1);
+      assert.equal(html.split("/client/assets/main-def.css").length - 1, 1);
+    });
 
-  test("the server-rendered board pages load the bundle too, for the rail island", async () => {
+    test(`${path} answers 500 when the bundle is missing`, async () => {
+      await current?.close();
+      current = await serve(null, {}, {}, null);
+      const res = await current.get(path);
+      assert.equal(res.status, 500);
+      assert.equal(await res.text(), "client bundle missing; run npm run build");
+    });
+
+    test(`${path} requires authentication`, async () => {
+      await current?.close();
+      current = await serve(null, {}, {}, ASSETS);
+      assert.equal((await fetch(`${current.base}${path}`)).status, 401);
+    });
+  }
+
+  test("a server-rendered page carries the root's mount point too, for the rail", async () => {
+    await current?.close();
     current = await serve(null, {}, {}, ASSETS);
-    for (const path of ["/services", "/reconciler"]) {
-      const html = await (await current.get(path)).text();
-      assert.equal(html.split('<script type="module" src="/client/assets/main-abc.js"></script>').length - 1, 1, path);
-    }
-    await current.close();
+    const html = await (await current.get("/sites/new")).text();
+    assert.equal(html.split('<div id="react-root"></div>').length - 1, 1);
+    assert.ok(!html.includes('id="app-root"'));
+    assert.equal(html.split('<script type="module" src="/client/assets/main-abc.js"></script>').length - 1, 1);
   });
 
   test("each board page marks its own rail link, and a missing inventory says so in the rail", async () => {
+    await current?.close();
     current = await serve(null, {}, {}, ASSETS);
     for (const [path, href] of [["/services", "/services"], ["/reconciler", "/reconciler"], ["/infrastructure", "/infrastructure"]]) {
       const html = await (await current.get(path)).text();
@@ -401,20 +472,6 @@ describe("GET /infrastructure: the React mount", () => {
       assert.doesNotMatch(html, /id="site-header"/, path);
       assert.doesNotMatch(html, RETIRED_SWITCHER, path);
     }
-    await current.close();
-  });
-
-  test("answers 500 when the bundle is missing", async () => {
-    current = await serve(null, {}, {}, null);
-    const res = await current.get("/infrastructure");
-    assert.equal(res.status, 500);
-    assert.equal(await res.text(), "client bundle missing; run npm run build");
-    await current.close();
-  });
-
-  test("requires authentication", async () => {
-    current = await serve(null, {}, {}, ASSETS);
-    assert.equal((await fetch(`${current.base}/infrastructure`)).status, 401);
     await current.close();
   });
 
@@ -453,7 +510,7 @@ describe("GET /services: Prune on retired site rows", () => {
   async function board(readDeclarations: SystemCommands["readDeclarations"]): Promise<string> {
     await current?.close();
     current = await serve(inventory([site("gone-lychee-land"), site("app-lychee-land"), PALSAVE]), { readDeclarations });
-    const res = await current.get("/services");
+    const res = await current.board("/services");
     assert.equal(res.status, 200);
     return res.text();
   }
@@ -556,7 +613,7 @@ describe("GET /services — a pending Deploy", () => {
   async function rowHtml(overrides: Partial<SystemCommands>): Promise<string> {
     await current?.close();
     current = await serve(inventory([ROW]), overrides);
-    const res = await current.get("/services");
+    const res = await current.board("/services");
     assert.equal(res.status, 200);
     return (await res.text()).replace(/<template[\s\S]*?<\/template>/g, "");
   }
@@ -912,7 +969,7 @@ describe("GET /services: host action state", () => {
         });
       },
     });
-    const html = await (await current.get("/services")).text();
+    const html = await (await current.board("/services")).text();
     assert.equal(reads.length, 1);
     assert.equal(reads[0].length, 4);
     assert.ok(html.includes('data-running="update"'));
@@ -922,7 +979,7 @@ describe("GET /services: host action state", () => {
   test("an unreadable systemd still renders the board and its buttons, without a last run", async () => {
     await current?.close();
     current = await serve(inventory([GAME]), { readOpUnits: () => Promise.reject(new Error("systemctl broke")) });
-    const res = await current.get("/services");
+    const res = await current.board("/services");
     assert.equal(res.status, 200);
     const html = await res.text();
     assert.ok(html.includes('data-host-action="restart"'));
@@ -942,7 +999,7 @@ describe("GET /services: host action state", () => {
       JSON.stringify({ unit: PAL, action: "restart", result: "success", exit_status: 0, started_at: "2026-10-14T15:14:58Z", finished_at: "2026-10-14T15:15:03Z" }),
     );
     current.fs.writeFile(`/var/lib/lychee-op/${PAL}-restart.log`, "restarted\n");
-    const html = await (await current.get("/services")).text();
+    const html = await (await current.board("/services")).text();
     assert.match(html, /restart <span class="[^"]*">succeeded<\/span>/);
     assert.ok(html.includes("took 5s"), "the duration comes from the file's times");
     assert.ok(html.includes("data-action-log"));
@@ -961,7 +1018,7 @@ describe("GET /services: host action state", () => {
     assert.equal(started.status, 202);
     const running = (await (await s.get(`/services/${PAL}/actions/restart/state`)).json()) as { state: { state: string } };
     assert.equal(running.state.state, "running");
-    assert.ok((await (await s.get("/services")).text()).includes('data-running="restart"'));
+    assert.ok((await (await s.board("/services")).text()).includes('data-running="restart"'));
     await new Promise((r) => setTimeout(r, 90));
     const done = (await (await s.get(`/services/${PAL}/actions/restart/state`)).json()) as {
       state: { state: string; startedAt?: string; finishedAt?: string };
@@ -969,7 +1026,7 @@ describe("GET /services: host action state", () => {
     assert.equal(done.state.state, "succeeded");
     assert.ok(done.state.startedAt && done.state.finishedAt);
     assert.ok(s.fs.exists(`/var/lib/lychee-op/${PAL}-restart.result.json`));
-    assert.match(await (await s.get("/services")).text(), /restart <span class="[^"]*">succeeded<\/span>/);
+    assert.match(await (await s.board("/services")).text(), /restart <span class="[^"]*">succeeded<\/span>/);
   });
 });
 
@@ -986,7 +1043,7 @@ describe("GET /services: links to managed sites", () => {
       "/etc/caddy/Caddyfile",
       "{\n  auto_https off\n}\n\nhttp://app.lychee.land {\n  reverse_proxy localhost:3200\n}\n",
     );
-    const res = await current.get("/services");
+    const res = await current.board("/services");
     assert.equal(res.status, 200);
     // Without the shell: the rail lists app.lychee.land from the same Caddyfile.
     assert.ok(withoutShell(await res.text()).includes('href="/sites/app.lychee.land"'));
@@ -995,7 +1052,7 @@ describe("GET /services: links to managed sites", () => {
   test("an unreadable Caddyfile renders the board without site links", async () => {
     await current?.close();
     current = await serve(inventory([APP]), {});
-    const res = await current.get("/services");
+    const res = await current.board("/services");
     assert.equal(res.status, 200);
     assert.ok(!withoutShell(await res.text()).includes('href="/sites/'));
   });

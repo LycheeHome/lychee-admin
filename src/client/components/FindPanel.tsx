@@ -15,6 +15,7 @@ import {
 import { TONE_PILL } from "../../views/shared";
 import type { RailData } from "../../views/shell";
 import { attentionResults, findResults, type FindGroupKey, type FindItem } from "../find";
+import { useOpen } from "../clientNav";
 
 /*
  * The ⌘K find box and its panel: a combobox over every site and unit. Closed
@@ -27,7 +28,7 @@ export interface FindPanelProps {
   health: HealthPayload | null;
   /** The rail's own site list, matched when no health has been read. */
   railSites: RailData["sites"];
-  /** Opens a row. A full page load until a router exists. */
+  /** Opens a row: by default the router's navigate between client routes, `location.assign` otherwise. */
   navigate?: (href: string) => void;
   /** The managed domain, dimmed in hostnames as the rail dims it. */
   domain?: string;
@@ -79,10 +80,6 @@ export const optionId = (href: string): string =>
 
 const headingId = (key: FindGroupKey): string => `find-group-${key}`;
 
-const defaultNavigate = (href: string): void => {
-  window.location.assign(href);
-};
-
 /** ⌘K on Apple platforms, Ctrl+K elsewhere: either opens find, from anywhere. */
 const isFindShortcut = (e: globalThis.KeyboardEvent): boolean =>
   (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k";
@@ -125,7 +122,7 @@ function Row({ item, domain }: { item: FindItem; domain: string | undefined }) {
 export function FindPanel({
   health,
   railSites,
-  navigate = defaultNavigate,
+  navigate: navigateProp,
   domain,
   findHint = "⌘K",
   initialQuery = "",
@@ -133,6 +130,10 @@ export function FindPanel({
   inDrawer = false,
   onNarrowShortcut,
 }: FindPanelProps) {
+  // A row in another board group (`/reconciler#service-…`) opens in-app from
+  // a board page; a site's page, or any move from a server page, loads a document.
+  const openHref = useOpen();
+  const navigate = navigateProp ?? openHref;
   const inputRef = useRef<HTMLInputElement>(null);
   // The document listener is registered once; it reads the latest callback here.
   const narrowShortcut = useRef(onNarrowShortcut);

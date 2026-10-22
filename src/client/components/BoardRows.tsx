@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import type { ActionState, BoardPayload, BoardRow, ServiceBoard, ServiceGroup } from "../../shared/board";
 import type { BoardControlsApi } from "../mutations";
 import { HostActions } from "./HostActions";
@@ -280,9 +280,20 @@ export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
 export type BoardProps = {
   payload: BoardPayload;
   group: ServiceGroup;
-  /** Absent, the controls are inert markup: nothing posts, opens or polls. */
+  /** Absent, the controls are inert markup: nothing posts, opens or polls. BoardPage always wires them. */
   controls?: BoardControls;
+  /**
+   * The live page's handle on its eyebrow, which then takes focus after a
+   * navigation (`tabIndex={-1}`: focusable, never in the tab order). Absent,
+   * the eyebrow is exactly the server's, as the parity tests compare it.
+   */
+  headingRef?: Ref<HTMLHeadingElement>;
+  /** A failed re-read's line, shown above the rows while the last good board stays. */
+  alert?: string | null;
 };
+
+/** The add-site page's error treatment, visible. */
+export const BOARD_ALERT = "font-mono text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0";
 
 /**
  * One board page's body: eyebrow, freshness line, then the rows or the
@@ -290,7 +301,7 @@ export type BoardProps = {
  * inert requested-line template the server page appends for app.js. It is
  * dead markup here, kept for parity until the server board is retired.
  */
-export function Board({ payload, group, controls }: BoardProps) {
+export function Board({ payload, group, controls, headingRef, alert }: BoardProps) {
   const { board, boardEmpty } = payload;
   const now = new Date(payload.now);
   const ctx: RowContext = {
@@ -338,13 +349,24 @@ export function Board({ payload, group, controls }: BoardProps) {
     <>
       <div className={`${FRAME_WIDTH} flex flex-col gap-8`}>
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <h2 className="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">{GROUP_LABELS[group]}</h2>
+          <h2
+            ref={headingRef}
+            tabIndex={headingRef ? -1 : undefined}
+            className="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0"
+          >
+            {GROUP_LABELS[group]}
+          </h2>
           {freshness ? (
             <p className={`m-0 text-[0.8rem] text-stone-400 ${PROSE_MEASURE}`} data-inventory-age="">
               {freshness}
             </p>
           ) : null}
         </div>
+        {alert ? (
+          <p role="alert" className={BOARD_ALERT}>
+            {alert}
+          </p>
+        ) : null}
         {content}
       </div>
       {offers ? (

@@ -4,7 +4,9 @@
   "private": true,
   "description": "Local admin app for managing Caddy + Cloudflare Tunnel sites on lychee",
   "main": "dist/server.js",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "concurrently -n tsx,css,client \"tsx watch src/server.ts\" \"tailwindcss -i src/styles/tailwind.css -o public/style.css --watch\" \"vite build --watch\"",
     "dev:mock": "concurrently -n tsx,css,client \"tsx watch src/dev/server.ts\" \"tailwindcss -i src/styles/tailwind.css -o public/style.css --watch\" \"vite build --watch\"",
@@ -45,6 +47,7 @@
     "happy-dom": "^21.0.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "react-router": "8.4.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.16.5",
     "typescript": "^5.5.4",

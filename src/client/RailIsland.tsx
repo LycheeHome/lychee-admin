@@ -1,6 +1,5 @@
-import { StrictMode } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
+import { useLayoutEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { RailData } from "../views/shell";
 import { Navigation } from "./components/Rail";
 import { useHealth } from "./health";
@@ -46,15 +45,21 @@ export function RailIsland({
   );
 }
 
+interface ServerRail {
+  aside: HTMLElement;
+  rail: RailData;
+  findInitial?: { query: string; focused: boolean };
+  topBar: Element | null;
+  /** The server's own children of the aside, removed once React's are in beside them. */
+  serverNodes: ChildNode[];
+}
+
 /**
- * Takes over the server's `<aside id="rail">`: reads the rail data the
- * server put beside it (`#rail-data`) and renders the island into the aside,
- * which keeps its own id, attributes and classes. The narrow-screen
- * `<header id="top-bar">` is taken over from the same tree, through a portal,
- * and likewise keeps its own element. Returns null, leaving the
- * server rail as plain links, when either is missing or the data is unreadable.
+ * The server's `<aside id="rail">` and the rail data beside it
+ * (`#rail-data`), read once. Null, leaving the server rail as plain links,
+ * when either is missing or the data is unreadable.
  */
-export function mountRailIsland(client: QueryClient, doc: Document = document): Root | null {
+function readServerRail(doc: Document): ServerRail | null {
   const aside = doc.getElementById("rail");
   const script = doc.getElementById("rail-data");
   if (!aside || !script) return null;
@@ -64,19 +69,29 @@ export function mountRailIsland(client: QueryClient, doc: Document = document): 
   } catch {
     return null;
   }
-  // createRoot replaces the server's input with React's: carry across what the
-  // operator already typed into it, and whether they were still typing.
+  // React's input replaces the server's: carry across what the operator
+  // already typed into it, and whether they were still typing.
   const serverFind = aside.querySelector<HTMLInputElement>("#find");
-  const findInitial = serverFind
-    ? { query: serverFind.value, focused: doc.activeElement === serverFind }
-    : undefined;
-  const root = createRoot(aside);
-  root.render(
-    <StrictMode>
-      <QueryClientProvider client={client}>
-        <RailIsland rail={rail} findInitial={findInitial} topBar={doc.getElementById("top-bar")} />
-      </QueryClientProvider>
-    </StrictMode>,
+  const findInitial = serverFind ? { query: serverFind.value, focused: doc.activeElement === serverFind } : undefined;
+  return { aside, rail, findInitial, topBar: doc.getElementById("top-bar"), serverNodes: Array.from(aside.childNodes) };
+}
+
+/**
+ * The rail, rendered from the app's one root into the server's aside through
+ * a portal, so router links in it share the page's router. The aside keeps
+ * its own id, attributes and classes; its server children are captured before
+ * React's go in beside them and removed in the same commit, so the rail never
+ * shows twice and there is only ever one `#find`. The narrow-screen
+ * `<header id="top-bar">` is taken over by Navigation, the same way.
+ */
+export function RailPortal({ doc = document }: { doc?: Document }) {
+  const [server] = useState(() => readServerRail(doc));
+  useLayoutEffect(() => {
+    for (const node of server?.serverNodes ?? []) node.parentNode?.removeChild(node);
+  }, [server]);
+  if (!server) return null;
+  return createPortal(
+    <RailIsland rail={server.rail} findInitial={server.findInitial} topBar={server.topBar} />,
+    server.aside,
   );
-  return root;
 }

@@ -61,11 +61,23 @@ describe("boardInProgress", () => {
     assert.equal(boardInProgress(payload([row("notes", { version: "v1.5.0" })], { requested: { notes: "v1.5.0" } })), false);
   });
 
-  test("true with an active run", () => {
-    assert.equal(boardInProgress(payload([row("notes")], { lastRuns: { palworld: run("running") } })), true);
+  test("true with an active run on one of the payload's rows", () => {
+    assert.equal(boardInProgress(payload([row("notes"), row("palworld")], { lastRuns: { palworld: run("running") } })), true);
+  });
+
+  test("a run on a unit outside the payload's group does not count", () => {
+    // lastRuns carries every unit's run, but the payload is one group's page:
+    // a running service action must not hold /reconciler at 3s.
+    const reconciler = payload([row("lychee-reconcile", { group: "reconciler" })], { lastRuns: { palworld: run("running") } });
+    reconciler.board.groups = [{ group: "reconciler", rows: reconciler.board.groups[0].rows }];
+    assert.equal(boardInProgress(reconciler), false);
+  });
+
+  test("a requested tag for a unit outside the payload's group does not count", () => {
+    assert.equal(boardInProgress(payload([row("notes", { version: "v1.4.0" })], { requested: { other: "v2.0.0" } })), false);
   });
 
   test("a failed or idle run is not active", () => {
-    assert.equal(boardInProgress(payload([row("notes")], { lastRuns: { a: run("failed"), b: run("idle") } })), false);
+    assert.equal(boardInProgress(payload([row("notes"), row("a"), row("b")], { lastRuns: { a: run("failed"), b: run("idle") } })), false);
   });
 });

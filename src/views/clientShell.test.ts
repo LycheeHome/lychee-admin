@@ -66,7 +66,7 @@ describe("renderClientPage", () => {
   });
 
   test("escapes asset paths", () => {
-    const evil = renderClientPage("T", "p", testShell({ assets: { script: 'a"><b', styles: ['c"><i'] } }));
+    const evil = renderClientPage("T", "services", testShell({ assets: { script: 'a"><b', styles: ['c"><i'] } }));
     assert.ok(!evil.includes('"><b'));
     assert.ok(!evil.includes('"><i'));
   });
