@@ -37,7 +37,7 @@ import {
  * The services board's markup in JSX. It was ported element for element from
  * the server board (renderServicesPage and its row helpers, now retired); the
  * parity tests compare it with that board's output, frozen in
- * src/client/test/fixtures/board/. It takes every decision from the same
+ * src/dev/fixtures/board/. It takes every decision from the same
  * node-free modules (boardFacts.ts, boardRowModel.ts) as the server-rendered
  * site page, whose offer, requested line and Prune control are still
  * renderOfferLine, renderRequestedLine and renderPruneControl in

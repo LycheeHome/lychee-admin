@@ -414,10 +414,14 @@ describe("GET /services: host action state", () => {
     const running = (await (await s.get(`/services/${PAL}/actions/restart/state`)).json()) as { state: { state: string } };
     assert.equal(running.state.state, "running");
     assert.ok((await (await s.board("/services")).text()).includes('data-running="restart"'));
-    await new Promise((r) => setTimeout(r, 90));
-    const done = (await (await s.get(`/services/${PAL}/actions/restart/state`)).json()) as {
-      state: { state: string; startedAt?: string; finishedAt?: string };
-    };
+    // Poll until the 30ms fake run settles, bounded at 5s, rather than one
+    // fixed sleep, which a loaded machine can outrun.
+    type Done = { state: { state: string; startedAt?: string; finishedAt?: string } };
+    let done: Done = running as Done;
+    for (const deadline = Date.now() + 5000; done.state.state === "running" && Date.now() < deadline; ) {
+      await new Promise((r) => setTimeout(r, 20));
+      done = (await (await s.get(`/services/${PAL}/actions/restart/state`)).json()) as Done;
+    }
     assert.equal(done.state.state, "succeeded");
     assert.ok(done.state.startedAt && done.state.finishedAt);
     assert.ok(s.fs.exists(`/var/lib/lychee-op/${PAL}-restart.result.json`));

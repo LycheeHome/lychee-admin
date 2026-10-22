@@ -12,7 +12,7 @@ import { canonical } from "../test/canonical";
  * The React board against what the server's renderServicesPage rendered, for
  * every branch a row can render, in each of the three groups. The renderer is
  * retired; its output for each payload below is frozen in
- * src/client/test/fixtures/board/ (see serverRegion).
+ * src/dev/fixtures/board/ (see serverRegion).
  */
 
 const NOW = new Date("2026-10-02T05:00:00Z");
@@ -58,7 +58,9 @@ function payload(group: ServiceGroup, rows: BoardRow[], extra: Partial<BoardPayl
   };
 }
 
-const FIXTURES = path.join(__dirname, "../test/fixtures/board");
+// In src/dev, not src/client: outside the design detector's scope, and like
+// all of src/dev, outside the build and the release tree.
+const FIXTURES = path.join(__dirname, "../../dev/fixtures/board");
 const read = new Set<string>();
 
 /**

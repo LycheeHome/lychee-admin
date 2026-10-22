@@ -201,7 +201,7 @@ describe("host actions: posting", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Update" }, TIMEOUT));
       // What the retired renderServicesPage rendered for this payload
       // (payload([unitRow()]), the default `current`), frozen.
-      const html = readFileSync(path.join(__dirname, "../test/fixtures/board/infrastructure-host-action-strip.html"), "utf8");
+      const html = readFileSync(path.join(__dirname, "../../dev/fixtures/board/infrastructure-host-action-strip.html"), "utf8");
       const template = document.createElement("template");
       template.innerHTML = html;
       const server = template.content.querySelector<HTMLElement>(`[data-host-actions="${UNIT}"]`)!;

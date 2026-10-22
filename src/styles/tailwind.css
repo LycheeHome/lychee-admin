@@ -23,7 +23,7 @@
 
 @source "../../src";
 @source "../../public";
-@source not "../../src/client/test/fixtures";
+@source not "../../src/dev/fixtures";
 
 @theme {
   --font-display: "Poetsen One", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
