@@ -99,6 +99,16 @@ export function renderRail(rail: RailData): string {
   </aside>`;
 }
 
+/**
+ * The rail's data for the client island, which re-renders the rail's markup
+ * from it. A sibling after the aside, never inside it: the island owns the
+ * aside's children. Every `<` is escaped as `<`, which JSON.parse reads
+ * back as `<`, so no value (a hostname is user input) can close the script.
+ */
+export function renderRailData(rail: RailData): string {
+  const json = JSON.stringify(rail).replace(/</g, "\\u003c");
+  return `<script type="application/json" id="rail-data">${json}</script>`;
+}
 
 /**
  * Below 900px the rail is hidden and this bar stands in for it: the wordmark

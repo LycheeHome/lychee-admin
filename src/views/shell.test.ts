@@ -61,6 +61,14 @@ describe("the rail shell", () => {
     }
   });
 
+  test("every page carries the rail's data for the island, as a sibling right after the aside", () => {
+    for (const [name, html] of Object.entries(pages())) {
+      assert.match(html, /<\/aside>\s*<script type="application\/json" id="rail-data">/, name);
+      const aside = html.match(RAIL)?.[0] ?? "";
+      assert.doesNotMatch(aside, /rail-data/, `${name}: the data is inside the aside`);
+    }
+  });
+
   test("the rail is the shell's, so it carries whatever the page's shell marks current", () => {
     const html = renderSiteDetail(SITES[0], DETAIL_OPTS, testShell({ current: { site: "broken.lychee.land" } }));
     const current = [...html.matchAll(/<a\b[^>]*aria-current="page"[^>]*>/g)].map((m) => m[0].match(/href="([^"]+)"/)?.[1]);

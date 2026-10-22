@@ -1,6 +1,6 @@
 import { escapeHtml, BUTTON_OFFER, DETAIL_WIDTH, FOCUS_RING } from "./shared";
 import type { ClientAssets } from "./clientShell";
-import { renderRail, renderTopBar } from "./rail";
+import { renderRail, renderRailData, renderTopBar } from "./rail";
 
 /**
  * Which rail item is current: a page's own link, a site's row, or nothing
@@ -139,6 +139,7 @@ export function layout(title: string, body: string, opts: LayoutOptions): string
 <body class="min-h-screen bg-stone-900 font-sans text-stone-50 m-0 min-[900px]:grid min-[900px]:grid-cols-[250px_minmax(0,1fr)]">
   ${renderTopBar()}
   ${renderRail(opts.shell.rail)}
+  ${renderRailData(opts.shell.rail)}
   <div class="min-w-0 px-6 pb-16">
   <main class="max-w-[1080px] mx-auto py-8 pb-8 flex flex-col gap-6">
     ${renderFlashBanner()}

@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { renderRail, renderTopBar } from "./rail";
+import { renderRail, renderRailData, renderTopBar } from "./rail";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY_COMPACT } from "./shared";
 import { RAIL_ADD_SITE, RAIL_DOT, RAIL_FIND, RAIL_MENU } from "./railModel";
 import { SEEDED_RAIL_SITES, testShell } from "../dev/testHelpers";
@@ -80,6 +80,15 @@ describe("renderRail", () => {
     const html = rail();
     assert.doesNotMatch(html, /Inventory unavailable/);
     for (const group of ["service", "reconciler", "infrastructure"]) assert.match(html, new RegExp(`data-count="${group}"`));
+  });
+
+  test("the island's data is a JSON script that round-trips the rail and never closes early", () => {
+    const data: RailData = { ...testShell().rail, sites: [{ hostname: "</script><b>x</b>.lychee.land", hint: "static" }] };
+    const html = renderRailData(data);
+    const m = html.match(/^<script type="application\/json" id="rail-data">([\s\S]*)<\/script>$/);
+    assert.ok(m, html);
+    assert.ok(!m[1].includes("<"), "an unescaped < reached the script body");
+    assert.deepEqual(JSON.parse(m[1]), data);
   });
 
   test("a long hostname wraps inside the rail instead of overflowing it", () => {
