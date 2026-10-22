@@ -489,11 +489,14 @@ Hairline rule sits beneath the block and the block is absent entirely when
 nothing is down, so a healthy list is the list it always was. Per-site pills are
 unchanged: they speak for a site, these lines for the host beneath all of them.
 
-The page ground has 24px of horizontal padding and a 64px-tall header band
-(32px of content height under 16px top and bottom padding) holding the wordmark
-and the two host-level nav items, aligned to the same 1080px container as the
-content below it; content starts below it with 24px gaps between sections.
-Content width equals viewport width, so `sm` (640px) means what it says.
+At 900px and wider the page is two columns: a 250px rail fixed to the left edge
+at full viewport height, scrolling on its own behind a `1px` Hairline right rule,
+and the content column beside it, where the 1080px frame and 760px reading
+column centre in the remaining width with 24px of horizontal padding and 24px
+gaps between sections. Below 900px the rail gives way to a top bar (a `1px`
+Hairline bottom rule, 16px side padding) and the content column takes the whole
+viewport. Content width is therefore the viewport less the rail, which is why
+`sm` (640px) still describes the content box only below 900px.
 Inside a card, the rhythm is 20px padding (24px on dialogs and the empty state),
 a 12px gap between a label and its content, and a `1px` Hairline rule
 with 16px of air on both sides wherever one card holds two kinds of content —
@@ -508,8 +511,12 @@ form and preview columns need 1128px to render side by side at full size and
 stack below it. Neither is a mobile design — PRODUCT.md records this as a
 desktop-only tool.
 
+A third breakpoint, 900px, belongs to the shell alone: it is where the rail
+appears and the top bar goes. It is a usable fallback for reaching the app from
+a tailnet phone, not a mobile design.
+
 Spacing steps in use: 6px, 8px, 10px, 12px, 14px, 16px, 20px, 24px. Nothing in
-between, and nothing above 24px except the header band.
+between, and nothing above 24px except the rail's width.
 
 ### Named Rules
 
@@ -518,15 +525,19 @@ never folded, capped, truncated with an ellipsis, or put inside an inner scroll
 box. A generated workflow file renders at full height. One exception is
 horizontal overflow on a one-line command, which must not wrap: `overflow-x:
 auto` with `white-space: nowrap`. Long values wrap by breaking characters
-(`break-all`), never by being cut. Two more are named. A finished host action's
+(`break-all`), never by being cut; a rail hostname instead breaks at the dot
+before its domain, and anywhere only when one label alone is wider than the
+rail. Two surfaces scroll inside themselves because nothing else can reach
+their content: the rail, once its sites outgrow the viewport, and the find
+panel's result list, once it does. Two more are named. A finished host action's
 log folds at rest; it is open while the action runs and open after a failure,
 so the log that explains something is never behind a click. A finished runbook
 step folds at rest too — one line, the check, its title, `done`, and a chevron,
 the body one click away — but a step that is not done never folds, so setup in
 progress is never behind a click.
 
-**The Frame-And-Column Rule.** 1080px is the page frame — the header band, the
-shell's `<main>`, and any page holding two kinds of content that belong side by
+**The Frame-And-Column Rule.** 1080px is the page frame — the shell's `<main>`,
+and any page holding two kinds of content that belong side by
 side. 760px is a reading column, applied *inside* that frame by a page holding
 one. No width ever lengthens a line of prose past about 70 characters: every
 Body sentence carries the prose measure (25rem), a cap on text rather than a
@@ -629,8 +640,10 @@ exceptions to it.
   confirm dialog.
 - **Primary:** Ember fill, Hearth text, semibold Nunito at 0.875rem, 10px
   vertical and 16px horizontal padding over a 40px minimum height. Used once
-  per view, and it marks the action that will work now: "Add site", and "Visit"
-  only while the site is serving (running, responding, or a static site). A page
+  per view, and it marks the action that will work now: "Add your first site"
+  on an empty site list, and "Visit" only while the site is serving (running,
+  responding, or a static site). The rail's Add site is never Primary — see
+  Navigation. A page
   whose fix is on the host carries no Primary. A Primary blocked by an explicit
   rejection keeps its disabled look through `aria-disabled` and stays focusable.
   Hover goes Ember Light.
@@ -663,7 +676,9 @@ exceptions to it.
   offer's size (0.8rem, 6px by 12px padding, 32px minimum height). Made for
   the prune control, which sits on the services board beside the 32px offer; at
   Secondary's 40px it was the tallest control in its row. The host-action strip
-  uses it too, for Start, Restart and Update and every confirmation's Cancel.
+  uses it too, for Start, Restart and Update and every confirmation's Cancel,
+  and so does the rail's Add site, full rail width, with the current-item
+  treatment on `/sites/new`.
   Derived from
   Secondary in `shared.ts`, so the two cannot drift apart.
   Hover fills to Ember Deep and lifts the label a step; disabled drops to Smoke
@@ -760,31 +775,65 @@ exceptions to it.
 
 ### Navigation
 
-Two tiers, each scoped to what it navigates.
+One rail, on every page, and one way to search it.
 
-**The header band** is a 1080px centred band with no background and no bottom
-rule, aligned to the same container as the content below it: the
-`lychee` `admin` wordmark as a home link at Display 1.5rem, then five flat
-items — `sites`, `services`, `reconciler`, `infrastructure` and `add site` — at
-0.85rem mono, Smoke going Chalk on hover. The four destinations sit adjacent and
-the single action goes last; that ordering is a judgement rather than a rule,
-and is recorded in `shell.ts`. `reconciler` and `infrastructure` are the
-services board's other two groups, each its own page since the board was split,
-and so peers of `services` rather than tabs beneath it.
-`aria-current="page"` is both the accessibility signal and the
-styling hook (the arbitrary `aria-[current=page]:` variant, since Tailwind ships
-no built-in one): Chalk text on a Hairline fill with a 2px Ember Edge left rule.
-A header item's destination never changes with location, so
-`/sites/:hostname` marks no item current; the breadcrumb carries the
-location instead.
+**The rail** is the app's only navigation: Hearth, the page's own ground, so it
+reads as part of the page rather than a panel laid over it, separated from the
+content by a `1px` Hairline rule. Top to bottom, at 20px gaps:
 
-**The breadcrumb's hostname dropdown**, on the detail page only: a `<details>`
-disclosure over the breadcrumb's hostname, opening a 10px-radius panel listing
-every managed site with a `static`/`:<port>` hint and no status (a status check
-per row would mean N checks on every detail-page load instead of the list
-page's one page, N checks). No truncation anywhere, including the long-hostname
-case. `max-h-[70vh]` is the floating-panel exception to The Show-It Rule — a
-panel taller than the viewport cannot be reached regardless.
+- the `lychee` `admin` wordmark as a home link at Display 1.5rem, the page's h1;
+- the find box (below);
+- **sites**, a heading link to the list, then every managed site in Caddyfile
+  order: a dot, the hostname, and a right-aligned `static` or `:<port>` hint in
+  Smoke Light. The label is Chalk and `.lychee.land` is Smoke;
+- **host**, a plain heading over three links, `services`, `reconciler` and
+  `infrastructure`: the services board's three pages, peers of one another;
+- **Add site**, pinned at the rail's foot above a Hairline rule, in Compact
+  secondary at full rail width.
+
+Rows and links are 0.85rem mono in Smoke, going Chalk on hover; headings are
+0.75rem mono in Smoke. `aria-current="page"` is both the accessibility signal
+and the styling hook (the arbitrary `aria-[current=page]:` variant): Chalk text
+on a Hairline fill with a 2px Ember Edge left rule. It marks a site's own row on
+its page, the `sites` heading on the list, a board's link on its page, and Add
+site on `/sites/new`. A rail item's destination never changes with location.
+
+**Dots and counts.** Each site carries an 8px dot in its status tone — Clear,
+Scorch, or Smoke for `neutral` — from the same canonical vocabulary as the pills,
+with the full status phrase in a screen-reader label beside it. A **static site's
+dot is hollow**, a `1px` Hairline Strong ring, because there is nothing to poll;
+the hollow dot is also every site's dot before the first health read. Each of
+`sites`, `services`, `reconciler` and `infrastructure` carries an **attention
+count** at its right edge: above zero it is a 0.75rem mono chip in Scorch on
+Scorch Deep, and zero is quiet Smoke text with no chip, so a healthy rail carries
+no colour but its green dots. A site counts when its tone is bad; a unit when its
+tone is bad or its last deploy was blocked or failed. When the latest health
+read failed, every polled dot goes `neutral`, the counts disappear and one Smoke
+line reads `health unavailable · last read <age>` — never a remembered green.
+
+**The find panel** opens from the find box: a mono input with its shortcut
+(`⌘K`, or `Ctrl K` off Apple platforms) printed inside it at its right edge in a
+Smoke `kbd`. ⌘K focuses it from anywhere. The panel is a 10px-radius Hearth
+surface with a `1px` Hairline edge on the shared Overlay shadow, anchored beside the rail over the
+content's top-left, at most 420px wide, listing places and never actions. With
+nothing typed it lists what needs attention, sites first; typing narrows every
+site and unit by a literal substring under four group headings — Sites, then
+services, reconciler, infrastructure — each row a hostname or unit name, its
+status pill at a shared right edge, and `deploy blocked` or `deploy failed` in
+Scorch mono before the pill when that is why it is listed. Rows are 0.8rem mono
+in Smoke; the highlighted row goes Chalk on a Hairline fill, without the Ember
+Edge rule, which belongs to where you are rather than where you might go. Empty
+states are one Smoke sentence per group.
+
+**Below 900px** the rail is replaced by a top bar: the wordmark (the h1 at that
+width), then the overall attention count, a find button and a menu button, each
+a 36px square outlined in Hairline. The menu button opens the rail itself as a
+modal drawer, 280px wide, from the left edge, over a 60% black backdrop; Esc or
+a backdrop click closes it and focus returns to the opener. Find on a narrow
+screen opens the drawer with the find box focused.
+
+There is no per-site switcher any more: the rail lists every site on every page,
+and the breadcrumb is plain location text, `sites / <hostname>`.
 
 Per-site tabs are deferred until a second tall, task-specific section exists
 alongside Deploy (most likely container logs); one such section does not make
