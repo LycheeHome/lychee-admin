@@ -11,14 +11,40 @@ import {
 } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
 import { ADD_STEPS } from "../lib/stepReport";
-import { hostnameForResource, resourceNameFor } from "../lib/siteResource";
-import { isSiteName } from "../lib/declarationWriter";
+import { resourceNameFor } from "../lib/siteResource";
 import type { BoardRow, ServiceBoard } from "../lib/serviceBoard";
 import type { ServiceGroup } from "../lib/serviceInventory";
-import { type HostAction, IMAGE_PREFIX } from "../lib/platform";
+import { IMAGE_PREFIX } from "../lib/platform";
 import type { ActionState } from "../lib/hostOperations";
 import { layout, type ShellData } from "./shell";
-import { type DeployFacts, isApplying, rowLabels, summarizeRow } from "./boardFacts";
+import { offeredTag, rowLabels, summarizeRow } from "./boardFacts";
+import {
+  ACTION_CONFIRM,
+  ACTION_LABEL,
+  CONFIRM_DANGER,
+  CONFIRM_QUIET,
+  GROUP_LABELS,
+  LOG_SUMMARY,
+  LOG_TAIL,
+  RUNNING_DOT,
+  SITE_NAME_LINK,
+  actionBusy,
+  actionFact,
+  actionLog,
+  actionTail,
+  boardContent,
+  groupNoneSentence,
+  hasHostActions,
+  inventoryFreshness,
+  isRunning,
+  rowOffer,
+  rowPill,
+  shownActions,
+  showsPrune,
+  siteLinkHost,
+  unavailableSentence,
+  unknownSentence,
+} from "./boardRowModel";
 import {
   escapeHtml,
   icon,
@@ -42,8 +68,6 @@ import {
   SERVICE_ROW,
   SERVICE_NAME,
   SERVICE_DETAIL,
-  formatAge,
-  formatDuration,
   BODY,
   CODE_LINE,
   COPY_BUTTON,
@@ -1225,34 +1249,9 @@ export function renderSiteNotFound(hostname: string, shell: ShellData): string {
   );
 }
 
-const GROUP_LABELS: Record<ServiceGroup, string> = {
-  reconciler: "Reconciler",
-  service: "Services",
-  infrastructure: "Infrastructure",
-};
-
-
-/**
- * The tag a row offers, or null. Nothing is offered while a deploy is in
- * flight (applying), because a second request on top of an unapplied one would
- * race the first, and the pinned tag is never offered again, so the tag that
- * just failed or was blocked cannot be re-requested from here.
- *
- * `blocked` and `failed` both offer anything else. The failure stays visible
- * beside the offer (the gate line, or the failure line naming the tag, the
- * step and the journal), and the reconciler retries the failing pin every
- * tick, so a different, newer tag is the way out; withholding it left a hand
- * edit of lychee-resources as the only one. A failed row is never applying:
- * isApplying() requires a clean last run.
- *
- * Shared by the services board and a site's own page, so the two can never
- * disagree about whether a tag is on offer.
- */
-export function offeredTag(row: DeployFacts): string | null {
-  return row.available && row.available !== row.version && row.available !== row.target && !isApplying(row)
-    ? row.available
-    : null;
-}
+// offeredTag lives in boardFacts.ts, node-free, so the React board shares it;
+// re-exported because the site page's callers and tests import it from here.
+export { offeredTag };
 
 /**
  * The offer and its Deploy control. One markup for the board and the site
@@ -1298,71 +1297,27 @@ function withRequestedTemplate(body: string): string {
   return body.includes("data-offer") ? `${body}\n    <template data-requested-template>${renderRequestedLine("TAG")}</template>` : body;
 }
 
-/** A run in progress names itself on the pill, neutral, the way `applying` does. */
-const ACTION_RUNNING_WORD: Record<HostAction, string> = {
-  start: "starting",
-  stop: "stopping",
-  restart: "restarting",
-  update: "updating",
-};
-const ACTION_LABEL: Record<HostAction, string> = { start: "Start", stop: "Stop", restart: "Restart", update: "Update" };
-/** Strip order: the way up first, then the two that cycle it, then the way down. */
-const ACTION_ORDER: readonly HostAction[] = ["start", "restart", "update", "stop"];
-
-/**
- * The three actions that disconnect players ask first, inline, in place of the
- * strip. Start does not: nobody is on a server that is down. Copy names what
- * happens to the people on it, because that is the cost the operator weighs.
- */
-const ACTION_CONFIRM: Partial<Record<HostAction, { copy: (unit: string) => string; go: string }>> = {
-  stop: {
-    copy: (u) => `Stop ${u}? Everyone on the server is disconnected, and it stays down until someone starts it.`,
-    go: "Stop server",
-  },
-  restart: { copy: (u) => `Restart ${u}? Everyone on the server is disconnected for about a minute.`, go: "Restart server" },
-  update: {
-    copy: (u) => `Update ${u}? The server stops, steamcmd updates it, then it starts again; everyone is disconnected until it's back.`,
-    go: "Update server",
-  },
-};
-
-/**
- * An action's log, in full and wrapping — the multi-line Command Block's
- * reading shape without its copy button, since this is output to read rather
- * than text to paste. Never clipped: the tail is already bounded at 50 lines.
- */
-const LOG_TAIL =
-  "font-mono text-[0.72rem] leading-[1.6] bg-stone-900 border border-stone-700 rounded-md px-3 py-2.5 text-stone-300 whitespace-pre-wrap [overflow-wrap:anywhere] m-0 mt-1.5";
-/** The inline confirmation: Stop's sits in the Danger card's wash, the others on Hearth Lift. */
-const CONFIRM_BASE = "mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md px-3 py-2.5";
-const CONFIRM_DANGER = `${CONFIRM_BASE} border border-red-900/60 bg-red-950/20`;
-const CONFIRM_QUIET = `${CONFIRM_BASE} border border-stone-700 bg-stone-800`;
-
 /** "update succeeded · 2 hours ago · took 3m 41s", or the running form. */
-function actionFact(run: ActionState | undefined, now: Date): string {
-  if (!run || run.state === "idle") return "";
-  if (run.state === "running") {
-    const started = formatAge(run.startedAt, now);
-    return `<span class="inline-block h-1.5 w-1.5 rounded-full bg-stone-400 motion-safe:animate-pulse align-middle mr-1.5" aria-hidden="true"></span>${run.action} running${started ? ` · started ${escapeHtml(started)}` : ""}`;
+function renderActionFact(run: ActionState | undefined, now: Date): string {
+  const fact = actionFact(run, now);
+  if (!fact) return "";
+  if (fact.running) {
+    return `<span class="${RUNNING_DOT}" aria-hidden="true"></span>${fact.action} running${fact.started ? ` · started ${escapeHtml(fact.started)}` : ""}`;
   }
-  const tone = run.state === "failed" ? TONE_TEXT.bad : TONE_TEXT.ok;
-  const parts = [`${run.action} <span class="${tone}">${run.state}</span>`];
-  const age = formatAge(run.finishedAt, now);
-  if (age) parts.push(escapeHtml(age));
-  const took = formatDuration(run.startedAt, run.finishedAt);
-  if (took) parts.push(`took ${took}`);
+  const parts = [`${fact.action} <span class="${TONE_TEXT[fact.tone]}">${fact.state}</span>`];
+  if (fact.age) parts.push(escapeHtml(fact.age));
+  if (fact.took) parts.push(`took ${fact.took}`);
   return parts.join(" · ");
 }
 
 /** A finished run's log: a disclosure, open when the run failed; "no output" when empty. */
-function actionLog(run: ActionState | undefined): string {
-  if (!run || run.state === "idle" || run.state === "running") return "";
-  const body = run.logTail.trimEnd();
-  if (body === "") return `<p class="${SERVICE_DETAIL}" data-action-log>log · no output</p>`;
-  const lines = body.split("\n").length;
-  return `<details class="mt-0.5" data-action-log${run.state === "failed" ? " open" : ""}>
-            <summary class="${SERVICE_DETAIL} w-fit cursor-pointer rounded-sm marker:text-stone-500 hover:text-stone-300 ${FOCUS_RING}">log · ${lines} ${lines === 1 ? "line" : "lines"}</summary>
-            <pre class="${LOG_TAIL}">${escapeHtml(body)}</pre>
+function renderActionLog(run: ActionState | undefined): string {
+  const log = actionLog(run);
+  if (!log) return "";
+  if (log.body === null) return `<p class="${SERVICE_DETAIL}" data-action-log>log · no output</p>`;
+  return `<details class="mt-0.5" data-action-log${log.open ? " open" : ""}>
+            <summary class="${SERVICE_DETAIL} ${LOG_SUMMARY}">log · ${log.lines} ${log.lines === 1 ? "line" : "lines"}</summary>
+            <pre class="${LOG_TAIL}">${escapeHtml(log.body)}</pre>
           </details>`;
 }
 
@@ -1382,16 +1337,13 @@ function actionLog(run: ActionState | undefined): string {
  * down, and an Ember outline beside a Scorch one read as the same red.
  */
 function renderHostActions(row: BoardRow, run: ActionState | undefined, now: Date): string {
-  if (row.kind !== "unit" || !row.actions || row.actions.length === 0) return "";
-  const listed = new Set(row.actions);
-  const up = row.status === "running" || row.status === "starting" || row.status === "restarting";
-  const down = row.status === "exited";
-  const shown = ACTION_ORDER.filter(
-    (a) => listed.has(a) && !(a === "start" && up) && !((a === "stop" || a === "restart") && down),
-  );
-  const running = run?.state === "running";
+  if (!hasHostActions(row)) return "";
+  // Which buttons follow the live state, and what "running" means, are
+  // boardRowModel.ts's, shared with the React board.
+  const shown = shownActions(row);
+  const running = isRunning(run);
   const name = escapeHtml(row.name);
-  const fact = actionFact(run, now);
+  const fact = renderActionFact(run, now);
 
   const buttons = shown
     .map(
@@ -1420,11 +1372,11 @@ function renderHostActions(row: BoardRow, run: ActionState | undefined, now: Dat
     running ? ` data-running="${run.action}"` : ""
   }>
           <p class="${SERVICE_DETAIL}" data-action-fact${fact ? "" : " hidden"}>${fact}</p>
-          ${actionLog(run)}
-          <pre class="${LOG_TAIL}" data-action-tail aria-live="off"${running ? "" : " hidden"}>${running ? escapeHtml(run.logTail.trimEnd()) || "no output yet" : ""}</pre>
+          ${renderActionLog(run)}
+          <pre class="${LOG_TAIL}" data-action-tail aria-live="off"${running ? "" : " hidden"}>${escapeHtml(actionTail(run))}</pre>
           <div class="mt-2 flex flex-wrap items-center gap-2" data-action-strip>
             ${buttons}
-            <span class="text-[0.8rem] text-stone-400" data-action-busy role="status"${running ? "" : " hidden"}>an action is already running on ${name}</span>
+            <span class="text-[0.8rem] text-stone-400" data-action-busy role="status"${running ? "" : " hidden"}>${escapeHtml(actionBusy(row.name))}</span>
           </div>
           ${confirms}
         </div>`;
@@ -1443,31 +1395,19 @@ function renderServiceRow(
   // The row's words, shared with the React board (boardFacts.ts). A running
   // host action replaces the pill, neutral, the way `applying` does.
   const summary = summarizeRow(row, board, now);
-  const labels =
-    run?.state === "running"
-      ? { ...summary.labels, pill: ACTION_RUNNING_WORD[run.action], tone: "neutral" as const }
-      : summary.labels;
+  const labels = rowPill(summary.labels, run);
   const { trouble, gate, facts } = summary;
-  const offer = offeredTag(row);
+  const offer = rowOffer(row, requestedTag);
 
-  // A site's row links to its page, but only when the app manages that
-  // hostname: a name that merely ends in the suffix is not a site.
-  const siteHost = hostnameForResource(row.name, domain);
-  const name =
-    siteHost && managed.has(siteHost)
-      ? `<a href="/sites/${escapeHtml(siteHost)}" class="text-stone-50 no-underline hover:underline ${FOCUS_RING}">${escapeHtml(row.name)}</a>`
-      : escapeHtml(row.name);
+  // A site's row links to its page, only when the app manages that hostname.
+  const siteHost = siteLinkHost(row.name, domain, managed);
+  const name = siteHost
+    ? `<a href="/sites/${escapeHtml(siteHost)}" class="${SITE_NAME_LINK}">${escapeHtml(row.name)}</a>`
+    : escapeHtml(row.name);
 
   // A pill that says `unknown` is a failed read, not a state; say which read.
-  // Not while an action is running: that word replaces the pill.
-  const unknownLine =
-    labels.pill === "unknown" && run?.state !== "running"
-      ? `<p class="${SERVICE_DETAIL}">${
-          row.kind === "container"
-            ? "lychee-admin couldn't read this container's state."
-            : "lychee-admin couldn't read this unit's state from systemd."
-        }</p>`
-      : "";
+  const unknown = unknownSentence(row, labels, run);
+  const unknownLine = unknown ? `<p class="${SERVICE_DETAIL}">${unknown}</p>` : "";
 
   return `
       <li class="${SERVICE_ROW}" id="service-${escapeHtml(row.name)}" data-service="${escapeHtml(row.name)}">
@@ -1506,13 +1446,12 @@ function renderServiceRow(
             // do about it second. Its own line so a row with nothing to offer
             // is exactly the row it was before this existed. Once the offered
             // tag is already in the declaration, the requested line stands here.
-            offer ? offerOrRequested(row.name, offer, requestedTag) : ""
+            offer ? (offer.requested ? renderRequestedLine(offer.tag) : renderOfferLine(row.name, offer.tag)) : ""
           }
           ${
-            // A retired site's declaration, still in lychee-resources. Site
-            // names only: a hand-declared resource (palsave-api) is never
-            // pruned from here, whatever the caller passed.
-            prunable.has(row.name) && isSiteName(row.name, domain) ? renderPruneControl(row.name) : ""
+            // A retired site's declaration, still in lychee-resources (site
+            // names only; see showsPrune).
+            showsPrune(row.name, prunable, domain) ? renderPruneControl(row.name) : ""
           }
           ${
             // Start/stop/restart/update, only on a unit whose entry lists
@@ -1522,13 +1461,6 @@ function renderServiceRow(
         </div>
       </li>`;
 }
-
-/** What a readable inventory with nothing in this group lists. */
-const GROUP_NONE: Record<ServiceGroup, string> = {
-  reconciler: "reconciler units",
-  service: "services",
-  infrastructure: "infrastructure units",
-};
 
 /**
  * What else runs on the host, one group per page: /services, /reconciler and
@@ -1553,12 +1485,7 @@ export function renderServicesPage(
   requested: ReadonlyMap<string, string> = new Map(),
   shell: ShellData,
 ): string {
-  const written = formatAge(board.generated, now);
-  const freshness = board.inventoryAvailable
-    ? written
-      ? `Inventory written ${written}`
-      : "Inventory write time unknown"
-    : "";
+  const freshness = inventoryFreshness(board, now);
   const label = GROUP_LABELS[group];
   const rows = board.groups.find((g) => g.group === group)?.rows ?? [];
 
@@ -1569,16 +1496,14 @@ export function renderServicesPage(
   // The inventory is readable and declares something, just not here: a plain
   // fact, not the unavailable explanation, which would blame the inventory.
   const none = `
-      <p id="group-empty" class="m-0 text-[0.9rem] leading-relaxed text-stone-300">The inventory lists no ${GROUP_NONE[group]}.</p>`;
+      <p id="group-empty" class="m-0 text-[0.9rem] leading-relaxed text-stone-300">${groupNoneSentence(group)}</p>`;
 
   const unavailable = `
     <p id="inventory-unavailable" class="m-0 max-w-[62ch] text-[0.9rem] leading-relaxed text-stone-300 border border-stone-700 rounded-md px-4 py-3">
-      There are no ${GROUP_NONE[group]} to show: the inventory could not be read, or it declares none this page recognises. Without it there is no list of what should be running and nothing to check live state against. It is published by the reconciler on each tick; if it has never run, or the file was removed, this page stays empty.
+      ${unavailableSentence(group)}
     </p>`;
 
-  // An empty board, readable or not, is still today's explanation on every
-  // page: with nothing declared anywhere, "lists none" would undersell it.
-  const content = !board.inventoryAvailable || board.groups.length === 0 ? unavailable : rows.length > 0 ? list : none;
+  const content = { unavailable, rows: list, none }[boardContent(board.inventoryAvailable, board.groups.length === 0, rows.length)];
 
   return layout(
     label,

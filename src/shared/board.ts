@@ -24,6 +24,12 @@ export type BoardPayload = {
   prunable: string[];
   /** Hostnames that are managed sites, so a site resource's name links to its page. */
   managed: string[];
+  /**
+   * The managed domain (`DOMAIN`). A row's name maps to a hostname in
+   * `managed` only through it (`<label>-lychee-land` to `<label>.lychee.land`),
+   * and the Prune guard's site-name check reads it, as the HTML board does.
+   */
+  domain: string;
   /** Unit name to the tag a Deploy requested that the inventory has not yet applied. */
   requested: Record<string, string>;
   /** The last host-action run per unit. */

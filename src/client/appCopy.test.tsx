@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, before, describe, test } from "node:test";
 import { act, cleanup, render } from "@testing-library/react";
-import { InfrastructureBoard } from "./components/BoardRows";
+import { Board } from "./components/BoardRows";
 
 // public/app.js is a classic browser script with no exports. It is evaluated
 // once, globally, against a bare shell (just #copy-status), and the copy
@@ -58,7 +58,12 @@ function renderFailedRow() {
       },
     ],
   };
-  return render(<InfrastructureBoard board={board} boardEmpty={false} now={NOW} />);
+  return render(
+    <Board
+      payload={{ board, boardEmpty: false, now: NOW.toISOString(), domain: "lychee.land", prunable: [], managed: [], requested: {}, lastRuns: {} }}
+      group="infrastructure"
+    />,
+  );
 }
 
 async function clickAndSettle(el: Element): Promise<void> {

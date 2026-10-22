@@ -194,6 +194,7 @@ export function createServicesRouter(deps: Deps): express.Router {
         now: now.toISOString(),
         prunable: [...prunable],
         managed: [...managed],
+        domain: config.domain,
         requested: Object.fromEntries(requested),
         lastRuns,
       } satisfies ApiOk<BoardPayload>);

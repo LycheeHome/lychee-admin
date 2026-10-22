@@ -25,6 +25,7 @@ export async function fetchBoard(group: ServiceGroup): Promise<BoardPayload> {
     now: body.now,
     prunable: body.prunable,
     managed: body.managed,
+    domain: body.domain,
     requested: body.requested,
     lastRuns: body.lastRuns,
   };

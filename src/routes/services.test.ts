@@ -1170,7 +1170,7 @@ describe("the shared board read", () => {
     assert.equal(reads, 3);
   });
 
-  test("the payload carries prunable, managed, requested and lastRuns", async () => {
+  test("the payload carries prunable, managed, domain, requested and lastRuns", async () => {
     const gone = { name: "gone-lychee-land", kind: "container", container: "gone-lychee-land", group: "service", reconciled: true, result: "deployed" };
     const pal = { name: "palworld-palchuds", kind: "unit", unit: "palworld-palchuds.service", group: "service", reconciled: false, actions: ["start", "stop"] };
     const s = await start(inventory([gone, NOTES, pal]), {
@@ -1189,10 +1189,12 @@ describe("the shared board read", () => {
     const { config } = await import("../config");
     s.fs.writeFile(config.caddyfilePath, "http://blog.lychee.land {\n\troot * /var/www/blog.lychee.land\n\tfile_server\n}\n");
     const body = (await (await s.get("/api/services?group=service")).json()) as {
-      prunable: string[]; managed: string[]; requested: Record<string, string>; lastRuns: Record<string, { action: string; state: string }>;
+      prunable: string[]; managed: string[]; domain: string; requested: Record<string, string>; lastRuns: Record<string, { action: string; state: string }>;
     };
     assert.deepEqual(body.prunable, ["gone-lychee-land"]);
     assert.deepEqual(body.managed, ["blog.lychee.land"]);
+    // The client maps a row's name to a managed hostname through it.
+    assert.equal(body.domain, config.domain);
     assert.deepEqual(body.requested, { notes: "v1.5.0" });
     assert.equal(body.lastRuns["palworld-palchuds"].action, "stop");
     assert.equal(body.lastRuns["palworld-palchuds"].state, "succeeded");

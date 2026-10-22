@@ -64,6 +64,17 @@ export function siteNamePatternFor(domain: string): RegExp {
   return new RegExp(`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?${escapeRegex(siteSuffixFor(domain))}$`);
 }
 
+// A site's resource name: a DNS-label-shaped site label plus the domain's
+// suffix (siteNamePatternFor), capped at MAX_RESOURCE_NAME_LENGTH like every
+// resource name. Narrower than the declaration writer's NAME_RE on purpose:
+// creating and retiring are reachable only for sites, never for a declaration
+// such as palsave-api that this app did not write. Here rather than in the
+// writer because the client's services board reads it too, and the writer
+// imports node modules.
+export function isSiteName(name: string, domain: string): boolean {
+  return name.length <= MAX_RESOURCE_NAME_LENGTH && siteNamePatternFor(domain).test(name);
+}
+
 export function maxSiteLabelLength(domain: string): number {
   return MAX_RESOURCE_NAME_LENGTH - siteSuffixFor(domain).length;
 }

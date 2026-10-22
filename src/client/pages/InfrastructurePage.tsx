@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchBoard } from "../api";
-import { InfrastructureBoard } from "../components/BoardRows";
+import { Board } from "../components/BoardRows";
 import { FRAME_WIDTH } from "../../views/shared";
 
 /** The add-site page's error treatment, visible. */
@@ -23,6 +23,5 @@ export function InfrastructurePage() {
     );
   }
   if (!query.data) return null;
-  const { board, boardEmpty, now } = query.data;
-  return <InfrastructureBoard board={board} boardEmpty={boardEmpty} now={new Date(now)} />;
+  return <Board payload={query.data} group="infrastructure" />;
 }
