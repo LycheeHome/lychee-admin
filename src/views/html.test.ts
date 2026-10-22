@@ -22,7 +22,7 @@ function renderSiteList(
   return views.renderSiteList(sites, statuses, domain, error, notice, problems, testShell({ current: { page: "sites" } }));
 }
 function renderAddSite(...args: [Site[], string, Record<string, string>, { caddyfilePath: string; tunnelConfigPath: string }]): string {
-  return views.renderAddSite(...args, testShell({ current: { page: "new" } }));
+  return views.renderAddSite(...args, testShell({ current: null }));
 }
 function renderSiteDetail(site: Site, opts: SiteDetailOptions, shell: ShellData = testShell({ current: { site: site.hostname } })): string {
   return views.renderSiteDetail(site, opts, shell);
@@ -1321,16 +1321,17 @@ describe("the site list with no sites", () => {
     assert.equal(ctas.length, 1, "the section header and the empty state both offered Add site");
   });
 
-  // The rail carries a quiet Secondary Add site on every page, so the section
-  // header carries none even when there are sites.
-  test("the section header has no Add site button once there are sites: the rail carries it", () => {
+  // Add site lives on the sites page and nowhere in the rail, so with sites
+  // the section header carries it as the page's one Ember action.
+  test("the section header carries Add site as its one Ember action once there are sites", () => {
     const body = withoutShell(renderSiteList(SITES, {}, "lychee.land"));
-    assert.doesNotMatch(body, /href="\/sites\/new"/);
-    assert.ok(!body.includes(BUTTON_PRIMARY), "the list body still spends Ember");
+    const ctas = [...body.matchAll(/<a href="\/sites\/new" class="([^"]*)"/g)];
+    assert.equal(ctas.length, 1, "expected exactly one Add site link in the list body");
+    assert.equal(ctas[0][1], `${BUTTON_PRIMARY} no-underline`);
+    assert.match(body, /Add site<\/a>/);
   });
 
-  // With no sites, adding one is the page's one thing to do, so the empty
-  // state's own button stays Ember: the rail's Secondary is too quiet for it.
+  // With no sites, the empty state's own button is the one Ember action.
   test("the empty state's call to action stays Ember", () => {
     const cta = tagById(withoutShell(renderSiteList([], {}, "lychee.land")), "empty-state-cta");
     assert.ok(cta.includes(`class="${BUTTON_PRIMARY} no-underline"`), cta);

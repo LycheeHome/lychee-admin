@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import { splitHostnameForDisplay } from "../../lib/siteDisplay";
 import type { HealthPayload, Tone } from "../../shared/health";
 import {
-  RAIL_ADD_SITE,
   RAIL_COUNT_BAD,
   RAIL_COUNT_ZERO,
   RAIL_DOT,
@@ -215,12 +214,6 @@ export function Rail({
           ))}
           {rail.hostAvailable ? null : <p className={RAIL_NOTE}>Inventory unavailable</p>}
         </nav>
-      </div>
-      <div className="shrink-0 border-t border-stone-700 px-3 py-3">
-        <a href="/sites/new" className={RAIL_ADD_SITE} aria-current={ariaCurrent(isPage(rail.current, "new"))}>
-          <Icon name="plus" />
-          Add site
-        </a>
       </div>
     </>
   );

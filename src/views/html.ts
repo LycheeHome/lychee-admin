@@ -176,7 +176,16 @@ export function renderSiteList(
     `
     ${error ? `<p class="font-mono text-[0.85rem] text-stone-50 bg-red-950/60 border border-red-400/70 rounded-md px-4 py-3 mb-5">${escapeHtml(error)}</p>` : ""}
     <section>
-      <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-5">Sites</h2>
+      <div class="flex items-center justify-between gap-4 mb-5">
+        <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Sites</h2>
+        ${
+          // Add site lives here and nowhere in the rail: it is this page's one
+          // Ember action. With no sites the empty state carries the same
+          // action, and Ember spent twice on one destination makes neither
+          // the obvious one.
+          sites.length === 0 ? "" : `<a href="/sites/new" class="${BUTTON_PRIMARY} no-underline">${icon("plus")}Add site</a>`
+        }
+      </div>
       ${problemBlock}
       ${sites.length === 0 ? empty : `<div class="flex flex-col">${rows}\n      </div>`}
     </section>

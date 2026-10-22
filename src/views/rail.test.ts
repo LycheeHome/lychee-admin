@@ -1,8 +1,8 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { renderRail, renderRailData, renderTopBar } from "./rail";
-import { BUTTON_PRIMARY, BUTTON_SECONDARY_COMPACT } from "./shared";
-import { RAIL_ADD_SITE, RAIL_DOT, RAIL_FIND, RAIL_MENU } from "./railModel";
+import { BUTTON_PRIMARY } from "./shared";
+import { RAIL_DOT, RAIL_FIND, RAIL_MENU } from "./railModel";
 import { SEEDED_RAIL_SITES, testShell } from "../dev/testHelpers";
 import type { RailData } from "./shell";
 
@@ -43,8 +43,16 @@ describe("renderRail", () => {
     assert.deepEqual(currentHrefs(rail({ current: { site: "broken.lychee.land" } })), ["/sites/broken.lychee.land"]);
   });
 
-  test("the add-site page marks Add site", () => {
-    assert.deepEqual(currentHrefs(rail({ current: { page: "new" } })), ["/sites/new"]);
+  // Add site lives on the sites page, not in the rail: the rail is navigation
+  // only, so /sites/new has no rail item to mark and its breadcrumb carries
+  // the location, as a site page's does.
+  test("carries no Add site link", () => {
+    assert.doesNotMatch(rail(), /href="\/sites\/new"/);
+    assert.doesNotMatch(rail(), /Add site/);
+  });
+
+  test("the add-site page marks nothing", () => {
+    assert.deepEqual(currentHrefs(rail({ current: null })), []);
   });
 
   test("the list page marks the sites heading", () => {
@@ -139,19 +147,10 @@ describe("renderRail", () => {
 
   // The rail is on every page, so an Ember button there would compete with each
   // page's own primary (Visit, a Deploy offer, the add form's submit).
-  test("spends no Ember: Add site is Secondary", () => {
+  test("spends no Ember", () => {
     const html = rail();
     assert.ok(!html.includes(BUTTON_PRIMARY), "the rail carries BUTTON_PRIMARY");
     assert.doesNotMatch(html, /\bbg-rose-400\b/);
-    assert.ok(html.includes(`<a href="/sites/new" class="${RAIL_ADD_SITE}"`), "Add site does not carry RAIL_ADD_SITE");
-    assert.ok(RAIL_ADD_SITE.startsWith(BUTTON_SECONDARY_COMPACT));
-  });
-
-  test("Add site keeps the current-item treatment, so /sites/new stays visibly current", () => {
-    for (const cls of ["aria-[current=page]:bg-stone-700", "aria-[current=page]:border-l-2", "aria-[current=page]:border-l-rose-800"]) {
-      assert.ok(RAIL_ADD_SITE.split(" ").includes(cls), cls);
-    }
-    assert.match(rail({ current: { page: "new" } }), /<a href="\/sites\/new" class="[^"]*" aria-current="page">/);
   });
 
   test("the find box and the menu button carry their shared class strings", () => {

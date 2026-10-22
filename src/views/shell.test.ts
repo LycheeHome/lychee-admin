@@ -36,7 +36,7 @@ const board = (group: "service" | "reconciler" | "infrastructure", shell: ShellD
 const pages = (): Record<string, string> => ({
   list: list(),
   detail: renderSiteDetail(SITES[0], DETAIL_OPTS, testShell({ current: { site: SITES[0].hostname } })),
-  add: renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS, testShell({ current: { page: "new" } })),
+  add: renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS, testShell({ current: null })),
   notFound: renderSiteNotFound("nope.lychee.land", testShell()),
   services: board("service"),
   reconciler: board("reconciler"),
@@ -138,7 +138,7 @@ describe("the flash toast", () => {
 });
 
 describe("the add-site page", () => {
-  const add = () => renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS, testShell({ current: { page: "new" } }));
+  const add = () => renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS, testShell({ current: null }));
 
   test("renders the fields that used to live in the dialog", () => {
     const html = add();
@@ -171,11 +171,9 @@ describe("the add-site page", () => {
     assert.doesNotMatch(html, /id="add-site-form"/);
   });
 
-  test("the list page with sites has no Add site button of its own: the rail carries it", () => {
-    // Asserted against the body with the shell removed, since the rail
-    // carries Add site on every page.
+  test("the list page with sites links Add site from its own section header, as a page", () => {
     const body = withoutShell(list());
-    assert.doesNotMatch(body, /href="\/sites\/new"/);
+    assert.match(body, /href="\/sites\/new"/);
     assert.doesNotMatch(body, /data-open-dialog="add-site-dialog"/);
   });
 });

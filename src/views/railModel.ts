@@ -7,7 +7,7 @@ import { hostnameForResource } from "../lib/siteResource";
 import type { BoardRow, ServiceBoard, ServiceGroup } from "../shared/board";
 import type { HealthPayload, SiteHealth, Tone, UnitHealth } from "../shared/health";
 import { rowLabels } from "./boardFacts";
-import { BUTTON_SECONDARY_COMPACT, FOCUS_RING, INPUT } from "./shared";
+import { FOCUS_RING, INPUT } from "./shared";
 
 /** A static site (no status) is hollow and never needs attention. */
 export function siteHealth(site: Site, status: SiteStatus | undefined): SiteHealth {
@@ -100,14 +100,6 @@ export const RAIL_HEADING = `flex items-center justify-between font-mono text-[0
 /** A section heading that is also a link (`sites`): the heading's type, a row's current and focus treatment. */
 export const RAIL_HEADING_LINK = `${RAIL_HEADING} no-underline rounded-md hover:text-stone-50 ${RAIL_CURRENT} ${FOCUS_RING}`;
 
-/**
- * Add site, at the rail's foot: Secondary, not Ember. The rail is on every
- * page, and an always-present Ember button would compete with each page's own
- * primary (Visit, a Deploy offer, the add form's submit), undoing "Ember
- * follows state". It takes the rows' current-item treatment, so
- * `aria-current="page"` on /sites/new stays visible.
- */
-export const RAIL_ADD_SITE = `${BUTTON_SECONDARY_COMPACT} no-underline w-full justify-center ${RAIL_CURRENT}`;
 
 /** The find box: the shared input, full width, with room on the right for the printed shortcut. */
 export const RAIL_FIND = `${INPUT} w-full pr-10 text-[0.8rem]`;

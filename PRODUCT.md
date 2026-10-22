@@ -101,10 +101,10 @@ claim.
   whose host actions (`POST /services/:name/actions/:action`: start, stop,
   restart and update, today only for the Palworld server) appear only there. A left
   rail fronts every page — the wordmark, a ⌘K find box, every managed site with a
-  live status dot, the three host pages with attention counts, and Add site at its
-  foot — kept live by one batched health read (`GET /api/health`) polled every 15s
+  live status dot, and the three host pages with attention counts — kept live by one batched health read (`GET /api/health`) polled every 15s
   while the tab is visible; below 900px it collapses to a top bar that opens it as
-  a drawer. The list's cards carry a status pill for reverse-proxy sites.
+  a drawer. Add site is a button on the site list, not in the rail. The list's
+  cards carry a status pill for reverse-proxy sites.
 - **The services board reads, and requests three kinds of thing.** It shows, one group
   per page, every declared long-lived process on the host — the reconciler, the services it
   deploys, the game server, Caddy and the sites tunnel — by joining a

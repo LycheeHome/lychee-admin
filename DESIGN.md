@@ -640,10 +640,10 @@ exceptions to it.
   confirm dialog.
 - **Primary:** Ember fill, Hearth text, semibold Nunito at 0.875rem, 10px
   vertical and 16px horizontal padding over a 40px minimum height. Used once
-  per view, and it marks the action that will work now: "Add your first site"
-  on an empty site list, and "Visit" only while the site is serving (running,
-  responding, or a static site). The rail's Add site is never Primary — see
-  Navigation. A page
+  per view, and it marks the action that will work now: "Add site" beside the
+  site list's heading ("Add your first site" in its empty state, which replaces
+  it), and "Visit" only while the site is serving (running, responding, or a
+  static site). Add site appears nowhere else, the rail included. A page
   whose fix is on the host carries no Primary. A Primary blocked by an explicit
   rejection keeps its disabled look through `aria-disabled` and stays focusable.
   Hover goes Ember Light.
@@ -676,9 +676,7 @@ exceptions to it.
   offer's size (0.8rem, 6px by 12px padding, 32px minimum height). Made for
   the prune control, which sits on the services board beside the 32px offer; at
   Secondary's 40px it was the tallest control in its row. The host-action strip
-  uses it too, for Start, Restart and Update and every confirmation's Cancel,
-  and so does the rail's Add site, full rail width, with the current-item
-  treatment on `/sites/new`.
+  uses it too, for Start, Restart and Update and every confirmation's Cancel.
   Derived from
   Secondary in `shared.ts`, so the two cannot drift apart.
   Hover fills to Ember Deep and lifts the label a step; disabled drops to Smoke
@@ -787,16 +785,18 @@ content by a `1px` Hairline rule. Top to bottom, at 20px gaps:
   order: a dot, the hostname, and a right-aligned `static` or `:<port>` hint in
   Smoke Light. The label is Chalk and `.lychee.land` is Smoke;
 - **host**, a plain heading over three links, `services`, `reconciler` and
-  `infrastructure`: the services board's three pages, peers of one another;
-- **Add site**, pinned at the rail's foot above a Hairline rule, in Compact
-  secondary at full rail width.
+  `infrastructure`: the services board's three pages, peers of one another.
+
+The rail is navigation only and carries no action: Add site lives beside the
+site list's heading as that page's Primary.
 
 Rows and links are 0.85rem mono in Smoke, going Chalk on hover; headings are
 0.75rem mono in Smoke. `aria-current="page"` is both the accessibility signal
 and the styling hook (the arbitrary `aria-[current=page]:` variant): Chalk text
 on a Hairline fill with a 2px Ember Edge left rule. It marks a site's own row on
-its page, the `sites` heading on the list, a board's link on its page, and Add
-site on `/sites/new`. A rail item's destination never changes with location.
+its page, the `sites` heading on the list, and a board's link on its page;
+`/sites/new` marks nothing, since its breadcrumb carries the location. A rail
+item's destination never changes with location.
 
 **Dots and counts.** Each site carries an 8px dot in its status tone — Clear,
 Scorch, or Smoke for `neutral` — from the same canonical vocabulary as the pills,
