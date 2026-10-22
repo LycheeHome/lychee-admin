@@ -158,6 +158,8 @@ describe("Rail with health", () => {
     assert.equal(dotClass(container, "legacy.lychee.land"), RAIL_DOT.none);
     assert.equal(container.querySelector('[data-site="removed.lychee.land"]'), null);
     assert.equal(container.querySelectorAll("[data-site]").length, 8);
+    // The unlisted entry is ignored by the count as well: only the seed's two listed sites need attention.
+    assert.equal(count(container, "sites")?.textContent, "2");
   });
 
   test("units unavailable: the sites count shows and the host counts are absent", () => {
@@ -195,12 +197,12 @@ function serverTopBarInner(): string {
 
 describe("TopBar parity with renderTopBar", () => {
   test("before any health, React's top bar is the server's", () => {
-    const client = renderToStaticMarkup(<TopBar health={null} healthError={false} onOpen={() => {}} />);
+    const client = renderToStaticMarkup(<TopBar health={null} healthError={false} hostnames={[]} onOpen={() => {}} />);
     assert.equal(canonical(client), canonical(serverTopBarInner()));
   });
 
   test("an errored poll renders the server's empty count slot", () => {
-    const client = renderToStaticMarkup(<TopBar health={seedHealth()} healthError={true} onOpen={() => {}} />);
+    const client = renderToStaticMarkup(<TopBar health={seedHealth()} healthError={true} hostnames={[]} onOpen={() => {}} />);
     assert.equal(canonical(client), canonical(serverTopBarInner()));
   });
 });
@@ -263,7 +265,7 @@ describe("the top bar and its drawer", () => {
 
   test("the overall count is the sum of the attention counts", () => {
     const { header } = mountNavigation(seedHealth());
-    const counts = attentionCounts(seedHealth());
+    const counts = attentionCounts(seedHealth(), railData().sites?.map((x) => x.hostname) ?? []);
     const sum = counts.sites + (counts.service ?? 0) + (counts.reconciler ?? 0) + (counts.infrastructure ?? 0);
     assert.equal(sum, 5);
     const slot = header.querySelector('[data-count="all"]');
@@ -303,6 +305,22 @@ describe("the top bar and its drawer", () => {
     assert.ok(aside.contains(finds()[0] ?? null));
     assert.equal(aside.querySelectorAll("[data-site]").length, 8);
     assert.equal(document.activeElement, document.querySelector("#rail-menu"));
+  });
+
+  test("a native close that skips cancel puts the rail back and leaves the menu button working", () => {
+    const { aside } = mountNavigation();
+    const menu = document.querySelector<HTMLElement>("#rail-menu");
+    act(() => menu?.focus());
+    click(menu);
+    const dialog = drawer();
+    assert.ok(dialog);
+    act(() => dialog.close());
+    assert.ok(drawer() === null, "the dialog stayed mounted after a native close");
+    assert.ok(aside.contains(finds()[0] ?? null));
+    assert.equal(aside.querySelectorAll("[data-site]").length, 8);
+    assert.equal(document.activeElement, document.querySelector("#rail-menu"));
+    click(document.querySelector("#rail-menu"));
+    assert.ok(drawer()?.open, "the menu button no longer opens the drawer");
   });
 
   test("a click on the backdrop closes the drawer; a click inside it does not", () => {

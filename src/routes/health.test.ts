@@ -91,3 +91,45 @@ describe("GET /api/health", () => {
     assert.equal(body.units, null);
   });
 });
+
+describe("GET /api/health container reads", () => {
+  test("each installed container is read at most once per poll, with unchanged results", async () => {
+    const { createApp } = await import("../app");
+    const { createBackup } = await import("../lib/backup");
+    const { createLogger } = await import("../lib/logger");
+    const { createFakes } = await import("../dev/fakes");
+    const { applySeed, SEEDED_DECLARATIONS } = await import("../dev/seed");
+    const run = async (wrap: boolean) => {
+      const fakes = createFakes({}, { declarations: SEEDED_DECLARATIONS });
+      applySeed(fakes.fs);
+      const calls: string[] = [];
+      const commands = { ...fakes.commands };
+      if (wrap) {
+        const check = commands.checkResourceContainerStatus;
+        const read = commands.readResourceStatus;
+        commands.checkResourceContainerStatus = (p) => (calls.push(`check:${p}`), check(p));
+        commands.readResourceStatus = (p) => (calls.push(`read:${p}`), read(p));
+      }
+      const deps: Deps = { commands, fs: fakes.fs, backup: createBackup(fakes.fs), logger: createLogger(fakes.fs) };
+      const server: Server = createApp(deps).listen(0);
+      await once(server, "listening");
+      const address = server.address();
+      assert.ok(address && typeof address === "object");
+      const body = (await (await fetch(`http://127.0.0.1:${address.port}/api/health`, { headers: { Authorization: AUTH } })).json()) as unknown;
+      server.close();
+      await once(server, "close");
+      return { body, calls };
+    };
+    const { body, calls } = await run(true);
+    const { body: plain } = await run(false);
+    const reads = new Map<string, number>();
+    for (const c of calls) {
+      const project = c.slice(c.indexOf(":") + 1);
+      reads.set(project, (reads.get(project) ?? 0) + 1);
+    }
+    assert.ok(calls.length > 0, "no container was read at all");
+    for (const [project, n] of reads) assert.equal(n, 1, `${project} was read ${n} times: ${calls.join(", ")}`);
+    const strip = (b: unknown) => ({ ...(b as object), now: undefined });
+    assert.deepEqual(strip(body), strip(plain));
+  });
+});

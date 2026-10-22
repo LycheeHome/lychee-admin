@@ -129,7 +129,7 @@ export function Rail({
   // A failed poll shows nothing it remembers: TanStack keeps the last data,
   // and a green dot from it would be a lie about now.
   const live = healthError ? null : health;
-  const counts = live ? attentionCounts(live) : null;
+  const counts = live ? attentionCounts(live, (rail.sites ?? []).map((s) => s.hostname)) : null;
   const byHost = new Map((live?.sites ?? []).map((s) => [s.hostname, s]));
 
   // The rail's own list decides the rows; the payload only colours them. A
@@ -228,6 +228,8 @@ export function Rail({
 
 export interface TopBarProps {
   health: HealthPayload | null;
+  /** The hostnames the rail lists; health entries for any other are not counted. */
+  hostnames: readonly string[];
   healthError: boolean;
   /** Open the rail as a drawer, from `opener`; on find when `focusFind`. */
   onOpen: (opener: HTMLElement, focusFind: boolean) => void;
@@ -238,8 +240,8 @@ export interface TopBarProps {
  * src/views/rail.ts (the parity test pins it): the wordmark h1, the overall
  * attention count (sites plus units), a find button and the menu button.
  */
-export function TopBar({ health, healthError, onOpen }: TopBarProps) {
-  const counts = !healthError && health ? attentionCounts(health) : null;
+export function TopBar({ health, hostnames, healthError, onOpen }: TopBarProps) {
+  const counts = !healthError && health ? attentionCounts(health, hostnames) : null;
   const total = counts
     ? counts.sites + (counts.service ?? 0) + (counts.reconciler ?? 0) + (counts.infrastructure ?? 0)
     : null;
@@ -313,6 +315,9 @@ function Drawer({ onClose, children }: { onClose: () => void; children: ReactNod
         e.preventDefault();
         onClose();
       }}
+      // A close that skipped cancel (dialog.close(), older Chromium) would leave
+      // the rail inside a closed dialog with the state still open.
+      onClose={() => onClose()}
       onKeyDown={(e) => {
         // Find's own Escape (closing its open panel) comes first and is prevented.
         if (e.key !== "Escape" || e.defaultPrevented) return;
@@ -365,8 +370,10 @@ export function Navigation({ topBar, ...props }: NavigationProps) {
     setDrawer({ opener: opener instanceof HTMLElement && opener !== document.body ? opener : null, focusFind });
   };
 
+  // Idempotent: Escape's cancel and a native `close` event can both arrive.
   const close = () => {
-    restoreTo.current = drawer?.opener ?? null;
+    if (!drawer) return;
+    restoreTo.current = drawer.opener;
     setDrawer(null);
   };
 
@@ -406,7 +413,7 @@ export function Navigation({ topBar, ...props }: NavigationProps) {
       {topBar
         ? createPortal(
             <>
-              <TopBar health={props.health} healthError={props.healthError} onOpen={open} />
+              <TopBar health={props.health} hostnames={(props.rail.sites ?? []).map((s) => s.hostname)} healthError={props.healthError} onOpen={open} />
               {drawer ? <Drawer onClose={close}>{rail}</Drawer> : null}
             </>,
             topBar,

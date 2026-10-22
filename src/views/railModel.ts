@@ -63,16 +63,22 @@ export function buildHealth(
   return { sites: sites.map((s) => siteHealth(s, statuses[s.hostname])), units, now: now.toISOString() };
 }
 
-export function attentionCounts(h: HealthPayload): {
+export function attentionCounts(
+  h: HealthPayload,
+  listed: Iterable<string>,
+): {
   sites: number;
   service: number | null;
   reconciler: number | null;
   infrastructure: number | null;
 } {
+  // Only sites the rail lists count: a health entry with no row to show for it
+  // (a site added since the page loaded) would be an unexplained number.
+  const listedSet = new Set(listed);
   const count = (group: ServiceGroup): number | null =>
     h.units ? h.units.filter((u) => u.group === group && u.attention).length : null;
   return {
-    sites: h.sites.filter((s) => s.attention).length,
+    sites: h.sites.filter((s) => listedSet.has(s.hostname) && s.attention).length,
     service: count("service"),
     reconciler: count("reconciler"),
     infrastructure: count("infrastructure"),

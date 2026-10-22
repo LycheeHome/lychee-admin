@@ -76,11 +76,16 @@ describe("buildHealth", () => {
 describe("attentionCounts", () => {
   test("null per group when units is null", () => {
     const h = { sites: [{ hostname: "a", tone: "bad" as const, label: "failed", attention: true }], units: null, now: "" };
-    assert.deepEqual(attentionCounts(h), { sites: 1, service: null, reconciler: null, infrastructure: null });
+    assert.deepEqual(attentionCounts(h, ["a"]), { sites: 1, service: null, reconciler: null, infrastructure: null });
+  });
+  test("sites the rail does not list are not counted", () => {
+    const bad = { tone: "bad" as const, label: "failed", attention: true };
+    const h = { sites: [{ hostname: "a", ...bad }, { hostname: "new", ...bad }], units: null, now: "" };
+    assert.equal(attentionCounts(h, ["a", "b"]).sites, 1);
   });
   test("counts per group", () => {
     const u = unitHealth(row({ status: "exited" }), "service");
     const h = { sites: [], units: [u, unitHealth(row({}), "service")], now: "" };
-    assert.deepEqual(attentionCounts(h), { sites: 0, service: 1, reconciler: 0, infrastructure: 0 });
+    assert.deepEqual(attentionCounts(h, []), { sites: 0, service: 1, reconciler: 0, infrastructure: 0 });
   });
 });
