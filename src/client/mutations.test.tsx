@@ -1,0 +1,302 @@
+import "./test/setup";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { after, afterEach, before, beforeEach, describe, test } from "node:test";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { BoardPayload, BoardRow } from "../shared/board";
+import { InfrastructurePage } from "./pages/InfrastructurePage";
+import { useHealth } from "./health";
+import { seedHealth } from "./test/healthFixture";
+
+// The whole path under test: the real page, a stubbed fetch, and the real
+// public/app.js loaded into the document, which binds [data-deploy] and
+// [data-prune] at load. React's buttons are rendered after that, so a click
+// must still send exactly one write.
+
+afterEach(cleanup);
+
+const TIMEOUT = { timeout: 5000 };
+const originalFetch = globalThis.fetch;
+const TOAST = () => document.getElementById("flash-banner-message")!.textContent;
+
+type Call = { method: string; url: string; body: unknown };
+let calls: Call[] = [];
+let current: BoardPayload;
+let writeAnswer: () => Response | Promise<Response>;
+
+function row(name: string, extra: Partial<BoardRow> = {}): BoardRow {
+  return {
+    name,
+    kind: "container",
+    container: name,
+    group: "infrastructure",
+    reconciled: true,
+    status: "running",
+    since: null,
+    ...extra,
+  } as BoardRow;
+}
+
+function payload(rows: BoardRow[], extra: Partial<BoardPayload> = {}): BoardPayload {
+  return {
+    board: {
+      inventoryAvailable: true,
+      schedule: { next: null, last: null },
+      timerUnit: null,
+      generated: "2026-10-22T11:58:00Z",
+      groups: [{ group: "infrastructure", rows }],
+    },
+    boardEmpty: false,
+    now: "2026-10-22T12:00:00Z",
+    domain: "lychee.land",
+    prunable: [],
+    managed: [],
+    requested: {},
+    lastRuns: {},
+    ...extra,
+  };
+}
+
+const json = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+const OFFERING = () =>
+  payload([row("app-lychee-land", { version: "0.2.0", target: "0.2.0", available: "0.3.0", result: "deployed" })]);
+
+before(() => {
+  document.body.innerHTML = `<div id="flash-banner" class="hidden" role="status">
+    <span id="flash-banner-progress" class="hidden"></span><span id="flash-banner-message"></span>
+    <button type="button" id="flash-banner-action" class="hidden"></button>
+    <button type="button" id="flash-banner-close" class="hidden">x</button></div>
+    <span id="copy-status"></span>
+    <button type="button" data-deploy="app-lychee-land" data-deploy-tag="0.3.0" id="server-rendered">Deploy</button>`;
+  const source = readFileSync(path.join(__dirname, "../../public/app.js"), "utf8");
+  (0, eval)(source);
+  // The server-rendered button exists only so app.js binds something at load.
+  document.getElementById("server-rendered")!.remove();
+});
+
+beforeEach(() => {
+  calls = [];
+  current = OFFERING();
+  writeAnswer = () => json(200, { ok: true });
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+    calls.push({ method, url, body: init?.body });
+    if (method === "GET" && url.startsWith("/api/services")) return json(200, { ok: true, ...current });
+    if (method === "GET" && url === "/api/health") return json(200, { ok: true, ...seedHealth() });
+    return writeAnswer();
+  }) as typeof fetch;
+});
+
+after(() => {
+  globalThis.fetch = originalFetch;
+});
+
+const posts = () => calls.filter((c) => c.method === "POST");
+const gets = (prefix: string) => calls.filter((c) => c.method === "GET" && c.url.startsWith(prefix));
+
+/**
+ * Unmount first, then drop the cache: clearing under a mounted observer lets
+ * it schedule garbage-collection timers that keep the test process alive.
+ */
+function finish(client: QueryClient) {
+  cleanup();
+  client.clear();
+}
+
+/** Stands in for the rail island, which shares the client and so keeps the health query observed. */
+function HealthObserver() {
+  useHealth();
+  return null;
+}
+
+function mount(): QueryClient {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <HealthObserver />
+      <InfrastructurePage />
+    </QueryClientProvider>,
+  );
+  return client;
+}
+
+describe("Deploy", () => {
+  test("one click sends one POST with no body, disables the button and toasts", async () => {
+    let release!: () => void;
+    writeAnswer = () => new Promise((r) => (release = () => r(json(200, { ok: true }))));
+    const client = mount();
+    try {
+      const button = (await screen.findByRole("button", { name: "Deploy 0.3.0" }, TIMEOUT)) as HTMLButtonElement;
+      fireEvent.click(button);
+      fireEvent.click(button);
+      assert.equal(TOAST(), "Requesting 0.3.0 for app-lychee-land…");
+      await waitFor(() => assert.equal(button.disabled, true), TIMEOUT);
+      await waitFor(() => assert.equal(posts().length, 1), TIMEOUT);
+      await new Promise((r) => setTimeout(r, 50));
+      assert.equal(posts().length, 1);
+      assert.equal(posts()[0].url, "/services/app-lychee-land/deploy");
+      assert.equal(posts()[0].body, undefined);
+      release();
+    } finally {
+      finish(client);
+    }
+  });
+
+  test("on success the board refetches and the requested line replaces the offer", async () => {
+    const client = mount();
+    try {
+      const button = await screen.findByRole("button", { name: "Deploy 0.3.0" }, TIMEOUT);
+      const boardReads = gets("/api/services").length;
+      const healthReads = gets("/api/health").length;
+      current = payload(
+        [row("app-lychee-land", { version: "0.2.0", target: "0.2.0", available: "0.3.0", result: "deployed" })],
+        { requested: { "app-lychee-land": "0.3.0" } },
+      );
+      fireEvent.click(button);
+      const line = await screen.findByText("· applies on the next run", {}, TIMEOUT);
+      assert.ok(line);
+      assert.equal(screen.queryByRole("button", { name: "Deploy 0.3.0" }), null);
+      assert.ok(gets("/api/services").length > boardReads);
+      assert.ok(gets("/api/health").length > healthReads);
+      await waitFor(() => assert.ok(document.getElementById("flash-banner")!.classList.contains("hidden")), TIMEOUT);
+      assert.equal(posts().length, 1);
+    } finally {
+      finish(client);
+    }
+  });
+
+  test("the button stays disabled until the refetch lands", async () => {
+    const client = mount();
+    try {
+      const button = (await screen.findByRole("button", { name: "Deploy 0.3.0" }, TIMEOUT)) as HTMLButtonElement;
+      let release!: () => void;
+      const baseFetch = globalThis.fetch;
+      let held = false;
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (held && String(input).startsWith("/api/services")) {
+          await new Promise<void>((r) => (release = r));
+        }
+        return baseFetch(input, init);
+      }) as typeof fetch;
+      held = true;
+      fireEvent.click(button);
+      await waitFor(() => assert.equal(posts().length, 1), TIMEOUT);
+      // The write has answered; the board has not been re-read yet.
+      await new Promise((r) => setTimeout(r, 50));
+      assert.equal(button.disabled, true);
+      held = false;
+      release();
+    } finally {
+      finish(client);
+    }
+  });
+
+  test("a refusal shows the server's reason and re-enables the button", async () => {
+    writeAnswer = () => json(409, { ok: false, reason: "a deploy is already requested" });
+    const client = mount();
+    try {
+      const button = (await screen.findByRole("button", { name: "Deploy 0.3.0" }, TIMEOUT)) as HTMLButtonElement;
+      fireEvent.click(button);
+      await waitFor(() => assert.equal(TOAST(), "a deploy is already requested"), TIMEOUT);
+      await waitFor(() => assert.equal(button.disabled, false), TIMEOUT);
+      assert.ok(screen.getByRole("button", { name: "Deploy 0.3.0" }));
+    } finally {
+      finish(client);
+    }
+  });
+
+  test("a refusal without a reason names the HTTP status", async () => {
+    writeAnswer = () => new Response("bad gateway", { status: 502 });
+    const client = mount();
+    try {
+      fireEvent.click(await screen.findByRole("button", { name: "Deploy 0.3.0" }, TIMEOUT));
+      await waitFor(() => assert.equal(TOAST(), "Could not request 0.3.0 for app-lychee-land (HTTP 502)."), TIMEOUT);
+    } finally {
+      finish(client);
+    }
+  });
+
+  test("a network failure says the server could not be reached and re-enables the button", async () => {
+    writeAnswer = () => {
+      throw new TypeError("fetch failed");
+    };
+    const client = mount();
+    try {
+      const button = (await screen.findByRole("button", { name: "Deploy 0.3.0" }, TIMEOUT)) as HTMLButtonElement;
+      fireEvent.click(button);
+      await waitFor(() => assert.equal(TOAST(), "Could not reach the server to request 0.3.0 for app-lychee-land."), TIMEOUT);
+      await waitFor(() => assert.equal(button.disabled, false), TIMEOUT);
+    } finally {
+      finish(client);
+    }
+  });
+
+  test("a name with a dot reaches the URL encoded", async () => {
+    current = payload([row("a.b", { version: "0.2.0", target: "0.2.0", available: "0.3.0", result: "deployed" })]);
+    const client = mount();
+    try {
+      fireEvent.click(await screen.findByRole("button", { name: "Deploy 0.3.0" }, TIMEOUT));
+      await waitFor(() => assert.equal(posts().length, 1), TIMEOUT);
+      assert.equal(posts()[0].url, `/services/${encodeURIComponent("a.b")}/deploy`);
+    } finally {
+      finish(client);
+    }
+  });
+});
+
+describe("Prune", () => {
+  const prunable = () =>
+    payload([row("gone-lychee-land", { status: "unknown", reconciled: true })], { prunable: ["gone-lychee-land"] });
+
+  test("one click sends one POST, the board refetches and the prune line disappears", async () => {
+    current = prunable();
+    const client = mount();
+    try {
+      const button = await screen.findByRole("button", { name: "Prune old declaration" }, TIMEOUT);
+      current = payload([row("gone-lychee-land", { status: "unknown", reconciled: true })]);
+      fireEvent.click(button);
+      await waitFor(() => assert.ok(!document.querySelector("[data-prune]"), "the prune line is still there"), TIMEOUT);
+      assert.equal(posts().length, 1);
+      assert.equal(posts()[0].url, "/resources/gone-lychee-land/prune");
+      assert.equal(posts()[0].body, undefined);
+    } finally {
+      finish(client);
+    }
+  });
+
+  test("a 409 shows the reason in the app.js format and re-enables the button", async () => {
+    current = prunable();
+    writeAnswer = () => json(409, { ok: false, reason: "the container hasn't been confirmed down yet" });
+    const client = mount();
+    try {
+      const button = (await screen.findByRole("button", { name: "Prune old declaration" }, TIMEOUT)) as HTMLButtonElement;
+      fireEvent.click(button);
+      await waitFor(
+        () => assert.equal(TOAST(), "gone-lychee-land.yml was not pruned: the container hasn't been confirmed down yet"),
+        TIMEOUT,
+      );
+      await waitFor(() => assert.equal(button.disabled, false), TIMEOUT);
+    } finally {
+      finish(client);
+    }
+  });
+
+  test("a network failure shows the app.js message", async () => {
+    current = prunable();
+    writeAnswer = () => {
+      throw new TypeError("fetch failed");
+    };
+    const client = mount();
+    try {
+      fireEvent.click(await screen.findByRole("button", { name: "Prune old declaration" }, TIMEOUT));
+      await waitFor(() => assert.equal(TOAST(), "Could not reach the server to prune gone-lychee-land.yml."), TIMEOUT);
+    } finally {
+      finish(client);
+    }
+  });
+});

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { ActionState, BoardPayload, BoardRow, ServiceBoard, ServiceGroup } from "../../shared/board";
 import type { HostAction } from "../../lib/platform";
+import type { BoardControlsApi } from "../mutations";
 import { summarizeRow } from "../../views/boardFacts";
 import {
   ACTION_CONFIRM,
@@ -55,12 +56,13 @@ import {
  * node-free modules (boardFacts.ts, boardRowModel.ts), so a change to the
  * markup belongs in both until the server board is retired.
  *
- * The controls render inert: the same data-* attributes, classes and text as
- * the server's, with no handlers. Tasks 3 and 4 wire them through `controls`.
+ * The controls render as the server's do (same data-* attributes, classes and
+ * text) and are wired through `controls`: Deploy and Prune today, the host
+ * actions in Task 4. Without `controls` they are inert.
  */
 
-/** The hook point for the board's writes. Tasks 3 and 4 give it members; absent, every control is inert markup. */
-export type BoardControls = Record<string, never>;
+/** The board's writes. Absent, or a member absent, that control renders as inert markup, byte for byte what it is wired. Task 4 adds host actions. */
+export type BoardControls = Partial<BoardControlsApi>;
 
 function Dot() {
   return <span aria-hidden="true">{"●"}</span>;
@@ -140,11 +142,19 @@ function FailureLine({ row, extraClass, commandId }: { row: BoardRow; extraClass
 }
 
 /** html.ts's renderOfferLine at the board's emphasis. */
-function OfferLine({ name, tag }: { name: string; tag: string }) {
+function OfferLine({ name, tag, controls }: { name: string; tag: string; controls?: BoardControls }) {
+  const deploy = controls?.deploy;
   return (
     <p className="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-offer="">
       <span className="font-mono text-[0.8rem] text-rose-300">{`${tag} available`}</span>
-      <button type="button" className={BUTTON_OFFER} data-deploy={name} data-deploy-tag={tag}>
+      <button
+        type="button"
+        className={BUTTON_OFFER}
+        data-deploy={name}
+        data-deploy-tag={tag}
+        disabled={controls?.busy?.has(name) || undefined}
+        onClick={deploy ? () => deploy(name, tag) : undefined}
+      >
         {`Deploy ${tag}`}
       </button>
     </p>
@@ -167,10 +177,17 @@ function RequestedLine({ tag }: { tag: string }) {
 const NBSP = String.fromCharCode(0xa0);
 
 /** html.ts's renderPruneControl at the board's (secondary) emphasis. */
-function PruneLine({ name }: { name: string }) {
+function PruneLine({ name, controls }: { name: string; controls?: BoardControls }) {
+  const prune = controls?.prune;
   return (
     <p className="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-prune-line="">
-      <button type="button" className={BUTTON_SECONDARY_COMPACT} data-prune={name}>
+      <button
+        type="button"
+        className={BUTTON_SECONDARY_COMPACT}
+        data-prune={name}
+        disabled={controls?.busy?.has(name) || undefined}
+        onClick={prune ? () => prune(name) : undefined}
+      >
         Prune old declaration
       </button>
       <span className="font-mono text-[0.72rem] text-stone-400 break-all">
@@ -296,6 +313,7 @@ type RowContext = {
   managed: ReadonlySet<string>;
   requested: Readonly<Record<string, string>>;
   lastRuns: Readonly<Record<string, ActionState>>;
+  controls?: BoardControls;
 };
 
 /** Own properties only, as the server reads them: a row named `toString` has no run. */
@@ -352,8 +370,8 @@ export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
           </p>
         ) : null}
         <FailureLine row={row} extraClass="mt-1.5" commandId={`cmd-reconcile-log-${row.name}`} />
-        {offer ? offer.requested ? <RequestedLine tag={offer.tag} /> : <OfferLine name={row.name} tag={offer.tag} /> : null}
-        {showsPrune(row.name, prunable, domain) ? <PruneLine name={row.name} /> : null}
+        {offer ? offer.requested ? <RequestedLine tag={offer.tag} /> : <OfferLine name={row.name} tag={offer.tag} controls={ctx.controls} /> : null}
+        {showsPrune(row.name, prunable, domain) ? <PruneLine name={row.name} controls={ctx.controls} /> : null}
         <HostActions row={row} run={run} now={now} />
       </div>
     </li>
@@ -363,7 +381,7 @@ export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
 export type BoardProps = {
   payload: BoardPayload;
   group: ServiceGroup;
-  /** Unread until Tasks 3 and 4: absent, the controls are inert markup. */
+  /** Absent, the controls are inert markup. Task 4 wires the host actions. */
   controls?: BoardControls;
 };
 
@@ -373,7 +391,7 @@ export type BoardProps = {
  * inert requested-line template the server page appends for app.js. It is
  * dead markup here, kept for parity until the server board is retired.
  */
-export function Board({ payload, group }: BoardProps) {
+export function Board({ payload, group, controls }: BoardProps) {
   const { board, boardEmpty } = payload;
   const now = new Date(payload.now);
   const ctx: RowContext = {
@@ -384,6 +402,7 @@ export function Board({ payload, group }: BoardProps) {
     managed: new Set(payload.managed),
     requested: payload.requested,
     lastRuns: payload.lastRuns,
+    controls,
   };
   const freshness = inventoryFreshness(board, now);
   const rows = board.groups.find((g) => g.group === group)?.rows ?? [];

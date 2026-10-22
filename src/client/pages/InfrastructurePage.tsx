@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchBoard } from "../api";
+import { boardQueryKey, fetchBoard } from "../api";
+import { useBoardControls } from "../mutations";
 import { Board } from "../components/BoardRows";
 import { FRAME_WIDTH } from "../../views/shared";
 
@@ -11,7 +12,8 @@ const ALERT = "font-mono text-[0.8rem] text-red-300 bg-red-950/60 border border-
  * is the redesign's call, not the foundation's.
  */
 export function InfrastructurePage() {
-  const query = useQuery({ queryKey: ["board", "infrastructure"], queryFn: () => fetchBoard("infrastructure") });
+  const query = useQuery({ queryKey: boardQueryKey("infrastructure"), queryFn: () => fetchBoard("infrastructure") });
+  const controls = useBoardControls();
 
   if (query.isError) {
     return (
@@ -23,5 +25,5 @@ export function InfrastructurePage() {
     );
   }
   if (!query.data) return null;
-  return <Board payload={query.data} group="infrastructure" />;
+  return <Board payload={query.data} group="infrastructure" controls={controls} />;
 }
