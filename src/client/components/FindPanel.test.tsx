@@ -220,6 +220,90 @@ describe("FindPanel", () => {
     assert.equal(document.querySelector('[data-find-group="service"]'), null);
   });
 
+  test("⌘K with an input that can't take focus (rail hidden) leaves the panel shut and the browser its shortcut", () => {
+    const { input, getByTestId } = setup();
+    input.focus = () => {};
+    const textarea = getByTestId("elsewhere");
+    focus(textarea);
+    const event = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true, cancelable: true });
+    act(() => {
+      textarea.dispatchEvent(event);
+    });
+    assert.equal(event.defaultPrevented, false);
+    assert.equal(input.getAttribute("aria-expanded"), "false");
+    assert.equal(listbox(), null);
+    assert.equal(document.activeElement, textarea);
+  });
+
+  test("every option sits in a group named by its heading", () => {
+    const { input } = setup();
+    focus(input);
+    // `a` matches a row in all four groups.
+    type(input, "a");
+    const options = Array.from(document.querySelectorAll('[role="option"]'));
+    assert.ok(options.length > 0);
+    const names = new Set<string>();
+    for (const o of options) {
+      const group = o.closest('[role="group"]');
+      assert.ok(group, `${o.textContent} is in no group`);
+      const labelId = group.getAttribute("aria-labelledby");
+      assert.ok(labelId, "a group has no aria-labelledby");
+      const label = document.getElementById(labelId);
+      assert.ok(label, `aria-labelledby ${labelId} names nothing`);
+      names.add(label.textContent ?? "");
+    }
+    assert.deepEqual([...names].sort(), ["infrastructure", "reconciler", "services", "sites"]);
+    const ids = Array.from(document.querySelectorAll("[id]")).map((e) => e.id);
+    assert.equal(new Set(ids).size, ids.length, "ids are not unique");
+  });
+
+  test("the highlight follows its row when a poll reorders the list", () => {
+    const visits: string[] = [];
+    const tree = (health: HealthPayload) => (
+      <FindPanel health={health} railSites={railSites} navigate={(href) => visits.push(href)} />
+    );
+    const utils = render(tree(seedHealth()));
+    const input = utils.container.querySelector<HTMLInputElement>("#find");
+    assert.ok(input);
+    focus(input);
+    key(input, "ArrowDown");
+    key(input, "ArrowDown");
+    const before = input.getAttribute("aria-activedescendant");
+    assert.match(document.getElementById(before ?? "")?.textContent ?? "", /^swee/);
+
+    const next = seedHealth();
+    next.sites = next.sites.map((s) =>
+      s.hostname === "gone.lychee.land" ? { ...s, tone: "bad", label: "failed", attention: true } : s,
+    );
+    act(() => {
+      utils.rerender(tree(next));
+    });
+    assert.equal(optionTexts().length, 6, "the poll did not insert a row");
+    assert.equal(input.getAttribute("aria-activedescendant"), before, "the highlight moved to another row");
+    key(input, "Enter");
+    assert.deepEqual(visits, ["/services#service-swee"]);
+  });
+
+  test("when the highlighted row disappears, the highlight falls back to the first option", () => {
+    const visits: string[] = [];
+    const tree = (health: HealthPayload) => (
+      <FindPanel health={health} railSites={railSites} navigate={(href) => visits.push(href)} />
+    );
+    const utils = render(tree(seedHealth()));
+    const input = utils.container.querySelector<HTMLInputElement>("#find");
+    assert.ok(input);
+    focus(input);
+    key(input, "ArrowDown");
+    key(input, "ArrowDown");
+    const next = seedHealth();
+    next.units = (next.units ?? []).map((u) => (u.name === "swee" ? { ...u, trouble: null, attention: false } : u));
+    act(() => {
+      utils.rerender(tree(next));
+    });
+    key(input, "Enter");
+    assert.deepEqual(visits, ["/sites/api.lychee.land"]);
+  });
+
   test("text typed before mount is kept, and focus with it", () => {
     const { input } = setup(seedHealth(), { initialQuery: "sw", initialFocused: true });
     assert.equal(input.value, "sw");

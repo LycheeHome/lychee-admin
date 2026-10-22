@@ -54,7 +54,20 @@ const noMatch = (key: FindGroupKey, q: string): string =>
       ? `No services match “${q}”.`
       : `No ${key} units match “${q}”.`;
 
-const defaultNavigate = (href: string): void => {
+/**
+ * An option's id, stable per row: derived from its href, with every character
+ * outside [A-Za-z0-9-] written as `_<hex>_`, so it is a valid id and two
+ * different hrefs can never collide.
+ */
+export const optionId = (href: string): string =>
+  "find-option-" +
+  Array.from(href)
+    .map((c) => (/[A-Za-z0-9-]/.test(c) ? c : `_${(c.codePointAt(0) ?? 0).toString(16)}_`))
+    .join("");
+
+const headingId = (key: FindGroupKey): string => `find-group-${key}`;
+
+const defaultNavigate =(href: string): void => {
   window.location.assign(href);
 };
 
@@ -111,7 +124,9 @@ export function FindPanel({
   const returnTo = useRef<Element | null>(null);
   const [query, setQuery] = useState(initialQuery);
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
+  // The highlighted row, by href: a poll that reorders the list must not move
+  // the highlight (and Enter) onto a different row.
+  const [activeHref, setActiveHref] = useState<string | null>(null);
   const [place, setPlace] = useState<{ top: number; left: number } | null>(null);
 
   const q = query.trim();
@@ -122,7 +137,10 @@ export function FindPanel({
   // With nothing typed only the groups that have something are shown.
   const shown = q === "" ? groups.filter((g) => g.items.length > 0) : groups;
   const items = shown.flatMap((g) => g.items);
-  const current = items.length === 0 ? -1 : Math.min(active, items.length - 1);
+  const found = activeHref === null ? -1 : items.findIndex((item) => item.href === activeHref);
+  // A highlighted row that has gone falls back to the first.
+  const current = items.length === 0 ? -1 : Math.max(found, 0);
+  const setActive = (i: number) => setActiveHref(items[i]?.href ?? null);
 
   // ⌘K / Ctrl+K from anywhere, inputs and textareas included.
   useEffect(() => {
@@ -130,9 +148,13 @@ export function FindPanel({
       if (!isFindShortcut(e)) return;
       const input = inputRef.current;
       if (!input) return;
-      e.preventDefault();
-      if (document.activeElement !== input) returnTo.current = document.activeElement;
+      const previous = document.activeElement;
       input.focus();
+      // A hidden rail (below 900px) has an input that cannot take focus: then
+      // find is not here to open, and the browser keeps its own shortcut.
+      if (document.activeElement !== input) return;
+      e.preventDefault();
+      if (previous !== input) returnTo.current = previous;
       input.select();
       setOpen(true);
     };
@@ -197,7 +219,7 @@ export function FindPanel({
     }
   };
 
-  const optionId = (i: number) => `find-option-${i}`;
+  const activeItem = current >= 0 ? items[current] : undefined;
   // Each shown group's first index in the flat list the arrow keys walk.
   const starts = shown.map((_, n) => shown.slice(0, n).reduce((sum, g) => sum + g.items.length, 0));
 
@@ -215,7 +237,7 @@ export function FindPanel({
         aria-expanded={open}
         aria-controls={FIND_LIST_ID}
         aria-autocomplete="list"
-        aria-activedescendant={open && current >= 0 ? optionId(current) : undefined}
+        aria-activedescendant={open && activeItem ? optionId(activeItem.href) : undefined}
         className={RAIL_FIND}
         defaultValue={initialQuery || undefined}
         onFocus={(e) => {
@@ -228,7 +250,7 @@ export function FindPanel({
         }}
         onChange={(e) => {
           setQuery(e.target.value);
-          setActive(0);
+          setActiveHref(null);
           setOpen(true);
         }}
         onKeyDown={onKeyDown}
@@ -249,8 +271,9 @@ export function FindPanel({
               </p>
             ) : (
               shown.map((g, n) => (
-                <div key={g.key} role="presentation" data-find-group={g.key}>
-                  <p role="presentation" data-find-heading="" className={FIND_HEADING}>
+                // A named group, so a screen reader hears each option's own group.
+                <div key={g.key} role="group" aria-labelledby={headingId(g.key)} data-find-group={g.key}>
+                  <p id={headingId(g.key)} role="presentation" data-find-heading="" className={FIND_HEADING}>
                     {GROUP_LABEL[g.key]}
                   </p>
                   {g.items.length === 0 ? (
@@ -263,7 +286,7 @@ export function FindPanel({
                       return (
                         <div
                           key={item.href}
-                          id={optionId(i)}
+                          id={optionId(item.href)}
                           role="option"
                           aria-selected={i === current}
                           className={FIND_OPTION}
