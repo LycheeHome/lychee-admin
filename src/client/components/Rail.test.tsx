@@ -62,7 +62,6 @@ describe("Rail parity with renderRail", () => {
   test("every current marker", () => {
     for (const current of [
       { page: "sites" },
-      { page: "new" },
       { page: "services" },
       { page: "reconciler" },
       { page: "infrastructure" },
@@ -94,7 +93,7 @@ describe("Rail parity with renderRail", () => {
 
   test("a mismatch is caught", () => {
     const client = renderToStaticMarkup(
-      <Rail rail={railData({ current: { page: "new" } })} health={null} healthError={false} lastRead={null} />,
+      <Rail rail={railData({ current: { site: "api.lychee.land" } })} health={null} healthError={false} lastRead={null} />,
     );
     assert.notEqual(canonical(client), canonical(serverInner(railData())));
   });

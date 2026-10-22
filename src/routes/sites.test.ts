@@ -247,8 +247,10 @@ describe("the rail on each page", () => {
     assert.deepEqual(currentHrefs(await (await request("/")).text()), ["/"]);
   });
 
-  test("the add-site page marks Add site", async () => {
-    assert.deepEqual(currentHrefs(await (await request("/sites/new")).text()), ["/sites/new"]);
+  test("the add-site page marks nothing: the rail has no Add site", async () => {
+    const html = await (await request("/sites/new")).text();
+    assert.deepEqual(currentHrefs(html), []);
+    assert.doesNotMatch(railOf(html), /href="\/sites\/new"/);
   });
 
   test("a site page marks its own row", async () => {
@@ -285,8 +287,8 @@ describe("the rail on each page", () => {
     }
   });
 
-  test("the list with sites has no Add site button of its own", async () => {
-    assert.doesNotMatch(withoutShell(await (await request("/")).text()), /href="\/sites\/new"/);
+  test("the list with sites carries Add site in its own section header", async () => {
+    assert.match(withoutShell(await (await request("/")).text()), /href="\/sites\/new"/);
   });
 });
 

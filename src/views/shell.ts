@@ -4,10 +4,11 @@ import { renderRail, renderRailData, renderTopBar } from "./rail";
 
 /**
  * Which rail item is current: a page's own link, a site's row, or nothing
- * (the not-found page, and any fallback rendered at a URL it does not own).
+ * (the add-site page, whose breadcrumb carries its location; the not-found
+ * page; and any fallback rendered at a URL it does not own).
  */
 export type RailCurrent =
-  | { page: "sites" | "new" | "services" | "reconciler" | "infrastructure" }
+  | { page: "sites" | "services" | "reconciler" | "infrastructure" }
   | { site: string }
   | null;
 

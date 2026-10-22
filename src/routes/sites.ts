@@ -263,7 +263,7 @@ export function createSitesRouter(deps: Deps): Router {
         renderAddSite(sites, config.domain, computePortOwners(sites), {
           caddyfilePath: config.caddyfilePath,
           tunnelConfigPath: config.tunnelConfigPath,
-        }, loadShell(deps, { page: "new" })),
+        }, loadShell(deps, null)),
       );
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);

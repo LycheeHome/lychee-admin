@@ -6,7 +6,6 @@ import { splitHostnameForDisplay } from "../lib/siteDisplay";
 import type { RailCurrent, RailData } from "./shell";
 import { FOCUS_RING, escapeHtml, icon } from "./shared";
 import {
-  RAIL_ADD_SITE,
   RAIL_DOT,
   RAIL_FIND,
   RAIL_FIND_HINT,
@@ -63,7 +62,8 @@ const HOST_LINKS: ReadonlyArray<{ href: string; label: string; page: RailPage; c
 ];
 
 /**
- * The rail: wordmark, find, sites, host, and Add site pinned at the foot.
+ * The rail: wordmark, find, sites and host. Navigation only: Add site lives
+ * on the sites page, as that page's one Ember action.
  * Only rail markup goes inside the aside; anything the island needs beside it
  * (its JSON data) is a sibling after it.
  */
@@ -95,9 +95,6 @@ export function renderRail(rail: RailData): string {
         <p class="${RAIL_HEADING} m-0">host</p>
         ${hostLinks}${rail.hostAvailable ? "" : `\n        <p class="${RAIL_NOTE}">Inventory unavailable</p>`}
       </nav>
-    </div>
-    <div class="shrink-0 border-t border-stone-700 px-3 py-3">
-      <a href="/sites/new" class="${RAIL_ADD_SITE}"${ariaCurrent(isPage(rail.current, "new"))}>${icon("plus")}Add site</a>
     </div>
   </aside>`;
 }
