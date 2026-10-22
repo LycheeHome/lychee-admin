@@ -110,6 +110,25 @@ export const RAIL_FIND = `${INPUT} w-full pr-10 text-[0.8rem]`;
 export const RAIL_FIND_HINT =
   "pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 font-mono text-[0.72rem] text-stone-400";
 
+/**
+ * A row's hostname. `overflow-wrap: anywhere`, never `break-all`: a name that
+ * fits stays whole, and only one that cannot fit (a 63-character label) breaks
+ * where it must. `min-w-0` lets it shrink inside the row's flex line.
+ */
+export const RAIL_HOSTNAME = "min-w-0 [overflow-wrap:anywhere]";
+
+/** The width from which the rail is shown and the top bar hidden (`min-[900px]:`). */
+export const RAIL_WIDE_QUERY = "(min-width: 900px)";
+
+/**
+ * The narrow-screen drawer: a modal `<dialog>` holding the rail, pinned to
+ * the left edge at full height, on the rail's own Hearth with its Hairline
+ * edge. `open:flex`, never `flex`, so the UA's closed `display: none` stands.
+ */
+export const RAIL_DRAWER =
+  "fixed inset-y-0 left-0 m-0 p-0 h-dvh max-h-none w-[280px] max-w-[calc(100vw-3rem)] " +
+  "font-sans bg-stone-900 text-stone-50 border-0 border-r border-stone-700 open:flex flex-col backdrop:bg-black/60";
+
 /** The narrow-screen top bar's menu button, which opens the rail as a drawer. */
 export const RAIL_MENU = `inline-flex items-center justify-center size-9 rounded-md bg-transparent border border-stone-700 text-stone-400 hover:text-stone-50 hover:bg-stone-800 cursor-pointer text-lg ${FOCUS_RING}`;
 

@@ -181,12 +181,19 @@ describe("the add-site page", () => {
 });
 
 describe("the shell's h1", () => {
-  // Every page gets exactly one h1, from the shell: the wordmark in the rail.
-  // The top bar's wordmark is a plain link, so the two never double up.
+  // Every page gets its h1 from the shell: the wordmark, once in the rail and
+  // once in the narrow-screen top bar. The two are never displayed together
+  // (the rail shows from 900px, the bar below it), which the client's
+  // per-width visibility test checks; here, the markup carries exactly those two.
   const countH1 = (html: string) => (html.match(/<h1[\s>]/g) ?? []).length;
 
-  test("renders exactly one on every page", () => {
-    for (const [name, html] of Object.entries(pages())) assert.equal(countH1(html), 1, name);
+  test("renders exactly two on every page, one in the rail and one in the top bar", () => {
+    for (const [name, html] of Object.entries(pages())) {
+      assert.equal(countH1(html), 2, name);
+      assert.equal(countH1(html.match(RAIL)?.[0] ?? ""), 1, `${name}: rail`);
+      assert.equal(countH1(html.match(TOP_BAR)?.[0] ?? ""), 1, `${name}: top bar`);
+      assert.equal(countH1(withoutShell(html)), 0, `${name}: the body has its own h1`);
+    }
   });
 
   test("wraps the wordmark home link, inside the rail", () => {

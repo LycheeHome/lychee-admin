@@ -10,6 +10,7 @@ import {
   FIND_TROUBLE,
   RAIL_FIND,
   RAIL_FIND_HINT,
+  RAIL_WIDE_QUERY,
 } from "../../views/railModel";
 import { TONE_PILL } from "../../views/shared";
 import type { RailData } from "../../views/shell";
@@ -36,6 +37,17 @@ export interface FindPanelProps {
   initialQuery?: string;
   /** The server's input had focus when this mounted over it. */
   initialFocused?: boolean;
+  /**
+   * This box is inside the narrow-screen drawer. The panel then opens below
+   * the box rather than beside the rail, and Escape on a closed panel is left
+   * to the drawer, so a first Escape closes find and a second the drawer.
+   */
+  inDrawer?: boolean;
+  /**
+   * Below 900px the rail, and this box with it, is collapsed: ⌘K calls this
+   * with whatever had focus, and the island opens the rail as a drawer on find.
+   */
+  onNarrowShortcut?: (previous: Element | null) => void;
 }
 
 export const FIND_LIST_ID = "find-list";
@@ -67,7 +79,7 @@ export const optionId = (href: string): string =>
 
 const headingId = (key: FindGroupKey): string => `find-group-${key}`;
 
-const defaultNavigate =(href: string): void => {
+const defaultNavigate = (href: string): void => {
   window.location.assign(href);
 };
 
@@ -118,8 +130,15 @@ export function FindPanel({
   findHint = "⌘K",
   initialQuery = "",
   initialFocused = false,
+  inDrawer = false,
+  onNarrowShortcut,
 }: FindPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  // The document listener is registered once; it reads the latest callback here.
+  const narrowShortcut = useRef(onNarrowShortcut);
+  useEffect(() => {
+    narrowShortcut.current = onNarrowShortcut;
+  });
   // Where Escape sends focus: whatever had it before find opened.
   const returnTo = useRef<Element | null>(null);
   const [query, setQuery] = useState(initialQuery);
@@ -149,6 +168,14 @@ export function FindPanel({
       const input = inputRef.current;
       if (!input) return;
       const previous = document.activeElement;
+      // Below 900px this box is collapsed with the rail: the island opens the
+      // rail as a drawer and focuses find there instead.
+      const narrow = narrowShortcut.current;
+      if (narrow && typeof window.matchMedia === "function" && !window.matchMedia(RAIL_WIDE_QUERY).matches) {
+        e.preventDefault();
+        narrow(previous);
+        return;
+      }
       input.focus();
       // A hidden rail (below 900px) has an input that cannot take focus: then
       // find is not here to open, and the browser keeps its own shortcut.
@@ -174,14 +201,19 @@ export function FindPanel({
 
   // Anchored beside the rail, level with the find box. Fixed, because the
   // rail's own scroll container would clip anything absolutely placed in it.
+  // In the drawer there is no room beside it, so the panel opens below the box.
   useLayoutEffect(() => {
     if (!open) return;
     const input = inputRef.current;
     if (!input) return;
     const box = input.getBoundingClientRect();
+    if (inDrawer) {
+      setPlace({ top: box.bottom + 6, left: box.left });
+      return;
+    }
     const rail = input.closest("aside")?.getBoundingClientRect();
     setPlace({ top: box.top, left: rail ? rail.right + 8 : box.left });
-  }, [open]);
+  }, [open, inDrawer]);
 
   const close = () => {
     setOpen(false);
@@ -197,6 +229,14 @@ export function FindPanel({
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Escape") {
+      if (inDrawer) {
+        // A closed panel leaves Escape to the drawer, which closes on it.
+        if (!open) return;
+        // An open one closes and keeps focus in the box, inside the drawer.
+        e.preventDefault();
+        setOpen(false);
+        return;
+      }
       e.preventDefault();
       close();
       return;

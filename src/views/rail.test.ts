@@ -91,16 +91,24 @@ describe("renderRail", () => {
     assert.deepEqual(JSON.parse(m[1]), data);
   });
 
-  test("a long hostname wraps inside the rail instead of overflowing it", () => {
+  // `overflow-wrap: anywhere`, never `break-all`: a hostname that fits (as
+  // preview.lychee.land does) must not be split mid-word, and only one that
+  // cannot fit, such as a 63-character label, breaks where it has to.
+  test("a long hostname wraps inside the rail instead of overflowing it, and only when it cannot fit", () => {
     const long = `${"a".repeat(63)}.lychee.land`;
     const html = rail({ sites: [{ hostname: long, hint: "static" }] });
     const row = html.match(/<a [^>]*data-site="a+\.lychee\.land"[^>]*>[\s\S]*?<\/a>/)?.[0] ?? "";
-    assert.match(row, /<span class="[^"]*\bmin-w-0 break-all\b[^"]*"><span class="text-stone-50">a{63}<\/span>/);
+    assert.match(row, /<span class="min-w-0 \[overflow-wrap:anywhere\]"><span class="text-stone-50">a{63}<\/span>/);
+    assert.doesNotMatch(rail(), /break-all/);
+  });
+
+  test("a hostname's first break is before its domain suffix, never mid-word", () => {
+    assert.match(rail(), /<span class="text-stone-50">preview<\/span><wbr>\.lychee\.land<\/span>/);
   });
 
   test("the hostname's label is Chalk and the shared suffix is not", () => {
     const html = rail();
-    assert.match(html, /<span class="text-stone-50">api<\/span>\.lychee\.land/);
+    assert.match(html, /<span class="text-stone-50">api<\/span><wbr>\.lychee\.land/);
   });
 
   // Carried over from the breadcrumb dropdown the rail replaces.
@@ -148,7 +156,7 @@ describe("renderRail", () => {
 
   test("the find box and the menu button carry their shared class strings", () => {
     assert.ok(rail().includes(`<input id="find" type="text" autocomplete="off" spellcheck="false" placeholder="find" aria-label="Find a site or unit" role="combobox" aria-expanded="false" aria-controls="find-list" aria-autocomplete="list" class="${RAIL_FIND}" />`));
-    assert.ok(renderTopBar().includes(`id="rail-menu" aria-label="Open navigation" class="${RAIL_MENU}"`));
+    assert.ok(renderTopBar().includes(`id="rail-menu" aria-label="Open navigation" aria-haspopup="dialog" class="${RAIL_MENU}"`));
   });
 
   test("the find box prints the ⌘K hint", () => {
@@ -166,5 +174,24 @@ describe("renderRail", () => {
   test("escapes hostnames", () => {
     const html = rail({ sites: [{ hostname: `x"><b>.lychee.land`, hint: "static" }] });
     assert.ok(!html.includes(`"><b>`));
+  });
+});
+
+describe("renderTopBar", () => {
+  const bar = renderTopBar();
+
+  // Below 900px the rail's h1 is hidden with the rail, so the bar's wordmark
+  // is the page's heading there; from 900px the bar is hidden instead.
+  test("carries the wordmark as an h1, at the rail's Display size", () => {
+    assert.match(bar, /<h1 class="m-0 text-base font-normal leading-none"><a href="\/" aria-label="lychee-admin" class="font-display text-2xl[^"]*">lychee<span class="font-mono[^"]*">admin<\/span><\/a><\/h1>/);
+  });
+
+  test("carries an empty overall count slot, a find button and the menu button, in that order", () => {
+    const right = bar.match(/<\/h1>([\s\S]*)<\/header>/)?.[1] ?? "";
+    const order = [...right.matchAll(/data-count="all"|id="rail-find"|id="rail-menu"/g)].map((m) => m[0]);
+    assert.deepEqual(order, ['data-count="all"', 'id="rail-find"', 'id="rail-menu"']);
+    assert.match(right, /<span data-count="all"><\/span>/);
+    assert.ok(right.includes(`<button type="button" id="rail-find" aria-label="Find a site or unit" class="${RAIL_MENU}">`));
+    assert.ok(right.includes(`<button type="button" id="rail-menu" aria-label="Open navigation" aria-haspopup="dialog" class="${RAIL_MENU}">`));
   });
 });

@@ -13,6 +13,7 @@ import {
   RAIL_HEADING,
   RAIL_HEADING_LINK,
   RAIL_HINT,
+  RAIL_HOSTNAME,
   RAIL_MENU,
   RAIL_NOTE,
   RAIL_ROW,
@@ -43,14 +44,16 @@ export function renderWordmark(): string {
 
 /**
  * One site, as a row: a dot, the hostname with its label in Chalk, and its
- * type hint. `min-w-0 break-all` on the hostname, never `truncate`: a 63-
- * character label must wrap inside 250px, and two long names that share a
- * prefix must not render identically.
+ * type hint. RAIL_HOSTNAME on the hostname, never `truncate`: a 63-character
+ * label must wrap inside 250px, and two long names that share a prefix must
+ * not render identically. The `<wbr>` before the domain suffix is the break a
+ * name takes first, so `preview.lychee.land` wraps as `preview` and
+ * `.lychee.land` rather than mid-word.
  */
 function siteRow(site: { hostname: string; hint: string }, rail: RailData): string {
   const { lead, dimmed } = splitHostnameForDisplay(site.hostname, rail.domain);
   const host = escapeHtml(site.hostname);
-  return `<li><a href="/sites/${encodeURIComponent(site.hostname)}" class="${RAIL_ROW}" data-site="${host}"${ariaCurrent(isSite(rail.current, site.hostname))}><span class="${RAIL_DOT.none}" data-dot aria-hidden="true"></span><span class="min-w-0 break-all"><span class="text-stone-50">${escapeHtml(lead)}</span>${escapeHtml(dimmed)}</span>${SPOKEN_COMMA}<span class="${RAIL_HINT}">${escapeHtml(site.hint)}</span></a></li>`;
+  return `<li><a href="/sites/${encodeURIComponent(site.hostname)}" class="${RAIL_ROW}" data-site="${host}"${ariaCurrent(isSite(rail.current, site.hostname))}><span class="${RAIL_DOT.none}" data-dot aria-hidden="true"></span><span class="${RAIL_HOSTNAME}"><span class="text-stone-50">${escapeHtml(lead)}</span><wbr>${escapeHtml(dimmed)}</span>${SPOKEN_COMMA}<span class="${RAIL_HINT}">${escapeHtml(site.hint)}</span></a></li>`;
 }
 
 const HOST_LINKS: ReadonlyArray<{ href: string; label: string; page: RailPage; count: string }> = [
@@ -111,13 +114,22 @@ export function renderRailData(rail: RailData): string {
 }
 
 /**
- * Below 900px the rail is hidden and this bar stands in for it: the wordmark
- * and a menu button that will open the rail as a drawer. The wordmark here is
- * not an h1; the rail's is, so a page has exactly one.
+ * Below 900px the rail is hidden and this bar stands in for it: the wordmark,
+ * then the overall attention count, a find button and the menu button that
+ * opens the rail as a drawer. The wordmark is an h1 here as it is in the rail:
+ * the two are never displayed at the same width, so each width has one.
+ *
+ * Like the rail, the bar carries no health; the island takes it over (its
+ * children, never the header) and fills the count. Without the bundle the two
+ * buttons do nothing and the bar is a link home: a known limit.
  */
 export function renderTopBar(): string {
   return `<header id="top-bar" class="min-[900px]:hidden flex items-center justify-between gap-4 px-4 py-3 border-b border-stone-700">
-    ${renderWordmark()}
-    <button type="button" id="rail-menu" aria-label="Open navigation" class="${RAIL_MENU}">${icon("menu")}</button>
+    <h1 class="m-0 text-base font-normal leading-none">${renderWordmark()}</h1>
+    <div class="flex items-center gap-2">
+      <span data-count="all"></span>
+      <button type="button" id="rail-find" aria-label="Find a site or unit" class="${RAIL_MENU}">${icon("search")}</button>
+      <button type="button" id="rail-menu" aria-label="Open navigation" aria-haspopup="dialog" class="${RAIL_MENU}">${icon("menu")}</button>
+    </div>
   </header>`;
 }

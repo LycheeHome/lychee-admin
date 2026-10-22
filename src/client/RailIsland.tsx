@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
 import type { RailData } from "../views/shell";
-import { Rail } from "./components/Rail";
+import { Navigation } from "./components/Rail";
 import { useHealth } from "./health";
 
 /** `⌘K` on Apple platforms, `Ctrl K` everywhere else. */
@@ -18,10 +18,13 @@ export function findHintFor(platform: string): string {
 export function RailIsland({
   rail,
   findInitial,
+  topBar = null,
 }: {
   rail: RailData;
   /** What the server's find box held, so text typed before the bundle loaded survives the takeover. */
   findInitial?: { query: string; focused: boolean };
+  /** The server's narrow-screen top bar, taken over with the rail; null where there is none. */
+  topBar?: Element | null;
 }) {
   const query = useHealth();
   const lastRead = query.dataUpdatedAt > 0 ? new Date(query.dataUpdatedAt).toISOString() : null;
@@ -31,13 +34,14 @@ export function RailIsland({
   // would blink the unavailable line off for the length of every retry.
   const latestErrored = query.isError || query.errorUpdatedAt > query.dataUpdatedAt;
   return (
-    <Rail
+    <Navigation
       rail={rail}
       health={query.data ?? null}
       healthError={latestErrored}
       lastRead={lastRead}
       findHint={findHintFor(platform)}
       findInitial={findInitial}
+      topBar={topBar}
     />
   );
 }
@@ -45,7 +49,9 @@ export function RailIsland({
 /**
  * Takes over the server's `<aside id="rail">`: reads the rail data the
  * server put beside it (`#rail-data`) and renders the island into the aside,
- * which keeps its own id, attributes and classes. Returns null, leaving the
+ * which keeps its own id, attributes and classes. The narrow-screen
+ * `<header id="top-bar">` is taken over from the same tree, through a portal,
+ * and likewise keeps its own element. Returns null, leaving the
  * server rail as plain links, when either is missing or the data is unreadable.
  */
 export function mountRailIsland(client: QueryClient, doc: Document = document): Root | null {
@@ -68,7 +74,7 @@ export function mountRailIsland(client: QueryClient, doc: Document = document): 
   root.render(
     <StrictMode>
       <QueryClientProvider client={client}>
-        <RailIsland rail={rail} findInitial={findInitial} />
+        <RailIsland rail={rail} findInitial={findInitial} topBar={doc.getElementById("top-bar")} />
       </QueryClientProvider>
     </StrictMode>,
   );

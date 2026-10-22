@@ -7,7 +7,9 @@ import type { Root } from "react-dom/client";
 import { renderRail, renderRailData } from "../views/rail";
 import { RAIL_DOT } from "../views/railModel";
 import { testShell } from "../dev/testHelpers";
+import { layout } from "../views/shell";
 import { seedHealth } from "./test/healthFixture";
+import { displayedAt } from "./test/visibility";
 import { HEALTH_QUERY, fetchHealth } from "./health";
 import { mountRailIsland } from "./RailIsland";
 
@@ -24,6 +26,7 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
   delete (navigator as unknown as Record<string, unknown>).platform;
   document.body.innerHTML = "";
+  document.body.className = "";
 });
 
 type Answer = { status: number; body: unknown };
@@ -203,6 +206,39 @@ describe("the rail island", () => {
       input?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
     });
     assert.equal(document.activeElement, outside);
+  });
+
+  test("each width displays exactly one wordmark h1, before and after the island takes over", async () => {
+    stubFetch(ok);
+    // The body as layout() emits it, including the classes that split the widths.
+    document.body.innerHTML = layout("t", "<p>body</p>", { shell: testShell({ current: { page: "sites" } }) })
+      .replace(/^[\s\S]*<body[^>]*>/, "")
+      .replace(/<\/body>[\s\S]*$/, "");
+    document.body.className = "min-h-screen min-[900px]:grid";
+    const visibleH1s = (width: number) =>
+      Array.from(document.querySelectorAll("h1")).filter((h) => displayedAt(h, width));
+    const check = (when: string) => {
+      for (const width of [390, 899, 900, 1280]) {
+        const shown = visibleH1s(width);
+        assert.equal(shown.length, 1, `${when}, ${width}px: ${shown.length} h1s displayed`);
+        assert.equal(shown[0]?.querySelector('a[href="/"]')?.getAttribute("aria-label"), "lychee-admin", `${when}, ${width}px`);
+      }
+      assert.ok(displayedAt(document.querySelector("#top-bar h1") as Element, 390));
+      assert.ok(displayedAt(document.querySelector("#rail h1") as Element, 1280));
+    };
+    check("server");
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    act(() => {
+      root = mountRailIsland(client as QueryClient);
+    });
+    await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), { timeout: 5000 });
+    check("island");
+    // The island took the bar over rather than adding a second one beside the server's.
+    assert.equal(document.querySelectorAll("#top-bar h1").length, 1);
+    assert.equal(document.querySelectorAll("#rail-menu").length, 1);
+    await waitFor(() => assert.equal(document.querySelector('#top-bar [data-count="all"]')?.firstChild?.textContent, "5"), {
+      timeout: 5000,
+    });
   });
 
   test("does nothing without the server's rail data", () => {

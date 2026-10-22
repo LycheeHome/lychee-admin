@@ -1,3 +1,5 @@
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { splitHostnameForDisplay } from "../../lib/siteDisplay";
 import type { HealthPayload, Tone } from "../../shared/health";
 import {
@@ -7,9 +9,13 @@ import {
   RAIL_DOT,
   RAIL_HEADING,
   RAIL_HEADING_LINK,
+  RAIL_DRAWER,
   RAIL_HINT,
+  RAIL_HOSTNAME,
+  RAIL_MENU,
   RAIL_NOTE,
   RAIL_ROW,
+  RAIL_WIDE_QUERY,
   attentionCounts,
 } from "../../views/railModel";
 import { FOCUS_RING, ICONS, formatAge } from "../../views/shared";
@@ -40,6 +46,10 @@ export interface RailProps {
   findInitial?: { query: string; focused: boolean };
   /** Opens a find result; `location.assign` by default. */
   navigate?: (href: string) => void;
+  /** This rail is the narrow-screen drawer's, not the aside's. */
+  inDrawer?: boolean;
+  /** ⌘K while the rail is collapsed (below 900px): open the drawer on find. */
+  onNarrowShortcut?: (previous: Element | null) => void;
 }
 
 const isPage = (current: RailCurrent, page: string): boolean =>
@@ -62,8 +72,8 @@ function Wordmark() {
   );
 }
 
-/** shared.ts's icon("plus"), from the same path data. */
-function PlusIcon() {
+/** shared.ts's icon(name), from the same path data. */
+function Icon({ name }: { name: keyof typeof ICONS }) {
   return (
     <svg
       className="w-[1em] h-[1em] shrink-0"
@@ -74,7 +84,7 @@ function PlusIcon() {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-      dangerouslySetInnerHTML={{ __html: ICONS.plus }}
+      dangerouslySetInnerHTML={{ __html: ICONS[name] }}
     />
   );
 }
@@ -104,7 +114,18 @@ const HOST_LINKS = [
   { href: "/infrastructure", label: "infrastructure", page: "infrastructure", count: "infrastructure" },
 ] as const;
 
-export function Rail({ rail, health, healthError, lastRead, findHint = "⌘K", now, findInitial, navigate }: RailProps) {
+export function Rail({
+  rail,
+  health,
+  healthError,
+  lastRead,
+  findHint = "⌘K",
+  now,
+  findInitial,
+  navigate,
+  inDrawer,
+  onNarrowShortcut,
+}: RailProps) {
   // A failed poll shows nothing it remembers: TanStack keeps the last data,
   // and a green dot from it would be a lie about now.
   const live = healthError ? null : health;
@@ -135,6 +156,8 @@ export function Rail({ rail, health, healthError, lastRead, findHint = "⌘K", n
           navigate={navigate}
           initialQuery={findInitial?.query}
           initialFocused={findInitial?.focused}
+          inDrawer={inDrawer}
+          onNarrowShortcut={onNarrowShortcut}
         />
         <nav aria-label="Sites" className="flex flex-col gap-0.5">
           <a href="/" className={RAIL_HEADING_LINK} aria-current={ariaCurrent(isPage(rail.current, "sites"))}>
@@ -157,8 +180,9 @@ export function Rail({ rail, health, healthError, lastRead, findHint = "⌘K", n
                       aria-current={ariaCurrent(isSite(rail.current, site.hostname))}
                     >
                       <span className={RAIL_DOT[dot.tone]} data-dot="" aria-hidden="true" />
-                      <span className="min-w-0 break-all">
+                      <span className={RAIL_HOSTNAME}>
                         <span className="text-stone-50">{lead}</span>
+                        <wbr />
                         {dimmed}
                       </span>
                       <span className="sr-only">, </span>
@@ -194,10 +218,200 @@ export function Rail({ rail, health, healthError, lastRead, findHint = "⌘K", n
       </div>
       <div className="shrink-0 border-t border-stone-700 px-3 py-3">
         <a href="/sites/new" className={RAIL_ADD_SITE} aria-current={ariaCurrent(isPage(rail.current, "new"))}>
-          <PlusIcon />
+          <Icon name="plus" />
           Add site
         </a>
       </div>
+    </>
+  );
+}
+
+export interface TopBarProps {
+  health: HealthPayload | null;
+  healthError: boolean;
+  /** Open the rail as a drawer, from `opener`; on find when `focusFind`. */
+  onOpen: (opener: HTMLElement, focusFind: boolean) => void;
+}
+
+/**
+ * The narrow-screen top bar's children, mirroring renderTopBar in
+ * src/views/rail.ts (the parity test pins it): the wordmark h1, the overall
+ * attention count (sites plus units), a find button and the menu button.
+ */
+export function TopBar({ health, healthError, onOpen }: TopBarProps) {
+  const counts = !healthError && health ? attentionCounts(health) : null;
+  const total = counts
+    ? counts.sites + (counts.service ?? 0) + (counts.reconciler ?? 0) + (counts.infrastructure ?? 0)
+    : null;
+  return (
+    <>
+      <h1 className="m-0 text-base font-normal leading-none">
+        <Wordmark />
+      </h1>
+      <div className="flex items-center gap-2">
+        {total === null ? (
+          <span data-count="all" />
+        ) : (
+          <span data-count="all" className={total > 0 ? RAIL_COUNT_BAD : RAIL_COUNT_ZERO}>
+            {total}
+            <span className="sr-only"> need attention</span>
+          </span>
+        )}
+        <button
+          type="button"
+          id="rail-find"
+          aria-label="Find a site or unit"
+          className={RAIL_MENU}
+          onClick={(e) => onOpen(e.currentTarget, true)}
+        >
+          <Icon name="search" />
+        </button>
+        <button
+          type="button"
+          id="rail-menu"
+          aria-label="Open navigation"
+          aria-haspopup="dialog"
+          className={RAIL_MENU}
+          onClick={(e) => onOpen(e.currentTarget, false)}
+        >
+          <Icon name="menu" />
+        </button>
+      </div>
+    </>
+  );
+}
+
+/**
+ * The drawer: a modal `<dialog>`, shown on mount, that closes on Escape or a
+ * click on its backdrop. A backdrop click targets the dialog itself and lands
+ * outside its box: the same bounding-rect check public/app.js uses for its
+ * modals. Shown in a layout effect, so it is open before find (a passive
+ * effect) takes focus inside it.
+ */
+function Drawer({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useLayoutEffect(() => {
+    const dialog = ref.current;
+    if (dialog && !dialog.open) dialog.showModal();
+  }, []);
+
+  const onClick = (e: MouseEvent<HTMLDialogElement>) => {
+    const dialog = e.currentTarget;
+    if (e.target !== dialog) return;
+    const rect = dialog.getBoundingClientRect();
+    const inside = e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom;
+    if (!inside) onClose();
+  };
+
+  return (
+    <dialog
+      ref={ref}
+      aria-label="Navigation"
+      className={RAIL_DRAWER}
+      onClick={onClick}
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
+      onKeyDown={(e) => {
+        // Find's own Escape (closing its open panel) comes first and is prevented.
+        if (e.key !== "Escape" || e.defaultPrevented) return;
+        e.preventDefault();
+        onClose();
+      }}
+    >
+      {children}
+    </dialog>
+  );
+}
+
+export interface NavigationProps extends RailProps {
+  /** The server's `<header id="top-bar">`, whose children this takes over; null where there is none. */
+  topBar: Element | null;
+}
+
+interface DrawerState {
+  /** What opened the drawer, which gets focus back when it closes. */
+  opener: HTMLElement | null;
+  /** Open on find (⌘K, the find button) rather than on the rail's first link. */
+  focusFind: boolean;
+}
+
+/**
+ * The rail and the top bar together, with the narrow-screen drawer between
+ * them. Mounted on the rail's aside, it renders the rail there and the top
+ * bar's children into the server's header through a portal, removing the
+ * server's own once React's are in.
+ *
+ * The drawer holds the rail itself: while it is open the rail renders inside
+ * the dialog and not in the aside, so there is only ever one rail, one `#find`
+ * and one ⌘K listener in the document.
+ */
+export function Navigation({ topBar, ...props }: NavigationProps) {
+  const [drawer, setDrawer] = useState<DrawerState | null>(null);
+  // What the server's find box held applies once, to the aside's first render.
+  const [findInitial, setFindInitial] = useState(props.findInitial);
+  const restoreTo = useRef<HTMLElement | null>(null);
+
+  // The server's top-bar children, captured before React's go in beside them
+  // and removed in the same commit, so the bar never shows twice.
+  const [serverBar] = useState(() => (topBar ? Array.from(topBar.childNodes) : []));
+  useLayoutEffect(() => {
+    for (const node of serverBar) node.parentNode?.removeChild(node);
+  }, [serverBar]);
+
+  const open = (opener: Element | null, focusFind: boolean) => {
+    setFindInitial(undefined);
+    setDrawer({ opener: opener instanceof HTMLElement && opener !== document.body ? opener : null, focusFind });
+  };
+
+  const close = () => {
+    restoreTo.current = drawer?.opener ?? null;
+    setDrawer(null);
+  };
+
+  // Focus goes back to whatever opened the drawer, once the rail is back in the aside.
+  useEffect(() => {
+    if (drawer) return;
+    const target = restoreTo.current;
+    restoreTo.current = null;
+    if (target?.isConnected) target.focus();
+  }, [drawer]);
+
+  // Widening past 900px brings the rail back beside the content: the drawer goes.
+  const isOpen = drawer !== null;
+  useEffect(() => {
+    if (!isOpen || typeof window.matchMedia !== "function") return;
+    const wide = window.matchMedia(RAIL_WIDE_QUERY);
+    const onChange = () => {
+      if (wide.matches) setDrawer(null);
+    };
+    wide.addEventListener("change", onChange);
+    return () => wide.removeEventListener("change", onChange);
+  }, [isOpen]);
+
+  const rail = drawer ? (
+    <Rail {...props} inDrawer findInitial={{ query: "", focused: drawer.focusFind }} />
+  ) : (
+    <Rail
+      {...props}
+      findInitial={findInitial}
+      onNarrowShortcut={topBar ? (previous) => open(previous, true) : undefined}
+    />
+  );
+
+  return (
+    <>
+      {drawer ? null : rail}
+      {topBar
+        ? createPortal(
+            <>
+              <TopBar health={props.health} healthError={props.healthError} onOpen={open} />
+              {drawer ? <Drawer onClose={close}>{rail}</Drawer> : null}
+            </>,
+            topBar,
+          )
+        : null}
     </>
   );
 }
