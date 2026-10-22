@@ -1,6 +1,8 @@
 // Types only: nothing here may carry runtime code, because the server build
 // (CommonJS) and the client build (Vite) both read this file.
 import type { ServiceBoard } from "../lib/serviceBoard";
+import type { ActionState } from "../lib/hostOperations";
+export type { ActionState } from "../lib/hostOperations";
 export type { BoardRow, ServiceBoard } from "../lib/serviceBoard";
 export type { ServiceGroup } from "../lib/serviceInventory";
 
@@ -18,4 +20,12 @@ export type BoardPayload = {
   board: ServiceBoard;
   boardEmpty: boolean;
   now: string;
+  /** Site rows whose declaration is absent and whose container is confirmed down: they offer Prune. */
+  prunable: string[];
+  /** Hostnames that are managed sites, so a site resource's name links to its page. */
+  managed: string[];
+  /** Unit name to the tag a Deploy requested that the inventory has not yet applied. */
+  requested: Record<string, string>;
+  /** The last host-action run per unit. */
+  lastRuns: Record<string, ActionState>;
 };

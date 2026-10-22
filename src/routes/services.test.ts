@@ -350,13 +350,13 @@ describe("the three board pages", () => {
     assert.deepEqual(rows(services), ["swee"]);
   });
 
-  test("every page reads the whole board once: one systemctl call for every declared unit", async () => {
+  test("every page reads the whole board: one systemctl call for every declared unit, shared within the cache window", async () => {
     const calls: string[][] = [];
     const s = await start(inventory([...RECONCILER, SWEE]), {
       readUnitStates: (units) => (calls.push(units), Promise.resolve({})),
     });
     for (const path of ["/services", "/reconciler"]) await s.get(path);
-    assert.equal(calls.length, 2);
+    assert.equal(calls.length, 1);
     for (const units of calls) assert.deepEqual(units, ["lychee-reconcile.timer", "lychee-reconcile.service", "swee.service"]);
   });
 });
@@ -1074,5 +1074,127 @@ describe("GET /api/services boardEmpty", () => {
     current = await serve(inventory([]), {});
     const body = (await (await current.get("/api/services?group=service")).json()) as { boardEmpty: boolean };
     assert.equal(body.boardEmpty, true);
+  });
+});
+
+describe("the shared board read", () => {
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  after(async () => {
+    await current?.close();
+  });
+  const NOTES = { name: "notes", kind: "container", container: "notes", group: "service", reconciled: true,
+    version: "v1.4.0", target: "v1.4.0", available: "v1.5.0" };
+
+  async function start(...args: Parameters<typeof serve>): Promise<Awaited<ReturnType<typeof serve>>> {
+    await current?.close();
+    current = await serve(...args);
+    return current;
+  }
+
+  test("one host read serves both endpoints within 5s", async () => {
+    let reads = 0;
+    const s = await start(inventory([SWEE]), {
+      readUnitStates: () => (reads++, Promise.resolve({})),
+    });
+    s.fs.writeFile("/etc/caddy/Caddyfile", "http://app.lychee.land {\n  reverse_proxy localhost:3200\n}\n");
+    assert.equal((await s.get("/api/health")).status, 200);
+    assert.equal((await s.get("/api/services?group=service")).status, 200);
+    assert.equal(reads, 1);
+  });
+
+  test("concurrent callers share one in-flight read", async () => {
+    let reads = 0;
+    const s = await start(inventory([SWEE]), {
+      readUnitStates: () => (reads++, new Promise((r) => setTimeout(() => r({}), 50))),
+    });
+    s.fs.writeFile("/etc/caddy/Caddyfile", "http://app.lychee.land {\n  reverse_proxy localhost:3200\n}\n");
+    await Promise.all([s.get("/api/health"), s.get("/api/services?group=service"), s.get("/api/services?group=reconciler")]);
+    assert.equal(reads, 1);
+  });
+
+  test("a read after 5s refreshes", async () => {
+    const { loadBoardPage } = await import("./services");
+    const { createBackup } = await import("../lib/backup");
+    const { createLogger } = await import("../lib/logger");
+    const { createFakes } = await import("../dev/fakes");
+    let reads = 0;
+    const fakes = createFakes({ readUnitStates: () => (reads++, Promise.resolve({})) });
+    fakes.fs.writeFile(INVENTORY_PATH, inventory([SWEE]));
+    const deps: Deps = { commands: fakes.commands, fs: fakes.fs, backup: createBackup(fakes.fs), logger: createLogger(fakes.fs) };
+    let t = 1_000_000;
+    const opts = { now: () => t };
+    await loadBoardPage(deps, opts);
+    t += 4_999;
+    await loadBoardPage(deps, opts);
+    assert.equal(reads, 1);
+    t += 2;
+    await loadBoardPage(deps, opts);
+    assert.equal(reads, 2);
+  });
+
+  test("a write clears the cache", async () => {
+    let reads = 0;
+    let declared = "ghcr.io/lycheehome/notes:v1.4.0";
+    const s = await start(inventory([NOTES]), {
+      readUnitStates: () => (reads++, Promise.resolve({})),
+      readDeclarations: () => Promise.resolve([{ name: "notes", port: 3000, state: "running", image: declared }]),
+      writeDeclarationTag: (_n, tag) => {
+        declared = `ghcr.io/lycheehome/notes:${tag}`;
+        return Promise.resolve({ ok: true });
+      },
+    });
+    const first = (await (await s.get("/api/services?group=service")).json()) as { requested: Record<string, string> };
+    assert.deepEqual(first.requested, {});
+    assert.equal(reads, 1);
+    const res = await fetch(`${s.base}/services/notes/deploy`, { method: "POST", headers: { Authorization: AUTH } });
+    assert.equal(res.status, 200);
+    const second = (await (await s.get("/api/services?group=service")).json()) as { requested: Record<string, string> };
+    assert.equal(reads, 2);
+    assert.deepEqual(second.requested, { notes: "v1.5.0" });
+  });
+
+  test("prune and a host action clear the cache too", async () => {
+    let reads = 0;
+    const gone = { name: "gone-lychee-land", kind: "container", container: "gone-lychee-land", group: "service", reconciled: true, result: "deployed" };
+    const s = await start(inventory([gone, { name: "palworld-palchuds", kind: "unit", unit: "palworld-palchuds.service", group: "service", reconciled: false, actions: ["start"] }]), {
+      readUnitStates: () => (reads++, Promise.resolve({})),
+      readDeclarations: () => Promise.resolve([{ name: "gone-lychee-land", port: 3400, state: "absent", image: "ghcr.io/lycheehome/gone" }]),
+      pruneSiteDeclaration: () => Promise.resolve({ ok: true }),
+    });
+    await s.get("/api/services?group=service");
+    await fetch(`${s.base}/resources/gone-lychee-land/prune`, { method: "POST", headers: { Authorization: AUTH } });
+    await s.get("/api/services?group=service");
+    assert.equal(reads, 2);
+    await fetch(`${s.base}/services/palworld-palchuds/actions/start`, { method: "POST", headers: { Authorization: AUTH, Accept: "application/json" } });
+    await s.get("/api/services?group=service");
+    assert.equal(reads, 3);
+  });
+
+  test("the payload carries prunable, managed, requested and lastRuns", async () => {
+    const gone = { name: "gone-lychee-land", kind: "container", container: "gone-lychee-land", group: "service", reconciled: true, result: "deployed" };
+    const pal = { name: "palworld-palchuds", kind: "unit", unit: "palworld-palchuds.service", group: "service", reconciled: false, actions: ["start", "stop"] };
+    const s = await start(inventory([gone, NOTES, pal]), {
+      readDeclarations: () =>
+        Promise.resolve([
+          { name: "gone-lychee-land", port: 3400, state: "absent", image: "ghcr.io/lycheehome/gone" },
+          { name: "notes", port: 3000, state: "running", image: "ghcr.io/lycheehome/notes:v1.5.0" },
+        ]),
+      readOpUnits: (names) =>
+        Promise.resolve(Object.fromEntries(names.map((n) => [n, { activeState: "inactive", result: "success", startedAt: null, finishedAt: null }]))),
+    });
+    s.fs.writeFile(
+      "/var/lib/lychee-op/palworld-palchuds-stop.result.json",
+      JSON.stringify({ unit: "palworld-palchuds", action: "stop", result: "success", exit_status: 0, started_at: "2026-10-14T15:14:58Z", finished_at: "2026-10-14T15:15:03Z" }),
+    );
+    const { config } = await import("../config");
+    s.fs.writeFile(config.caddyfilePath, "http://blog.lychee.land {\n\troot * /var/www/blog.lychee.land\n\tfile_server\n}\n");
+    const body = (await (await s.get("/api/services?group=service")).json()) as {
+      prunable: string[]; managed: string[]; requested: Record<string, string>; lastRuns: Record<string, { action: string; state: string }>;
+    };
+    assert.deepEqual(body.prunable, ["gone-lychee-land"]);
+    assert.deepEqual(body.managed, ["blog.lychee.land"]);
+    assert.deepEqual(body.requested, { notes: "v1.5.0" });
+    assert.equal(body.lastRuns["palworld-palchuds"].action, "stop");
+    assert.equal(body.lastRuns["palworld-palchuds"].state, "succeeded");
   });
 });

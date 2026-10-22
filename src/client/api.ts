@@ -19,5 +19,13 @@ export async function fetchBoard(group: ServiceGroup): Promise<BoardPayload> {
     const reason = body && body.ok === false && typeof body.reason === "string" ? body.reason : undefined;
     throw new Error(reason ?? `HTTP ${res.status}`);
   }
-  return { board: body.board, boardEmpty: body.boardEmpty, now: body.now };
+  return {
+    board: body.board,
+    boardEmpty: body.boardEmpty,
+    now: body.now,
+    prunable: body.prunable,
+    managed: body.managed,
+    requested: body.requested,
+    lastRuns: body.lastRuns,
+  };
 }
