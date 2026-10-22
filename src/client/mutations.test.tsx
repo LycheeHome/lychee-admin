@@ -137,11 +137,12 @@ describe("Deploy", () => {
       assert.equal(TOAST(), "Requesting 0.3.0 for app-lychee-land…");
       await waitFor(() => assert.equal(button.disabled, true), TIMEOUT);
       await waitFor(() => assert.equal(posts().length, 1), TIMEOUT);
-      await new Promise((r) => setTimeout(r, 50));
-      assert.equal(posts().length, 1);
       assert.equal(posts()[0].url, "/services/app-lychee-land/deploy");
       assert.equal(posts()[0].body, undefined);
+      // Settle the write and wait for the mutation to finish (the board still offers the tag, so the button returns), so nothing runs on into the next test.
       release();
+      await waitFor(() => assert.equal(button.disabled, false), TIMEOUT);
+      assert.equal(posts().length, 1);
     } finally {
       finish(client);
     }
@@ -174,23 +175,23 @@ describe("Deploy", () => {
     const client = mount();
     try {
       const button = (await screen.findByRole("button", { name: "Deploy 0.3.0" }, TIMEOUT)) as HTMLButtonElement;
-      let release!: () => void;
+      let release: (() => void) | undefined;
       const baseFetch = globalThis.fetch;
-      let held = false;
+      let held = true;
       globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
         if (held && String(input).startsWith("/api/services")) {
+          held = false;
           await new Promise<void>((r) => (release = r));
         }
         return baseFetch(input, init);
       }) as typeof fetch;
-      held = true;
       fireEvent.click(button);
-      await waitFor(() => assert.equal(posts().length, 1), TIMEOUT);
-      // The write has answered; the board has not been re-read yet.
-      await new Promise((r) => setTimeout(r, 50));
+      // The write has answered and the board's re-read has started but not finished.
+      await waitFor(() => assert.ok(release), TIMEOUT);
+      assert.equal(posts().length, 1);
       assert.equal(button.disabled, true);
-      held = false;
-      release();
+      release!();
+      await waitFor(() => assert.equal(button.disabled, false), TIMEOUT);
     } finally {
       finish(client);
     }
@@ -243,6 +244,68 @@ describe("Deploy", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Deploy 0.3.0" }, TIMEOUT));
       await waitFor(() => assert.equal(posts().length, 1), TIMEOUT);
       assert.equal(posts()[0].url, `/services/${encodeURIComponent("a.b")}/deploy`);
+    } finally {
+      finish(client);
+    }
+  });
+});
+
+describe("Deploy: focus and the fallback", () => {
+  const REQUESTED = (tag = "0.3.0") =>
+    payload([row("app-lychee-land", { version: "0.2.0", target: "0.2.0", available: tag, result: "deployed" })], {
+      requested: { "app-lychee-land": tag },
+    });
+
+  test("after a successful Deploy the row's requested line has focus", async () => {
+    const client = mount();
+    try {
+      const button = await screen.findByRole("button", { name: "Deploy 0.3.0" }, TIMEOUT);
+      button.focus();
+      current = REQUESTED();
+      fireEvent.click(button);
+      await waitFor(() => assert.ok(document.querySelector("[data-requested]")), TIMEOUT);
+      await waitFor(() => assert.ok(document.activeElement === document.querySelector("[data-requested]")), TIMEOUT);
+    } finally {
+      finish(client);
+    }
+  });
+
+  test("when the re-read has no requested line, the fallback success toast stays and the button re-enables", async () => {
+    const client = mount();
+    try {
+      const button = (await screen.findByRole("button", { name: "Deploy 0.3.0" }, TIMEOUT)) as HTMLButtonElement;
+      // The board still offers the tag and says nothing was requested.
+      fireEvent.click(button);
+      await waitFor(
+        () => assert.equal(TOAST(), "Requested 0.3.0 for app-lychee-land. The reconciler applies it on its next run."),
+        TIMEOUT,
+      );
+      await waitFor(() => assert.equal(button.disabled, false), TIMEOUT);
+      assert.ok(!document.getElementById("flash-banner")!.classList.contains("hidden"));
+    } finally {
+      finish(client);
+    }
+  });
+
+  test("deploying A while B is in flight sends both, and a second click on A sends nothing", async () => {
+    current = payload([
+      row("a-lychee-land", { version: "0.2.0", target: "0.2.0", available: "0.3.0", result: "deployed" }),
+      row("b-lychee-land", { version: "0.2.0", target: "0.2.0", available: "0.3.0", result: "deployed" }),
+    ]);
+    const releases: Array<() => void> = [];
+    writeAnswer = () => new Promise((r) => releases.push(() => r(json(200, { ok: true }))));
+    const client = mount();
+    try {
+      const [b, a] = (await screen.findAllByRole("button", { name: "Deploy 0.3.0" }, TIMEOUT)).reverse() as HTMLButtonElement[];
+      fireEvent.click(b);
+      fireEvent.click(a);
+      fireEvent.click(a);
+      await waitFor(() => assert.equal(posts().length, 2), TIMEOUT);
+      assert.deepEqual(posts().map((p) => p.url).sort(), ["/services/a-lychee-land/deploy", "/services/b-lychee-land/deploy"]);
+      for (const release of releases) release();
+      await waitFor(() => assert.equal(a.disabled, false), TIMEOUT);
+      await waitFor(() => assert.equal(b.disabled, false), TIMEOUT);
+      assert.equal(posts().length, 2);
     } finally {
       finish(client);
     }

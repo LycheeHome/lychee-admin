@@ -1,4 +1,6 @@
 import { useMutation, useMutationState, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import type { BoardPayload } from "../shared/board";
 import { BOARD_QUERY_ROOT } from "./api";
 import { HEALTH_QUERY } from "./health";
 import { hideToast, showToast } from "./toast";
@@ -41,21 +43,36 @@ function refresh(client: QueryClient): Promise<unknown> {
  * after the click, so a second click inside that tick would otherwise send a
  * second write; this answers synchronously.
  */
-const inFlight = new Set<string>();
+const inFlightByClient = new WeakMap<QueryClient, Set<string>>();
 
-function begin(key: string): boolean {
-  if (inFlight.has(key)) return false;
-  inFlight.add(key);
+function inFlightFor(client: QueryClient): Set<string> {
+  let set = inFlightByClient.get(client);
+  if (!set) inFlightByClient.set(client, (set = new Set()));
+  return set;
+}
+
+function begin(client: QueryClient, key: string): boolean {
+  const set = inFlightFor(client);
+  if (set.has(key)) return false;
+  set.add(key);
   return true;
+}
+
+/** True when a board query in the cache now says the declaration holds `tag` for `name`. */
+function shows(client: QueryClient, name: string, tag: string): boolean {
+  return client
+    .getQueriesData<BoardPayload>({ queryKey: BOARD_QUERY_ROOT })
+    .some(([, data]) => data && Object.hasOwn(data.requested, name) && data.requested[name] === tag);
 }
 
 export type DeployVars = { name: string; tag: string };
 
-export function useDeploy() {
+/** `onRequested` runs once the re-read board shows the requested line, so the page can move focus to it. */
+export function useDeploy(onRequested?: (name: string) => void) {
   const client = useQueryClient();
   return useMutation<void, Error, DeployVars>({
     mutationKey: ["deploy"],
-    onSettled: (_data, _error, { name }) => void inFlight.delete(`deploy:${name}`),
+    onSettled: (_data, _error, { name }) => void inFlightFor(client).delete(`deploy:${name}`),
     mutationFn: ({ name, tag }) =>
       post(
         `/services/${encodeURIComponent(name)}/deploy`,
@@ -63,10 +80,18 @@ export function useDeploy() {
         (status) => `Could not request ${tag} for ${name} (HTTP ${status}).`,
       ),
     onMutate: ({ name, tag }) => showToast(`Requesting ${tag} for ${name}…`, "info"),
-    onSuccess: async () => {
+    onSuccess: async (_data, { name, tag }) => {
       await refresh(client);
-      // The requested line is the feedback now; the toast has nothing to add.
-      hideToast();
+      if (shows(client, name, tag)) {
+        // The requested line is the feedback now, and it takes focus: the
+        // button that had it is gone.
+        hideToast();
+        onRequested?.(name);
+      } else {
+        // The re-read failed or shows no requested line (already applied, or
+        // the clone lags): never leave the operator with nothing.
+        showToast(`Requested ${tag} for ${name}. The reconciler applies it on its next run.`, "success");
+      }
     },
     onError: (error, { name, tag }) =>
       showToast(error instanceof Refused ? error.message : `Could not reach the server to request ${tag} for ${name}.`, "error"),
@@ -77,7 +102,7 @@ export function usePrune() {
   const client = useQueryClient();
   return useMutation<void, Error, string>({
     mutationKey: ["prune"],
-    onSettled: (_data, _error, name) => void inFlight.delete(`prune:${name}`),
+    onSettled: (_data, _error, name) => void inFlightFor(client).delete(`prune:${name}`),
     mutationFn: (name) =>
       post(
         `/resources/${encodeURIComponent(name)}/prune`,
@@ -103,10 +128,15 @@ export type BoardControlsApi = {
   prune: (name: string) => void;
   /** Names with a write in flight, until the board has been re-read. */
   busy: ReadonlySet<string>;
+  /** The row whose requested line should take focus now, until `focused` is called. */
+  focusRequested: string | null;
+  focused: () => void;
 };
 
 export function useBoardControls(): BoardControlsApi {
-  const deploy = useDeploy();
+  const client = useQueryClient();
+  const [focusRequested, setFocusRequested] = useState<string | null>(null);
+  const deploy = useDeploy(setFocusRequested);
   const prune = usePrune();
   const deploying = useMutationState({
     filters: { mutationKey: ["deploy"], status: "pending" },
@@ -118,11 +148,13 @@ export function useBoardControls(): BoardControlsApi {
   });
   return {
     deploy: (name, tag) => {
-      if (begin(`deploy:${name}`)) deploy.mutate({ name, tag });
+      if (begin(client, `deploy:${name}`)) deploy.mutate({ name, tag });
     },
     prune: (name) => {
-      if (begin(`prune:${name}`)) prune.mutate(name);
+      if (begin(client, `prune:${name}`)) prune.mutate(name);
     },
     busy: new Set([...deploying, ...pruning]),
+    focusRequested,
+    focused: () => setFocusRequested(null),
   };
 }

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import type { ActionState, BoardPayload, BoardRow, ServiceBoard, ServiceGroup } from "../../shared/board";
 import type { HostAction } from "../../lib/platform";
 import type { BoardControlsApi } from "../mutations";
@@ -162,9 +162,25 @@ function OfferLine({ name, tag, controls }: { name: string; tag: string; control
 }
 
 /** html.ts's renderRequestedLine: the offer's place once its tag is in the declaration. */
-function RequestedLine({ tag }: { tag: string }) {
+function RequestedLine({ tag, name, controls }: { tag: string; name?: string; controls?: BoardControls }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const wanted = name !== undefined && controls?.focusRequested === name;
+  const focused = controls?.focused;
+  // A Deploy's button is gone once this line replaces the offer: focus goes
+  // here, as app.js's line.focus() did.
+  useEffect(() => {
+    if (!wanted) return;
+    ref.current?.focus();
+    focused?.();
+  }, [wanted, focused]);
   return (
-    <p className="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-requested="" role="status" tabIndex={-1}>
+    <p
+      ref={ref}
+      className="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5"
+      data-requested=""
+      role="status"
+      tabIndex={-1}
+    >
       <span className="font-mono text-[0.8rem] text-stone-50">
         <span data-requested-tag="">{tag}</span> requested
       </span>{" "}
@@ -370,7 +386,7 @@ export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
           </p>
         ) : null}
         <FailureLine row={row} extraClass="mt-1.5" commandId={`cmd-reconcile-log-${row.name}`} />
-        {offer ? offer.requested ? <RequestedLine tag={offer.tag} /> : <OfferLine name={row.name} tag={offer.tag} controls={ctx.controls} /> : null}
+        {offer ? offer.requested ? <RequestedLine tag={offer.tag} name={row.name} controls={ctx.controls} /> : <OfferLine name={row.name} tag={offer.tag} controls={ctx.controls} /> : null}
         {showsPrune(row.name, prunable, domain) ? <PruneLine name={row.name} controls={ctx.controls} /> : null}
         <HostActions row={row} run={run} now={now} />
       </div>
