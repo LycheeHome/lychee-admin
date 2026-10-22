@@ -44,6 +44,9 @@ afterEach(() => {
   document.body.innerHTML = "";
   document.title = "";
   happyDOM.setURL("http://localhost/");
+  // setURL keeps history.state: without this, the next test's "fresh"
+  // document load would carry the last test's router key.
+  window.history.replaceState(null, "");
 });
 
 const ROWS: Record<ServiceGroup, string> = { service: "swee", reconciler: "lychee-watch", infrastructure: "caddy" };
@@ -107,6 +110,8 @@ function load(path: string): void {
 }
 
 const row = (name: string) => document.querySelector(`[data-service="${name}"]`);
+/** What has focus, briefly, for a failure message. */
+const focused = () => `focus is on ${document.activeElement?.outerHTML.slice(0, 80) ?? "nothing"}`;
 const railLink = (href: string) => document.querySelector<HTMLAnchorElement>(`#rail a[href="${href}"]`);
 const marked = () => Array.from(document.querySelectorAll("#rail a[aria-current=\"page\"]")).map((a) => a.getAttribute("href"));
 /** The rail's dots are coloured once the island owns the rail and health has landed. */
@@ -244,6 +249,38 @@ describe("the single root", () => {
     assert.equal(document.querySelector("#find"), find);
   });
 
+  test("find's Enter on a row of this page moves focus to that row", async () => {
+    load("/services");
+    await railLive();
+    await waitFor(() => assert.ok(row("swee")), TIMEOUT);
+    const find = document.querySelector<HTMLInputElement>("#find") as HTMLInputElement;
+    act(() => find.focus());
+    fireEvent.change(find, { target: { value: "swee" } });
+    await waitFor(() => assert.ok(document.querySelector('[role="option"]')), TIMEOUT);
+    act(() => {
+      fireEvent.keyDown(find, { key: "Enter" });
+    });
+    await waitFor(() => assert.equal(window.location.hash, "#service-swee"), TIMEOUT);
+    // assert.ok, not assert.equal: a failing equal on two DOM nodes renders
+    // both happy-dom objects into its message, which takes minutes.
+    await waitFor(() => assert.ok(document.activeElement === row("swee"), focused()), TIMEOUT);
+    assert.equal(row("swee")?.getAttribute("tabindex"), "-1");
+  });
+
+  test("a same-path rail link lands focus on the page heading", async () => {
+    load("/services");
+    await railLive();
+    await waitFor(() => assert.ok(row("swee")), TIMEOUT);
+    const link = railLink("/services") as HTMLAnchorElement;
+    act(() => link.focus());
+    assert.equal(document.activeElement, link);
+    act(() => {
+      fireEvent.click(link);
+    });
+    await waitFor(() => assert.equal(document.activeElement?.tagName, "H2"), TIMEOUT);
+    assert.equal(document.activeElement?.textContent, "Services");
+  });
+
   test("a document loaded with a #service- hash scrolls to its row once the rows are in", async () => {
     const scrolled: string[] = [];
     Element.prototype.scrollIntoView = function (this: Element) {
@@ -303,6 +340,9 @@ describe("scroll restoration", () => {
   test("a fresh load of a board page does not restore the shared 'default' position", async () => {
     stale();
     const ys = recordScrolls();
+    // A fresh document: no router key, so the router calls this entry "default".
+    window.history.replaceState(null, "");
+    assert.equal(window.history.state, null);
     load("/services");
     await waitFor(() => assert.ok(row("swee")), TIMEOUT);
     await act(async () => {});
@@ -382,6 +422,23 @@ describe("the narrow-screen drawer", () => {
     await waitFor(() => assert.ok(!dialog()), TIMEOUT);
     await waitFor(() => assert.equal(document.activeElement?.textContent, "Reconciler"), TIMEOUT);
     assert.equal(document.activeElement?.tagName, "H2");
+  });
+
+  test("find's Enter in the drawer on a row of this page closes it and lands focus on that row", async () => {
+    await openOnBoard("#rail-find");
+    const find = dialog()?.querySelector<HTMLInputElement>("#find");
+    assert.ok(find);
+    await waitFor(() => assert.equal(document.activeElement, find), TIMEOUT);
+    fireEvent.change(find, { target: { value: "swee" } });
+    await waitFor(() => assert.ok(document.querySelector('[role="option"]')), TIMEOUT);
+    act(() => {
+      fireEvent.keyDown(find, { key: "Enter" });
+    });
+    await waitFor(() => assert.equal(window.location.hash, "#service-swee"), TIMEOUT);
+    assert.equal(window.location.pathname, "/services");
+    await waitFor(() => assert.ok(!dialog()), TIMEOUT);
+    await waitFor(() => assert.ok(document.activeElement === row("swee"), focused()), TIMEOUT);
+    assert.equal(row("swee")?.getAttribute("tabindex"), "-1");
   });
 
   test("Escape still closes it and returns focus to its opener", async () => {

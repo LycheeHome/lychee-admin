@@ -105,6 +105,35 @@ export function BoardPage({ group }: { group: ServiceGroup }) {
     heading.current?.focus({ preventScroll: true });
   }, [hasBoard, latestFailed, loadHash]);
 
+  // A move that stays on this page (find's Enter on one of its rows, the
+  // rail's link to it) does not remount it, so the focus above does not run
+  // again. Focus goes to the row the hash names, made focusable at runtime
+  // only (the rendered markup stays the server's), or to the heading when
+  // there is no hash or no such row. From the drawer this is what keeps focus
+  // off <body>: its close returns focus nowhere on an in-app move.
+  const locationKey = nav?.locationKey;
+  const shownKey = useRef(locationKey);
+  useEffect(() => {
+    if (locationKey === shownKey.current) return;
+    shownKey.current = locationKey;
+    let target: HTMLElement | null = null;
+    const hash = window.location.hash;
+    if (hash) {
+      try {
+        target = document.getElementById(decodeURIComponent(hash.slice(1)));
+      } catch {
+        // An undecodable hash names no row.
+      }
+    }
+    if (target) {
+      if (!target.hasAttribute("tabindex")) target.tabIndex = -1;
+      // The router has scrolled it into view already.
+      target.focus({ preventScroll: true });
+      return;
+    }
+    heading.current?.focus({ preventScroll: true });
+  }, [locationKey]);
+
   if (!query.data) {
     if (!alert) return null;
     return (
