@@ -5,9 +5,11 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { renderServicesPage } from "../../views/html";
+import type { ShellData } from "../../views/shell";
 import type { BoardRow, ServiceBoard } from "../../shared/board";
 import { InfrastructureBoard } from "../components/BoardRows";
 import { createQueryClient } from "../queryClient";
+import { canonical } from "../test/canonical";
 import { InfrastructurePage } from "./InfrastructurePage";
 
 // node:test has no global afterEach for Testing Library to hook into.
@@ -15,6 +17,11 @@ afterEach(cleanup);
 
 const NOW = new Date("2026-10-02T05:00:00Z");
 const NO_SCHEDULE = { next: null, last: null };
+/** The shell renderServicesPage now takes last; serverRegion cuts the board region out of the page. */
+const SHELL: ShellData = {
+  rail: { sites: [], hostAvailable: true, current: { page: "infrastructure" }, domain: "lychee.land" },
+  assets: null,
+};
 
 function unit(name: string, extra: Partial<BoardRow> = {}): BoardRow {
   return {
@@ -52,43 +59,9 @@ function serverRegion(html: string): string {
   return html.slice(start, end);
 }
 
-/**
- * A canonical form of an HTML fragment, parsed by happy-dom so entities are
- * decoded identically on both sides (`&#9679;` and `●`, `'` and `&#x27;`).
- * Attributes are sorted by name; text collapses runs of whitespace to one
- * space, drops whitespace-only nodes, and trims at a parent's start and end,
- * which is the whitespace HTML renders the same either way. A space between
- * two inline siblings is kept.
- */
-function canonical(html: string): string {
-  const template = document.createElement("template");
-  template.innerHTML = html;
-  const walk = (node: Node): string => {
-    if (node.nodeType === 3) {
-      let text = (node.textContent ?? "").replace(/\s+/g, " ");
-      if (text === " ") return "";
-      if (!node.previousSibling) text = text.trimStart();
-      if (!node.nextSibling) text = text.trimEnd();
-      return text;
-    }
-    if (node.nodeType !== 1) return "";
-    const el = node as Element;
-    const attrs = Array.from(el.attributes)
-      .map((a) => `${a.name}="${a.value}"`)
-      .sort()
-      .join(" ");
-    const tag = el.tagName.toLowerCase();
-    const inner = Array.from(el.nodeName === "TEMPLATE" ? (el as HTMLTemplateElement).content.childNodes : el.childNodes)
-      .map(walk)
-      .join("");
-    return `<${tag}${attrs ? ` ${attrs}` : ""}>${inner}</${tag}>`;
-  };
-  return Array.from(template.content.childNodes).map(walk).join("");
-}
-
 /** Asserts parity and returns the server's region, so a test can check its fixture reached the branch it names. */
 function assertParity(board: ServiceBoard): string {
-  const server = serverRegion(renderServicesPage(board, NOW, new Set(), "lychee.land", {}, "infrastructure"));
+  const server = serverRegion(renderServicesPage(board, NOW, new Set(), "lychee.land", {}, "infrastructure", new Set(), new Map(), SHELL));
   const client = renderToStaticMarkup(
     <InfrastructureBoard board={board} boardEmpty={board.groups.length === 0} now={NOW} />,
   );
@@ -148,7 +121,7 @@ describe("InfrastructureBoard parity with renderServicesPage", () => {
 
   test("a mismatch is caught", () => {
     const board = infraBoard([unit("caddy")]);
-    const server = serverRegion(renderServicesPage(board, NOW, new Set(), "lychee.land", {}, "infrastructure"));
+    const server = serverRegion(renderServicesPage(board, NOW, new Set(), "lychee.land", {}, "infrastructure", new Set(), new Map(), SHELL));
     const other = renderToStaticMarkup(<InfrastructureBoard board={infraBoard([unit("caddy", { status: "exited" })])} boardEmpty={false} now={NOW} />);
     assert.notEqual(canonical(other), canonical(server));
   });

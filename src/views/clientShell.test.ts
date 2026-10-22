@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { readClientManifest, renderClientPage } from "./clientShell";
+import { testShell } from "../dev/testHelpers";
 
 const ASSETS = { script: "assets/main-abc.js", styles: ["assets/main-def.css"] };
 
@@ -39,7 +40,7 @@ describe("readClientManifest", () => {
 });
 
 describe("renderClientPage", () => {
-  const html = renderClientPage("Infrastructure", "infrastructure", { page: "infrastructure" }, ASSETS);
+  const html = renderClientPage("Infrastructure", "infrastructure", testShell({ current: { page: "infrastructure" }, assets: ASSETS }));
 
   test("renders the mount point", () => {
     assert.ok(html.includes('id="app-root" data-page="infrastructure"'));
@@ -55,12 +56,17 @@ describe("renderClientPage", () => {
     assert.ok(html.indexOf('src="/actionPoll.js"') < html.indexOf('src="/app.js"'));
   });
 
-  test("marks infrastructure current in the header", () => {
+  test("loads each bundle tag exactly once", () => {
+    assert.equal(html.split("/client/assets/main-abc.js").length - 1, 1);
+    assert.equal(html.split("/client/assets/main-def.css").length - 1, 1);
+  });
+
+  test("marks infrastructure current in the rail", () => {
     assert.match(html, /<a href="\/infrastructure"[^>]*aria-current="page"/);
   });
 
   test("escapes asset paths", () => {
-    const evil = renderClientPage("T", "p", {}, { script: 'a"><b', styles: ['c"><i'] });
+    const evil = renderClientPage("T", "p", testShell({ assets: { script: 'a"><b', styles: ['c"><i'] } }));
     assert.ok(!evil.includes('"><b'));
     assert.ok(!evil.includes('"><i'));
   });

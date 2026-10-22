@@ -1,8 +1,49 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
-import { withoutHeader } from "../dev/testHelpers";
-import { offeredTag, renderRequestedLine, statePhrase, renderPruneControl, renderServicesPage, renderAddSite, renderSiteDetail, renderSiteList, renderSiteNotFound } from "./html";
+import { RETIRED_SWITCHER, testShell, withoutShell } from "../dev/testHelpers";
+import { offeredTag, renderRequestedLine, statePhrase, renderPruneControl, type SiteDetailOptions } from "./html";
+import * as views from "./html";
+import type { HostProblem, SiteStatus } from "../lib/siteDisplay";
+import type { ShellData } from "./shell";
+
+// Every page renderer takes the shell last. These wrappers pass testShell(),
+// marking current what each page's route marks, so the assertions below stay
+// about page bodies; the rail itself is pinned in rail.test.ts and
+// shell.test.ts, and which item each route marks in the route tests.
+function renderSiteList(
+  sites: Site[],
+  statuses: Record<string, SiteStatus>,
+  domain: string,
+  error?: string,
+  notice?: string,
+  problems: HostProblem[] = [],
+): string {
+  return views.renderSiteList(sites, statuses, domain, error, notice, problems, testShell({ current: { page: "sites" } }));
+}
+function renderAddSite(...args: [Site[], string, Record<string, string>, { caddyfilePath: string; tunnelConfigPath: string }]): string {
+  return views.renderAddSite(...args, testShell({ current: { page: "new" } }));
+}
+function renderSiteDetail(site: Site, opts: SiteDetailOptions, shell: ShellData = testShell({ current: { site: site.hostname } })): string {
+  return views.renderSiteDetail(site, opts, shell);
+}
+function renderSiteNotFound(hostname: string): string {
+  return views.renderSiteNotFound(hostname, testShell());
+}
+type BoardArgs = Parameters<typeof views.renderServicesPage>;
+function renderServicesPage(
+  board: BoardArgs[0],
+  now: BoardArgs[1],
+  prunable: BoardArgs[2],
+  domain: BoardArgs[3],
+  lastRuns: BoardArgs[4] = {},
+  group: BoardArgs[5] = "service",
+  managed: BoardArgs[6] = new Set(),
+  requested: BoardArgs[7] = new Map(),
+): string {
+  const page = ({ service: "services", reconciler: "reconciler", infrastructure: "infrastructure" } as const)[group ?? "service"];
+  return views.renderServicesPage(board, now, prunable, domain, lastRuns, group, managed, requested, testShell({ current: { page } }));
+}
 import { formatAge, SERVICE_DETAIL, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_PRIMARY_COMPACT, BUTTON_SECONDARY, BUTTON_SECONDARY_COMPACT, PROSE_MEASURE } from "./shared";
 import { ADD_STEPS } from "../lib/stepReport";
 
@@ -40,7 +81,6 @@ const OPTS = {
   tunnelId: "11111111-2222-3333-4444-555555555555",
   tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
   caddyfilePath: "/etc/caddy/Caddyfile",
-  sites: [STATIC_SITE, APEX_SITE, PROXY_SITE, NEXT_SITE],
 };
 
 const SITES = [STATIC_SITE, APEX_SITE, PROXY_SITE, NEXT_SITE];
@@ -68,7 +108,9 @@ function tagById(html: string, id: string): string {
  * running document-wide, where a regex would pass on a match belonging to a
  * different site's row.
  */
-function rowFor(html: string, hostname: string): string {
+function rowFor(page: string, hostname: string): string {
+  // The rail links every site too, so its rows are cut out first.
+  const html = withoutShell(page);
   const start = html.indexOf(`<a href="/sites/${encodeURIComponent(hostname)}"`);
   assert.notEqual(start, -1, `no row rendered for ${hostname}`);
   const end = html.indexOf("</a>", start);
@@ -305,8 +347,8 @@ describe("renderSiteDetail header", () => {
 
   test("a static site's header has no pills", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
-    // The hostname switcher's dropdown hints say "static" per row, so the
-    // type-word check looks at the header alone, up to the Visit button.
+    // The rail's rows carry a "static" hint, so the type-word check looks at
+    // the header alone, up to the Visit button.
     const headerStart = html.indexOf('id="site-hostname"');
     const header = html.slice(headerStart, html.indexOf("Visit", headerStart));
     assert.ok(headerStart >= 0 && header.length > 0, "the header slice is empty");
@@ -356,61 +398,27 @@ describe("renderSiteDetail header", () => {
   });
 });
 
-describe("the hostname switcher", () => {
-  const switcher = (html: string) => {
-    const match = html.match(/<details id="hostname-switcher"[\s\S]*?<\/details>/);
-    assert.ok(match, "expected a hostname switcher");
+// The breadcrumb's hostname dropdown is gone: site-to-site movement is the
+// rail's, and what the dropdown's tests pinned about its rows (no truncation,
+// Smoke suffix, type hint and no status, no ember fill on the current row) is
+// pinned on the rail's rows in rail.test.ts.
+describe("the site detail breadcrumb", () => {
+  const breadcrumb = (html: string) => {
+    const match = withoutShell(html).match(/<nav [^>]*aria-label="Breadcrumb">[\s\S]*?<\/nav>/);
+    assert.ok(match, "expected a breadcrumb");
     return match[0];
   };
 
-  test("sits in the breadcrumb and lists every managed site", () => {
-    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
-    for (const site of OPTS.sites) assert.match(block, new RegExp(site.hostname));
+  test("is plain location text: sites / <hostname>", () => {
+    const block = breadcrumb(renderSiteDetail(STATIC_SITE, OPTS));
+    assert.match(block, /<a href="\/"[^>]*>sites<\/a>\s*<span[^>]*aria-hidden="true">\/<\/span>\s*<span class="text-stone-50">blog\.lychee\.land<\/span>/);
   });
 
-  test("names the current site in the trigger, and marks only its row", () => {
-    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
-    const summary = block.match(/<summary[\s\S]*?<\/summary>/)?.[0] ?? "";
-    assert.match(summary, /blog/);
-    const currentRows = block.match(/aria-current="page"/g) ?? [];
-    assert.equal(currentRows.length, 1);
-  });
-
-  test("tells a screen reader what the trigger does, not just where it is", () => {
-    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
-    assert.match(block, /<summary[^>]*aria-label="Switch site[^"]*blog\.lychee\.land"/);
-  });
-
-  test("never truncates a hostname — the control exists to pick one", () => {
-    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
-    assert.doesNotMatch(block, /truncate/);
-  });
-
-  test("dims the shared suffix in Smoke, not Smoke Deep, at row size", () => {
-    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
-    const rows = block.match(/<ul[\s\S]*<\/ul>/)?.[0] ?? "";
-    assert.match(rows, /text-stone-400/);
-    assert.doesNotMatch(rows, /text-stone-500/);
-  });
-
-  test("carries a type hint per row and no status", () => {
-    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
-    assert.match(block, /:4000/);
-    // The pill span emits the HTML entity "&#9679;", never the literal glyph
-    // — see the same convention noted where the status pill regex lives above.
-    assert.doesNotMatch(block, /&#9679;/);
-    assert.doesNotMatch(block, /running|responding|unhealthy/);
-  });
-
-  test("is a surface containing rows, so it takes the 10px radius", () => {
-    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
-    const panel = block.match(/<ul[^>]*>/)?.[0] ?? "";
-    assert.match(panel, /rounded-\[10px\]/);
-  });
-
-  test("marks the current row without an ember fill", () => {
-    const block = switcher(renderSiteDetail(STATIC_SITE, OPTS));
-    assert.doesNotMatch(block, /bg-rose-950/);
+  test("carries no dropdown and lists no other site", () => {
+    const block = breadcrumb(renderSiteDetail(STATIC_SITE, OPTS));
+    assert.doesNotMatch(block, /<details|<summary/);
+    assert.doesNotMatch(block, RETIRED_SWITCHER);
+    for (const site of [PROXY_SITE, NEXT_SITE]) assert.ok(!block.includes(site.hostname), site.hostname);
   });
 });
 
@@ -623,10 +631,11 @@ describe("renderSiteDetail manual steps", () => {
   });
 
   test("a reverse-proxy site is not told about a placeholder it never got", () => {
-    const html = renderSiteDetail(NEXT_SITE, {
+    // The rail's find box has a placeholder attribute of its own.
+    const html = withoutShell(renderSiteDetail(NEXT_SITE, {
       ...OPTS,
       status: { kind: "container", state: "running", health: "healthy" },
-    });
+    }));
     // add-site only writes the placeholder for static sites.
     assert.doesNotMatch(html, /placeholder/);
   });
@@ -690,12 +699,12 @@ const SCAFFOLD = {
 /**
  * The header band carries its own wordmark link and "sites"/"add site" nav
  * items, none of which have anything to do with the Deploy card these tests
- * check. withoutHeader() strips it before asserting so its markup can't
+ * check. withoutShell() strips it before asserting so its markup can't
  * collide with assertions that are really about that card.
  */
 describe("renderSiteDetail deploy", () => {
   test("nothing is hidden behind a disclosure widget", () => {
-    const html = withoutHeader(
+    const html = withoutShell(
       renderSiteDetail(NEXT_SITE, {
         ...OPTS,
         status: { kind: "container", state: "not-created" },
@@ -751,7 +760,7 @@ describe("renderSiteDetail deploy", () => {
   });
 
   test("every copy button inside a code block shares one right-hand inset", () => {
-    const html = withoutHeader(
+    const html = withoutShell(
       renderSiteDetail(NEXT_SITE, {
         ...OPTS,
         status: { kind: "container", state: "not-created" },
@@ -800,7 +809,7 @@ describe("renderSiteDetail danger zone", () => {
   });
 
   test("the Danger card names the sites tunnel, not the tunnel", () => {
-    const body = withoutHeader(renderSiteDetail(STATIC_SITE, OPTS));
+    const body = withoutShell(renderSiteDetail(STATIC_SITE, OPTS));
     assert.match(body, /restarts the sites tunnel/);
     assert.doesNotMatch(body, /then restarts the tunnel\b/);
   });
@@ -1067,7 +1076,6 @@ describe("the removal notice on the site list", () => {
       {},
       "lychee.land",
       undefined,
-      { page: "sites" },
       "Removed blog.lychee.land. Remember to remove the DNS record in Cloudflare manually.",
     );
     const notice = tagById(html, "page-notice");
@@ -1078,14 +1086,14 @@ describe("the removal notice on the site list", () => {
   });
 
   test("no notice renders without one", () => {
-    const html = renderSiteList([], {}, "lychee.land", undefined, { page: "sites" });
+    const html = renderSiteList([], {}, "lychee.land", undefined);
     assert.doesNotMatch(html, /id="page-notice"/);
   });
 });
 
 describe("the site list heading", () => {
   test("one destination has one name", () => {
-    const body = withoutHeader(renderSiteList(SITES, {}, "lychee.land"));
+    const body = withoutShell(renderSiteList(SITES, {}, "lychee.land"));
     assert.doesNotMatch(body, /Existing sites/);
     assert.match(body, /<h2[^>]*>Sites<\/h2>/);
   });
@@ -1308,25 +1316,38 @@ describe("the site list with no sites", () => {
   // twice and make neither the obvious one, so the section header yields its
   // button to the empty state rather than sitting beside it.
   test("an empty page offers its one action once, not twice", () => {
-    const body = withoutHeader(renderSiteList([], {}, "lychee.land"));
+    const body = withoutShell(renderSiteList([], {}, "lychee.land"));
     const ctas = [...body.matchAll(/href="\/sites\/new"/g)];
     assert.equal(ctas.length, 1, "the section header and the empty state both offered Add site");
   });
 
-  test("the section header keeps its button once there are sites to sit above", () => {
-    const body = withoutHeader(renderSiteList(SITES, {}, "lychee.land"));
-    assert.match(body, /href="\/sites\/new"[^>]*>(?:(?!<\/a>)[\s\S])*Add site<\/a>/);
+  // The rail carries a quiet Secondary Add site on every page, so the section
+  // header carries none even when there are sites.
+  test("the section header has no Add site button once there are sites: the rail carries it", () => {
+    const body = withoutShell(renderSiteList(SITES, {}, "lychee.land"));
+    assert.doesNotMatch(body, /href="\/sites\/new"/);
+    assert.ok(!body.includes(BUTTON_PRIMARY), "the list body still spends Ember");
+  });
+
+  // With no sites, adding one is the page's one thing to do, so the empty
+  // state's own button stays Ember: the rail's Secondary is too quiet for it.
+  test("the empty state's call to action stays Ember", () => {
+    const cta = tagById(withoutShell(renderSiteList([], {}, "lychee.land")), "empty-state-cta");
+    assert.ok(cta.includes(`class="${BUTTON_PRIMARY} no-underline"`), cta);
+    assert.match(cta, /href="\/sites\/new"/);
   });
 });
 
 describe("hardening: browser defaults never carry the design", () => {
   test("every interactive element the design draws gets the project focus ring", () => {
-    const list = renderSiteList(SITES, {}, "lychee.land");
+    // Page bodies only: the rail's own api.lychee.land row and the top bar's
+    // wordmark (the first href="/") would otherwise answer for them.
+    const list = withoutShell(renderSiteList(SITES, {}, "lychee.land"));
     const card = list.match(/<a href="\/sites\/api\.lychee\.land"[^>]*>/);
     assert.ok(card, "no site-card link rendered");
     assert.match(card[0], /focus-visible:outline-rose-400/);
 
-    const notFound = renderSiteNotFound("nope.lychee.land");
+    const notFound = withoutShell(renderSiteNotFound("nope.lychee.land"));
     const back = notFound.match(/<a href="\/"[^>]*>/);
     assert.ok(back, "no back link rendered");
     assert.match(back[0], /focus-visible:outline-rose-400/);
@@ -1507,16 +1528,18 @@ describe("small-text ramp", () => {
     assert.doesNotMatch(html, /text-\[0\.65rem\]/);
   });
 
-  test("the switcher's current row states its port at readable contrast", () => {
+  test("the rail's current row states its port at readable contrast", () => {
+    // Carried over from the breadcrumb dropdown the rail replaced: stone-400
+    // on the highlighted (stone-700) row measured 3.98:1; stone-300 clears
+    // 4.5:1. Anchored to the current row itself (aria-current="page"), not
+    // the whole document — every other row uses the same hint span, so a
+    // document-wide assertion would pass regardless of whether the current
+    // row in particular carries the fix.
     const html = renderSiteDetail(NEXT_SITE, OPTS);
-    // stone-400 on the highlighted row measured 3.98:1; stone-300 clears 4.5:1.
-    // Anchored to the current row itself (aria-current="page"), not the
-    // whole document — every other row in the switcher's list uses the same
-    // hint span, so a document-wide assertion would pass regardless of
-    // whether the current row in particular carries the fix.
     const currentRow = html.match(/<a[^>]*aria-current="page"[^>]*>[\s\S]*?<\/a>/);
     assert.ok(currentRow, "no current row was rendered");
-    assert.match(currentRow[0], /text-\[0\.72rem\] text-stone-300 shrink-0/);
+    assert.match(currentRow[0], /data-site="app\.lychee\.land"/);
+    assert.match(currentRow[0], /shrink-0 text-\[0\.72rem\] text-stone-300">:3200</);
   });
 
   test("the type-option description clears AA on its raised card", () => {
@@ -1548,7 +1571,7 @@ describe("the add-site preview panel", () => {
   const html = renderAddSite(SITES, "lychee.land", {}, PATHS);
 
   test("takes the 1080px frame rather than the 760px reading column", () => {
-    const body = withoutHeader(html);
+    const body = withoutShell(html);
     assert.doesNotMatch(body, /max-w-\[760px\]/, "add-site should no longer cap at the detail page's width");
   });
 
@@ -1597,7 +1620,7 @@ describe("the add-site preview panel", () => {
   });
 
   test("the port branch keeps the 2px Ember Edge rule DESIGN.md documents", () => {
-    const branch = withoutHeader(html).match(/<div class="port-input[^"]*"/);
+    const branch = withoutShell(html).match(/<div class="port-input[^"]*"/);
     assert.ok(branch);
     assert.match(branch[0], /border-l-2/);
     assert.match(branch[0], /border-l-rose-800/);
@@ -1616,7 +1639,8 @@ describe("renderServicesPage", () => {
   });
 
   test("a row with no deploy state renders no deploy fields rather than blanks", () => {
-    const html = renderServicesPage(
+    // Without the shell: the rail's site rows close their own </li>s first.
+    const html = withoutShell(renderServicesPage(
       {
         inventoryAvailable: true,
         schedule: NO_SCHEDULE, timerUnit: null,
@@ -1627,7 +1651,7 @@ describe("renderServicesPage", () => {
         ] }],
       },
       NOW, new Set(), "lychee.land",
-    );
+    ));
     assert.ok(html.includes("palworld"));
     assert.ok(html.includes("Inventory written 2 minutes ago"));
     assert.ok(!html.includes("undefined"));
@@ -2472,7 +2496,7 @@ describe("what to check under the chain", () => {
 describe("renderSiteDetail from a repository", () => {
 
   function card(html: string): string {
-    const [, after] = withoutHeader(html).split(">From a repository</h3>");
+    const [, after] = withoutShell(html).split(">From a repository</h3>");
     assert.ok(after, "expected a From a repository card");
     return after.split("</section>")[0];
   }
@@ -2570,7 +2594,7 @@ describe("renderSiteDetail from a repository", () => {
     assert.ok(offer[0].includes(`class="${BUTTON_PRIMARY_COMPACT}" data-deploy="app-lychee-land" data-deploy-tag="0.1.0">Deploy 0.1.0</button>`));
     assert.ok(c.lastIndexOf("data-offer") > c.indexOf("ghcr.io/lycheehome/app-site"), "the offer comes after the attach step");
     // Not in the page header, and the header holds no Ember: the offer has it.
-    const header = withoutHeader(html).split("Request path</h3>")[0];
+    const header = withoutShell(html).split("Request path</h3>")[0];
     assert.doesNotMatch(header, /data-deploy/);
     assert.ok(!header.split(/[\s"]+/).includes("bg-rose-400"));
   });
@@ -2958,7 +2982,7 @@ describe("host actions on the services board", () => {
   type Run = Parameters<typeof renderServicesPage>[4];
 
   function board(row: Record<string, unknown>, lastRuns: Run = {}): string {
-    return withoutHeader(
+    return withoutShell(
       renderServicesPage(
         {
           inventoryAvailable: true,
@@ -3165,15 +3189,16 @@ describe("board rows link to their sites, and unknown explains itself", () => {
   });
 
   test("a managed site's board row links to its site", () => {
-    assert.ok(page(site, new Set(["app.lychee.land"])).includes('href="/sites/app.lychee.land"'));
+    // Without the shell: the rail links every seeded site, app.lychee.land included.
+    assert.ok(withoutShell(page(site, new Set(["app.lychee.land"]))).includes('href="/sites/app.lychee.land"'));
   });
 
   test("a site row not in the managed set stays plain text", () => {
-    assert.ok(!withoutHeader(page(site, new Set())).includes('href="/sites/'));
+    assert.ok(!withoutShell(page(site, new Set())).includes('href="/sites/'));
   });
 
   test("a non-site row never links", () => {
-    const html = withoutHeader(page({ name: "palsave-api" }, new Set(["app.lychee.land", "palsave-api.lychee.land"])));
+    const html = withoutShell(page({ name: "palsave-api" }, new Set(["app.lychee.land", "palsave-api.lychee.land"])));
     assert.ok(!html.includes('href="/sites/'));
   });
 
@@ -3225,7 +3250,7 @@ describe("host problems on the site list", () => {
   });
 
   test("a problem renders consequence first, red state words, a link", () => {
-    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, undefined, [CADDY_DOWN]);
+    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, [CADDY_DOWN]);
     assert.match(html, /<[^>]*role="status"[^>]*data-host-problems|<[^>]*data-host-problems[^>]*role="status"/);
     const consequence = html.indexOf("Every site is unreachable from outside");
     const phrase = html.indexOf("caddy has stopped");
@@ -3233,11 +3258,13 @@ describe("host problems on the site list", () => {
     const consequenceTag = html.slice(html.lastIndexOf("<", consequence), consequence);
     assert.doesNotMatch(consequenceTag, /text-red-/);
     assert.match(html, /<span class="[^"]*text-red-300[^"]*">.*caddy has stopped/);
-    assert.match(html, /href="\/infrastructure"/);
+    // The problem block's own link, not the rail's host link to the same page.
+    const block = withoutShell(html).match(/<div role="status" data-host-problems[\s\S]*?<\/div>/)?.[0] ?? "";
+    assert.match(block, /href="\/infrastructure"/);
   });
 
   test("several problems keep their order", () => {
-    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, undefined, [
+    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, [
       CADDY_DOWN,
       { name: "lychee-watch", word: "exited", consequence: "Changes wait for the 15-minute full run", page: "reconciler", href: "/reconciler" },
     ]);
@@ -3247,7 +3274,7 @@ describe("host problems on the site list", () => {
   });
 
   test("problem values are escaped", () => {
-    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, undefined, [
+    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, [
       { ...CADDY_DOWN, name: "<b>x</b>" },
     ]);
     assert.match(html, /&lt;b&gt;x&lt;\/b&gt;/);
@@ -3255,7 +3282,7 @@ describe("host problems on the site list", () => {
   });
 
   test("the removed notice and host problems both render", () => {
-    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, "Removed blog.lychee.land.", [CADDY_DOWN]);
+    const html = renderSiteList(SITES, {}, "lychee.land", undefined, "Removed blog.lychee.land.", [CADDY_DOWN]);
     assert.match(html, /Removed blog\.lychee\.land\./);
     assert.match(html, /data-host-problems/);
   });
@@ -3271,7 +3298,7 @@ describe("one Ember action per site page", () => {
       const cls = tag.match(/\sclass="([^"]*)"/);
       return cls !== null && cls[1].split(" ").includes("bg-rose-400");
     }).length;
-  const page = (site: Site, opts: object): string => withoutHeader(renderSiteDetail(site, { ...BASE, ...opts }));
+  const page = (site: Site, opts: object): string => withoutShell(renderSiteDetail(site, { ...BASE, ...opts }));
 
   const zero: Array<[string, string]> = [
     ["a proxy not responding", page(PROXY_SITE, { status: { kind: "tcp", responding: false } })],

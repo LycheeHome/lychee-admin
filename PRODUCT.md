@@ -99,12 +99,12 @@ claim.
   (`POST /services/:name/deploy`) and Prune a retired site declaration
   (`POST /resources/:name/prune`) are each reused on a site's own page, and
   whose host actions (`POST /services/:name/actions/:action`: start, stop,
-  restart and update, today only for the Palworld server) appear only there. A global header band (wordmark
-  plus `sites`, `services`, `reconciler`, `infrastructure` and `add site`)
-  fronts every page; a site's detail
-  page also carries a hostname dropdown on its breadcrumb for moving to another
-  site without a round trip through the list. The list's cards carry a status
-  pill for reverse-proxy sites.
+  restart and update, today only for the Palworld server) appear only there. A left
+  rail fronts every page — the wordmark, a ⌘K find box, every managed site with a
+  live status dot, the three host pages with attention counts, and Add site at its
+  foot — kept live by one batched health read (`GET /api/health`) polled every 15s
+  while the tab is visible; below 900px it collapses to a top bar that opens it as
+  a drawer. The list's cards carry a status pill for reverse-proxy sites.
 - **The services board reads, and requests three kinds of thing.** It shows, one group
   per page, every declared long-lived process on the host — the reconciler, the services it
   deploys, the game server, Caddy and the sites tunnel — by joining a

@@ -6,7 +6,7 @@ import bcrypt from "bcrypt";
 import type { Deps } from "../deps";
 import type { ClientAssets } from "../views/clientShell";
 import type { SystemCommands } from "../lib/systemCommands";
-import { withoutHeader } from "../dev/testHelpers";
+import { RETIRED_SWITCHER, withoutShell } from "../dev/testHelpers";
 
 const PASSWORD = "test-password";
 process.env.ADMIN_USERNAME = "tester";
@@ -376,6 +376,31 @@ describe("GET /infrastructure: the React mount", () => {
     assert.ok(html.includes('id="app-root" data-page="infrastructure"'));
     assert.ok(html.includes('<script type="module" src="/client/assets/main-abc.js">'));
     assert.match(html, /<a href="\/infrastructure"[^>]*aria-current="page"/);
+    // layout() is the bundle's only emitter, so each tag appears once.
+    assert.equal(html.split("/client/assets/main-abc.js").length - 1, 1);
+    assert.equal(html.split("/client/assets/main-def.css").length - 1, 1);
+    await current.close();
+  });
+
+  test("the server-rendered board pages load the bundle too, for the rail island", async () => {
+    current = await serve(null, {}, {}, ASSETS);
+    for (const path of ["/services", "/reconciler"]) {
+      const html = await (await current.get(path)).text();
+      assert.equal(html.split('<script type="module" src="/client/assets/main-abc.js"></script>').length - 1, 1, path);
+    }
+    await current.close();
+  });
+
+  test("each board page marks its own rail link, and a missing inventory says so in the rail", async () => {
+    current = await serve(null, {}, {}, ASSETS);
+    for (const [path, href] of [["/services", "/services"], ["/reconciler", "/reconciler"], ["/infrastructure", "/infrastructure"]]) {
+      const html = await (await current.get(path)).text();
+      const marked = [...html.matchAll(/<a\b[^>]*\baria-current="page"[^>]*>/g)].map((m) => m[0].match(/href="([^"]+)"/)?.[1]);
+      assert.deepEqual(marked, [href], path);
+      assert.match(html, /Inventory unavailable/, path);
+      assert.doesNotMatch(html, /id="site-header"/, path);
+      assert.doesNotMatch(html, RETIRED_SWITCHER, path);
+    }
     await current.close();
   });
 
@@ -963,7 +988,8 @@ describe("GET /services: links to managed sites", () => {
     );
     const res = await current.get("/services");
     assert.equal(res.status, 200);
-    assert.ok((await res.text()).includes('href="/sites/app.lychee.land"'));
+    // Without the shell: the rail lists app.lychee.land from the same Caddyfile.
+    assert.ok(withoutShell(await res.text()).includes('href="/sites/app.lychee.land"'));
   });
 
   test("an unreadable Caddyfile renders the board without site links", async () => {
@@ -971,7 +997,7 @@ describe("GET /services: links to managed sites", () => {
     current = await serve(inventory([APP]), {});
     const res = await current.get("/services");
     assert.equal(res.status, 200);
-    assert.ok(!withoutHeader(await res.text()).includes('href="/sites/'));
+    assert.ok(!withoutShell(await res.text()).includes('href="/sites/'));
   });
 });
 

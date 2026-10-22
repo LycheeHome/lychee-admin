@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { layout } from "./shell";
-import type { Nav } from "./shell";
+import type { ShellData } from "./shell";
 import { escapeHtml } from "./shared";
 
 /** The built client bundle's files, relative to /client/. */
@@ -27,14 +27,12 @@ export function readClientManifest(publicDir: string): ClientAssets | null {
   }
 }
 
-/** The shared shell around an empty mount point the client renders into. */
-export function renderClientPage(title: string, page: string, nav: Nav, assets: ClientAssets): string {
-  const head = assets.styles
-    .map((href) => `<link rel="stylesheet" href="/client/${escapeHtml(href)}" />`)
-    .join("\n  ");
-  return layout(title, `<div id="app-root" data-page="${escapeHtml(page)}"></div>`, {
-    nav,
-    head,
-    bodyEnd: `<script type="module" src="/client/${escapeHtml(assets.script)}"></script>`,
-  });
+/**
+ * The shared shell around an empty mount point the client renders into. The
+ * bundle's tags come from layout(), which emits them on every page from
+ * `shell.assets`; a migrated route answers 500 before calling this when that
+ * is null, because the page has nothing else to show.
+ */
+export function renderClientPage(title: string, page: string, shell: ShellData): string {
+  return layout(title, `<div id="app-root" data-page="${escapeHtml(page)}"></div>`, { shell });
 }

@@ -1,8 +1,29 @@
 import { escapeHtml, BUTTON_OFFER, DETAIL_WIDTH, FOCUS_RING } from "./shared";
+import type { ClientAssets } from "./clientShell";
+import { renderRail, renderRailData, renderTopBar } from "./rail";
 
-export interface Nav {
-  /** Which header item is current. Absent on a site detail page. */
-  page?: "sites" | "new" | "services" | "reconciler" | "infrastructure";
+/**
+ * Which rail item is current: a page's own link, a site's row, or nothing
+ * (the not-found page, and any fallback rendered at a URL it does not own).
+ */
+export type RailCurrent =
+  | { page: "sites" | "new" | "services" | "reconciler" | "infrastructure" }
+  | { site: string }
+  | null;
+
+export interface RailData {
+  /** Managed sites in Caddyfile order, `hint` being `static` or `:<port>`; null when the Caddyfile is unreadable. */
+  sites: Array<{ hostname: string; hint: string }> | null;
+  /** Whether the inventory could be read. Without it the host links carry no counts. */
+  hostAvailable: boolean;
+  current: RailCurrent;
+  domain: string;
+}
+
+/** Everything the shell around a page needs: the rail, and the client bundle when it is built. */
+export interface ShellData {
+  rail: RailData;
+  assets: ClientAssets | null;
 }
 
 export interface Banner {
@@ -10,7 +31,7 @@ export interface Banner {
 }
 
 export interface LayoutOptions {
-  nav: Nav;
+  shell: ShellData;
   banner?: Banner;
   /** Markup inserted before `</head>`. */
   head?: string;
@@ -18,51 +39,19 @@ export interface LayoutOptions {
   bodyEnd?: string;
 }
 
-const HEADER_ITEM =
-  `font-mono text-[0.85rem] no-underline text-stone-400 rounded-md px-2 py-1 ` +
-  `hover:text-stone-50 ` +
-  `aria-[current=page]:text-stone-50 aria-[current=page]:bg-stone-700 ` +
-  `aria-[current=page]:border-l-2 aria-[current=page]:border-l-rose-800 ${FOCUS_RING}`;
-
-function headerItem(href: string, label: string, current: boolean): string {
-  return `<a href="${href}" class="${HEADER_ITEM}"${current ? ` aria-current="page"` : ""}>${escapeHtml(label)}</a>`;
+/**
+ * The client bundle's tags, on every page whose bundle is built: the island
+ * takes the rail over everywhere, not only on migrated pages. This is the one
+ * place they are emitted. Without a bundle the server rail still works as
+ * plain links.
+ */
+function bundleHead(assets: ClientAssets | null): string {
+  if (!assets) return "";
+  return assets.styles.map((href) => `\n  <link rel="stylesheet" href="/client/${escapeHtml(href)}" />`).join("");
 }
 
-/**
- * Host-level navigation, identical on every page. A header item's destination
- * never changes with location: the moment "sites" means something different
- * depending on where you stand, it is a control you have to read the URL to
- * understand. Per-site movement lives on the detail page's breadcrumb.
- *
- * Order is a judgment call, not a rule: "sites", "services", "reconciler"
- * and "infrastructure" are all "what exists here" pages, so they sit
- * adjacent and the parallel reads; the last three are the services board's
- * groups, one page each, with "services" first because it was the board's
- * URL before the split. "add site" is the only action and goes last.
- *
- * "add site" is here as well as on the list page's primary button. Same label
- * in both places, quiet here and ember there: this one navigates, that one
- * acts, and with zero sites that button is the entire call to action.
- *
- * The wordmark is "lychee" in the display face with "admin" as a quiet mono
- * qualifier, and no dot between them: the first site row is lychee.land in
- * the same face, and a dotted mark directly above it read as another
- * hostname. The aria-label restores the name the visual gap leaves out.
- */
-function renderHeader(nav: Nav): string {
-  return `
-  <header id="site-header" class="max-w-[1080px] mx-auto flex items-center gap-6 py-4">
-    <h1 class="m-0 text-base font-normal leading-none">
-      <a href="/" aria-label="lychee-admin" class="font-display text-2xl tracking-wide text-stone-50 m-0 no-underline ${FOCUS_RING}">lychee<span class="font-mono text-[0.85rem] tracking-[0.02em] text-stone-300 ml-[0.35em]">admin</span></a>
-    </h1>
-    <nav class="flex items-center gap-1" aria-label="Sections">
-      ${headerItem("/", "sites", nav.page === "sites")}
-      ${headerItem("/services", "services", nav.page === "services")}
-      ${headerItem("/reconciler", "reconciler", nav.page === "reconciler")}
-      ${headerItem("/infrastructure", "infrastructure", nav.page === "infrastructure")}
-      ${headerItem("/sites/new", "add site", nav.page === "new")}
-    </nav>
-  </header>`;
+function bundleScript(assets: ClientAssets | null): string {
+  return assets ? `\n  <script type="module" src="/client/${escapeHtml(assets.script)}"></script>` : "";
 }
 
 const DISMISS_BUTTON =
@@ -145,11 +134,14 @@ export function layout(title: string, body: string, opts: LayoutOptions): string
     href="https://fonts.googleapis.com/css2?family=Poetsen+One&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;1,500&family=DM+Mono:wght@300;400;500&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/style.css" />${opts.head ? `\n  ${opts.head}` : ""}
+  <link rel="stylesheet" href="/style.css" />${bundleHead(opts.shell.assets)}${opts.head ? `\n  ${opts.head}` : ""}
 </head>
-<body class="min-h-screen bg-stone-900 font-sans text-stone-50 m-0 px-6 pb-16">
-  ${renderHeader(opts.nav)}
-  <main class="max-w-[1080px] mx-auto py-6 pb-8 flex flex-col gap-6">
+<body class="min-h-screen bg-stone-900 font-sans text-stone-50 m-0 min-[900px]:grid min-[900px]:grid-cols-[250px_minmax(0,1fr)]">
+  ${renderTopBar()}
+  ${renderRail(opts.shell.rail)}
+  ${renderRailData(opts.shell.rail)}
+  <div class="min-w-0 px-6 pb-16">
+  <main class="max-w-[1080px] mx-auto py-8 pb-8 flex flex-col gap-6">
     ${renderFlashBanner()}
     <!--
       Copying is confirmed visually by the icon swapping to a check, which
@@ -162,7 +154,8 @@ export function layout(title: string, body: string, opts: LayoutOptions): string
     <span id="copy-status" class="sr-only" role="status" aria-live="polite"></span>
     ${renderPageNotice(opts.banner)}
     ${body}
-  </main>${opts.bodyEnd ? `\n  ${opts.bodyEnd}` : ""}
+  </main>
+  </div>${opts.bodyEnd ? `\n  ${opts.bodyEnd}` : ""}${bundleScript(opts.shell.assets)}
   <script src="/actionPoll.js"></script>
   <script src="/app.js"></script>
 </body>

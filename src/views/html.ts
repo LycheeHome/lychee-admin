@@ -17,7 +17,7 @@ import type { BoardRow, ServiceBoard } from "../lib/serviceBoard";
 import type { ServiceGroup } from "../lib/serviceInventory";
 import { type HostAction, IMAGE_PREFIX } from "../lib/platform";
 import type { ActionState } from "../lib/hostOperations";
-import { layout, type Nav } from "./shell";
+import { layout, type ShellData } from "./shell";
 import { type DeployFacts, isApplying, rowLabels, summarizeRow } from "./boardFacts";
 import {
   escapeHtml,
@@ -99,19 +99,18 @@ export function renderSiteList(
   // renderAddSite and the detail page: a view that knows the domain by itself
   // is a view that can disagree with the one the app actually manages.
   domain: string,
-  error?: string,
-  // Every real caller of this page is GET /, where "sites" is genuinely
-  // current. The one exception is the detail route's 500 fallback, which
-  // renders this same body at /sites/<hostname> and must not claim "sites"
-  // is where the URL points — see its call site in src/routes/sites.ts.
-  nav: Nav = { page: "sites" },
+  error: string | undefined,
   // A removal's DNS reminder is a page-load notice carrying an unfinished
   // manual action, so it belongs in flow with a close button — not in the
   // transient toast, which times out after four seconds.
-  notice?: string,
-  // Host units that are down, each already phrased by hostProblems. Defaults
-  // to none, so the 500 fallback and every other caller render no block.
-  problems: HostProblem[] = [],
+  notice: string | undefined,
+  // Host units that are down, each already phrased by hostProblems. The 500
+  // fallbacks pass none and render no block.
+  problems: HostProblem[],
+  // GET / marks the sites heading current. The 500 fallbacks render this same
+  // body at /sites/new and /sites/<hostname>, and must not claim "sites" is
+  // where the URL points — see their call sites in src/routes/sites.ts.
+  shell: ShellData,
 ): string {
   // Consequence first, in plain sans: it is what the operator needs to know,
   // and only the machine fact (the unit and its state) is red.
@@ -161,9 +160,10 @@ export function renderSiteList(
     })
     .join("");
 
-  // With no sites, the Add-site button in the section header is the only call
-  // to action on the page — too quiet for the one thing there is to do. The
-  // empty state states what a site is and carries its own button.
+  // The heading carries no Add site button: the rail's quiet Secondary one is
+  // on every page. With no sites that is too quiet and too far from the one
+  // thing there is to do, so the empty state states what a site is and
+  // carries its own button, in Ember: the page's one primary action.
   const empty = `
       <div id="empty-state" class="flex flex-col items-center text-center gap-4 border border-stone-700 rounded-[10px] bg-stone-800 px-6 py-6">
         <h3 class="font-sans font-semibold text-base text-stone-50 m-0">No sites yet</h3>
@@ -176,19 +176,12 @@ export function renderSiteList(
     `
     ${error ? `<p class="font-mono text-[0.85rem] text-stone-50 bg-red-950/60 border border-red-400/70 rounded-md px-4 py-3 mb-5">${escapeHtml(error)}</p>` : ""}
     <section>
-      <div class="flex items-center justify-between gap-4 mb-5">
-        <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Sites</h2>
-        ${
-          // With no sites the empty state carries this same action, and Ember
-          // spent twice on one destination makes neither the obvious one.
-          sites.length === 0 ? "" : `<a href="/sites/new" class="${BUTTON_PRIMARY} no-underline">${icon("plus")}Add site</a>`
-        }
-      </div>
+      <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-5">Sites</h2>
       ${problemBlock}
       ${sites.length === 0 ? empty : `<div class="flex flex-col">${rows}\n      </div>`}
     </section>
     `,
-    { nav, banner: notice ? { message: notice } : undefined },
+    { shell, banner: notice ? { message: notice } : undefined },
   );
 }
 
@@ -200,6 +193,7 @@ export function renderAddSite(
   // the detail page: a view that knows these paths by itself is a view that
   // can disagree with the files the app actually edits.
   paths: { caddyfilePath: string; tunnelConfigPath: string },
+  shell: ShellData,
 ): string {
   return layout(
     "Add a site",
@@ -326,7 +320,7 @@ export function renderAddSite(
       </div>
     </div>
     `,
-    { nav: { page: "new" } },
+    { shell },
   );
 }
 
@@ -758,8 +752,6 @@ export interface SiteDetailOptions {
   detached?: boolean;
   /** Whether a reverse-proxy site's /var/www directory exists. Only legacy Next.js sites have one. */
   filesExist?: boolean;
-  /** Every managed site, for the breadcrumb's hostname switcher. */
-  sites: Site[];
   /** Set when this page is the redirect target of a successful add (`?created=1`). */
   created?: boolean;
 }
@@ -1087,52 +1079,10 @@ function renderRepositoryCard(site: Site, opts: SiteDetailOptions, resourceName:
       </section>`;
 }
 
-const SWITCHER_TRIGGER =
-  `list-none cursor-pointer inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 ` +
-  `text-stone-50 hover:bg-stone-800 [&::-webkit-details-marker]:hidden ${FOCUS_RING}`;
-
-const SWITCHER_ROW =
-  `flex items-center justify-between gap-3 px-2.5 py-1.5 no-underline font-mono text-[0.75rem] ` +
-  `text-stone-50 border-b border-stone-700 last:border-b-0 hover:bg-stone-800 ` +
-  `aria-[current=page]:bg-stone-700 aria-[current=page]:border-l-2 aria-[current=page]:border-l-rose-800 ${FOCUS_RING}`;
-
-/** `static`, or the port a proxy site forwards to. Never status. */
-function typeHint(site: Site): string {
-  return site.type === "static" ? "static" : `:${site.target}`;
-}
-
 /**
- * Site-to-site movement, on the one line that already says which site you are
- * looking at. The rows are hostnames and a type hint — no status, because the
- * dropdown renders on every detail page and status pills there would cost one
- * check per site per page view. The list page answers that question instead.
- *
- * No `truncate` anywhere: this is the control whose whole job is picking a
- * hostname, and two sites called staging-dashboard-preview and
- * staging-dashboard-prod must not render identically. Splitting the shared
- * domain suffix off buys about nine characters per row for free.
+ * The breadcrumb is plain location text now: site-to-site movement is the
+ * rail's, which lists every site on every page.
  */
-function renderHostnameSwitcher(site: Site, opts: SiteDetailOptions): string {
-  const rows = opts.sites
-    .map((entry) => {
-      const { lead, dimmed } = splitHostnameForDisplay(entry.hostname, opts.domain);
-      const current = entry.hostname === site.hostname;
-      return `<li><a href="/sites/${encodeURIComponent(entry.hostname)}" class="${SWITCHER_ROW}"${
-        current ? ` aria-current="page"` : ""
-      }><span>${escapeHtml(lead)}${dimmed ? `<span class="text-stone-400">${escapeHtml(dimmed)}</span>` : ""}</span><span class="text-[0.72rem] text-stone-300 shrink-0">${escapeHtml(typeHint(entry))}</span></a></li>`;
-    })
-    .join("");
-
-  const { lead, dimmed } = splitHostnameForDisplay(site.hostname, opts.domain);
-
-  return `<details id="hostname-switcher" class="relative inline-block">
-        <summary class="${SWITCHER_TRIGGER}" aria-label="Switch site — currently ${escapeHtml(site.hostname)}">${escapeHtml(lead)}${
-          dimmed ? `<span class="text-stone-400">${escapeHtml(dimmed)}</span>` : ""
-        }${icon("chevronDown")}</summary>
-        <ul class="absolute z-30 left-0 mt-1 min-w-[16rem] list-none m-0 p-0 bg-stone-900 border border-stone-700 rounded-[10px] shadow-lg shadow-black/40 overflow-hidden max-h-[70vh] overflow-y-auto">${rows}</ul>
-      </details>`;
-}
-
 function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
   const { lead, dimmed } = splitHostnameForDisplay(site.hostname, opts.domain);
   const labels = opts.status ? describeStatus(opts.status) : null;
@@ -1140,7 +1090,7 @@ function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
       <nav class="font-mono text-[0.72rem] text-stone-400 m-0" aria-label="Breadcrumb">
         <a href="/" class="text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}">sites</a>
         <span class="text-stone-600 mx-1.5" aria-hidden="true">/</span>
-        ${renderHostnameSwitcher(site, opts)}
+        <span class="text-stone-50">${escapeHtml(site.hostname)}</span>
       </nav>
 
       <div class="flex items-start justify-between gap-4">
@@ -1172,7 +1122,7 @@ function addedBanner(site: Site): string {
   return `Added ${site.hostname} — routing is live, but nothing is listening on port ${site.target} yet, so it shows as not responding until you start your process.`;
 }
 
-export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
+export function renderSiteDetail(site: Site, opts: SiteDetailOptions, shell: ShellData): string {
   const resourceName = site.framework ? resourceNameFor(site.hostname, opts.domain) : null;
   const filesPath = computeFilesPath(site, opts.sitesRoot);
 
@@ -1246,13 +1196,13 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions): string {
     </dialog>
     `),
     {
-      nav: {},
+      shell,
       banner: opts.created ? { message: addedBanner(site) } : undefined,
     },
   );
 }
 
-export function renderSiteNotFound(hostname: string): string {
+export function renderSiteNotFound(hostname: string, shell: ShellData): string {
   return layout(
     "Site not found",
     `
@@ -1262,7 +1212,7 @@ export function renderSiteNotFound(hostname: string): string {
       <p class="m-0"><a href="/" class="${FOCUS_RING} text-rose-400 no-underline font-mono text-[0.85rem] hover:underline">&larr; Back to sites</a></p>
     </div>
     `,
-    { nav: {} },
+    { shell },
   );
 }
 
@@ -1564,13 +1514,6 @@ function renderServiceRow(
       </li>`;
 }
 
-/** Each board page's header item, by the group it holds. */
-const GROUP_PAGES: Record<ServiceGroup, NonNullable<Nav["page"]>> = {
-  reconciler: "reconciler",
-  service: "services",
-  infrastructure: "infrastructure",
-};
-
 /** What a readable inventory with nothing in this group lists. */
 const GROUP_NONE: Record<ServiceGroup, string> = {
   reconciler: "reconciler units",
@@ -1599,6 +1542,7 @@ export function renderServicesPage(
   group: ServiceGroup = "service",
   managed: ReadonlySet<string> = new Set(),
   requested: ReadonlyMap<string, string> = new Map(),
+  shell: ShellData,
 ): string {
   const written = formatAge(board.generated, now);
   const freshness = board.inventoryAvailable
@@ -1638,6 +1582,6 @@ export function renderServicesPage(
       ${content}
     </div>
     `),
-    { nav: { page: GROUP_PAGES[group] } },
+    { shell },
   );
 }
