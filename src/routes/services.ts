@@ -12,6 +12,7 @@ import type { ServiceBoard } from "../lib/serviceBoard";
 import type { ApiError, ApiOk, BoardPayload } from "../shared/board";
 import { renderServicesPage } from "../views/html";
 import { renderClientPage } from "../views/clientShell";
+import { loadShell } from "./loadShell";
 import type { ServiceGroup } from "../lib/serviceInventory";
 import type { ServiceStatus, TimerSchedule } from "../lib/unitState";
 
@@ -25,6 +26,13 @@ const BOARD_PAGES: ReadonlyArray<[path: string, group: ServiceGroup]> = [
   ["/services", "service"],
   ["/reconciler", "reconciler"],
 ];
+
+/** Each board page's rail link, by the group it holds. */
+const GROUP_PAGES: Record<ServiceGroup, "services" | "reconciler" | "infrastructure"> = {
+  reconciler: "reconciler",
+  service: "services",
+  infrastructure: "infrastructure",
+};
 
 const GROUPS: readonly ServiceGroup[] = ["reconciler", "service", "infrastructure"];
 const isServiceGroup = (value: string): value is ServiceGroup => (GROUPS as readonly string[]).includes(value);
@@ -113,9 +121,11 @@ export function createServicesRouter(deps: Deps): express.Router {
   // Migrated to the client: the shared shell around a React mount point. The
   // data comes from /api/services, so nothing here reads the board.
   router.get("/infrastructure", (_req, res) => {
-    const assets = deps.clientAssets;
-    if (!assets) return res.status(500).type("text/plain").send("client bundle missing; run npm run build");
-    return res.type("html").send(renderClientPage("Infrastructure", "infrastructure", { page: "infrastructure" }, assets));
+    // One read of the bundle (the dev server's getter re-reads the manifest),
+    // checked here and then emitted by layout() from the same shell.
+    const shell = loadShell(deps, { page: "infrastructure" });
+    if (!shell.assets) return res.status(500).type("text/plain").send("client bundle missing; run npm run build");
+    return res.type("html").send(renderClientPage("Infrastructure", "infrastructure", shell));
   });
 
   async function renderBoardPage(res: express.Response, group: ServiceGroup): Promise<void> {
@@ -124,7 +134,9 @@ export function createServicesRouter(deps: Deps): express.Router {
     // these are the pages whose design goal is that they never error.
     try {
       const { board, prunable, managed, requested, lastRuns, now } = await loadBoardPage(deps);
-      res.type("html").send(renderServicesPage(board, now, prunable, config.domain, lastRuns, group, managed, requested));
+      res.type("html").send(
+        renderServicesPage(board, now, prunable, config.domain, lastRuns, group, managed, requested, loadShell(deps, { page: GROUP_PAGES[group] })),
+      );
     } catch (error) {
       res.status(500).type("text/plain").send(`Could not render services: ${String(error)}`);
     }

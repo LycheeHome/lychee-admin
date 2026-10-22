@@ -5,6 +5,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { renderServicesPage } from "../../views/html";
+import type { ShellData } from "../../views/shell";
 import type { BoardRow, ServiceBoard } from "../../shared/board";
 import { InfrastructureBoard } from "../components/BoardRows";
 import { createQueryClient } from "../queryClient";
@@ -15,6 +16,11 @@ afterEach(cleanup);
 
 const NOW = new Date("2026-10-02T05:00:00Z");
 const NO_SCHEDULE = { next: null, last: null };
+/** The shell renderServicesPage now takes last; serverRegion cuts the board region out of the page. */
+const SHELL: ShellData = {
+  rail: { sites: [], hostAvailable: true, current: { page: "infrastructure" }, domain: "lychee.land" },
+  assets: null,
+};
 
 function unit(name: string, extra: Partial<BoardRow> = {}): BoardRow {
   return {
@@ -88,7 +94,7 @@ function canonical(html: string): string {
 
 /** Asserts parity and returns the server's region, so a test can check its fixture reached the branch it names. */
 function assertParity(board: ServiceBoard): string {
-  const server = serverRegion(renderServicesPage(board, NOW, new Set(), "lychee.land", {}, "infrastructure"));
+  const server = serverRegion(renderServicesPage(board, NOW, new Set(), "lychee.land", {}, "infrastructure", new Set(), new Map(), SHELL));
   const client = renderToStaticMarkup(
     <InfrastructureBoard board={board} boardEmpty={board.groups.length === 0} now={NOW} />,
   );
@@ -148,7 +154,7 @@ describe("InfrastructureBoard parity with renderServicesPage", () => {
 
   test("a mismatch is caught", () => {
     const board = infraBoard([unit("caddy")]);
-    const server = serverRegion(renderServicesPage(board, NOW, new Set(), "lychee.land", {}, "infrastructure"));
+    const server = serverRegion(renderServicesPage(board, NOW, new Set(), "lychee.land", {}, "infrastructure", new Set(), new Map(), SHELL));
     const other = renderToStaticMarkup(<InfrastructureBoard board={infraBoard([unit("caddy", { status: "exited" })])} boardEmpty={false} now={NOW} />);
     assert.notEqual(canonical(other), canonical(server));
   });

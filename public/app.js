@@ -696,8 +696,8 @@ addSiteForm?.addEventListener("submit", async (event) => {
     }
 
     // Land on the new site's own page: its Manual steps already states the
-    // DNS command permanently, and a full navigation leaves the breadcrumb
-    // switcher listing the site we just created. addSiteInFlight is
+    // DNS command permanently, and a full navigation leaves the rail listing
+    // the site we just created. addSiteInFlight is
     // deliberately left true here rather than reset in a `finally` — the
     // fetch already resolved, but window.location.href doesn't navigate
     // synchronously, so the form stays interactive and submittable until the
@@ -854,51 +854,6 @@ document.querySelectorAll("dialog.modal").forEach((dialog) => {
     }
   });
 });
-
-const siteSwitcher = document.getElementById("hostname-switcher");
-
-if (siteSwitcher) {
-  const summary = siteSwitcher.querySelector("summary");
-  const rows = () => Array.from(siteSwitcher.querySelectorAll("a"));
-
-  const close = ({ refocus } = {}) => {
-    siteSwitcher.open = false;
-    if (refocus) summary?.focus();
-  };
-
-  // Not the bounding-rect check used for dialog.modal: that exists because a
-  // <dialog>'s backdrop is part of the element. A dropdown has no backdrop,
-  // so containment is both correct and simpler.
-  document.addEventListener("click", (event) => {
-    if (siteSwitcher.open && !siteSwitcher.contains(event.target)) close();
-  });
-
-  siteSwitcher.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      close({ refocus: true });
-      return;
-    }
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-
-    event.preventDefault();
-    if (!siteSwitcher.open) {
-      siteSwitcher.open = true;
-      rows()[0]?.focus();
-      return;
-    }
-    const items = rows();
-    const index = items.indexOf(document.activeElement);
-    const step = event.key === "ArrowDown" ? 1 : -1;
-    // From the summary (index -1), ArrowDown lands on the first row and
-    // ArrowUp on the last.
-    const next = index === -1 ? (step === 1 ? 0 : items.length - 1) : index + step;
-    items[Math.max(0, Math.min(items.length - 1, next))]?.focus();
-  });
-
-  siteSwitcher.addEventListener("focusout", (event) => {
-    if (!siteSwitcher.contains(event.relatedTarget)) close();
-  });
-}
 
 // The services board's Deploy control. The server decides the tag from the
 // inventory, so only the name is sent. On success the offer is replaced, in

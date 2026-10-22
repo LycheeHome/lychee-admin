@@ -5,7 +5,7 @@ import { once } from "node:events";
 import type { Server } from "node:http";
 import bcrypt from "bcrypt";
 import type { createInMemoryFileSystem } from "../dev/fakes";
-import { withoutHeader } from "../dev/testHelpers";
+import { RETIRED_SWITCHER, withoutShell } from "../dev/testHelpers";
 
 // --- Fixture layout -------------------------------------------------------
 // These must match what config resolves to, since nothing redirects them
@@ -160,7 +160,7 @@ describe("GET /", () => {
     // Stripped of the header: it carries its own "sites" and "add site"
     // links on every page, so matching the whole body would no longer prove
     // a card rendered — it would pass off the header alone.
-    const page = withoutHeader(body);
+    const page = withoutShell(body);
     assert.match(page, /blog\.lychee\.land/);
     assert.match(page, /api\.lychee\.land/);
   });
@@ -190,7 +190,7 @@ describe("status on the site list", () => {
   // It's wrapped in its own aria-hidden span so the dot never joins the
   // pill's accessible name.
   test("reports each proxy site's status", async () => {
-    const page = withoutHeader(await (await request("/")).text());
+    const page = withoutShell(await (await request("/")).text());
     // api.lychee.land is the seeded plain proxy on port 4000. Nothing listens
     // there during the test, so the tcp check resolves either way — the
     // assertion is that a canonical status word reached the card at all.
@@ -198,7 +198,7 @@ describe("status on the site list", () => {
   });
 
   test("says nothing about a static site's liveness", async () => {
-    const page = withoutHeader(await (await request("/")).text());
+    const page = withoutShell(await (await request("/")).text());
     const card = page.match(/<a href="\/sites\/blog\.lychee\.land"[\s\S]*?<\/a>/)?.[0] ?? "";
     assert.ok(card, "expected a card for the static site");
     assert.doesNotMatch(card, /&#9679;/);
@@ -237,6 +237,59 @@ describe("GET / when the Caddyfile can't be read", () => {
   });
 });
 
+describe("the rail on each page", () => {
+  /** The hrefs of every link the page marks current. */
+  const currentHrefs = (html: string): string[] =>
+    [...html.matchAll(/<a\b[^>]*\baria-current="page"[^>]*>/g)].map((m) => m[0].match(/href="([^"]+)"/)?.[1] ?? "");
+  const railOf = (html: string): string => html.match(/<aside id="rail"[\s\S]*?<\/aside>/)?.[0] ?? "";
+
+  test("the list marks the sites heading", async () => {
+    assert.deepEqual(currentHrefs(await (await request("/")).text()), ["/"]);
+  });
+
+  test("the add-site page marks Add site", async () => {
+    assert.deepEqual(currentHrefs(await (await request("/sites/new")).text()), ["/sites/new"]);
+  });
+
+  test("a site page marks its own row", async () => {
+    assert.deepEqual(currentHrefs(await (await request("/sites/api.lychee.land")).text()), ["/sites/api.lychee.land"]);
+    assert.deepEqual(currentHrefs(await (await request("/sites/blog.lychee.land")).text()), ["/sites/blog.lychee.land"]);
+  });
+
+  test("the not-found page marks nothing", async () => {
+    const response = await request("/sites/nope.lychee.land");
+    assert.equal(response.status, 404);
+    assert.deepEqual(currentHrefs(await response.text()), []);
+  });
+
+  test("lists the managed sites in Caddyfile order, and nothing unmanaged", async () => {
+    const rail = railOf(await (await request("/sites/api.lychee.land")).text());
+    assert.deepEqual([...rail.matchAll(/data-site="([^"]+)"/g)].map((m) => m[1]), ["blog.lychee.land", "api.lychee.land"]);
+    assert.doesNotMatch(rail, /lychee\.local/);
+  });
+
+  test("an unreadable Caddyfile says so in the rail, and the 500 fallbacks mark nothing they are not", async () => {
+    fakeFs.rmRecursive(CADDYFILE);
+    const list = await (await request("/")).text();
+    assert.match(railOf(list), /Can't read the Caddyfile/);
+    assert.deepEqual(currentHrefs(list), ["/"]);
+    assert.deepEqual(currentHrefs(await (await request("/sites/new")).text()), []);
+    assert.deepEqual(currentHrefs(await (await request("/sites/api.lychee.land")).text()), []);
+  });
+
+  test("no page carries the header band or the hostname dropdown", async () => {
+    for (const path of ["/", "/sites/new", "/sites/api.lychee.land", "/sites/nope.lychee.land"]) {
+      const html = await (await request(path)).text();
+      assert.doesNotMatch(html, /id="site-header"/, path);
+      assert.doesNotMatch(html, RETIRED_SWITCHER, path);
+    }
+  });
+
+  test("the list with sites has no Add site button of its own", async () => {
+    assert.doesNotMatch(withoutShell(await (await request("/")).text()), /href="\/sites\/new"/);
+  });
+});
+
 describe("GET /sites/new", () => {
   // GET /sites/new is async (it awaits a clone refresh). An unguarded throw
   // there hangs the request and crashes the process under Express 4. The
@@ -259,7 +312,7 @@ describe("GET /sites/new", () => {
     // Stripped of the header: its "sites"/"add site" links carry no
     // hostnames, so this doesn't change what the assertion below proves, but
     // it keeps this test consistent with the others that strip it.
-    const page = withoutHeader(body);
+    const page = withoutShell(body);
     // 4000 is api.lychee.land in the fixture; 8787 is lychee-admin's own PORT.
     assert.match(page, /api\.lychee\.land/);
     assert.match(page, /8787/);
@@ -995,7 +1048,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
   async function page(): Promise<string> {
     const response = await request("/sites/test.lychee.land");
     assert.equal(response.status, 200);
-    return withoutHeader(await response.text());
+    return withoutShell(await response.text());
   }
 
   test("with no declaration, renders the three scaffold files and the attach control, and no compose command", async () => {
@@ -1086,7 +1139,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     writeInventory([siteEntry({ result: "deployed", version: "", target: "0.2.0" })]);
     const response = await request("/sites/test.lychee.land");
     const raw = await response.text();
-    const html = withoutHeader(raw);
+    const html = withoutShell(raw);
     assert.match(html, /data-attach=/);
     assert.doesNotMatch(html, /awaiting image/);
     assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> not deployed/);
@@ -1098,7 +1151,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     writeInventory([siteEntry({ result: "awaiting-image", available: "0.1.0" })]);
     const response = await request("/sites/test.lychee.land");
     const raw = await response.text();
-    const html = withoutHeader(raw);
+    const html = withoutShell(raw);
     assert.doesNotMatch(html, /data-attach=/);
     assert.match(html, /awaiting image/);
     assert.match(raw, /<dialog[^>]*data-attached="true"/);

@@ -26,6 +26,7 @@ import {
   renderSiteNotFound,
   type SiteResourceView,
 } from "../views/html";
+import { loadShell } from "./loadShell";
 import { hostProblems, hostProblemUnits, undeployedStatus, type SiteStatus } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
 import type { Site } from "../lib/caddyfile";
@@ -234,14 +235,14 @@ export function createSitesRouter(deps: Deps): Router {
           statuses,
           config.domain,
           undefined,
-          { page: "sites" },
           notice,
           hostProblems(unitStates, inventory),
+          loadShell(deps, { page: "sites" }),
         ),
       );
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
-      res.status(500).send(renderSiteList([], {}, config.domain, message, { page: "sites" }, notice));
+      res.status(500).send(renderSiteList([], {}, config.domain, message, notice, [], loadShell(deps, { page: "sites" })));
     }
   });
 
@@ -262,13 +263,13 @@ export function createSitesRouter(deps: Deps): Router {
         renderAddSite(sites, config.domain, computePortOwners(sites), {
           caddyfilePath: config.caddyfilePath,
           tunnelConfigPath: config.tunnelConfigPath,
-        }),
+        }, loadShell(deps, { page: "new" })),
       );
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
       // The URL is /sites/new, not / — same reasoning as the detail page's
-      // fallback: no header item is marked current.
-      res.status(500).send(renderSiteList([], {}, config.domain, message, {}));
+      // fallback: no rail item is marked current.
+      res.status(500).send(renderSiteList([], {}, config.domain, message, undefined, [], loadShell(deps, null)));
     }
   });
 
@@ -291,7 +292,7 @@ export function createSitesRouter(deps: Deps): Router {
       }
 
       if (!site) {
-        res.status(404).send(renderSiteNotFound(hostname));
+        res.status(404).send(renderSiteNotFound(hostname, loadShell(deps, null)));
         return;
       }
 
@@ -317,9 +318,8 @@ export function createSitesRouter(deps: Deps): Router {
             caddyfilePath: config.caddyfilePath,
             unitStates,
             filesExist: deps.fs.exists(path.posix.join(config.sitesRoot, site.hostname)),
-            sites,
             created,
-          }),
+          }, loadShell(deps, { site: site.hostname })),
         );
         return;
       }
@@ -366,16 +366,15 @@ export function createSitesRouter(deps: Deps): Router {
           detached: nextjs.detached,
           filesExist: filesPath !== null && deps.fs.exists(filesPath),
           unitStates,
-          sites,
           created,
-        }),
+        }, loadShell(deps, { site: site.hostname })),
       );
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
       // Unlike GET /'s own fallback, this page's URL is /sites/<hostname> —
-      // marking "sites" current here would violate the header's own rule
-      // that an item's destination never changes with location.
-      res.status(500).send(renderSiteList([], {}, config.domain, message, {}));
+      // marking "sites" current here would claim a location the URL does not
+      // have. Nothing is marked.
+      res.status(500).send(renderSiteList([], {}, config.domain, message, undefined, [], loadShell(deps, null)));
     }
   });
 

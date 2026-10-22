@@ -7,6 +7,7 @@ import { hostnameForResource } from "../lib/siteResource";
 import type { BoardRow, ServiceBoard, ServiceGroup } from "../shared/board";
 import type { HealthPayload, SiteHealth, Tone, UnitHealth } from "../shared/health";
 import { rowLabels } from "./boardFacts";
+import { FOCUS_RING } from "./shared";
 
 /** A static site (no status) is hollow and never needs attention. */
 export function siteHealth(site: Site, status: SiteStatus | undefined): SiteHealth {
@@ -79,14 +80,29 @@ export function attentionCounts(h: HealthPayload): {
 }
 
 // Class strings shared by both rail renderers (server rail.ts, client Rail.tsx).
-// The current-item treatment is the header's: Chalk on Hairline with a 2px Ember Edge rule.
-export const RAIL_ROW =
-  `flex items-center gap-2 font-mono text-[0.85rem] no-underline text-stone-400 rounded-md px-2 py-1 ` +
-  `hover:text-stone-50 ` +
+// The current-item treatment is the old header's: Chalk on Hairline with a 2px Ember Edge rule.
+const RAIL_CURRENT =
   `aria-[current=page]:text-stone-50 aria-[current=page]:bg-stone-700 ` +
   `aria-[current=page]:border-l-2 aria-[current=page]:border-l-rose-800`;
 
+export const RAIL_ROW =
+  `flex items-center gap-2 font-mono text-[0.85rem] no-underline text-stone-400 rounded-md px-2 py-1 ` +
+  `hover:text-stone-50 ${RAIL_CURRENT} ${FOCUS_RING}`;
+
 export const RAIL_HEADING = `flex items-center justify-between font-mono text-[0.75rem] text-stone-400 px-2 py-1`;
+
+/** A section heading that is also a link (`sites`): the heading's type, a row's current and focus treatment. */
+export const RAIL_HEADING_LINK = `${RAIL_HEADING} no-underline rounded-md hover:text-stone-50 ${RAIL_CURRENT} ${FOCUS_RING}`;
+
+/** A line the rail prints in place of what it could not read. A sentence, so sans. */
+export const RAIL_NOTE = "m-0 px-2 py-1 font-sans text-[0.8rem] leading-snug text-stone-400";
+
+/**
+ * A row's right-aligned type hint, `static` or `:<port>`. Smoke Light, not
+ * Smoke: on the current row's Hairline fill Smoke measures 3.98:1 and fails
+ * AA at this size; Smoke Light clears it.
+ */
+export const RAIL_HINT = "ml-auto shrink-0 text-[0.72rem] text-stone-300";
 
 export const RAIL_DOT: Record<Tone, string> = {
   ok: "inline-block size-2 shrink-0 rounded-full bg-green-300",

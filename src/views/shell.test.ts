@@ -1,8 +1,9 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
-import { withoutHeader } from "../dev/testHelpers";
+import { RETIRED_SWITCHER, testShell, withoutShell } from "../dev/testHelpers";
 import { renderSiteList, renderSiteDetail, renderAddSite, renderSiteNotFound, renderServicesPage } from "./html";
+import type { ShellData } from "./shell";
 
 const SITES: Site[] = [
   { hostname: "blog.lychee.land", type: "static", target: "/var/www/blog.lychee.land" },
@@ -16,108 +17,109 @@ const DETAIL_OPTS = {
   tunnelId: "11111111-2222-3333-4444-555555555555",
   tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
   caddyfilePath: "/etc/caddy/Caddyfile",
-  sites: SITES,
 };
 
-const HEADER = /<header id="site-header"[\s\S]*?<\/header>/;
+const PORT_OWNERS = { "8787": "reserved (lychee-admin itself)", "4000": "api.lychee.land" };
+const PATHS = {
+  caddyfilePath: "/etc/caddy/Caddyfile",
+  tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
+};
 
-function header(html: string): string {
-  const match = html.match(HEADER);
-  assert.ok(match, "expected a header band");
-  return match[0];
-}
+const list = (shell: ShellData = testShell({ current: { page: "sites" } })) =>
+  renderSiteList(SITES, {}, "lychee.land", undefined, undefined, [], shell);
+const board = (group: "service" | "reconciler" | "infrastructure", shell: ShellData = testShell()) =>
+  renderServicesPage(
+    { groups: [], schedule: { next: null, last: null }, timerUnit: null, generated: null, inventoryAvailable: false },
+    new Date(), new Set(), "lychee.land", {}, group, new Set(), new Map(), shell,
+  );
 
-describe("the header band", () => {
-  test("renders on the site list", () => {
-    assert.match(header(renderSiteList(SITES, {}, "lychee.land")), /href="\/sites\/new"/);
+const pages = (): Record<string, string> => ({
+  list: list(),
+  detail: renderSiteDetail(SITES[0], DETAIL_OPTS, testShell({ current: { site: SITES[0].hostname } })),
+  add: renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS, testShell({ current: { page: "new" } })),
+  notFound: renderSiteNotFound("nope.lychee.land", testShell()),
+  services: board("service"),
+  reconciler: board("reconciler"),
+  infrastructure: board("infrastructure"),
+});
+
+const RAIL = /<aside id="rail"[\s\S]*?<\/aside>/;
+const TOP_BAR = /<header id="top-bar"[\s\S]*?<\/header>/;
+
+describe("the rail shell", () => {
+  test("every page renders the rail and the narrow-screen top bar", () => {
+    for (const [name, html] of Object.entries(pages())) {
+      assert.match(html, RAIL, name);
+      assert.match(html, TOP_BAR, name);
+    }
   });
 
-  test("renders on a site detail page", () => {
-    assert.match(header(renderSiteDetail(SITES[0], DETAIL_OPTS)), /href="\/"/);
+  test("no page carries the header band or the hostname dropdown", () => {
+    for (const [name, html] of Object.entries(pages())) {
+      assert.doesNotMatch(html, /id="site-header"/, name);
+      assert.doesNotMatch(html, RETIRED_SWITCHER, name);
+    }
   });
 
-  test("carries the wordmark at its documented Display size", () => {
-    const block = header(renderSiteList(SITES, {}, "lychee.land"));
-    assert.match(block, /font-display text-2xl/);
-    assert.match(block, />lychee<span class="font-mono[^"]*">admin<\/span><\/a>/);
-    assert.match(block, /aria-label="lychee-admin"/);
+  test("the rail is the shell's, so it carries whatever the page's shell marks current", () => {
+    const html = renderSiteDetail(SITES[0], DETAIL_OPTS, testShell({ current: { site: "broken.lychee.land" } }));
+    const current = [...html.matchAll(/<a\b[^>]*aria-current="page"[^>]*>/g)].map((m) => m[0].match(/href="([^"]+)"/)?.[1]);
+    assert.deepEqual(current, ["/sites/broken.lychee.land"]);
   });
 
-  // Poetsen One ships one weight; requesting 600 makes the browser fake a bold.
-  test("never requests a weight the display face does not ship", () => {
-    const block = header(renderSiteList(SITES, {}, "lychee.land"));
-    assert.doesNotMatch(block, /font-display[^"]*font-(semibold|bold)/);
+  test("lays the rail and the content out as two columns from 900px", () => {
+    const html = list();
+    assert.match(html, /<body class="[^"]*min-\[900px\]:grid min-\[900px\]:grid-cols-\[250px_minmax\(0,1fr\)\]/);
+    assert.match(html.match(RAIL)?.[0] ?? "", /^<aside id="rail" data-rail[^>]*class="hidden min-\[900px\]:flex[^"]*"/);
   });
 
-  test("marks sites current on the list page only", () => {
-    const list = header(renderSiteList(SITES, {}, "lychee.land"));
-    assert.match(list, /href="\/"[^>]*aria-current="page"/);
-    const detail = header(renderSiteDetail(SITES[0], DETAIL_OPTS));
-    assert.doesNotMatch(detail, /aria-current="page"/);
+  test("below 900px the top bar carries the wordmark and the menu button, and hides from 900px", () => {
+    const bar = list().match(TOP_BAR)?.[0] ?? "";
+    assert.match(bar, /^<header id="top-bar" class="min-\[900px\]:hidden /);
+    assert.match(bar, /aria-label="lychee-admin"/);
+    assert.match(bar, /<button type="button" id="rail-menu" aria-label="Open navigation"/);
   });
 
-  test("marks add site current on the add-site page", () => {
-    const block = header(renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS));
-    assert.match(block, /href="\/sites\/new"[^>]*aria-current="page"/);
+  test("keeps today's 1080px content column", () => {
+    assert.match(withoutShell(list()), /<main class="max-w-\[1080px\] mx-auto /);
   });
 
-  // The board's three pages are peers of "sites"; "add site" stays the one
-  // action, last. Same five, same order, on every page.
-  const ITEMS = [
-    ["/", "sites"],
-    ["/services", "services"],
-    ["/reconciler", "reconciler"],
-    ["/infrastructure", "infrastructure"],
-    ["/sites/new", "add site"],
-  ];
-  const items = (block: string) =>
-    [...block.matchAll(/<a href="([^"]+)" class="[^"]*"(?: aria-current="page")?>([^<]+)<\/a>/g)].map((m) => [m[1], m[2]]);
-  const board = (group: "service" | "reconciler" | "infrastructure") =>
-    renderServicesPage(
-      { groups: [], schedule: { next: null, last: null }, timerUnit: null, generated: null, inventoryAvailable: false },
-      new Date(), new Set(), "lychee.land", {}, group,
-    );
+  test("the flash toast stays fixed and centred, and the page notice in flow", () => {
+    const html = renderSiteList(SITES, {}, "lychee.land", undefined, "Removed x", [], testShell());
+    assert.match(html, /id="flash-banner"[^>]*fixed[^"]*left-1\/2/);
+    assert.match(html, /<main[\s\S]*id="page-notice"/);
+  });
+});
 
-  test("lists the five items in order with their hrefs, on every page", () => {
-    const pages = {
-      list: renderSiteList(SITES, {}, "lychee.land"),
-      detail: renderSiteDetail(SITES[0], DETAIL_OPTS),
-      add: renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS),
-      notFound: renderSiteNotFound("nope.lychee.land"),
-      services: board("service"),
-      reconciler: board("reconciler"),
-      infrastructure: board("infrastructure"),
-    };
-    for (const [name, html] of Object.entries(pages)) assert.deepEqual(items(header(html)), ITEMS, name);
+describe("the client bundle", () => {
+  const ASSETS = { script: "assets/main-abc.js", styles: ["assets/main-def.css"] };
+
+  test("loads on every page whose shell has it, once each", () => {
+    for (const [name, html] of Object.entries({
+      list: list(testShell({ assets: ASSETS })),
+      services: board("service", testShell({ assets: ASSETS })),
+      notFound: renderSiteNotFound("nope.lychee.land", testShell({ assets: ASSETS })),
+    })) {
+      assert.equal(html.split('<script type="module" src="/client/assets/main-abc.js"></script>').length - 1, 1, name);
+      assert.equal(html.split('<link rel="stylesheet" href="/client/assets/main-def.css" />').length - 1, 1, name);
+    }
   });
 
-  test("each board page marks exactly its own item current", () => {
-    const current = (html: string) => [...header(html).matchAll(/href="([^"]+)"[^>]*aria-current="page"/g)].map((m) => m[1]);
-    assert.deepEqual(current(board("service")), ["/services"]);
-    assert.deepEqual(current(board("reconciler")), ["/reconciler"]);
-    assert.deepEqual(current(board("infrastructure")), ["/infrastructure"]);
-    assert.deepEqual(current(renderSiteList(SITES, {}, "lychee.land")), ["/"]);
-    assert.deepEqual(current(renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS)), ["/sites/new"]);
-    assert.deepEqual(current(renderSiteDetail(SITES[0], DETAIL_OPTS)), []);
-    assert.deepEqual(current(renderSiteNotFound("nope.lychee.land")), []);
+  test("comes before the shell's own scripts", () => {
+    const html = list(testShell({ assets: ASSETS }));
+    assert.ok(html.indexOf("/client/assets/main-abc.js") < html.indexOf('src="/actionPoll.js"'));
   });
 
-  test("lists no hostnames — the switcher is not in the header", () => {
-    const block = header(renderSiteDetail(SITES[0], DETAIL_OPTS));
-    for (const site of SITES) assert.doesNotMatch(block, new RegExp(site.hostname));
-  });
-
-  test("does not offset the page for a rail that no longer exists", () => {
-    const html = renderSiteList(SITES, {}, "lychee.land");
-    assert.doesNotMatch(html, /id="site-nav"/);
-    assert.doesNotMatch(html, /calc\(50% \+ 110px\)/);
-    assert.match(html, /id="flash-banner"[^>]*left-1\/2/);
+  test("is absent when the bundle is not built, leaving the rail as plain links", () => {
+    const html = list(testShell({ assets: null }));
+    assert.doesNotMatch(html, /\/client\//);
+    assert.match(html, RAIL);
   });
 });
 
 describe("the flash toast", () => {
   test("carries a hidden action button, so a failure can offer its own recovery", () => {
-    const html = renderSiteList(SITES, {}, "lychee.land");
+    const html = list();
     const toast = html.match(/<div id="flash-banner"[\s\S]*?<\/div>/)?.[0] ?? "";
     const action = toast.match(/<button[^>]*id="flash-banner-action"[^>]*>/)?.[0];
     assert.ok(action, "no #flash-banner-action in the toast");
@@ -127,15 +129,11 @@ describe("the flash toast", () => {
   });
 });
 
-const PORT_OWNERS = { "8787": "reserved (lychee-admin itself)", "4000": "api.lychee.land" };
-const PATHS = {
-  caddyfilePath: "/etc/caddy/Caddyfile",
-  tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
-};
-
 describe("the add-site page", () => {
+  const add = () => renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS, testShell({ current: { page: "new" } }));
+
   test("renders the fields that used to live in the dialog", () => {
-    const html = renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS);
+    const html = add();
     assert.match(html, /name="hostname"/);
     assert.match(html, /name="type"[^>]*value="static"/);
     assert.match(html, /name="type"[^>]*value="reverse-proxy"/);
@@ -156,62 +154,35 @@ describe("the add-site page", () => {
   });
 
   test("posts to the unchanged endpoint", () => {
-    assert.match(renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS), /action="\/sites"/);
-  });
-
-  test("marks Add site current, and All sites not", () => {
-    const html = header(renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS));
-    assert.match(html, /href="\/sites\/new"[^>]*aria-current="page"/);
-    assert.doesNotMatch(html, /href="\/"[^>]*aria-current="page"/);
+    assert.match(add(), /action="\/sites"/);
   });
 
   test("the list page no longer carries the dialog", () => {
-    const html = renderSiteList(SITES, {}, "lychee.land");
+    const html = list();
     assert.doesNotMatch(html, /add-site-dialog/);
     assert.doesNotMatch(html, /id="add-site-form"/);
   });
 
-  test("the list page's own Add site button became a link", () => {
-    // The header carries its own "sites" and "add site" links on every page,
-    // so this must assert against the page body with the header removed —
-    // otherwise it passes on the header's item whether or not the primary
-    // button was ever converted.
-    const body = withoutHeader(renderSiteList(SITES, {}, "lychee.land"));
-    assert.match(body, /<a href="\/sites\/new"[^>]*>(?:(?!<\/a>)[\s\S])*Add site<\/a>/);
+  test("the list page with sites has no Add site button of its own: the rail's is the one", () => {
+    // Asserted against the body with the shell removed, since the rail
+    // carries Add site on every page.
+    const body = withoutShell(list());
+    assert.doesNotMatch(body, /href="\/sites\/new"/);
     assert.doesNotMatch(body, /data-open-dialog="add-site-dialog"/);
   });
 });
 
 describe("the shell's h1", () => {
-  // The rail-era shell rendered a plain <h1>lyly.admin</h1>; the header
-  // rewrite made the wordmark a link and nothing took the h1 role, so every
-  // document outline started at h2 — and the not-found page had no heading
-  // at all. Restoring it as the shell's h1 (rather than promoting each
-  // page's own topic heading) means every page gets exactly one, from one
-  // edit in shell.ts.
+  // Every page gets exactly one h1, from the shell: the wordmark in the rail.
+  // The top bar's wordmark is a plain link, so the two never double up.
   const countH1 = (html: string) => (html.match(/<h1[\s>]/g) ?? []).length;
 
-  test("renders exactly one on the site list", () => {
-    assert.equal(countH1(renderSiteList(SITES, {}, "lychee.land")), 1);
+  test("renders exactly one on every page", () => {
+    for (const [name, html] of Object.entries(pages())) assert.equal(countH1(html), 1, name);
   });
 
-  test("renders exactly one on the add-site page", () => {
-    assert.equal(countH1(renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS)), 1);
-  });
-
-  test("renders exactly one on a site detail page", () => {
-    assert.equal(countH1(renderSiteDetail(SITES[0], DETAIL_OPTS)), 1);
-  });
-
-  test("renders exactly one on the not-found page", () => {
-    assert.equal(countH1(renderSiteNotFound("nope.lychee.land")), 1);
-  });
-
-  test("wraps the wordmark home link, not a page topic heading", () => {
-    const html = header(renderSiteList(SITES, {}, "lychee.land"));
-    assert.match(
-      html,
-      /<h1[^>]*>\s*<a href="\/"[^>]*>lychee<span [^>]*>admin<\/span><\/a>\s*<\/h1>/,
-    );
+  test("wraps the wordmark home link, inside the rail", () => {
+    const rail = list().match(RAIL)?.[0] ?? "";
+    assert.match(rail, /<h1[^>]*>\s*<a href="\/"[^>]*>lychee<span [^>]*>admin<\/span><\/a>\s*<\/h1>/);
   });
 });
