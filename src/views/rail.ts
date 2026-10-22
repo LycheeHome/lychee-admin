@@ -81,7 +81,7 @@ export function renderRail(rail: RailData): string {
     <div class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-5 px-3 py-5">
       <h1 class="m-0 px-2 text-base font-normal leading-none">${renderWordmark()}</h1>
       <div class="relative">
-        <input id="find" type="text" autocomplete="off" spellcheck="false" placeholder="find" aria-label="Find a site or unit" class="${RAIL_FIND}" />
+        <input id="find" type="text" autocomplete="off" spellcheck="false" placeholder="find" aria-label="Find a site or unit" role="combobox" aria-expanded="false" aria-controls="find-list" aria-autocomplete="list" class="${RAIL_FIND}" />
         <kbd data-find-hint class="${RAIL_FIND_HINT}">⌘K</kbd>
       </div>
       <nav aria-label="Sites" class="flex flex-col gap-0.5">

@@ -64,6 +64,26 @@ describe("Rail parity with renderRail", () => {
     }
   });
 
+  test("the find box is a closed combobox in both renderers", () => {
+    const rail = railData();
+    const client = document.createElement("div");
+    client.innerHTML = renderToStaticMarkup(<Rail rail={rail} health={null} healthError={false} lastRead={null} />);
+    const server = document.createElement("div");
+    server.innerHTML = serverInner(rail);
+    for (const [side, root] of [
+      ["client", client],
+      ["server", server],
+    ] as const) {
+      const input = root.querySelector("#find");
+      assert.ok(input, `${side}: no #find`);
+      assert.equal(input.getAttribute("role"), "combobox", side);
+      assert.equal(input.getAttribute("aria-expanded"), "false", side);
+      assert.equal(input.getAttribute("aria-controls"), "find-list", side);
+      assert.equal(input.getAttribute("aria-autocomplete"), "list", side);
+      assert.equal(root.querySelector('[role="listbox"]'), null, `${side}: a closed box renders a list`);
+    }
+  });
+
   test("a mismatch is caught", () => {
     const client = renderToStaticMarkup(
       <Rail rail={railData({ current: { page: "new" } })} health={null} healthError={false} lastRead={null} />,

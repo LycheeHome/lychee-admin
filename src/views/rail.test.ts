@@ -147,7 +147,7 @@ describe("renderRail", () => {
   });
 
   test("the find box and the menu button carry their shared class strings", () => {
-    assert.ok(rail().includes(`<input id="find" type="text" autocomplete="off" spellcheck="false" placeholder="find" aria-label="Find a site or unit" class="${RAIL_FIND}" />`));
+    assert.ok(rail().includes(`<input id="find" type="text" autocomplete="off" spellcheck="false" placeholder="find" aria-label="Find a site or unit" role="combobox" aria-expanded="false" aria-controls="find-list" aria-autocomplete="list" class="${RAIL_FIND}" />`));
     assert.ok(renderTopBar().includes(`id="rail-menu" aria-label="Open navigation" class="${RAIL_MENU}"`));
   });
 

@@ -5,8 +5,6 @@ import {
   RAIL_COUNT_BAD,
   RAIL_COUNT_ZERO,
   RAIL_DOT,
-  RAIL_FIND,
-  RAIL_FIND_HINT,
   RAIL_HEADING,
   RAIL_HEADING_LINK,
   RAIL_HINT,
@@ -16,6 +14,7 @@ import {
 } from "../../views/railModel";
 import { FOCUS_RING, ICONS, formatAge } from "../../views/shared";
 import type { RailCurrent, RailData } from "../../views/shell";
+import { FindPanel } from "./FindPanel";
 
 /*
  * The rail's children in JSX. It mirrors renderRail in src/views/rail.ts
@@ -37,8 +36,10 @@ export interface RailProps {
   findHint?: string;
   /** The reference time for "last read …"; now by default. */
   now?: Date;
-  /** Opens the find panel (Task 4). */
-  onOpenFind?: () => void;
+  /** What the server's find box held when the island mounted over it. */
+  findInitial?: { query: string; focused: boolean };
+  /** Opens a find result; `location.assign` by default. */
+  navigate?: (href: string) => void;
 }
 
 const isPage = (current: RailCurrent, page: string): boolean =>
@@ -103,7 +104,7 @@ const HOST_LINKS = [
   { href: "/infrastructure", label: "infrastructure", page: "infrastructure", count: "infrastructure" },
 ] as const;
 
-export function Rail({ rail, health, healthError, lastRead, findHint = "⌘K", now }: RailProps) {
+export function Rail({ rail, health, healthError, lastRead, findHint = "⌘K", now, findInitial, navigate }: RailProps) {
   // A failed poll shows nothing it remembers: TanStack keeps the last data,
   // and a green dot from it would be a lie about now.
   const live = healthError ? null : health;
@@ -126,20 +127,15 @@ export function Rail({ rail, health, healthError, lastRead, findHint = "⌘K", n
         <h1 className="m-0 px-2 text-base font-normal leading-none">
           <Wordmark />
         </h1>
-        <div className="relative">
-          <input
-            id="find"
-            type="text"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="find"
-            aria-label="Find a site or unit"
-            className={RAIL_FIND}
-          />
-          <kbd data-find-hint="" className={RAIL_FIND_HINT}>
-            {findHint}
-          </kbd>
-        </div>
+        <FindPanel
+          health={live}
+          railSites={rail.sites}
+          domain={rail.domain}
+          findHint={findHint}
+          navigate={navigate}
+          initialQuery={findInitial?.query}
+          initialFocused={findInitial?.focused}
+        />
         <nav aria-label="Sites" className="flex flex-col gap-0.5">
           <a href="/" className={RAIL_HEADING_LINK} aria-current={ariaCurrent(isPage(rail.current, "sites"))}>
             sites

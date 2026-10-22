@@ -15,7 +15,14 @@ export function findHintFor(platform: string): string {
  * Before the first answer it renders exactly what the server did (hollow
  * dots, empty counts), so taking over shifts nothing.
  */
-export function RailIsland({ rail }: { rail: RailData }) {
+export function RailIsland({
+  rail,
+  findInitial,
+}: {
+  rail: RailData;
+  /** What the server's find box held, so text typed before the bundle loaded survives the takeover. */
+  findInitial?: { query: string; focused: boolean };
+}) {
   const query = useHealth();
   const lastRead = query.dataUpdatedAt > 0 ? new Date(query.dataUpdatedAt).toISOString() : null;
   const platform = typeof navigator === "undefined" ? "" : navigator.platform;
@@ -30,6 +37,7 @@ export function RailIsland({ rail }: { rail: RailData }) {
       healthError={latestErrored}
       lastRead={lastRead}
       findHint={findHintFor(platform)}
+      findInitial={findInitial}
     />
   );
 }
@@ -50,11 +58,17 @@ export function mountRailIsland(client: QueryClient, doc: Document = document): 
   } catch {
     return null;
   }
+  // createRoot replaces the server's input with React's: carry across what the
+  // operator already typed into it, and whether they were still typing.
+  const serverFind = aside.querySelector<HTMLInputElement>("#find");
+  const findInitial = serverFind
+    ? { query: serverFind.value, focused: doc.activeElement === serverFind }
+    : undefined;
   const root = createRoot(aside);
   root.render(
     <StrictMode>
       <QueryClientProvider client={client}>
-        <RailIsland rail={rail} />
+        <RailIsland rail={rail} findInitial={findInitial} />
       </QueryClientProvider>
     </StrictMode>,
   );

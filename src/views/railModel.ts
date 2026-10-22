@@ -130,5 +130,31 @@ export const RAIL_DOT: Record<Tone, string> = {
   none: "inline-block size-2 shrink-0 rounded-full border border-stone-600 bg-transparent",
 };
 
-export const RAIL_COUNT_BAD = "font-mono text-[0.75rem] rounded-full px-1.5 bg-red-950/60 text-red-300";
+/**
+ * The ⌘K find panel. It floats above the page beside the rail, so it takes
+ * the Overlay shadow (true float), on the rail's own Hearth with a Hairline,
+ * as the old hostname dropdown did. Fixed, not absolute: the rail's scroll
+ * container would clip it.
+ */
+export const FIND_PANEL =
+  "fixed z-40 w-[420px] max-w-[calc(100vw-2rem)] bg-stone-900 border border-stone-700 rounded-[10px] shadow-lg shadow-black/40";
+
+/** The listbox, scrolling inside the panel once it is taller than the viewport allows. */
+export const FIND_LIST = "max-h-[calc(100vh-8rem)] overflow-y-auto p-1.5 flex flex-col gap-2";
+
+/** A group's label (`sites`, `services`, …): mono, the rail heading's size. */
+export const FIND_HEADING = "m-0 px-2 pt-1 pb-0.5 font-mono text-[0.72rem] text-stone-400";
+
+/** One option. The highlight is the rail's current fill, Chalk on Hairline. */
+export const FIND_OPTION =
+  "flex items-center gap-3 font-mono text-[0.8rem] text-stone-400 rounded-md px-2 py-1.5 cursor-pointer " +
+  "aria-selected:bg-stone-700 aria-selected:text-stone-50";
+
+/** A group's (or the whole panel's) empty sentence. A sentence, so sans, as the rail's notes are. */
+export const FIND_EMPTY = RAIL_NOTE;
+
+/** `deploy blocked` / `deploy failed` beside a unit's pill, in Scorch. */
+export const FIND_TROUBLE = "font-mono text-[0.72rem] text-red-300";
+
+export const RAIL_COUNT_BAD ="font-mono text-[0.75rem] rounded-full px-1.5 bg-red-950/60 text-red-300";
 export const RAIL_COUNT_ZERO = "font-mono text-[0.75rem] text-stone-500";

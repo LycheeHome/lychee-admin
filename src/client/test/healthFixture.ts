@@ -13,8 +13,8 @@ const unit = (name: string, group: UnitHealth["group"], extra: Partial<UnitHealt
 
 /**
  * A health payload for the seeded sites (src/dev/testHelpers' SEEDED_RAIL_SITES):
- * two sites need attention (api, broken) and three services do, one of them a
- * running service whose deploy is blocked. Reconciler and infrastructure units
+ * two sites need attention (api, broken) and three services do (swee,
+ * swee-staging, palsave-api), swee a running service whose deploy is blocked. Reconciler and infrastructure units
  * are all healthy, so their counts are zero.
  */
 export function seedHealth(): HealthPayload {
@@ -31,8 +31,9 @@ export function seedHealth(): HealthPayload {
       { hostname: "legacy.lychee.land", tone: "neutral", label: "not deployed", attention: false },
     ],
     units: [
-      unit("palworld", "service", { tone: "bad", label: "exited", attention: true }),
+      unit("palworld", "service"),
       unit("swee", "service", { trouble: "blocked", attention: true }),
+      unit("swee-staging", "service", { tone: "bad", label: "exited", attention: true }),
       unit("palsave-api", "service", { tone: "bad", label: "failed", attention: true }),
       unit("ntfy", "service"),
       unit("lychee-watch", "reconciler"),

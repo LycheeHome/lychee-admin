@@ -125,6 +125,86 @@ describe("the rail island", () => {
     assert.equal(document.querySelector("#rail [data-find-hint]")?.textContent, "⌘K");
   });
 
+  test("an errored poll between two good ones clears: the dots show their tones again", async () => {
+    let answer = ok;
+    stubFetch(() => answer());
+    mount();
+    await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), { timeout: 5000 });
+
+    answer = () => ({ status: 500, body: { ok: false, reason: "boom" } });
+    await act(async () => {
+      await client?.refetchQueries({ queryKey: HEALTH_QUERY.queryKey });
+    });
+    await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.neutral), { timeout: 5000 });
+    assert.ok(document.querySelector("#rail [data-health-unavailable]"), "the error state did not show");
+
+    answer = ok;
+    await act(async () => {
+      await client?.refetchQueries({ queryKey: HEALTH_QUERY.queryKey });
+    });
+    await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), { timeout: 5000 });
+    assert.equal(dot("app.lychee.land"), RAIL_DOT.ok);
+    assert.equal(document.querySelector("#rail [data-health-unavailable]"), null);
+    assert.equal(document.querySelector('#rail [data-count="sites"]')?.textContent, "2");
+  });
+
+  test("text typed into the server's find box before mount is kept, with its focus", async () => {
+    stubFetch(ok);
+    const rail = testShell({ current: { page: "sites" } }).rail;
+    document.body.innerHTML = renderRail(rail) + renderRailData(rail);
+    const server = document.querySelector<HTMLInputElement>("#find");
+    assert.ok(server);
+    server.value = "sw";
+    server.focus();
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    act(() => {
+      root = mountRailIsland(client as QueryClient);
+    });
+    const input = document.querySelector<HTMLInputElement>("#rail #find");
+    assert.ok(input);
+    assert.notEqual(input, server, "the island did not replace the input");
+    assert.equal(input.value, "sw");
+    assert.equal(document.activeElement, input);
+    await waitFor(() => assert.equal(input.getAttribute("aria-expanded"), "true"), { timeout: 5000 });
+  });
+
+  test("text typed without focus is kept, and the box stays closed", async () => {
+    stubFetch(ok);
+    const rail = testShell().rail;
+    document.body.innerHTML = renderRail(rail) + renderRailData(rail);
+    const server = document.querySelector<HTMLInputElement>("#find");
+    assert.ok(server);
+    server.value = "api";
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    act(() => {
+      root = mountRailIsland(client as QueryClient);
+    });
+    const input = document.querySelector<HTMLInputElement>("#rail #find");
+    assert.equal(input?.value, "api");
+    assert.equal(input?.getAttribute("aria-expanded"), "false");
+    // Let the first poll land: one left in flight at teardown keeps the runner alive.
+    await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), { timeout: 5000 });
+  });
+
+  test("⌘K from the page opens the island's find box", async () => {
+    stubFetch(ok);
+    mount();
+    // Let the first poll land: one left in flight at teardown keeps the runner alive.
+    await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), { timeout: 5000 });
+    const outside = document.createElement("textarea");
+    document.body.appendChild(outside);
+    act(() => outside.focus());
+    act(() => {
+      outside.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true, cancelable: true }));
+    });
+    const input = document.querySelector<HTMLInputElement>("#rail #find");
+    assert.equal(document.activeElement, input);
+    act(() => {
+      input?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    });
+    assert.equal(document.activeElement, outside);
+  });
+
   test("does nothing without the server's rail data", () => {
     document.body.innerHTML = '<aside id="rail" data-rail></aside>';
     client = new QueryClient();
