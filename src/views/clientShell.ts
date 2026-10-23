@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { layout } from "./shell";
-import type { ShellData } from "./shell";
+import type { Banner, ShellData } from "./shell";
 import { escapeHtml } from "./shared";
 
 /** The built client bundle's files, relative to /client/. */
@@ -28,7 +28,7 @@ export function readClientManifest(publicDir: string): ClientAssets | null {
 }
 
 /** The pages the client renders, by the name their mount point carries. */
-export type ClientPage = "services" | "reconciler" | "infrastructure";
+export type ClientPage = "sites" | "services" | "reconciler" | "infrastructure";
 
 /**
  * The shared shell around an empty mount point the client renders into. The
@@ -37,7 +37,19 @@ export type ClientPage = "services" | "reconciler" | "infrastructure";
  * is null, because the page has nothing else to show. `title` is the one the
  * client sets again on every in-app navigation to this page, so the two are
  * read from the same constant.
+ *
+ * `banner` is layout()'s `#page-notice`, rendered by the server above the
+ * mount point and outside it (today only the list's `?removed`); the client
+ * removes it on the first in-app move away. Omitted, the page is unchanged.
  */
-export function renderClientPage(title: string, page: ClientPage, shell: ShellData): string {
-  return layout(title, `<div id="app-root" data-page="${escapeHtml(page)}"></div>`, { shell });
+export function renderClientPage(title: string, page: ClientPage, shell: ShellData, banner?: Banner): string {
+  // `contents`: the mount point generates no box, so what React renders into
+  // it takes part in <main>'s flex column (and its gap) exactly as a server
+  // page's body sections do. A box here would hold the sites list's error and
+  // its section in a plain block, 24px closer together than on the server.
+  return layout(
+    title,
+    `<div id="app-root" class="contents" data-page="${escapeHtml(page)}"></div>`,
+    banner ? { shell, banner } : { shell },
+  );
 }

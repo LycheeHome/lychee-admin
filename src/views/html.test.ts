@@ -2,25 +2,16 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { RETIRED_SWITCHER, testShell, withoutShell } from "../dev/testHelpers";
-import { offeredTag, renderRequestedLine, statePhrase, renderPruneControl, type SiteDetailOptions } from "./html";
+import { offeredTag, renderRequestedLine, renderPruneControl, type SiteDetailOptions } from "./html";
 import * as views from "./html";
-import type { HostProblem, SiteStatus } from "../lib/siteDisplay";
 import type { ShellData } from "./shell";
 
 // Every page renderer takes the shell last. These wrappers pass testShell(),
 // marking current what each page's route marks, so the assertions below stay
 // about page bodies; the rail itself is pinned in rail.test.ts and
-// shell.test.ts, and which item each route marks in the route tests.
-function renderSiteList(
-  sites: Site[],
-  statuses: Record<string, SiteStatus>,
-  domain: string,
-  error?: string,
-  notice?: string,
-  problems: HostProblem[] = [],
-): string {
-  return views.renderSiteList(sites, statuses, domain, error, notice, problems, testShell({ current: { page: "sites" } }));
-}
+// shell.test.ts, and which item each route marks in the route tests. The
+// sites list is the client's: its markup rules are in
+// src/client/components/SiteListMarkup.test.tsx.
 function renderAddSite(...args: [Site[], string, Record<string, string>, { caddyfilePath: string; tunnelConfigPath: string }]): string {
   return views.renderAddSite(...args, testShell({ current: null }));
 }
@@ -30,7 +21,7 @@ function renderSiteDetail(site: Site, opts: SiteDetailOptions, shell: ShellData 
 function renderSiteNotFound(hostname: string): string {
   return views.renderSiteNotFound(hostname, testShell());
 }
-import { formatAge, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_PRIMARY_COMPACT, BUTTON_SECONDARY, BUTTON_SECONDARY_COMPACT, PROSE_MEASURE } from "./shared";
+import { formatAge, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_PRIMARY, BUTTON_PRIMARY_COMPACT, BUTTON_SECONDARY, BUTTON_SECONDARY_COMPACT, PROSE_MEASURE, ERROR_BOX, statePhrase } from "./shared";
 import { ADD_STEPS } from "../lib/stepReport";
 
 describe("BUTTON_PRIMARY_COMPACT", () => {
@@ -85,47 +76,6 @@ function tagById(html: string, id: string): string {
   const match = html.match(new RegExp(`<[a-z]+[^>]* id="${id}"[^>]*>`));
   assert.ok(match, `no element with id="${id}" was rendered`);
   return match[0];
-}
-
-/**
- * The markup of one site's row on the list, from its opening anchor to the
- * close of that anchor. Rows contain no nested links, so the first "</a>"
- * after the opening tag is this row's own. Assertions anchor here rather than
- * running document-wide, where a regex would pass on a match belonging to a
- * different site's row.
- */
-function rowFor(page: string, hostname: string): string {
-  // The rail links every site too, so its rows are cut out first.
-  const html = withoutShell(page);
-  const start = html.indexOf(`<a href="/sites/${encodeURIComponent(hostname)}"`);
-  assert.notEqual(start, -1, `no row rendered for ${hostname}`);
-  const end = html.indexOf("</a>", start);
-  assert.notEqual(end, -1, `row for ${hostname} was never closed`);
-  return html.slice(start, end);
-}
-
-/**
- * The inner markup of a row's hostname element, so the dimmed suffix can be
- * asserted without matching the identical dim class on the sub-line. Walks to
- * the matching close rather than the first one, since the apex domain renders
- * no nested span and a subdomain renders one.
- */
-function hostnameCell(row: string): string {
-  const open = row.match(/<span [^>]*data-hostname[^>]*>/);
-  assert.ok(open, "no element carrying data-hostname was rendered in the row");
-  const start = (open.index ?? 0) + open[0].length;
-  let depth = 1;
-  let cursor = start;
-  while (depth > 0) {
-    const next = row.slice(cursor).match(/<\/?span\b/);
-    assert.ok(next, "the hostname element was never closed");
-    const at = cursor + (next.index ?? 0);
-    depth += next[0] === "</span" ? -1 : 1;
-    if (depth === 0) return row.slice(start, at);
-    cursor = at + next[0].length;
-  }
-  /* c8 ignore next */
-  throw new Error("unreachable");
 }
 
 /**
@@ -250,7 +200,7 @@ describe("accessible status and error wiring", () => {
   });
 
   test("the live region is on every page the shell renders, not only the detail page", () => {
-    const span = tagById(renderSiteList(SITES, {}, "lychee.land"), "copy-status");
+    const span = tagById(renderAddSite(SITES, "lychee.land", {}, PATHS), "copy-status");
     assert.match(span, /aria-live="polite"/);
   });
 });
@@ -1055,207 +1005,10 @@ describe("the ?created=1 notice", () => {
   });
 });
 
-describe("the removal notice on the site list", () => {
-  test("the removal reminder renders in flow, not as a timed toast", () => {
-    const html = renderSiteList(
-      [],
-      {},
-      "lychee.land",
-      undefined,
-      "Removed blog.lychee.land. Remember to remove the DNS record in Cloudflare manually.",
-    );
-    const notice = tagById(html, "page-notice");
-    assert.ok(notice);
-    assert.match(html, /Remember to remove the DNS record/);
-    // It must be dismissible rather than vanishing on a timer.
-    assert.ok(tagById(html, "page-notice-close"));
-  });
-
-  test("no notice renders without one", () => {
-    const html = renderSiteList([], {}, "lychee.land", undefined);
-    assert.doesNotMatch(html, /id="page-notice"/);
-  });
-});
-
-describe("the site list heading", () => {
-  test("one destination has one name", () => {
-    const body = withoutShell(renderSiteList(SITES, {}, "lychee.land"));
-    assert.doesNotMatch(body, /Existing sites/);
-    assert.match(body, /<h2[^>]*>Sites<\/h2>/);
-  });
-});
-
-describe("status on the site list", () => {
-  // The pill entity, not the literal glyph: the rounded-full pill spans in
-  // this module (the header pill at data-state-pill, and this one) render
-  // "&#9679;" verbatim, the same convention as renderDetailHeader's pill —
-  // see the "data-state-pill>&#9679;" assertions above. Only the request-path
-  // hop's plain-text sub-line uses the literal "●" character. Both are wrapped
-  // in their own aria-hidden span so the dot never joins the accessible name.
-  test("a proxy site's card carries its canonical status word", () => {
-    const html = renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lychee.land");
-    assert.match(html, /<span aria-hidden="true">&#9679;<\/span> responding/);
-  });
-
-  test("a container site reports the worst-case word, not the lifecycle one", () => {
-    const html = renderSiteList(
-      [NEXT_SITE],
-      { [NEXT_SITE.hostname]: { kind: "container", state: "running", health: "unhealthy" } },
-      "lychee.land",
-    );
-    assert.match(html, /<span aria-hidden="true">&#9679;<\/span> unhealthy/);
-  });
-
-  test("starting is neutral, not red", () => {
-    const html = renderSiteList(
-      [NEXT_SITE],
-      { [NEXT_SITE.hostname]: { kind: "container", state: "running", health: "starting" } },
-      "lychee.land",
-    );
-    assert.match(html, /text-stone-300[^"]*"[^>]*><span aria-hidden="true">&#9679;<\/span> starting/);
-    assert.doesNotMatch(html, /text-red-300[^"]*"[^>]*><span aria-hidden="true">&#9679;<\/span> starting/);
-  });
-
-  test("a static site gets no status pill — nothing checks one", () => {
-    const html = renderSiteList([STATIC_SITE], {}, "lychee.land");
-    assert.doesNotMatch(html, /&#9679;/);
-  });
-
-  test("a site with no status entry renders no pill rather than a guess", () => {
-    const html = renderSiteList([PROXY_SITE], {}, "lychee.land");
-    assert.doesNotMatch(html, /&#9679;/);
-  });
-
-  test("the status dot is not part of any accessible name", () => {
-    const html = renderSiteList(SITES, { "api.lychee.land": { kind: "tcp", responding: false } }, "lychee.land");
-    const dots = [...html.matchAll(/<span[^>]*>&#9679;/g)];
-    assert.ok(dots.length > 0, "no status dot was rendered");
-    for (const dot of dots) {
-      assert.match(dot[0], /aria-hidden="true"/);
-    }
-  });
-});
-
-describe("the site list's ledger rows", () => {
-  test("a subdomain's shared suffix is dimmed, as it already is on the detail page", () => {
-    const cell = hostnameCell(rowFor(renderSiteList([STATIC_SITE], {}, "lychee.land"), "blog.lychee.land"));
-    assert.match(cell, /^blog<span [^>]*>\.lychee\.land<\/span>$/);
-  });
-
-  test("the apex domain has no shared suffix to dim, so it stays whole", () => {
-    const cell = hostnameCell(rowFor(renderSiteList([APEX_SITE], {}, "lychee.land"), "lychee.land"));
-    assert.equal(cell, "lychee.land");
-  });
-
-  test("a static row states its path with no key label in front of it", () => {
-    const row = rowFor(renderSiteList([STATIC_SITE], {}, "lychee.land"), "blog.lychee.land");
-    assert.match(row, /\/var\/www\/blog\.lychee\.land/);
-    assert.doesNotMatch(row, /path:/);
-  });
-
-  test("a proxy row states one unbroken local address", () => {
-    const row = rowFor(renderSiteList([PROXY_SITE], {}, "lychee.land"), "api.lychee.land");
-    assert.match(row, /localhost:4000/);
-  });
-
-  test("a framework proxy row still names its framework", () => {
-    const row = rowFor(renderSiteList([NEXT_SITE], {}, "lychee.land"), "app.lychee.land");
-    assert.match(row, /localhost:3000/);
-    assert.match(row, /Next\.js/);
-  });
-
-  test("every row keeps a right-aligned status slot", () => {
-    const staticRow = rowFor(renderSiteList([STATIC_SITE], {}, "lychee.land"), "blog.lychee.land");
-    const proxyRow = rowFor(
-      renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lychee.land"),
-      "api.lychee.land",
-    );
-    for (const row of [staticRow, proxyRow]) {
-      assert.match(row, /data-status-slot/);
-      assert.match(row, /class="flex justify-end" data-status-slot/);
-      assert.doesNotMatch(row, /min-w-\[9rem\]/);
-    }
-    assert.doesNotMatch(staticRow, /&#9679;/);
-  });
-
-  test("the list carries no type pill and no ember fill", () => {
-    const html = renderSiteList(SITES, { [PROXY_SITE.hostname]: { kind: "tcp", responding: false } }, "lychee.land");
-    // Scoped to the rows: the page around them legitimately uses rose-950 on
-    // its own buttons and notices.
-    const rows = SITES.map((site) => rowFor(html, site.hostname)).join("");
-    assert.doesNotMatch(rows, />static<\/span>|>proxy<\/span>/);
-    assert.doesNotMatch(rows, /rose-950/);
-  });
-
-  test("the right half holds the status pill alone", () => {
-    const row = rowFor(
-      renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lychee.land"),
-      "api.lychee.land",
-    );
-    const at = row.indexOf("data-row-side");
-    assert.notEqual(at, -1, "no element carrying data-row-side was rendered in the row");
-    const side = row.slice(at);
-    assert.match(side, /data-status-slot/);
-    assert.doesNotMatch(side, />proxy<|>static<|rose-950/);
-  });
-});
-
-/**
- * Approximates the accessible name a link computes from its contents: text
- * nodes in order, minus anything aria-hidden, with whitespace collapsed the
- * way a screen reader collapses it. sr-only text IS included — Tailwind's
- * sr-only clips visually but leaves the node in the accessibility tree.
- */
-function accessibleName(markup: string): string {
-  return markup
-    .replace(/<span[^>]*aria-hidden="true"[^>]*>[\s\S]*?<\/span>/g, "")
-    .replace(/<[^>]+>/g, "")
-    .replace(/\s+/g, " ")
-    .replace(/\s+,/g, ",")
-    .trim();
-}
-
-describe("what a site row announces", () => {
-  // "api.lychee.land localhost:4000 responding" is serviceable but runs
-  // three separate facts together. The separators are sr-only rather than an
-  // aria-label so the name still derives from the visible text and cannot
-  // drift from it.
-  test("a proxy row's three facts are separated rather than run together", () => {
-    const row = rowFor(
-      renderSiteList([PROXY_SITE], { [PROXY_SITE.hostname]: { kind: "tcp", responding: true } }, "lychee.land"),
-      "api.lychee.land",
-    );
-    assert.equal(accessibleName(row), "api.lychee.land, localhost:4000, responding");
-  });
-
-  test("a static row ends after its address, with no trailing separator", () => {
-    const row = rowFor(renderSiteList([STATIC_SITE], {}, "lychee.land"), "blog.lychee.land");
-    assert.equal(accessibleName(row), "blog.lychee.land, /var/www/blog.lychee.land");
-  });
-
-  test("the apex row reads host then address", () => {
-    const row = rowFor(renderSiteList([APEX_SITE], {}, "lychee.land"), "lychee.land");
-    assert.equal(accessibleName(row), "lychee.land, /var/www/lychee.land");
-  });
-
-  test("a proxy row with no status ends after its address", () => {
-    const row = rowFor(renderSiteList([PROXY_SITE], {}, "lychee.land"), "api.lychee.land");
-    assert.equal(accessibleName(row), "api.lychee.land, localhost:4000");
-  });
-
-  test("the status dot is still absent from the name", () => {
-    const row = rowFor(
-      renderSiteList([NEXT_SITE], { [NEXT_SITE.hostname]: { kind: "container", state: "exited" } }, "lychee.land"),
-      "app.lychee.land",
-    );
-    assert.doesNotMatch(accessibleName(row), /&#9679;|●/);
-    assert.match(accessibleName(row), /, exited$/);
-  });
-});
-
 describe("the not-found page", () => {
-  // Same bug the site list's error banner had: mx-auto on a child of the
-  // shell's flex-column <main> shrink-wraps instead of centring a block.
+  // Same bug the site list's error banner had (SiteListMarkup.test.tsx):
+  // mx-auto on a child of the shell's flex-column <main> shrink-wraps instead
+  // of centring a block.
   test("the not-found wrapper spans its column instead of shrink-wrapping", () => {
     const html = renderSiteNotFound("nope.lychee.land");
     const wrapper = html.match(/<div class="[^"]*max-w-\[640px\][^"]*"/);
@@ -1264,76 +1017,11 @@ describe("the not-found page", () => {
   });
 });
 
-describe("the site list's error banner", () => {
-  // The shell's <main> is a flex column, where `mx-auto` on a child stops
-  // meaning "centre a block" and starts meaning "shrink to fit, then centre".
-  // Measured at 1280px the banner sat 276-1004 while every row ran 88-1192,
-  // so the one element reporting a broken Caddyfile was the one element not
-  // aligned to the page. DETAIL_WIDTH pairs mx-auto with w-full for exactly
-  // this reason; the banner simply never did.
-  test("the error banner spans the content column instead of shrink-wrapping", () => {
-    const html = renderSiteList([], {}, "lychee.land", "caddy validate failed");
-    const banner = html.match(/<p class="[^"]*bg-red-950[^"]*"/);
-    assert.ok(banner, "no error banner rendered");
-    assert.doesNotMatch(banner[0], /\bmx-auto\b/);
-  });
-
-  test("the error banner still renders its message", () => {
-    const html = renderSiteList([], {}, "lychee.land", "caddy validate failed");
-    assert.match(html, /caddy validate failed/);
-  });
-});
-
-describe("the site list with no sites", () => {
-  test("the empty state carries the call to action rather than stranding it in the header", () => {
-    const html = renderSiteList([], {}, "lychee.land");
-    assert.doesNotMatch(html, /No sites configured yet/);
-    assert.match(tagById(html, "empty-state-cta"), /href="\/sites\/new"/);
-  });
-
-  test("the empty state explains what a site is", () => {
-    const html = renderSiteList([], {}, "lychee.land");
-    assert.match(html, /lychee\.land/);
-    assert.ok(tagById(html, "empty-state"));
-  });
-
-  // Ember marks what you can act on and is capped at roughly a tenth of the
-  // screen. Two primary buttons pointing at the same destination spend it
-  // twice and make neither the obvious one, so the section header yields its
-  // button to the empty state rather than sitting beside it.
-  test("an empty page offers its one action once, not twice", () => {
-    const body = withoutShell(renderSiteList([], {}, "lychee.land"));
-    const ctas = [...body.matchAll(/href="\/sites\/new"/g)];
-    assert.equal(ctas.length, 1, "the section header and the empty state both offered Add site");
-  });
-
-  // Add site lives on the sites page and nowhere in the rail, so with sites
-  // the section header carries it as the page's one Ember action.
-  test("the section header carries Add site as its one Ember action once there are sites", () => {
-    const body = withoutShell(renderSiteList(SITES, {}, "lychee.land"));
-    const ctas = [...body.matchAll(/<a href="\/sites\/new" class="([^"]*)"/g)];
-    assert.equal(ctas.length, 1, "expected exactly one Add site link in the list body");
-    assert.equal(ctas[0][1], `${BUTTON_PRIMARY} no-underline`);
-    assert.match(body, /Add site<\/a>/);
-  });
-
-  // With no sites, the empty state's own button is the one Ember action.
-  test("the empty state's call to action stays Ember", () => {
-    const cta = tagById(withoutShell(renderSiteList([], {}, "lychee.land")), "empty-state-cta");
-    assert.ok(cta.includes(`class="${BUTTON_PRIMARY} no-underline"`), cta);
-    assert.match(cta, /href="\/sites\/new"/);
-  });
-});
-
 describe("hardening: browser defaults never carry the design", () => {
   test("every interactive element the design draws gets the project focus ring", () => {
-    // Page bodies only: the rail's own api.lychee.land row and the top bar's
-    // wordmark (the first href="/") would otherwise answer for them.
-    const list = withoutShell(renderSiteList(SITES, {}, "lychee.land"));
-    const card = list.match(/<a href="\/sites\/api\.lychee\.land"[^>]*>/);
-    assert.ok(card, "no site-card link rendered");
-    assert.match(card[0], /focus-visible:outline-rose-400/);
-
+    // Page bodies only: the top bar's wordmark (the first href="/") would
+    // otherwise answer for them. The list's row links are checked in
+    // SiteListMarkup.test.tsx.
     const notFound = withoutShell(renderSiteNotFound("nope.lychee.land"));
     const back = notFound.match(/<a href="\/"[^>]*>/);
     assert.ok(back, "no back link rendered");
@@ -1365,11 +1053,9 @@ describe("hardening: browser defaults never carry the design", () => {
   });
 
   test("no transition escapes the reduced-motion gate", () => {
+    // The list's half is in SiteListMarkup.test.tsx.
     const add = renderAddSite(SITES, "lychee.land", {}, PATHS);
-    const list = renderSiteList(SITES, {}, "lychee.land");
-    for (const html of [add, list]) {
-      assert.doesNotMatch(html, /(?<!motion-safe:)transition-colors/);
-    }
+    assert.doesNotMatch(add, /(?<!motion-safe:)transition-colors/);
   });
 
   test("a disabled control's hover fill cannot survive underneath it", () => {
@@ -1503,11 +1189,6 @@ describe("small-text ramp", () => {
     assert.match(html, /text-\[0\.6875rem\][^"]*uppercase tracking-\[0\.09em\]/);
     assert.doesNotMatch(html, /text-\[0\.6rem\]/);
     assert.doesNotMatch(html, /text-\[0\.625rem\]/);
-  });
-
-  test("status pills clear the 11px floor", () => {
-    const html = renderSiteList(SITES, { "api.lychee.land": { kind: "tcp", responding: false } }, "lychee.land");
-    assert.match(html, /inline-flex items-center gap-1 shrink-0 font-mono text-\[0\.6875rem\] uppercase/);
   });
 
   test("small mono values sit on the code step, not the pill step", () => {
@@ -2449,62 +2130,6 @@ describe("failed redeploy of an installed site", () => {
   });
 });
 
-describe("host problems on the site list", () => {
-  const CADDY_DOWN = {
-    name: "caddy",
-    word: "exited",
-    consequence: "Every site is unreachable from outside",
-    page: "infrastructure" as const,
-    href: "/infrastructure" as const,
-  };
-
-  test("no problems renders no block", () => {
-    assert.doesNotMatch(renderSiteList(SITES, {}, "lychee.land"), /data-host-problems/);
-  });
-
-  test("a problem renders consequence first, red state words, a link", () => {
-    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, [CADDY_DOWN]);
-    assert.match(html, /<[^>]*role="status"[^>]*data-host-problems|<[^>]*data-host-problems[^>]*role="status"/);
-    const consequence = html.indexOf("Every site is unreachable from outside");
-    const phrase = html.indexOf("caddy has stopped");
-    assert.ok(consequence >= 0 && phrase > consequence, "consequence must come before the state phrase");
-    const consequenceTag = html.slice(html.lastIndexOf("<", consequence), consequence);
-    assert.doesNotMatch(consequenceTag, /text-red-/);
-    assert.match(html, /<span class="[^"]*text-red-300[^"]*">.*caddy has stopped/);
-    // The problem block's own link, not the rail's host link to the same page.
-    const block = withoutShell(html).match(/<div role="status" data-host-problems[\s\S]*?<\/div>/)?.[0] ?? "";
-    assert.match(block, /href="\/infrastructure"/);
-  });
-
-  test("several problems keep their order", () => {
-    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, [
-      CADDY_DOWN,
-      { name: "lychee-watch", word: "exited", consequence: "Changes wait for the 15-minute full run", page: "reconciler", href: "/reconciler" },
-    ]);
-    const first = html.indexOf("Every site is unreachable from outside");
-    const second = html.indexOf("Changes wait for the 15-minute full run");
-    assert.ok(first >= 0 && second > first);
-  });
-
-  test("problem values are escaped", () => {
-    const html = renderSiteList(SITES, {}, "lychee.land", undefined, undefined, [
-      { ...CADDY_DOWN, name: "<b>x</b>" },
-    ]);
-    assert.match(html, /&lt;b&gt;x&lt;\/b&gt;/);
-    assert.doesNotMatch(html, /<b>x<\/b>/);
-  });
-
-  test("the removed notice and host problems both render", () => {
-    const html = renderSiteList(SITES, {}, "lychee.land", undefined, "Removed blog.lychee.land.", [CADDY_DOWN]);
-    assert.match(html, /Removed blog\.lychee\.land\./);
-    assert.match(html, /data-host-problems/);
-  });
-
-  test("the error render has no host-problem block", () => {
-    assert.doesNotMatch(renderSiteList([], {}, "lychee.land", "boom"), /data-host-problems/);
-  });
-});
-
 describe("one Ember action per site page", () => {
   const emberCount = (html: string): number =>
     (html.match(/<(?:a|button)\b[^>]*>/g) ?? []).filter((tag) => {
@@ -2653,7 +2278,8 @@ describe("Smoke sentences hold a readable measure", () => {
     });
   }
 
-  // The services board's own case is in BoardMarkup.test.tsx, with the React board.
+  // The services board's own case is in BoardMarkup.test.tsx, with the React
+  // board, and the sites list's in SiteListMarkup.test.tsx.
   const pages: [string, string][] = [
     ["static site", renderSiteDetail(STATIC_SITE, OPTS)],
     ["proxy not responding", renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: false } })],
@@ -2663,8 +2289,6 @@ describe("Smoke sentences hold a readable measure", () => {
     ["running, 0.3.0 on offer", renderSiteDetail(NEXT_SITE, { ...BASE, resource: { ...RUNNING_RESOURCE, available: "0.3.0" }, status: { kind: "container", state: "running" } })],
     ["retired declaration", renderSiteDetail(NEXT_SITE, { ...BASE, detached: true, status: { kind: "container", state: "not-created" } })],
     ["add-site page", renderAddSite(SITES, "lychee.land", {}, PATHS)],
-    ["sites list, empty", renderSiteList([], {}, "lychee.land")],
-    ["sites list, populated", renderSiteList(SITES, {}, "lychee.land")],
   ];
 
   test("the measure is 25rem, in rem and not ch", () => {
@@ -2686,5 +2310,28 @@ describe("Smoke sentences hold a readable measure", () => {
     const offer = html.match(/<p\b[^>]*data-offer[^>]*>/)?.[0];
     assert.ok(offer, "expected an offer line");
     assert.ok(!offer.includes("max-w-[25rem]"));
+  });
+});
+
+describe("renderErrorPage", () => {
+  const page = (message: string) => views.renderErrorPage("Can't read the Caddyfile", message, testShell({ current: null }));
+
+  test("escapes the message", () => {
+    const html = page(`<script>alert("x")</script>`);
+    assert.doesNotMatch(html, /<script>alert/);
+    assert.match(html, /&lt;script&gt;alert/);
+  });
+
+  // The list's half: SiteListMarkup.test.tsx pins its error box to ERROR_BOX too.
+  test("uses the same error-box classes the site list uses for its error", () => {
+    const boxOf = (html: string) => html.match(/<p class="([^"]*bg-red-950[^"]*)"/)?.[1];
+    assert.equal(boxOf(page("boom")), ERROR_BOX);
+  });
+
+  test("has no Sites heading and no empty state, and links back to the list", () => {
+    const html = withoutShell(page("boom"));
+    assert.doesNotMatch(html, /<h2[^>]*>\s*Sites\s*<\/h2>/);
+    assert.doesNotMatch(html, /id="empty-state"/);
+    assert.match(html, /<a href="\/"[^>]*>← sites<\/a>/);
   });
 });

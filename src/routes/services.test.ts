@@ -52,7 +52,7 @@ async function serve(
   // manifest on every use.
   if (typeof clientAssets === "function") Object.defineProperty(deps, "clientAssets", { get: clientAssets });
   else deps.clientAssets = clientAssets;
-  const server: Server = createApp(deps).listen(0);
+  const server: Server = createApp(deps).listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address();
   assert.ok(address && typeof address === "object");
@@ -225,7 +225,7 @@ describe("GET /services, /reconciler and /infrastructure: the React mount", () =
       const res = await current.get(path);
       assert.equal(res.status, 200);
       const html = await res.text();
-      assert.ok(html.includes(`<div id="app-root" data-page="${page}"></div>`), path);
+      assert.ok(html.includes(`<div id="app-root" class="contents" data-page="${page}"></div>`), path);
       assert.ok(html.includes(`<title>${title}</title>`), path);
       assert.ok(html.includes('<script type="module" src="/client/assets/main-abc.js">'));
       const marked = [...html.matchAll(/<a\b[^>]*\baria-current="page"[^>]*>/g)].map((m) => m[0].match(/href="([^"]+)"/)?.[1]);

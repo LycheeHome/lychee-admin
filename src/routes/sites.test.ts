@@ -70,6 +70,9 @@ function writeFixtures(caddyfile = SEED_CADDYFILE, tunnel = SEED_TUNNEL): void {
 let server: Server;
 let baseUrl: string;
 
+const ASSETS = { script: "assets/main-abc.js", styles: ["assets/main-def.css"] };
+let clientAssets: typeof ASSETS | null = ASSETS;
+
 const AUTH = `Basic ${Buffer.from(`tester:${PASSWORD}`).toString("base64")}`;
 
 function request(pathname: string, init: RequestInit = {}): Promise<Response> {
@@ -115,14 +118,18 @@ before(async () => {
   writeFixtures();
   await fakes.commands.createSiteDeclaration("palsave-api", "palsave-api", 8788);
 
-  const app = createApp({
+  const deps: import("../deps").Deps = {
     commands: fakes.commands,
     fs: fakes.fs,
     backup: createBackup(fakes.fs),
     logger: createLogger(fakes.fs),
-  });
+  };
+  // Read per request, as the dev server's getter is, so a test can take the
+  // bundle away.
+  Object.defineProperty(deps, "clientAssets", { get: () => clientAssets });
+  const app = createApp(deps);
 
-  server = app.listen(0);
+  server = app.listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address();
   assert.ok(address && typeof address === "object");
@@ -136,6 +143,7 @@ after(async () => {
 
 beforeEach(() => {
   createSiteDirectoryCalls.length = 0;
+  clientAssets = ASSETS;
   writeFixtures();
 });
 
@@ -154,86 +162,60 @@ describe("authentication", () => {
   });
 });
 
-describe("GET /", () => {
-  test("lists managed sites", async () => {
-    const body = await (await request("/")).text();
-    // Stripped of the header: it carries its own "sites" and "add site"
-    // links on every page, so matching the whole body would no longer prove
-    // a card rendered — it would pass off the header alone.
-    const page = withoutShell(body);
-    assert.match(page, /blog\.lychee\.land/);
-    assert.match(page, /api\.lychee\.land/);
-  });
+describe("GET /: the client shell", () => {
+  // The list itself is the client's, read from /api/sites (apiSites.test.ts)
+  // and compared with the server's markup in SiteListParity.test.tsx. The
+  // server sends the shell, its mount point, and the ?removed notice.
+  const NOTICE = "Removed blog.lychee.land. Remember to remove the DNS record in Cloudflare manually.";
+  const marked = (html: string): string[] =>
+    [...html.matchAll(/<a\b[^>]*\baria-current="page"[^>]*>/g)].map((m) => m[0].match(/href="([^"]+)"/)?.[1] ?? "");
 
-  test("omits hostnames outside the managed domain", async () => {
-    const body = await (await request("/")).text();
-    assert.doesNotMatch(body, /lychee\.local/);
-  });
-
-  test("states the DNS reminder after a removal", async () => {
-    const response = await request("/?removed=blog.lychee.land");
+  test("serves the shell with the sites mount point, title Sites, the rail's sites heading current and the bundle", async () => {
+    const response = await request("/");
+    assert.equal(response.status, 200);
     const html = await response.text();
-    assert.match(html, /id="page-notice"/);
-    assert.match(html, /Remember to remove the DNS record/);
+    assert.ok(html.includes('<div id="app-root" class="contents" data-page="sites"></div>'));
+    assert.ok(html.includes("<title>Sites</title>"));
+    assert.deepEqual(marked(html), ["/"]);
+    assert.ok(html.includes('<script type="module" src="/client/assets/main-abc.js">'));
+    // No list on the server: no rows, no empty state.
+    assert.doesNotMatch(withoutShell(html), /data-hostname|id="empty-state"/);
+  });
+
+  test("answers 500 when the bundle is missing", async () => {
+    clientAssets = null;
+    const response = await request("/");
+    assert.equal(response.status, 500);
+    assert.equal(await response.text(), "client bundle missing; run npm run build");
+  });
+
+  test("?removed renders today's #page-notice, outside the mount point", async () => {
+    const html = await (await request("/?removed=blog.lychee.land")).text();
+    assert.ok(html.includes(`<span id="page-notice-message">${NOTICE}</span>`));
+    assert.ok(html.includes('<button type="button" id="page-notice-close"'));
+    assert.ok(html.indexOf('id="page-notice"') < html.indexOf('<div id="app-root"'));
+    assert.equal(html.split('id="page-notice"').length - 1, 1);
   });
 
   test("says nothing about DNS without a ?removed query", async () => {
     const html = await (await request("/")).text();
     assert.doesNotMatch(html, /id="page-notice"/);
   });
-});
 
-describe("status on the site list", () => {
-  // "&#9679;" is the literal entity the pill span renders (see the pill
-  // convention noted in src/views/html.test.ts) — a raw "●" character never
-  // appears in this markup, so the regex matches the entity, not the glyph.
-  // It's wrapped in its own aria-hidden span so the dot never joins the
-  // pill's accessible name.
-  test("reports each proxy site's status", async () => {
-    const page = withoutShell(await (await request("/")).text());
-    // api.lychee.land is the seeded plain proxy on port 4000. Nothing listens
-    // there during the test, so the tcp check resolves either way — the
-    // assertion is that a canonical status word reached the card at all.
-    assert.match(page, /<span aria-hidden="true">&#9679;<\/span> (responding|not responding)/);
+  test("requires authentication", async () => {
+    assert.equal((await fetch(`${baseUrl}/?removed=blog.lychee.land`)).status, 401);
   });
 
-  test("says nothing about a static site's liveness", async () => {
-    const page = withoutShell(await (await request("/")).text());
-    const card = page.match(/<a href="\/sites\/blog\.lychee\.land"[\s\S]*?<\/a>/)?.[0] ?? "";
-    assert.ok(card, "expected a card for the static site");
-    assert.doesNotMatch(card, /&#9679;/);
-  });
-});
-
-describe("GET / when the Caddyfile can't be read", () => {
-  // GET / became async when the status read was added. An async Express 4
-  // handler that throws (rather than returning a rejected promise Express
-  // can see) leaves the request hanging and crashes the process on the
-  // unhandled rejection — the exact failure this app exists to surface, not
-  // hide. This proves the try/catch around it turns that into an ordinary
-  // 500 instead.
-  test("returns 500 with the error text, rather than hanging or crashing the process", async () => {
+  // The notice is a fact about a removal that already completed, not about
+  // whether the Caddyfile is readable on this request. The list's own error
+  // is /api/sites' caddyfileError, so the shell still answers 200.
+  test("an unreadable Caddyfile still serves the shell, with the notice", async () => {
     fakeFs.rmRecursive(CADDYFILE);
-
-    const response = await request("/");
-
-    assert.equal(response.status, 500);
-    const body = await response.text();
-    assert.match(body, /ENOENT/);
-  });
-
-  // The DNS reminder is a fact about a removal that already completed, not
-  // about whether the Caddyfile happens to be readable on this particular
-  // request — so a 500 here must not swallow it.
-  test("still states the DNS reminder even though the list itself can't render", async () => {
-    fakeFs.rmRecursive(CADDYFILE);
-
     const response = await request("/?removed=blog.lychee.land");
-
-    assert.equal(response.status, 500);
-    const body = await response.text();
-    assert.match(body, /id="page-notice"/);
-    assert.match(body, /Remember to remove the DNS record/);
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.ok(html.includes('<div id="app-root" class="contents" data-page="sites"></div>'));
+    assert.ok(html.includes(`<span id="page-notice-message">${NOTICE}</span>`));
   });
 });
 
@@ -279,16 +261,25 @@ describe("the rail on each page", () => {
     assert.deepEqual(currentHrefs(await (await request("/sites/api.lychee.land")).text()), []);
   });
 
+  test("the site routes' 500s are a dedicated error page with the message and a way back", async () => {
+    fakeFs.rmRecursive(CADDYFILE);
+    for (const path of ["/sites/new", "/sites/api.lychee.land"]) {
+      const response = await request(path);
+      assert.equal(response.status, 500, path);
+      const html = await response.text();
+      assert.match(html, /ENOENT/, path);
+      assert.match(html, /<a href="\/"[^>]*>\u2190 sites<\/a>/, path);
+      assert.deepEqual(currentHrefs(html), [], path);
+      assert.doesNotMatch(withoutShell(html), /id="empty-state"/, path);
+    }
+  });
+
   test("no page carries the header band or the hostname dropdown", async () => {
     for (const path of ["/", "/sites/new", "/sites/api.lychee.land", "/sites/nope.lychee.land"]) {
       const html = await (await request(path)).text();
       assert.doesNotMatch(html, /id="site-header"/, path);
       assert.doesNotMatch(html, RETIRED_SWITCHER, path);
     }
-  });
-
-  test("the list with sites carries Add site in its own section header", async () => {
-    assert.match(withoutShell(await (await request("/")).text()), /href="\/sites\/new"/);
   });
 });
 
@@ -679,7 +670,7 @@ describe("POST /sites/:hostname/delete", () => {
       logger: createLogger(fakes.fs),
     });
 
-    const localServer = app.listen(0);
+    const localServer = app.listen(0, "127.0.0.1");
     await once(localServer, "listening");
     const address = localServer.address();
     assert.ok(address && typeof address === "object");
@@ -802,7 +793,7 @@ describe("rollback", () => {
       logger: createLogger(fakes.fs),
     });
 
-    const localServer = app.listen(0);
+    const localServer = app.listen(0, "127.0.0.1");
     await once(localServer, "listening");
     const address = localServer.address();
     assert.ok(address && typeof address === "object");
@@ -858,7 +849,7 @@ describe("rollback", () => {
       logger: createLogger(fakes.fs),
     });
 
-    const localServer = app.listen(0);
+    const localServer = app.listen(0, "127.0.0.1");
     await once(localServer, "listening");
     const address = localServer.address();
     assert.ok(address && typeof address === "object");
@@ -1498,6 +1489,7 @@ describe("POST /sites/:hostname/detach", () => {
 });
 
 describe("host problems on the site list", () => {
+  // The list's data is /api/sites now: the block renders from `problems`.
   // Its own app per case: readUnitStates is the one fake these need to vary,
   // and every other test in this file wants the default.
   async function listWith(readUnitStates: () => Promise<Record<string, { status: string; since: string | null }>>) {
@@ -1517,14 +1509,15 @@ describe("host problems on the site list", () => {
       backup: createBackup(fakes.fs),
       logger: createLogger(fakes.fs),
     });
-    const localServer = app.listen(0);
+    const localServer = app.listen(0, "127.0.0.1");
     await once(localServer, "listening");
     const address = localServer.address();
     assert.ok(address && typeof address === "object");
 
     try {
-      const response = await fetch(`http://127.0.0.1:${address.port}/`, { headers: { Authorization: AUTH } });
-      return { status: response.status, body: await response.text() };
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/sites`, { headers: { Authorization: AUTH } });
+      const body = (await response.json()) as { problems: Array<{ name: string; word: string }> };
+      return { status: response.status, problems: body.problems };
     } finally {
       localServer.close();
       await once(localServer, "close");
@@ -1532,29 +1525,30 @@ describe("host problems on the site list", () => {
   }
 
   test("the list shows a stopped Caddy", async () => {
-    const { status, body } = await listWith(async () => ({
+    const { status, problems } = await listWith(async () => ({
       "caddy.service": { status: "exited", since: null },
       "cloudflared-sites.service": { status: "running", since: null },
     }));
     assert.equal(status, 200);
-    assert.match(body, /data-host-problems/);
-    assert.match(body, /caddy has stopped/);
+    assert.equal(problems.length, 1);
+    assert.equal(problems[0]?.name, "caddy");
+    assert.equal(problems[0]?.word, "exited");
   });
 
   test("a failing unit read renders the list without the block", async () => {
-    const { status, body } = await listWith(async () => {
+    const { status, problems } = await listWith(async () => {
       throw new Error("systemctl failed");
     });
     assert.equal(status, 200);
-    assert.doesNotMatch(body, /data-host-problems/);
+    assert.deepEqual(problems, []);
   });
 
   test("healthy units render no block", async () => {
-    const { status, body } = await listWith(async () => ({
+    const { status, problems } = await listWith(async () => ({
       "caddy.service": { status: "running", since: null },
       "cloudflared-sites.service": { status: "running", since: null },
     }));
     assert.equal(status, 200);
-    assert.doesNotMatch(body, /data-host-problems/);
+    assert.deepEqual(problems, []);
   });
 });

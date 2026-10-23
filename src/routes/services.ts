@@ -13,6 +13,7 @@ import type { ApiError, ApiOk, BoardPayload } from "../shared/board";
 import { GROUP_LABELS } from "../views/boardRowModel";
 import { renderClientPage } from "../views/clientShell";
 import { loadShell } from "./loadShell";
+import { cachedRead, clearReadCaches } from "./readCache";
 import type { ServiceGroup } from "../lib/serviceInventory";
 import type { ServiceStatus, TimerSchedule } from "../lib/unitState";
 
@@ -50,19 +51,9 @@ export interface BoardPageData {
   now: Date;
 }
 
-const BOARD_CACHE_MS = 5_000;
-// Keyed by deps.fs, not by deps: /api/health hands loadBoardPage a per-request
-// wrapper (withSharedContainerReads) whose identity differs on every call, but
-// it spreads the same fs, so fs is the one object both endpoints share. A
-// WeakMap keeps each test's app (and its fake fs) isolated.
-const boardCache = new WeakMap<object, { at: number; gen: number; promise: Promise<BoardPageData> }>();
-// Clearing bumps a generation instead of emptying the map (a WeakMap cannot be
-// emptied), so one call invalidates every app's entry.
-let cacheGeneration = 0;
-
-/** Drops the cached board. Every write route calls it before answering. */
+/** Drops every cached read, the board's included. Every write route calls it before answering. */
 export function clearBoardCache(): void {
-  cacheGeneration++;
+  clearReadCaches();
 }
 
 /**
@@ -71,19 +62,9 @@ export function clearBoardCache(): void {
  * It reads the whole board; each caller narrows it to its own group.
  */
 export function loadBoardPage(deps: Deps, opts: { now?: () => number } = {}): Promise<BoardPageData> {
-  const clock = opts.now ?? Date.now;
-  const at = clock();
-  const hit = boardCache.get(deps.fs);
-  if (hit && hit.gen === cacheGeneration && at - hit.at < BOARD_CACHE_MS) return hit.promise;
-  const promise = readBoardPage(deps);
-  const entry = { at, gen: cacheGeneration, promise };
-  boardCache.set(deps.fs, entry);
   // A rejection must not be served for 5s; readBoardPage degrades everything
-  // and should not reject, but the cache must not depend on that.
-  promise.catch(() => {
-    if (boardCache.get(deps.fs) === entry) boardCache.delete(deps.fs);
-  });
-  return promise;
+  // and should not reject, but cachedRead evicts one regardless.
+  return cachedRead("board", deps, () => readBoardPage(deps), opts.now);
 }
 
 async function readBoardPage(deps: Deps): Promise<BoardPageData> {

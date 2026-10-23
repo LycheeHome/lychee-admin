@@ -13,7 +13,7 @@ import type { ServiceGroup } from "../shared/board";
  * router (router.tsx) provides the context, so neither imports the other.
  */
 
-/** The board's three pages, by path; each renders one group. */
+/** The board's three pages, by path; each renders one group. The fourth client route is the sites list, SITES_ROUTE. */
 export const BOARD_ROUTES = {
   "/services": "service",
   "/reconciler": "reconciler",
@@ -22,16 +22,19 @@ export const BOARD_ROUTES = {
 
 export type BoardRoute = keyof typeof BOARD_ROUTES;
 
+/** The sites list's path. Matched exactly, like every route here: never as a prefix of `/sites/…`. */
+export const SITES_ROUTE = "/";
+
 /** The path part of a same-origin href (query and hash dropped), or null for anything absolute. */
 function pathOf(href: string): string | null {
   if (!href.startsWith("/") || href.startsWith("//")) return null;
   return href.split(/[?#]/, 1)[0] ?? null;
 }
 
-/** True when `href` is one of the pages the client renders, whatever query or hash it carries. */
+/** True when `href` is one of the pages the client renders (the sites list or a board page), whatever query or hash it carries. */
 export function isClientRoute(href: string): boolean {
   const path = pathOf(href);
-  return path !== null && Object.hasOwn(BOARD_ROUTES, path);
+  return path !== null && (path === SITES_ROUTE || Object.hasOwn(BOARD_ROUTES, path));
 }
 
 /** The board route a path is, or null. */

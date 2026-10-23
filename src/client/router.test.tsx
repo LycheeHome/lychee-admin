@@ -4,8 +4,9 @@ import { afterEach, describe, test } from "node:test";
 import { act, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import type { BoardPayload, BoardRow, ServiceGroup } from "../shared/board";
+import type { SitesPayload } from "../shared/sites";
 import { testShell } from "../dev/testHelpers";
-import { renderClientPage } from "../views/clientShell";
+import { renderClientPage, type ClientPage } from "../views/clientShell";
 import { layout, type RailCurrent } from "../views/shell";
 import { RAIL_DOT } from "../views/railModel";
 import { seedHealth } from "./test/healthFixture";
@@ -67,35 +68,53 @@ function payload(group: ServiceGroup): BoardPayload {
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
 
+const SITES: SitesPayload = {
+  sites: [
+    { hostname: "blog.lychee.land", type: "static", target: "/var/www/blog.lychee.land" },
+    { hostname: "api.lychee.land", type: "reverse-proxy", target: "4000" },
+  ],
+  statuses: { "api.lychee.land": { kind: "tcp", responding: true } },
+  problems: [],
+  domain: "lychee.land",
+  caddyfileError: null,
+};
+
 function stubFetch(): void {
   fetched = [];
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
     fetched.push(url);
     if (url === "/api/health") return json({ ok: true, ...seedHealth() });
+    if (url === "/api/sites") return json({ ok: true, ...SITES });
     const group = new URLSearchParams(url.split("?")[1] ?? "").get("group") as ServiceGroup;
     return json({ ok: true, ...payload(group) });
   }) as typeof fetch;
 }
 
-const PAGE: Record<string, "services" | "reconciler" | "infrastructure"> = {
+const PAGE: Record<string, ClientPage> = {
+  "/": "sites",
   "/services": "services",
   "/reconciler": "reconciler",
   "/infrastructure": "infrastructure",
 };
-const TITLE: Record<string, string> = { "/services": "Services", "/reconciler": "Reconciler", "/infrastructure": "Infrastructure" };
+const TITLE: Record<string, string> = { "/": "Sites", "/services": "Services", "/reconciler": "Reconciler", "/infrastructure": "Infrastructure" };
 
-/** The document the server sends for `path`, as its body, then the one root mounted over it. */
-function load(path: string): void {
+/**
+ * The document the server sends for `path`, as its body, then the one root
+ * mounted over it. `banner` is the server's #page-notice: `/?removed=` on the
+ * list, `?created=1` on a site page.
+ */
+function load(path: string, banner?: string): void {
   stubFetch();
   happyDOM.setURL(`http://localhost${path}`);
-  path = path.split("#")[0] ?? path;
+  path = path.split(/[?#]/)[0] ?? path;
   const page = PAGE[path];
   const current: RailCurrent = page ? { page } : path.startsWith("/sites/") ? { site: decodeURIComponent(path.slice(7)) } : null;
   const shell = testShell({ current });
+  const notice = banner === undefined ? undefined : { message: banner };
   const html = page
-    ? renderClientPage(TITLE[path], page, shell)
-    : layout("broken.lychee.land", "<p id=\"server-body\">a server page</p>", { shell });
+    ? renderClientPage(TITLE[path], page, shell, notice)
+    : layout("broken.lychee.land", "<p id=\"server-body\">a server page</p>", { shell, banner: notice });
   document.title = html.match(/<title>([^<]*)<\/title>/)?.[1] ?? "";
   // The body without its script tags, which happy-dom would try to fetch.
   document.body.innerHTML = html
@@ -119,14 +138,144 @@ const railLive = () =>
   waitFor(() => assert.equal(document.querySelector('#rail [data-site="api.lychee.land"] [data-dot]')?.getAttribute("class"), RAIL_DOT.bad), TIMEOUT);
 
 describe("isClientRoute", () => {
-  test("is true for exactly the three board pages, with or without a hash or query", () => {
+  test("is true for exactly the sites list and the three board pages, with or without a hash or query", () => {
     assert.deepEqual(Object.keys(BOARD_ROUTES).sort(), ["/infrastructure", "/reconciler", "/services"]);
-    for (const path of ["/services", "/reconciler", "/infrastructure", "/reconciler#service-lychee-watch", "/services?x=1"]) {
+    for (const path of ["/", "/?removed=blog.lychee.land", "/#x", "/services", "/reconciler", "/infrastructure", "/reconciler#service-lychee-watch", "/services?x=1"]) {
       assert.equal(isClientRoute(path), true, path);
     }
-    for (const path of ["/", "/sites/new", "/sites/broken.lychee.land", "/services/swee/deploy", "/servicesx", "https://example.com/services"]) {
+    // "/" matches exactly, never as a prefix of every path.
+    for (const path of ["", "//", "/sites/x", "/sites/new", "/sites/broken.lychee.land", "/services/swee/deploy", "/servicesx", "https://example.com/services", "https://example.com/"]) {
       assert.equal(isClientRoute(path), false, path);
     }
+  });
+});
+
+describe("the sites list route", () => {
+  const listRow = (hostname: string) => document.querySelector(`#app-root a[href="/sites/${hostname}"]`);
+  const NOTICE = "Removed a&b.lychee.land. Remember to remove the DNS record in Cloudflare manually.";
+
+  /** Clicks `link` and says whether anything (the router) cancelled it; cancels it after, so happy-dom stays put. */
+  function clickCancelled(link: Element): boolean {
+    let cancelled: boolean | null = null;
+    const record = (e: Event) => {
+      cancelled = e.defaultPrevented;
+      e.preventDefault();
+    };
+    document.addEventListener("click", record);
+    try {
+      act(() => {
+        fireEvent.click(link);
+      });
+    } finally {
+      document.removeEventListener("click", record);
+    }
+    return cancelled === true;
+  }
+
+  test("a direct visit renders the list into #app-root, titled Sites, with the sites heading current", async () => {
+    load("/");
+    await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
+    assert.equal(document.title, "Sites");
+    assert.deepEqual(marked(), ["/"]);
+    assert.ok(fetched.includes("/api/sites"));
+  });
+
+  test("/ to /services and back makes no document load, and the list shows at once from cache (Review Focus 5)", async () => {
+    load("/");
+    await railLive();
+    await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
+    const entry = window.history.state as unknown;
+
+    assert.equal(clickCancelled(railLink("/services") as HTMLAnchorElement), true, "the click was left to the browser");
+    await waitFor(() => assert.ok(row("swee")), TIMEOUT);
+    assert.ok(!listRow("api.lychee.land"));
+    assert.equal(document.title, "Services");
+    assert.deepEqual(marked(), ["/services"]);
+
+    const reads = fetched.filter((u) => u === "/api/sites").length;
+    await act(async () => {
+      window.history.replaceState(entry, "", "/");
+      window.dispatchEvent(new PopStateEvent("popstate", { state: entry }));
+    });
+    // From cache: in the same turn, with no new read of the list behind it.
+    assert.ok(listRow("api.lychee.land"), "the list was not shown at once");
+    assert.equal(fetched.filter((u) => u === "/api/sites").length, reads);
+    assert.equal(window.location.pathname, "/");
+    assert.equal(document.title, "Sites");
+    assert.deepEqual(marked(), ["/"]);
+  });
+
+  test("the rail's sites heading from /services is a router link, and focus lands on the Sites heading", async () => {
+    load("/services");
+    await railLive();
+    await waitFor(() => assert.ok(row("swee")), TIMEOUT);
+    assert.equal(clickCancelled(railLink("/") as HTMLAnchorElement), true, "the click was left to the browser");
+    await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
+    await waitFor(() => assert.equal(document.activeElement?.textContent, "Sites"), TIMEOUT);
+    assert.equal(document.activeElement?.tagName, "H2");
+    assert.equal(document.activeElement?.getAttribute("tabindex"), "-1");
+    assert.equal(document.title, "Sites");
+    assert.deepEqual(marked(), ["/"]);
+  });
+
+  test("a direct visit takes no focus, so the list at rest is the server's markup", async () => {
+    load("/");
+    await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
+    await act(async () => {});
+    assert.ok(document.activeElement === document.body, focused());
+    assert.ok(!document.querySelector("#app-root h2")?.hasAttribute("tabindex"));
+  });
+
+  test("links to a site page and to /sites/new are plain anchors", async () => {
+    load("/");
+    await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
+    const site = listRow("api.lychee.land");
+    const add = document.querySelector('#app-root a[href="/sites/new"]');
+    assert.ok(site && add);
+    assert.equal(clickCancelled(site), false, "a router took the site link");
+    assert.equal(clickCancelled(add), false, "a router took Add site");
+    assert.equal(window.location.pathname, "/");
+  });
+
+  test("on load, ?removed leaves the URL; other parameters and the hash stay (Review Focus 3)", async () => {
+    load("/?removed=a%26b.lychee.land&x=1#h", NOTICE);
+    assert.equal(window.location.search, "?x=1");
+    assert.equal(window.location.hash, "#h");
+    await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
+    // The notice stays on the page it was rendered for.
+    assert.equal(document.getElementById("page-notice-message")?.textContent, NOTICE);
+  });
+
+  test("?removed alone leaves a bare path", async () => {
+    load("/?removed=blog.lychee.land", NOTICE);
+    assert.equal(window.location.href, "http://localhost/");
+    // Settled before teardown: unmounting mid-load leaves a timer behind.
+    await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
+  });
+
+  test("the first client navigation away removes #page-notice, and returning to / does not bring it back", async () => {
+    load("/?removed=a%26b.lychee.land", NOTICE);
+    await railLive();
+    await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
+    assert.ok(document.getElementById("page-notice"));
+
+    act(() => {
+      fireEvent.click(railLink("/services") as HTMLAnchorElement);
+    });
+    await waitFor(() => assert.ok(row("swee")), TIMEOUT);
+    assert.ok(!document.getElementById("page-notice"));
+
+    act(() => {
+      fireEvent.click(railLink("/") as HTMLAnchorElement);
+    });
+    await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
+    assert.ok(!document.getElementById("page-notice"));
+  });
+
+  test("a server page's own notice (?created=1) is left alone", async () => {
+    load("/sites/broken.lychee.land", "Created broken.lychee.land.");
+    await railLive();
+    assert.ok(document.getElementById("page-notice"));
   });
 });
 

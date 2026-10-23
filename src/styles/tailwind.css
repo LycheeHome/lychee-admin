@@ -15,9 +15,10 @@
  * banner's tone classes, the step-mark colours), and dropping it would
  * remove them from the bundle with nothing failing at build or test time.
  *
- * The frozen board fixtures are excluded: they are test data, a copy of what
- * the retired server board rendered, and once the live board moves on they
- * would keep its old classes in the bundle.
+ * The frozen parity fixtures are excluded, all of src/dev/fixtures/ at once:
+ * board/ (what the retired server board rendered) and sites/ (what the
+ * retired server sites list rendered). They are test data, and once the live
+ * pages move on they would keep the old classes in the bundle.
  */
 @import "tailwindcss" source(none);
 

@@ -4,7 +4,6 @@ import {
   describeStatus,
   troubleGate,
   splitHostnameForDisplay,
-  type HostProblem,
   type SiteStatus,
   type StatusTone,
   visitIsForward,
@@ -18,6 +17,7 @@ import { offeredTag, rowLabels } from "./boardFacts";
 import {
   escapeHtml,
   icon,
+  ERROR_BOX,
   BUTTON_PRIMARY,
   BUTTON_PRIMARY_COMPACT,
   BUTTON_SECONDARY,
@@ -41,7 +41,9 @@ import {
   COPY_BUTTON,
   COPY_IN_LINE,
   MONO_FACT,
+  statePhrase,
 } from "./shared";
+import { FRAMEWORK_LABELS } from "./siteListModel";
 
 /**
  * The copy affordance app.js already understands: it reads the target
@@ -56,133 +58,22 @@ function copyButton(targetId: string, label: string, extraClass = ""): string {
     </button>`;
 }
 
-const FRAMEWORK_LABELS: Record<string, string> = {
-  nextjs: "Next.js",
-};
-
 /**
- * One site's row. Full-bleed hover (`-mx-3` against the row's own `px-3`) so
- * the highlight reaches the content column's edges rather than stopping at
- * the text, and a hairline under every row but the last.
+ * The page a site route answers 500 with when it cannot read the Caddyfile.
+ * It used to borrow the list's layout, so a failed detail page announced an
+ * empty "Sites" heading and an empty state; this carries the message and a
+ * way back, and nothing else.
  */
-const SITE_ROW =
-  `flex items-center justify-between gap-5 py-4 px-3 -mx-3 rounded-md no-underline ` +
-  `border-b border-stone-700 last:border-b-0 ` +
-  `motion-safe:transition-colors motion-safe:duration-150 hover:bg-stone-800 ${FOCUS_RING}`;
-
-/** The slot right-aligns the status pill so the column lines up; a static row leaves it empty. */
-const STATUS_SLOT = "flex justify-end";
-
-/**
- * A comma only a screen reader hears. A row's accessible name is computed from
- * its contents, so without these the three facts run together as
- * "api.lychee.land localhost:4000 not responding". Separators rather than an
- * aria-label, deliberately: the name keeps deriving from the visible text, so
- * it cannot drift from what is on screen the way a hand-written label does.
- * `sr-only` is absolutely positioned, so it contributes nothing to the flex
- * layout it sits inside — no phantom gap.
- */
-const SPOKEN_COMMA = `<span class="sr-only">, </span>`;
-
-export function renderSiteList(
-  sites: Site[],
-  statuses: Record<string, SiteStatus>,
-  // Supplied by the route from config.domain rather than read here, matching
-  // renderAddSite and the detail page: a view that knows the domain by itself
-  // is a view that can disagree with the one the app actually manages.
-  domain: string,
-  error: string | undefined,
-  // A removal's DNS reminder is a page-load notice carrying an unfinished
-  // manual action, so it belongs in flow with a close button — not in the
-  // transient toast, which times out after four seconds.
-  notice: string | undefined,
-  // Host units that are down, each already phrased by hostProblems. The 500
-  // fallbacks pass none and render no block.
-  problems: HostProblem[],
-  // GET / marks the sites heading current. The 500 fallbacks render this same
-  // body at /sites/new and /sites/<hostname>, and must not claim "sites" is
-  // where the URL points — see their call sites in src/routes/sites.ts.
-  shell: ShellData,
-): string {
-  // Consequence first, in plain sans: it is what the operator needs to know,
-  // and only the machine fact (the unit and its state) is red.
-  const problemLines = problems
-    .map(
-      (problem) =>
-        `<p class="m-0 font-sans text-[0.85rem] leading-relaxed text-stone-50">${escapeHtml(problem.consequence)} &mdash; <span class="font-mono text-red-300"><span aria-hidden="true">&#9679;</span> ${escapeHtml(problem.name)} ${escapeHtml(statePhrase(problem.word))}</span> &middot; <a href="${escapeHtml(problem.href)}" class="text-stone-300 underline hover:text-stone-50 ${FOCUS_RING}">${escapeHtml(problem.page)} <span aria-hidden="true">&rarr;</span></a></p>`,
-    )
-    .join("\n        ");
-  const problemBlock =
-    problems.length === 0
-      ? ""
-      : `<div role="status" data-host-problems class="flex flex-col gap-1.5 pb-4 mb-5 border-b border-stone-700">
-        ${problemLines}
-      </div>`;
-
-  const rows = sites
-    .map((site) => {
-      const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
-      const status = statuses[site.hostname];
-      const labels = status ? describeStatus(status) : null;
-      const { lead, dimmed } = splitHostnameForDisplay(site.hostname, domain);
-      // The address states the type: a path reads as static and localhost:port
-      // as a proxy, so neither needs a label — a path needs no "path:" in front
-      // of it, and a port is meaningless without the host it is on.
-      const target =
-        site.type === "static"
-          ? site.target
-          : `localhost:${site.target}${frameworkLabel ? ` · ${frameworkLabel}` : ""}`;
-
-      return `
-      <a href="/sites/${encodeURIComponent(site.hostname)}" class="${SITE_ROW}">
-        <span class="flex flex-col gap-1.5 min-w-0">
-          <span class="font-display text-base leading-relaxed text-stone-50 break-words" data-hostname>${escapeHtml(lead)}${
-            dimmed ? `<span class="text-stone-400">${escapeHtml(dimmed)}</span>` : ""
-          }</span>${SPOKEN_COMMA}
-          <span class="font-mono text-stone-400 text-[0.8rem] leading-relaxed break-all">${escapeHtml(target)}</span>
-        </span>
-        <span class="flex items-center gap-3 shrink-0" data-row-side>
-          <span class="${STATUS_SLOT}" data-status-slot>${
-            labels
-              ? `${SPOKEN_COMMA}<span class="${TONE_PILL[labels.tone]}"><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span>`
-              : ""
-          }</span>
-        </span>
-      </a>`;
-    })
-    .join("");
-
-  // The heading carries no Add site button: the rail's quiet Secondary one is
-  // on every page. With no sites that is too quiet and too far from the one
-  // thing there is to do, so the empty state states what a site is and
-  // carries its own button, in Ember: the page's one primary action.
-  const empty = `
-      <div id="empty-state" class="flex flex-col items-center text-center gap-4 border border-stone-700 rounded-[10px] bg-stone-800 px-6 py-6">
-        <h3 class="font-sans font-semibold text-base text-stone-50 m-0">No sites yet</h3>
-        <p class="text-stone-400 text-[0.8rem] m-0 max-w-[46ch]">A site is one <code class="font-mono text-[0.72rem] text-stone-300 bg-stone-900 rounded-[4px] px-1">*.${escapeHtml(domain)}</code> subdomain wired through Caddy and the sites tunnel — either a folder of static files, or a reverse proxy to a local port.</p>
-        <a id="empty-state-cta" href="/sites/new" class="${BUTTON_PRIMARY} no-underline">${icon("plus")}Add your first site</a>
-      </div>`;
-
+export function renderErrorPage(title: string, message: string, shell: ShellData): string {
   return layout(
-    "Sites",
+    title,
     `
-    ${error ? `<p class="font-mono text-[0.85rem] text-stone-50 bg-red-950/60 border border-red-400/70 rounded-md px-4 py-3 mb-5">${escapeHtml(error)}</p>` : ""}
-    <section>
-      <div class="flex items-center justify-between gap-4 mb-5">
-        <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Sites</h2>
-        ${
-          // Add site lives here and nowhere in the rail: it is this page's one
-          // Ember action. With no sites the empty state carries the same
-          // action, and Ember spent twice on one destination makes neither
-          // the obvious one.
-          sites.length === 0 ? "" : `<a href="/sites/new" class="${BUTTON_PRIMARY} no-underline">${icon("plus")}Add site</a>`
-        }
-      </div>
-      ${problemBlock}
-      ${sites.length === 0 ? empty : `<div class="flex flex-col">${rows}\n      </div>`}
-    </section>
+    <div class="${FRAME_WIDTH} flex flex-col gap-4">
+      <p class="${ERROR_BOX}">${escapeHtml(message)}</p>
+      <p class="m-0"><a href="/" class="text-stone-400 no-underline font-mono text-[0.72rem] hover:text-stone-50 hover:underline ${FOCUS_RING}">← sites</a></p>
+    </div>
     `,
-    { shell, banner: notice ? { message: notice } : undefined },
+    { shell },
   );
 }
 
@@ -190,8 +81,8 @@ export function renderAddSite(
   sites: Site[],
   domain: string,
   portOwners: Record<string, string>,
-  // Passed in rather than read from config here, matching renderSiteList and
-  // the detail page: a view that knows these paths by itself is a view that
+  // Passed in rather than read from config here, matching the detail page: a
+  // view that knows these paths by itself is a view that
   // can disagree with the files the app actually edits.
   paths: { caddyfilePath: string; tunnelConfigPath: string },
   shell: ShellData,
@@ -365,27 +256,6 @@ function renderHop(hop: Hop): string {
             ${hop.status ? `<p class="font-mono text-[0.72rem] ${TONE_TEXT[hop.status.tone]} m-0" data-hop-status><span aria-hidden="true">●</span> ${escapeHtml(hop.status.text)}</p>` : ""}
             ${hop.sub ? `<p class="font-mono text-[0.72rem] ${hop.subClass ?? "text-stone-400"} m-0 break-all">${hop.subDot ? `<span aria-hidden="true">●</span> ` : ""}${escapeHtml(hop.sub)}</p>` : ""}
           </div>`;
-}
-
-/**
- * A bad-tone status word as a predicate, so a unit and a container read alike
- * in What to check. Only these four are bad-tone unit or container states; any
- * other word falls back to a plain "is <word>" rather than a wrong claim.
- * Exported so a test can pin the fallback.
- */
-export function statePhrase(word: string): string {
-  switch (word) {
-    case "exited":
-      return "has stopped";
-    case "restarting":
-      return "keeps restarting";
-    case "paused":
-      return "is paused";
-    case "unhealthy":
-      return "is running but failing its health check";
-    default:
-      return `is ${word}`;
-  }
 }
 
 interface HopFix {

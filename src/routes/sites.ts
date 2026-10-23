@@ -22,14 +22,19 @@ import { buildSitePreview } from "../lib/sitePreview";
 import {
   renderAddSite,
   renderSiteDetail,
-  renderSiteList,
+  renderErrorPage,
   renderSiteNotFound,
   type SiteResourceView,
 } from "../views/html";
 import { loadShell } from "./loadShell";
+import { renderClientPage } from "../views/clientShell";
+import { SITES_HEADING_TEXT as SITES_TITLE } from "../views/siteListModel";
 import { clearBoardCache } from "./services";
+import { cachedRead } from "./readCache";
 import { hostProblems, hostProblemUnits, undeployedStatus, type SiteStatus } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
+import type { ApiOk } from "../shared/board";
+import type { SitesPayload } from "../shared/sites";
 import type { Site } from "../lib/caddyfile";
 import type { Deps } from "../deps";
 import { IMAGE_PREFIX, RESERVED_PORT_OWNERS } from "../lib/platform";
@@ -190,6 +195,22 @@ export async function computeStatuses(sites: Site[], deps: Deps): Promise<Record
   return Object.fromEntries(entries);
 }
 
+/**
+ * computeStatuses behind the shared 5s read, for /api/sites and /api/health.
+ * The cached value is for the full managed-site list, so every caller must
+ * pass that same list.
+ */
+export function cachedStatuses(sites: Site[], deps: Deps): Promise<Record<string, SiteStatus>> {
+  return cachedRead("site-statuses", deps, () => computeStatuses(sites, deps));
+}
+
+/** Host-unit states for hostProblems, read once per 5s; a failed read degrades to none. */
+export function cachedHostUnitStates(deps: Deps): Promise<Record<string, UnitState>> {
+  return cachedRead("host-unit-states", deps, () =>
+    deps.commands.readUnitStates(hostProblemUnits(readInventory(deps.fs))).catch(() => ({})),
+  );
+}
+
 export function createSitesRouter(deps: Deps): Router {
   const sitesRouter = Router();
 
@@ -208,42 +229,47 @@ export function createSitesRouter(deps: Deps): Router {
   const { backupFile } = deps.backup;
   const { logAction } = deps.logger;
 
-  sitesRouter.get("/", async (req, res) => {
-    // A fact about a removal that already completed, independent of whether
-    // the Caddyfile happens to be readable on this particular request — so
-    // it's computed once and threaded into both the success and error
-    // renders below, rather than only the happy path.
+  // The list is the client's: the shared shell around its mount point,
+  // titled as the client titles it after an in-app navigation, with the data
+  // from /api/sites. The `?removed` notice is still the server's: a fact
+  // about a removal that already completed, rendered as #page-notice above
+  // the mount point whatever the Caddyfile says on this request.
+  sitesRouter.get("/", (req, res) => {
     const removed = typeof req.query.removed === "string" ? req.query.removed : undefined;
-    const notice = removed
-      ? `Removed ${removed}. Remember to remove the DNS record in Cloudflare manually.`
+    const banner = removed
+      ? { message: `Removed ${removed}. Remember to remove the DNS record in Cloudflare manually.` }
       : undefined;
+    // One read of the bundle, checked here and emitted by layout() from the same shell.
+    const shell = loadShell(deps, { page: "sites" });
+    if (!shell.assets) return res.status(500).type("text/plain").send("client bundle missing; run npm run build");
+    return res.type("html").send(renderClientPage(SITES_TITLE, "sites", shell, banner));
+  });
 
+  // The sites list's data for the client. Always 200: an unreadable Caddyfile
+  // is a field, not a status, so the page can keep its last good list.
+  sitesRouter.get("/api/sites", async (_req, res) => {
     try {
-      const content = deps.fs.readFile(config.caddyfilePath);
-      const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname, config.domain));
-
-      // Site pills and host-unit states are independent reads; the unit read
-      // degrades to "no problems" rather than failing the list.
-      const inventory = readInventory(deps.fs);
-      const [statuses, unitStates] = await Promise.all([
-        computeStatuses(sites, deps),
-        deps.commands.readUnitStates(hostProblemUnits(inventory)).catch(() => ({})),
-      ]);
-
-      res.send(
-        renderSiteList(
-          sites,
-          statuses,
-          config.domain,
-          undefined,
-          notice,
-          hostProblems(unitStates, inventory),
-          loadShell(deps, { page: "sites" }),
-        ),
-      );
+      const sites = caddyfile
+        .parseSites(deps.fs.readFile(config.caddyfilePath))
+        .filter((site) => isManagedHostname(site.hostname, config.domain));
+      const [statuses, unitStates] = await Promise.all([cachedStatuses(sites, deps), cachedHostUnitStates(deps)]);
+      const payload: SitesPayload = {
+        sites: sites.map((s) => ({
+          hostname: s.hostname,
+          type: s.type,
+          target: s.target,
+          ...(s.framework ? { framework: s.framework } : {}),
+        })),
+        statuses,
+        problems: hostProblems(unitStates, readInventory(deps.fs)),
+        domain: config.domain,
+        caddyfileError: null,
+      };
+      res.json({ ok: true, ...payload } satisfies ApiOk<SitesPayload>);
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
-      res.status(500).send(renderSiteList([], {}, config.domain, message, notice, [], loadShell(deps, { page: "sites" })));
+      const payload: SitesPayload = { sites: [], statuses: {}, problems: [], domain: config.domain, caddyfileError: message };
+      res.json({ ok: true, ...payload } satisfies ApiOk<SitesPayload>);
     }
   });
 
@@ -252,8 +278,7 @@ export function createSitesRouter(deps: Deps): Router {
   // :hostname, fail isManagedHostname, and 404 instead of rendering the form.
   sitesRouter.get("/sites/new", async (req, res) => {
     // Async handler: an unguarded throw hangs the request and crashes the
-    // process under Express 4, so a read failure becomes an ordinary 500, the
-    // same as GET /.
+    // process under Express 4, so a read failure becomes an ordinary 500.
     try {
       // For the preview and submit this page sends: neither refreshes, so the
       // port claims they check are as fresh as this page load.
@@ -270,7 +295,7 @@ export function createSitesRouter(deps: Deps): Router {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
       // The URL is /sites/new, not / — same reasoning as the detail page's
       // fallback: no rail item is marked current.
-      res.status(500).send(renderSiteList([], {}, config.domain, message, undefined, [], loadShell(deps, null)));
+      res.status(500).send(renderErrorPage("Can't read the Caddyfile", message, loadShell(deps, null)));
     }
   });
 
@@ -375,7 +400,7 @@ export function createSitesRouter(deps: Deps): Router {
       // Unlike GET /'s own fallback, this page's URL is /sites/<hostname> —
       // marking "sites" current here would claim a location the URL does not
       // have. Nothing is marked.
-      res.status(500).send(renderSiteList([], {}, config.domain, message, undefined, [], loadShell(deps, null)));
+      res.status(500).send(renderErrorPage("Can't read the Caddyfile", message, loadShell(deps, null)));
     }
   });
 
