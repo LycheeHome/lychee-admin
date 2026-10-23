@@ -328,8 +328,31 @@ export function HostActions({ row, run, live, onLive, now, api }: HostActionsPro
     focusStrip(box, pending.action);
   });
 
-  if (!hasHostActions(row)) return null;
+  // A live re-read can drop the action whose confirmation is open (the unit
+  // went down under an open Stop or Restart). Its confirmation is no longer
+  // rendered, so close it: the strip comes back, and focus goes to the
+  // strip's first live button, or to the strip itself when none is left.
   const shown = shownActions(row);
+  const vanished = confirming !== null && !shown.includes(confirming);
+  const [vanishedFocus, setVanishedFocus] = useState(false);
+  useEffect(() => {
+    if (!vanished) return;
+    setConfirming(null);
+    setVanishedFocus(true);
+  }, [vanished]);
+  useEffect(() => {
+    if (!vanishedFocus) return;
+    setVanishedFocus(false);
+    const strip = boxRef.current?.querySelector<HTMLElement>("[data-action-strip]");
+    if (!strip) return;
+    const first = Array.from(strip.querySelectorAll<HTMLButtonElement>("[data-host-action]")).find((b) => !b.disabled);
+    if (first) return first.focus();
+    // Runtime only, so the markup stays the server's.
+    strip.tabIndex = -1;
+    strip.focus();
+  }, [vanishedFocus]);
+
+  if (!hasHostActions(row)) return null;
   const effective = live ?? run;
   const running = isRunning(effective);
   const fact = actionFact(effective, live ? new Date() : now);
@@ -392,7 +415,7 @@ export function HostActions({ row, run, live, onLive, now, api }: HostActionsPro
       <pre className={LOG_TAIL} data-action-tail="" aria-live="off" hidden={!running}>
         {actionTail(effective)}
       </pre>
-      <div className="mt-2 flex flex-wrap items-center gap-2" data-action-strip="" hidden={confirming !== null}>
+      <div className="mt-2 flex flex-wrap items-center gap-2" data-action-strip="" hidden={confirming !== null && !vanished}>
         {shown.map((a) => (
           <button
             key={a}

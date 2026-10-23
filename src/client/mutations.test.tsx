@@ -335,6 +335,24 @@ describe("Prune", () => {
     }
   });
 
+  test("a successful Prune confirms in a toast and keeps focus in its row", async () => {
+    current = prunable();
+    const client = mount();
+    try {
+      const button = await screen.findByRole("button", { name: "Prune old declaration" }, TIMEOUT);
+      const rowEl = document.getElementById("service-gone-lychee-land")!;
+      assert.ok(!rowEl.hasAttribute("tabindex"), "the markup carries no tabindex");
+      current = payload([row("gone-lychee-land", { status: "unknown", reconciled: true })]);
+      button.focus();
+      fireEvent.click(button);
+      await waitFor(() => assert.ok(!document.querySelector("[data-prune]"), "the prune line is still there"), TIMEOUT);
+      await waitFor(() => assert.equal(TOAST(), "Pruned gone-lychee-land.yml from lychee-resources."), TIMEOUT);
+      await waitFor(() => assert.ok(document.getElementById("service-gone-lychee-land")!.contains(document.activeElement), "focus is in the row"), TIMEOUT);
+    } finally {
+      finish(client);
+    }
+  });
+
   test("a 409 shows the reason in the app.js format and re-enables the button", async () => {
     current = prunable();
     writeAnswer = () => json(409, { ok: false, reason: "the container hasn't been confirmed down yet" });

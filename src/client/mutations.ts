@@ -113,9 +113,22 @@ export function usePrune() {
         (status) => `HTTP ${status}`,
       ),
     onMutate: (name) => showToast(`Pruning ${name}.yml from lychee-resources…`, "info"),
-    onSuccess: async () => {
+    onSuccess: async (_data, name) => {
+      // Read before the re-read lands: the Prune button has focus now, or
+      // nothing does; anywhere else, the operator moved it and it stays.
+      const before = document.activeElement;
       await refresh(client);
-      hideToast();
+      showToast(`Pruned ${name}.yml from lychee-resources.`, "success");
+      // The prune line, and the button that had focus, are gone: keep focus in
+      // the row. tabIndex is set here, never in the markup, which stays the
+      // server's.
+      const rowEl = document.getElementById(`service-${name}`);
+      if (!rowEl) return;
+      const active = document.activeElement;
+      const lost = !active || active === document.body || rowEl.contains(active) || rowEl.contains(before);
+      if (!lost) return;
+      if (!rowEl.hasAttribute("tabindex")) rowEl.tabIndex = -1;
+      rowEl.focus({ preventScroll: true });
     },
     onError: (error, name) =>
       showToast(

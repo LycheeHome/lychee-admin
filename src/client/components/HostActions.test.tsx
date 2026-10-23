@@ -576,3 +576,25 @@ describe("host actions: inert without controls", () => {
     assert.equal(statePolls().length, 0);
   });
 });
+
+describe("host actions: the board changes under an open confirmation", () => {
+  test("a live re-read that drops the confirmed action closes the confirm and keeps focus on the strip", async () => {
+    const api: HostActionsApi = {
+      request: async () => null,
+      settle: async () => undefined,
+    };
+    const at = (p: BoardPayload) => <Board payload={p} group="infrastructure" controls={{ hostActions: api }} />;
+    const { rerender } = render(at(payload([unitRow()])));
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await waitFor(() => assert.ok(document.activeElement === confirmFor("stop").querySelector("[data-action-cancel]")), TIMEOUT);
+    // palworld crashed: the board's re-read shows it exited, so Stop and Restart are no longer offered.
+    rerender(at(payload([unitRow({ status: "exited" })])));
+    await waitFor(() => assert.ok(!box().querySelector('[data-action-confirm]:not([hidden])')), TIMEOUT);
+    const strip = box().querySelector<HTMLElement>("[data-action-strip]")!;
+    assert.equal(strip.hidden, false);
+    const labels = Array.from(strip.querySelectorAll("[data-host-action]")).map((b) => b.textContent);
+    assert.deepEqual(labels, ["Start", "Update"]);
+    await waitFor(() => assert.ok(document.activeElement !== document.body), TIMEOUT);
+    assert.ok(document.activeElement === strip.querySelector('[data-host-action="start"]'));
+  });
+});

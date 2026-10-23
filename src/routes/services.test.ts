@@ -886,4 +886,53 @@ describe("the shared board read", () => {
     assert.equal(body.lastRuns["palworld-palchuds"].action, "stop");
     assert.equal(body.lastRuns["palworld-palchuds"].state, "succeeded");
   });
+
+  test("the site page's writes clear the cache too: add, attach, repository, detach, delete, delete-files", async () => {
+    let reads = 0;
+    const s = await start(inventory([SWEE]), { readUnitStates: () => (reads++, Promise.resolve({})) });
+    const { config } = await import("../config");
+    s.fs.writeFile(config.caddyfilePath, "http://blog.lychee.land {\n\troot * /var/www/blog.lychee.land\n\tfile_server\n}\n");
+    s.fs.writeFile(
+      config.tunnelConfigPath,
+      "tunnel: 11111111-2222-3333-4444-555555555555\ningress:\n  - hostname: blog.lychee.land\n    service: http://localhost:80\n  - service: http_status:404\n",
+    );
+    type Board = { managed: string[]; prunable: string[] };
+    const board = async () => (await (await s.get("/api/services?group=service")).json()) as Board;
+    const post = (p: string, fields: Record<string, string> = {}) =>
+      fetch(`${s.base}${p}`, {
+        method: "POST",
+        headers: { Authorization: AUTH, "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(fields).toString(),
+      });
+
+    assert.deepEqual((await board()).managed, ["blog.lychee.land"]);
+    assert.equal(reads, 1);
+
+    // Add: the new site is linked at once.
+    assert.equal((await post("/sites", { hostname: "test.lychee.land", type: "reverse-proxy", port: "3000", framework: "nextjs" })).status, 200);
+    assert.deepEqual((await board()).managed.sort(), ["blog.lychee.land", "test.lychee.land"]);
+    assert.equal(reads, 2, "add: a fresh read");
+
+    // Attach: a tagless running declaration changes nothing the board shows, but the read is fresh.
+    assert.equal((await post("/sites/test.lychee.land/attach", { repo: "test-site" })).status, 200);
+    await board();
+    assert.equal(reads, 3, "attach: a fresh read");
+
+    assert.equal((await post("/sites/test.lychee.land/repository", { repo: "test-site-2" })).status, 200);
+    await board();
+    assert.equal(reads, 4, "repository: a fresh read");
+
+    // Remove: the Caddy block goes, then the declaration is retired.
+    assert.equal((await post("/sites/test.lychee.land/delete")).status, 200);
+    assert.deepEqual((await board()).managed, ["blog.lychee.land"], "delete: the removed site is no longer linked");
+    assert.equal(reads, 5, "delete: a fresh read");
+
+    assert.equal((await post("/sites/test.lychee.land/detach")).status, 200);
+    assert.deepEqual((await board()).prunable, ["test-lychee-land"], "detach: the retired declaration is prunable");
+    assert.equal(reads, 6, "detach: a fresh read");
+
+    assert.equal((await post("/sites/blog.lychee.land/delete-files")).status, 200);
+    await board();
+    assert.equal(reads, 7, "delete-files: a fresh read");
+  });
 });
