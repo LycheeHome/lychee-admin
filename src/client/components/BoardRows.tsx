@@ -254,7 +254,10 @@ export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
         {trouble ? (
           <p className="font-mono text-[0.8rem] leading-relaxed m-0" data-deploy-state="">
             <span className={TONE_TEXT[trouble.tone]}>
-              <Dot /> deploy {trouble.word}
+              {/* One text node, as the server writes it: split nodes shift the
+                  word by a fraction of a pixel and change its antialiasing. */}
+              <Dot />
+              {` deploy ${trouble.word}`}
             </span>
             {gate !== null || trouble.reason === `deploy ${trouble.word}` ? null : (
               <>

@@ -2,6 +2,8 @@ import "../test/setup";
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
+import { createRoot } from "react-dom/client";
+import { flushSync } from "react-dom";
 import type { ActionState, BoardPayload, ServiceBoard, ServiceGroup } from "../../shared/board";
 import type { Site } from "../../lib/caddyfile";
 import { renderPruneControl, renderSiteDetail } from "../../views/html";
@@ -237,6 +239,34 @@ describe("renderServicesPage", () => {
     assert.ok(html.includes(`<span class="${TONE_TEXT.bad}"><span aria-hidden="true">&#9679;</span> deploy blocked</span>`));
     assert.ok(html.includes("\u00B7 CI failed"));
     assert.deepEqual(pills(html), ["running"]);
+  });
+
+  // Static markup merges adjacent text, so only a live render shows the
+  // split: two text nodes (" deploy ", "blocked") sit a fraction of a pixel
+  // off the server's one and antialias differently, which a pixel compare
+  // against the server board caught.
+  test("the deploy phrase is one text node, as the server writes it", () => {
+    const payload: BoardPayload = {
+      board: {
+        inventoryAvailable: true, schedule: NO_SCHEDULE, timerUnit: null, generated: "2026-10-02T04:58:02Z",
+        groups: [{ group: "service", rows: [
+          { name: "notes", kind: "container", container: "notes", group: "service", reconciled: true,
+            status: "running", since: null, version: "v2.11.4", result: "blocked", gateCode: "ci-failed" } as never,
+        ] }],
+      },
+      boardEmpty: false, now: NOW.toISOString(), domain: "lychee.land",
+      prunable: [], managed: [], requested: {}, lastRuns: {},
+    };
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    flushSync(() => root.render(<Board payload={payload} group="service" />));
+    const span = host.querySelector("[data-deploy-state] > span");
+    assert.ok(span, "no deploy line");
+    const texts = Array.from(span.childNodes).filter((n) => n.nodeType === 3).map((n) => n.nodeValue);
+    assert.deepEqual(texts, [" deploy blocked"]);
+    root.unmount();
+    host.remove();
   });
 
   test("the facts line drops the result word when the line shows", () => {
