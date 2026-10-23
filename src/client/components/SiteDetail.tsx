@@ -43,6 +43,7 @@ import {
   TONE_TEXT,
   statePhrase,
 } from "../../views/shared";
+import { RailLink } from "../clientNav";
 import { CommandBlock, CopyButton, FailureLine, Icon } from "./CommandBlock";
 import { RemoveDialog, type RemoveDialogHandle } from "./RemoveDialog";
 import { RepositoryCard, type SiteWrites } from "./RepositoryCard";
@@ -107,9 +108,9 @@ function Header({ payload, headingRef }: { payload: DetailPayload; headingRef?: 
   return (
     <>
       <nav className="font-mono text-[0.72rem] text-stone-400 m-0" aria-label="Breadcrumb">
-        <a href="/" className={`text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}`}>
+        <RailLink href="/" className={`text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}`}>
           sites
-        </a>
+        </RailLink>
         <span className="text-stone-600 mx-1.5" aria-hidden="true">
           /
         </span>
@@ -328,12 +329,12 @@ function RequestPath({ payload }: { payload: DetailPayload }) {
               <span className="text-stone-50 break-all">
                 {/* The resource is a row on the services board; the rest are plain facts. */}
                 {key === "resource" ? (
-                  <a
+                  <RailLink
                     href={`/services#service-${value}`}
                     className={`text-stone-50 no-underline hover:underline ${FOCUS_RING}`}
                   >
                     {value}
-                  </a>
+                  </RailLink>
                 ) : (
                   value
                 )}
@@ -496,9 +497,9 @@ export function SiteNotFound({ hostname }: { hostname: string }) {
         {`No managed site found for "${hostname}".`}
       </p>
       <p className="m-0">
-        <a href="/" className={`${FOCUS_RING} text-rose-400 no-underline font-mono text-[0.85rem] hover:underline`}>
+        <RailLink href="/" className={`${FOCUS_RING} text-rose-400 no-underline font-mono text-[0.85rem] hover:underline`}>
           {"← Back to sites"}
-        </a>
+        </RailLink>
       </p>
     </div>
   );
@@ -510,12 +511,12 @@ export function CaddyfileError({ message }: { message: string }) {
     <div className={`${FRAME_WIDTH} flex flex-col gap-4`}>
       <p className={ERROR_BOX}>{message}</p>
       <p className="m-0">
-        <a
+        <RailLink
           href="/"
           className={`text-stone-400 no-underline font-mono text-[0.72rem] hover:text-stone-50 hover:underline ${FOCUS_RING}`}
         >
           {"← sites"}
-        </a>
+        </RailLink>
       </p>
     </div>
   );

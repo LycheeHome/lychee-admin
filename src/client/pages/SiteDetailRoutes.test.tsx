@@ -344,6 +344,83 @@ describe("the site page route", () => {
     assert.ok(!document.getElementById("page-notice"));
   });
 
+  describe("the page's own links move in-app (spec §1)", () => {
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    afterEach(() => {
+      Element.prototype.scrollIntoView = originalScrollIntoView;
+    });
+
+    test("the breadcrumb's sites link goes to the list", async () => {
+      load("/sites/app.lychee.land");
+      await railLive();
+      await showing("app");
+      const crumb = document.querySelector('#app-root nav[aria-label="Breadcrumb"] a[href="/"]');
+      assert.ok(crumb, "no breadcrumb link");
+      assert.equal(clickCancelled(crumb), true, "the click was left to the browser");
+      await waitFor(() => assert.ok(document.querySelector('#app-root a[href="/sites/blog.lychee.land"]')), TIMEOUT);
+      assert.equal(window.location.pathname, "/");
+      assert.equal(document.title, "Sites");
+      assert.deepEqual(marked(), ["/"]);
+      assert.deepEqual(assigned, []);
+    });
+
+    test("the resource row's link lands on its board row, targeted as a rail move's is", async () => {
+      const scrolled: string[] = [];
+      Element.prototype.scrollIntoView = function (this: Element) {
+        scrolled.push(this.id);
+      };
+      const name = details.get("app.lychee.land")?.resource?.name;
+      assert.ok(name, "app has no resource");
+      load("/sites/app.lychee.land");
+      await railLive();
+      await showing("app");
+      const link = document.querySelector(`#app-root a[href="/services#service-${name}"]`);
+      assert.ok(link, "no resource link");
+      assert.equal(clickCancelled(link), true, "the click was left to the browser");
+      await waitFor(() => assert.ok(document.getElementById(`service-${name}`)), TIMEOUT);
+      assert.equal(window.location.pathname, "/services");
+      assert.equal(window.location.hash, `#service-${name}`);
+      assert.equal(document.title, "Services");
+      assert.deepEqual(marked(), ["/services"]);
+      await waitFor(() => assert.ok(scrolled.includes(`service-${name}`), `scrolled: ${scrolled.join(",")}`), TIMEOUT);
+      assert.deepEqual(assigned, []);
+    });
+
+    test("the not-found body's back link goes to the list", async () => {
+      load("/sites/nope.lychee.land");
+      await railLive();
+      const back = await waitFor(
+        () => document.querySelector('#app-root a[href="/"]') ?? assert.fail("no back link"),
+        TIMEOUT,
+      );
+      assert.equal(back.textContent, "← Back to sites");
+      assert.equal(clickCancelled(back), true, "the click was left to the browser");
+      await waitFor(() => assert.ok(document.querySelector('#app-root a[href="/sites/blog.lychee.land"]')), TIMEOUT);
+      assert.equal(document.title, "Sites");
+      assert.deepEqual(assigned, []);
+    });
+
+    test("the Caddyfile error's back link goes to the list", async () => {
+      details.set("err.lychee.land", { caddyfileError: "cannot read\ndenied", domain: "lychee.land" } as never);
+      try {
+        load("/sites/err.lychee.land");
+        await railLive();
+        const back = await waitFor(
+          () => document.querySelector('#app-root a[href="/"]') ?? assert.fail("no back link"),
+          TIMEOUT,
+        );
+        assert.ok(document.getElementById("app-root")?.textContent?.includes("cannot read"));
+        assert.equal(back.textContent, "← sites");
+        assert.equal(clickCancelled(back), true, "the click was left to the browser");
+        await waitFor(() => assert.ok(document.querySelector('#app-root a[href="/sites/blog.lychee.land"]')), TIMEOUT);
+        assert.equal(document.title, "Sites");
+        assert.deepEqual(assigned, []);
+      } finally {
+        details.delete("err.lychee.land");
+      }
+    });
+  });
+
   test("a hash-only move on the site page keeps its notice", async () => {
     load("/sites/app.lychee.land?created=1", "Added app.lychee.land.");
     await railLive();
