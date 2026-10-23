@@ -101,6 +101,13 @@ export const SERVICE_DETAIL = "font-mono text-[0.8rem] leading-relaxed text-ston
 export const BODY = `text-stone-400 text-[0.8rem] leading-snug m-0 ${PROSE_MEASURE}`;
 /** A machine fact inline in a sentence: mono, at Chalk. */
 export const MONO_FACT = "font-mono text-stone-50 break-all";
+/**
+ * A path is a machine fact and is case-sensitive, so it takes the Micro-label
+ * size and weight but never its uppercase — the one place in the system where
+ * that transform is dropped. Used by add site's preview and the detail page's
+ * scaffold files.
+ */
+export const PATH_LABEL = "font-mono text-[0.6875rem] font-medium tracking-[0.02em] text-stone-400 m-0 break-all";
 /** A single-line copyable command box. */
 export const CODE_LINE =
   "font-mono text-[0.72rem] bg-stone-900 border border-stone-700 rounded-md pl-2.5 pr-11 py-2.5 text-stone-50 overflow-x-auto whitespace-nowrap m-0";

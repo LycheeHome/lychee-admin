@@ -12,7 +12,37 @@ import { resourceNameFor } from "../lib/siteResource";
 import { IMAGE_PREFIX } from "../lib/platform";
 import { layout, type ShellData } from "./shell";
 import { offeredTag, rowLabels } from "./boardFacts";
-import type { FailureFacts, SiteDetailOptions, SiteResourceView } from "./siteDetailModel";
+import {
+  addedNotice,
+  appFix,
+  canChangeRepository,
+  cardOrder,
+  dangerSentences,
+  deployStep,
+  hopFixKeys,
+  manualSteps,
+  offerFor,
+  removeSteps,
+  runbookSteps,
+  unitPhrase,
+  UNIT_FIX_COMMANDS,
+  CODE_FILE,
+  COPY_TOP,
+  DETAIL_KEY,
+  DETAIL_ROW,
+  HOP_LABEL,
+  HOP_VALUE,
+  INLINE_CODE,
+  STEP_DONE,
+  STEP_NUMBER,
+  STEP_TEXT,
+  type FailureFacts,
+  type Inline,
+  type ManualStep,
+  type SiteDetailOptions,
+  type SiteResourceView,
+  type StepCommand,
+} from "./siteDetailModel";
 export type { SiteDetailOptions, SiteResourceView };
 import {
   escapeHtml,
@@ -28,7 +58,6 @@ import {
   FOCUS_RING,
   DETAIL_WIDTH,
   FRAME_WIDTH,
-  PROSE_MEASURE,
   CARD,
   CARD_LABEL,
   CARD_LABEL_BASE,
@@ -41,6 +70,7 @@ import {
   COPY_BUTTON,
   COPY_IN_LINE,
   MONO_FACT,
+  PATH_LABEL,
   statePhrase,
 } from "./shared";
 import { FRAMEWORK_LABELS } from "./siteListModel";
@@ -237,18 +267,6 @@ interface Hop {
   status?: { text: string; tone: StatusTone };
 }
 
-const HOP_LABEL =
-  "font-mono text-[0.6875rem] font-medium uppercase tracking-[0.09em] text-stone-400 m-0 mb-1.5";
-/**
- * A path is a machine fact and is case-sensitive, so it takes the Micro-label
- * size and weight but never its uppercase — the one place in the system where
- * that transform is dropped.
- */
-const PATH_LABEL = "font-mono text-[0.6875rem] font-medium tracking-[0.02em] text-stone-400 m-0 break-all";
-const HOP_VALUE = "font-mono text-[0.8rem] text-stone-50 m-0 mb-0.5 break-all";
-const DETAIL_ROW = "font-mono text-[0.8rem] m-0 mb-1 flex gap-3 last:mb-0";
-const DETAIL_KEY = "text-stone-400 min-w-[7.5rem] shrink-0";
-
 function renderHop(hop: Hop): string {
   return `<div class="min-w-0">
             <p class="${HOP_LABEL}">${escapeHtml(hop.label)}</p>
@@ -280,52 +298,50 @@ interface HopFix {
  * resource has a container to read: the reconciler runs it as a compose
  * project named after the resource, so its logs are reached by project name
  * from anywhere, never from a /var/www directory.
+ *
+ * Which hops get an entry, and their commands, are siteDetailModel's
+ * (`hopFixKeys`, `appFix`); this only writes the markup around them.
  */
 function hopFixes(site: Site, opts: SiteDetailOptions): HopFix[] {
-  const fixes: HopFix[] = [];
-  const unitIsBad = (unit: string): boolean =>
-    opts.unitStates !== undefined && rowLabels(opts.unitStates[unit]?.status ?? "unknown").tone === "bad";
-
-  const unitPhrase = (unit: string): string => statePhrase(rowLabels(opts.unitStates?.[unit]?.status ?? "unknown").pill);
-
-  if (unitIsBad("cloudflared-sites.service")) {
-    fixes.push({
-      hop: "tunnel",
-      body: `<p class="${STEP_TEXT} !mb-0">The sites tunnel ${unitPhrase("cloudflared-sites.service")}, so Cloudflare has nowhere to send this site's requests. Its last 50 log lines usually show why:</p>
-          ${commandBlock("cmd-fix-tunnel", "journalctl -u cloudflared-sites -n 50", "Copy journal command")}`,
-    });
-  }
-  if (unitIsBad("caddy.service")) {
-    fixes.push({
-      hop: "caddy",
-      body: `<p class="${STEP_TEXT} !mb-0">Caddy ${unitPhrase("caddy.service")}. Every site on lychee goes through it, so all of them are down, not only this one. Its last 50 log lines usually show why:</p>
-          ${commandBlock("cmd-fix-caddy", "journalctl -u caddy -n 50", "Copy journal command")}`,
-    });
-  }
-
-  const status = opts.status;
-  if (status?.kind === "failed" && opts.resource && !opts.resource.version) {
-    // Forced: the status is the page's verdict, and the resource's own `result`
-    // can have moved on (a newer run) while the pill still reads failed.
-    fixes.push({
-      hop: "your app",
-      body: `${failureLine({ ...opts.resource, result: "failed" })}
+  const app = appFix(site, opts);
+  return hopFixKeys(site, opts).map((hop): HopFix => {
+    if (hop === "tunnel") {
+      return {
+        hop,
+        body: `<p class="${STEP_TEXT} !mb-0">The sites tunnel ${unitPhrase(opts, "cloudflared-sites.service")}, so Cloudflare has nowhere to send this site's requests. Its last 50 log lines usually show why:</p>
+          ${commandBlock("cmd-fix-tunnel", UNIT_FIX_COMMANDS.tunnel, "Copy journal command")}`,
+      };
+    }
+    if (hop === "caddy") {
+      return {
+        hop,
+        body: `<p class="${STEP_TEXT} !mb-0">Caddy ${unitPhrase(opts, "caddy.service")}. Every site on lychee goes through it, so all of them are down, not only this one. Its last 50 log lines usually show why:</p>
+          ${commandBlock("cmd-fix-caddy", UNIT_FIX_COMMANDS.caddy, "Copy journal command")}`,
+      };
+    }
+    // "your app" is only in the keys when appFix found one.
+    if (app?.kind === "failed-first-deploy" && opts.resource) {
+      // Forced: the status is the page's verdict, and the resource's own `result`
+      // can have moved on (a newer run) while the pill still reads failed.
+      return {
+        hop,
+        body: `${failureLine({ ...opts.resource, result: "failed" })}
           <p class="${STEP_TEXT} !mb-0">To recover, publish a fixed tag; From a repository below offers it to deploy.</p>`,
-    });
-  } else if (opts.resource && status?.kind === "container" && describeStatus(status).tone === "bad") {
-    fixes.push({
-      hop: "your app",
-      body: `<p class="${STEP_TEXT} !mb-0">The container ${statePhrase(describeStatus(status).pill)}. Its last 100 log lines usually show why:</p>
-          ${commandBlock("cmd-logs", `docker compose -p ${opts.resource.name} logs --tail 100`, "Copy logs command")}`,
-    });
-  } else if (status?.kind === "tcp" && !status.responding) {
-    fixes.push({
-      hop: "your app",
+      };
+    }
+    if (app?.kind === "container" && opts.status) {
+      return {
+        hop,
+        body: `<p class="${STEP_TEXT} !mb-0">The container ${statePhrase(describeStatus(opts.status).pill)}. Its last 100 log lines usually show why:</p>
+          ${commandBlock("cmd-logs", app.command, "Copy logs command")}`,
+      };
+    }
+    return {
+      hop,
       body: `<p class="${STEP_TEXT} !mb-0">Nothing answered on ${mono(`localhost:${site.target}`)}. lychee-admin only routes requests to this port; whatever serves it is started outside the app. This shows what is listening there, and prints only its header row if nothing is:</p>
-          ${commandBlock("cmd-fix-listen", `ss -ltn 'sport = :${site.target}'`, "Copy listen check")}`,
-    });
-  }
-  return fixes;
+          ${commandBlock("cmd-fix-listen", app?.kind === "port" ? app.command : "", "Copy listen check")}`,
+    };
+  });
 }
 
 /**
@@ -447,10 +463,6 @@ function renderRequestPath(site: Site, opts: SiteDetailOptions): string {
       </section>`;
 }
 
-const STEP_NUMBER =
-  "font-mono text-[0.6875rem] text-rose-400 border border-rose-400/40 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5";
-const STEP_TEXT = `text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5 ${PROSE_MEASURE}`;
-
 /**
  * A copyable command, optionally captioned with the directory it must run in.
  * Shared by the manual steps, the request path's failure hint, and Deploy's
@@ -464,32 +476,23 @@ function commandBlock(id: string, value: string, label: string, cwd?: string): s
             ${cwd ? `<p class="font-mono text-[0.72rem] text-stone-400 m-0 mt-1">in ${escapeHtml(cwd)}/</p>` : ""}`;
 }
 
-interface ManualStep {
-  /** Plain sentence. Escaped at render time — never carries markup. */
-  text?: string;
-  /**
-   * A sentence with inline machine facts, already escaped by the caller.
-   * Used instead of `text`, never beside it.
-   */
-  html?: string;
-  command?: { id: string; value: string; label?: string };
-  /** A secondary line and command after the first, for a step with a fallback. */
-  then?: { note: string; command: { id: string; value: string; label?: string } };
+/** A sentence's runs: text escaped, inline machine facts as code. */
+function renderInline(runs: Inline[]): string {
+  return runs
+    .map((run) => (typeof run === "string" ? escapeHtml(run) : `<code class="${INLINE_CODE}">${escapeHtml(run.code)}</code>`))
+    .join("");
 }
 
-const INLINE_CODE = "font-mono text-[0.72rem] text-stone-300 bg-stone-900 rounded-[4px] px-1";
-
 function renderStep(step: ManualStep, index: number): string {
-  const block = (c: { id: string; value: string; label?: string }): string =>
-    commandBlock(c.id, c.value, c.label ?? "Copy DNS command");
+  const block = (c: StepCommand): string => commandBlock(c.id, c.value, c.label ?? "Copy DNS command");
   return `<div class="flex gap-3">
           <span class="${STEP_NUMBER}">${index + 1}</span>
           <div class="flex-1 min-w-0">
-            <p class="${STEP_TEXT}">${step.html ?? escapeHtml(step.text ?? "")}</p>
+            <p class="${STEP_TEXT}">${renderInline(step.text)}</p>
             ${step.command ? block(step.command) : ""}
             ${
               step.then
-                ? `<p class="${BODY} mt-3 mb-2">${step.then.note}</p>
+                ? `<p class="${BODY} mt-3 mb-2">${renderInline(step.then.note)}</p>
             ${block(step.then.command)}`
                 : ""
             }
@@ -502,49 +505,10 @@ function renderStep(step: ManualStep, index: number): string {
  * app never touches Cloudflare DNS — and it never starts, stops, or rebuilds
  * a container. Both used to be one-shot flash banners that vanished on
  * reload; a missing DNS record is permanent state, so it needs a permanent
- * home.
+ * home. The steps themselves are siteDetailModel's `manualSteps`.
  */
 function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
-  const filesPath = computeFilesPath(site, opts.sitesRoot);
-
-  const { lead: label } = splitHostnameForDisplay(site.hostname, opts.domain);
-  // The apex has no subdomain label; a CNAME for it is named "@".
-  const recordName = label === site.hostname ? "@" : label;
-
-  // `cloudflared tunnel route dns` needs an account certificate (cert.pem) that
-  // exists on the host only during `cloudflared tunnel login`, so the dashboard
-  // CNAME leads and the command is a fallback for a machine that has a login.
-  const dnsStep: ManualStep = opts.tunnelId
-    ? {
-        html: `Create the DNS record, once per hostname: in the Cloudflare dashboard, add a proxied CNAME named <code class="${INLINE_CODE}">${escapeHtml(recordName)}</code> pointing at the target below. Until it exists, the site can't be reached from the internet even while every check on this page passes: lychee-admin checks lychee itself, never Cloudflare.`,
-        command: {
-          id: "cmd-dns-target",
-          value: `${opts.tunnelId}.cfargotunnel.com`,
-          label: "Copy CNAME target",
-        },
-        then: {
-          note: `Or, from a machine with a Cloudflare login — the host keeps no account certificate, so run <code class="${INLINE_CODE}">cloudflared tunnel login</code> first:`,
-          command: {
-            id: "cmd-dns",
-            value: `cloudflared tunnel route dns ${opts.tunnelId} ${site.hostname}`,
-            label: "Copy route dns command",
-          },
-        },
-      }
-    : {
-        text: "Create the DNS record, once per hostname — add a CNAME for this hostname to your tunnel from the Cloudflare dashboard. Until it exists, the site can't be reached from the internet even while every check on this page passes: lychee-admin checks lychee itself, never Cloudflare.",
-      };
-  const steps: ManualStep[] = [dnsStep];
-
-  // A static site is already serving — add-site created the directory and wrote
-  // a placeholder index.html into it — so nothing prompts the user to notice
-  // that what is live is a placeholder. This is the same category as the other
-  // steps: something lychee-admin deliberately does not do for you.
-  if (site.type === "static" && filesPath) {
-    steps.push({
-      text: `Put your site's files in ${filesPath}/. lychee-admin created a placeholder index.html there, which Caddy serves until you replace it.`,
-    });
-  }
+  const steps = manualSteps(site, opts, computeFilesPath(site, opts.sitesRoot));
 
   return `
       <section class="${CARD}">
@@ -566,12 +530,7 @@ function renderManualSteps(site: Site, opts: SiteDetailOptions): string {
  * never touched, so the last sentence always says so.
  */
 function renderDangerZone(opts: { attached: boolean; deletableFiles: boolean }): string {
-  const sentences = [
-    "Removing takes the site out of the Caddyfile and the tunnel route, reloads Caddy, then restarts the sites tunnel.",
-    ...(opts.attached ? ["It then retires the site's declaration, which stops its container."] : []),
-    ...(opts.deletableFiles ? ["The site's files stay unless you tick the box when you confirm."] : []),
-    "lychee-admin never touches the DNS record; delete it in Cloudflare afterwards.",
-  ];
+  const sentences = dangerSentences(opts);
   return `
       <section class="border border-red-900/60 bg-red-950/20 rounded-[10px] p-5 mt-4 flex items-center justify-between gap-4 flex-wrap">
         <div class="min-w-0">
@@ -581,19 +540,6 @@ function renderDangerZone(opts: { attached: boolean; deletableFiles: boolean }):
         <button type="button" class="${BUTTON_DANGER} shrink-0" data-open-dialog="confirm-remove-dialog">${icon("trash")}Remove site</button>
       </section>`;
 }
-
-const STEP_DONE =
-  "font-mono text-[0.6875rem] text-stone-300 border border-stone-600 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5";
-/**
- * A whole file, at full height. It wraps rather than scrolling sideways: the
- * Show-It Rule allows horizontal overflow only on a one-line command, and the
- * release workflow's build line is wider than the reading column. The copy
- * button reads textContent, so wrapping changes nothing that is copied.
- */
-const CODE_FILE =
-  "font-mono text-[0.72rem] leading-[1.6] bg-stone-900 border border-stone-700 rounded-md pl-2.5 pr-11 py-2.5 text-stone-50 whitespace-pre-wrap [overflow-wrap:anywhere] m-0";
-/** Multi-line blocks pin their copy button top-right, at the single-line inset. */
-const COPY_TOP = "absolute top-1.5 right-1.5";
 
 function fileBlock(file: { name: string; content: string }, index: number): string {
   const id = `scaffold-file-${index}`;
@@ -608,15 +554,25 @@ function fileBlock(file: { name: string; content: string }, index: number): stri
             </div>`;
 }
 
-/** `title` is markup: machine facts inside it are wrapped with mono() by the caller. */
-function runbookStep(n: number, done: boolean, title: string, body: string, fold?: { extra?: string }): string {
-  if (done && fold) {
+/**
+ * `title` is markup: machine facts inside it are wrapped with mono() by the
+ * caller. `done` and `folds` are siteDetailModel's `runbookSteps`; `extra` is
+ * what a folded summary adds after `done`.
+ */
+function runbookStep(
+  step: { n: number; done: boolean; folds: boolean },
+  title: string,
+  body: string,
+  extra?: string,
+): string {
+  const { n, done } = step;
+  if (step.folds) {
     // A finished step collapses to its summary line; the body stays in the page, one click away.
-    const extra = fold.extra ? ` <span class="font-mono text-[0.72rem] font-normal text-stone-400">· ${escapeHtml(fold.extra)}</span>` : "";
+    const more = extra ? ` <span class="font-mono text-[0.72rem] font-normal text-stone-400">· ${escapeHtml(extra)}</span>` : "";
     return `<details class="group">
           <summary class="flex gap-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden rounded-md ${FOCUS_RING}">
             <span class="${STEP_DONE}">${icon("check")}<span class="sr-only">Step ${n}, done</span></span>
-            <span class="block text-stone-50 font-semibold text-[0.9rem] leading-snug m-0 flex-1 min-w-0">${title} <span class="font-mono text-[0.72rem] font-normal text-stone-400">done</span>${extra}</span>
+            <span class="block text-stone-50 font-semibold text-[0.9rem] leading-snug m-0 flex-1 min-w-0">${title} <span class="font-mono text-[0.72rem] font-normal text-stone-400">done</span>${more}</span>
             <span class="text-stone-500 shrink-0 mt-0.5 group-open:rotate-180 motion-safe:transition-transform">${icon("chevronDown")}</span>
           </summary>
           <div class="pl-[1.95rem] pt-2 flex flex-col gap-2">
@@ -706,25 +662,6 @@ function repoField(id: string, value: string, extraDescribedBy: string): string 
 }
 
 /**
- * Attached, and the reconciler has looked and found no tag. Only then: before
- * its first run nothing has been checked, and once a tag is found or written
- * the declaration is no longer tagless, which the writer refuses to repoint.
- * A null repo means the declaration itself could not be read, so there is no
- * current value to show or correct.
- */
-function canChangeRepository(resource: SiteResourceView | undefined): resource is SiteResourceView & { repo: string } {
-  return (
-    resource !== undefined &&
-    resource.repo !== null &&
-    !resource.version &&
-    resource.result !== undefined &&
-    resource.result !== "failed" &&
-    !resource.available &&
-    !resource.target
-  );
-}
-
-/**
  * Step three's body once the reconciler has found nothing. A typo in the
  * repository and a tag not pushed yet look identical from here (an empty tag
  * list either way), so the copy names both causes and claims neither; the
@@ -793,36 +730,37 @@ function failureLine(resource: FailureFacts, extraClass = "", commandId = "cmd-r
  * treats a moved pin as in flight once something is installed, and a second
  * request for the same tag would only race the first.
  */
-function firstDeploy(resource: SiteResourceView | undefined): string {
-  if (!resource) {
+function firstDeploy(opts: SiteDetailOptions): string {
+  const resource = opts.resource;
+  const step = deployStep(resource);
+  if (!resource || step === "unattached") {
     return `<p class="${BODY}">Once the repository is attached and ${mono("v0.1.0")} is built, ${mono("0.1.0")} is offered here. Deploying writes the tag into the declaration; the reconciler starts the container on its next run.</p>`;
   }
-  if (resource.result === undefined) {
+  if (step === "unchecked") {
     return `<p class="${BODY}">Attached. The reconciler looks for the image on its next run, usually within two minutes, and offers the newest tag here; reload to see it.</p>`;
   }
+  const offer = offerFor(opts);
   // Not "requested": the reconciler already tried, and will not simply pull it
   // next time. Explanation first, then a newer tag if one has been published:
   // offeredTag never re-offers the one that failed.
-  if (resource.result === "failed") {
-    const tag = offeredTag(resource);
+  if (step === "failed") {
     // The reason lives under the request path, where the red hop is.
     const pointer = resource.target
       ? `Deploying ${mono(resource.target)} failed; the reason is under the request path.`
       : "The last deploy failed; the reason is under the request path.";
-    return `<p class="${BODY}">${pointer}</p>${gateLine(resource)}${tag ? offerOrRequested(resource.name, tag, resource.requestedTag, "primary") : ""}`;
+    return `<p class="${BODY}">${pointer}</p>${gateLine(resource)}${offer ? renderOffer(offer) : ""}`;
   }
-  if (resource.target && resource.target === resource.available) {
-    const requested = `<p class="font-mono text-[0.8rem] text-stone-50 m-0">${escapeHtml(resource.target)} requested</p>`;
+  if (step === "requested" || step === "requested-blocked") {
+    const requested = `<p class="font-mono text-[0.8rem] text-stone-50 m-0">${escapeHtml(resource.target ?? "")} requested</p>`;
     // A blocked run will not simply pull it next time; the gate says why.
-    if (resource.result === "blocked") return `${requested}${gateLine(resource)}`;
+    if (step === "requested-blocked") return `${requested}${gateLine(resource)}`;
     return `${requested}
             <p class="${BODY}">The reconciler pulls it and starts the container on its next run.</p>${gateLine(resource)}`;
   }
   // Nothing is installed here, so a found tag that is not the pin is on offer.
-  const tag = offeredTag(resource);
-  if (tag) return `${gateLine(resource)}${offerOrRequested(resource.name, tag, resource.requestedTag, "primary")}`;
+  if (step === "offer" && offer) return `${gateLine(resource)}${renderOffer(offer)}`;
   // Step three already says no image was found and why that might be.
-  if (canChangeRepository(resource)) {
+  if (step === "awaiting-image-change") {
     return `<p class="${BODY}">Nothing to deploy until the image exists; its newest tag is offered here once the reconciler finds it.</p>${gateLine(resource)}`;
   }
   const image = resource.repo ? `${IMAGE_PREFIX}${resource.repo}` : "the image";
@@ -860,7 +798,7 @@ function renderRepositoryCard(site: Site, opts: SiteDetailOptions, resourceName:
 
   if (resource?.version) {
     const repository = resource.repo ? `LycheeHome/${resource.repo}` : null;
-    const tag = offeredTag(resource);
+    const offer = offerFor(opts);
     const rows: [string, string][] = [
       ["running", resource.version],
       ...(resource.target && resource.target !== resource.version ? ([["requested", resource.target]] as [string, string][]) : []),
@@ -873,13 +811,13 @@ function renderRepositoryCard(site: Site, opts: SiteDetailOptions, resourceName:
         ${rows.map(([key, value]) => `<p class="${DETAIL_ROW}"><span class="${DETAIL_KEY}">${escapeHtml(key)}</span><span class="text-stone-50 break-all">${escapeHtml(value)}</span></p>`).join("\n        ")}
         ${failureLine(resource, "mt-3")}
         ${gateLine(resource)}
-        ${tag ? offerOrRequested(resource.name, tag, resource.requestedTag) : ""}
+        ${offer ? renderOffer(offer) : ""}
         ${baked}
       </section>`;
   }
 
-  const imageFound = Boolean(resource?.available);
-  const files = (opts.scaffoldFiles ?? []).map(fileBlock).join("\n            ");
+  const [one, two, three, four] = runbookSteps(site, opts);
+  const files =(opts.scaffoldFiles ?? []).map(fileBlock).join("\n            ");
   const scaffoldNames = (opts.scaffoldFiles ?? []).map((f) => f.name.split("/").pop()).join(", ");
   const attached = resource
     ? `<p class="font-mono text-[0.8rem] text-stone-50 m-0 break-all">${escapeHtml(resource.repo ? `${IMAGE_PREFIX}${resource.repo}` : resource.name)} <span class="text-stone-400">· ${escapeHtml(resource.name)}.yml</span></p>${
@@ -892,12 +830,12 @@ function renderRepositoryCard(site: Site, opts: SiteDetailOptions, resourceName:
         <h3 class="${CARD_LABEL}">From a repository</h3>
         <p class="${BODY} mb-4">Steps 1 and 2 happen in GitHub; 3 and 4 happen here. Attaching before the first tag is pushed is fine: nothing is offered to deploy until the image exists.</p>
         <div class="flex flex-col gap-5">
-          ${runbookStep(1, imageFound, "Commit these three files beside your app", `<p class="${BODY}">At the repository's root, next to ${mono("package.json")}.</p>
-            ${files}`, { extra: scaffoldNames })}
-          ${runbookStep(2, imageFound, `Create the repository in ${mono("LycheeHome")}, then push tag ${mono("v0.1.0")}`, `<p class="${BODY}">It has to live in the ${mono("LycheeHome")} org: the image is published as ${mono(`${IMAGE_PREFIX}<repo>`)}, the only registry path the reconciler accepts. The tag has GitHub's own runners build and push ${mono(`${IMAGE_PREFIX}<repo>:0.1.0`)}. Nothing runs on lychee yet.</p>
-            ${commandBlock("cmd-tag", "git tag v0.1.0 && git push origin v0.1.0", "Copy tag command")}`, {})}
-          ${runbookStep(3, resource !== undefined, "Attach the repository", attached)}
-          ${runbookStep(4, false, "Deploy", firstDeploy(resource))}
+          ${runbookStep(one, "Commit these three files beside your app", `<p class="${BODY}">At the repository's root, next to ${mono("package.json")}.</p>
+            ${files}`, scaffoldNames)}
+          ${runbookStep(two, `Create the repository in ${mono("LycheeHome")}, then push tag ${mono("v0.1.0")}`, `<p class="${BODY}">It has to live in the ${mono("LycheeHome")} org: the image is published as ${mono(`${IMAGE_PREFIX}<repo>`)}, the only registry path the reconciler accepts. The tag has GitHub's own runners build and push ${mono(`${IMAGE_PREFIX}<repo>:0.1.0`)}. Nothing runs on lychee yet.</p>
+            ${commandBlock("cmd-tag", "git tag v0.1.0 && git push origin v0.1.0", "Copy tag command")}`)}
+          ${runbookStep(three, "Attach the repository", attached)}
+          ${runbookStep(four, "Deploy", firstDeploy(opts))}
         </div>
         ${baked}
       </section>`;
@@ -931,21 +869,6 @@ function renderDetailHeader(site: Site, opts: SiteDetailOptions): string {
       </div>`;
 }
 
-/**
- * The banner a site lands on after being created. Its job is to explain the
- * status pill beside it: two of the three types arrive not-yet-working, so
- * leading with what did succeed keeps the two from contradicting each other.
- */
-function addedBanner(site: Site): string {
-  if (site.type === "static") {
-    return `Added ${site.hostname} — Caddy is serving the placeholder page it created. Manual steps has the DNS record and how to replace it.`;
-  }
-  if (site.framework) {
-    return `Added ${site.hostname} — routing is live. It shows as not deployed until a repository is attached and its first image deployed; From a repository has the steps.`;
-  }
-  return `Added ${site.hostname} — routing is live, but nothing is listening on port ${site.target} yet, so it shows as not responding until you start your process.`;
-}
-
 export function renderSiteDetail(site: Site, opts: SiteDetailOptions, shell: ShellData): string {
   const resourceName = site.framework ? resourceNameFor(site.hostname, opts.domain) : null;
   const filesPath = computeFilesPath(site, opts.sitesRoot);
@@ -974,8 +897,10 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions, shell: She
 
   const manualSteps = renderManualSteps(site, opts);
   const repositoryCard = resourceName && opts.scaffold ? renderRepositoryCard(site, opts, resourceName) : "";
-  // DNS is live setup until a site is attached; after that the repository card is the work in hand.
-  const attached = opts.resource !== undefined;
+  // DNS is live setup until a site is attached; after that the repository
+  // card is the work in hand (siteDetailModel's cardOrder). The empty card
+  // keeps its place in the markup either way, as it always has.
+  const repositoryFirst = cardOrder(opts)[1] === "repository";
 
   return layout(
     site.hostname,
@@ -984,7 +909,7 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions, shell: She
       ${renderDetailHeader(site, opts)}
 
       ${renderRequestPath(site, opts)}
-      ${attached ? `${repositoryCard}
+      ${repositoryFirst ? `${repositoryCard}
       ${manualSteps}` : `${manualSteps}
       ${repositoryCard}`}
 
@@ -994,16 +919,12 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions, shell: She
     <dialog id="confirm-remove-dialog"${attachedName ? ` data-attached="true"` : ""} aria-labelledby="confirm-remove-title" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
       <h2 id="confirm-remove-title" class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Remove site</h2>
       <p class="m-0 mb-3 leading-relaxed">Remove <strong>${escapeHtml(site.hostname)}</strong>? In this order:</p>
-      <ol id="confirm-remove-steps" class="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 p-0 list-none grid gap-y-1.5">
-        <li class="flex gap-2" data-step-id="caddyfile"><span class="text-stone-400 shrink-0">1.</span><span>Caddyfile block removed</span><span class="step-mark ml-auto shrink-0"></span></li>
-        <li class="flex gap-2" data-step-id="tunnel"><span class="text-stone-400 shrink-0">2.</span><span>Tunnel route removed</span><span class="step-mark ml-auto shrink-0"></span></li>
-        <li class="flex gap-2" data-step-id="caddy"><span class="text-stone-400 shrink-0">3.</span><span>Caddy validated and reloaded</span><span class="step-mark ml-auto shrink-0"></span></li>
-        <li class="flex gap-2" data-step-id="cloudflared"><span class="text-stone-400 shrink-0">4.</span><span>cloudflared-sites restarted</span><span class="step-mark ml-auto shrink-0"></span></li>${
-          attachedName
-            ? `
-        <li class="flex gap-2" data-step-id="declaration"><span class="text-stone-400 shrink-0">5.</span><span>${escapeHtml(attachedName)}.yml set to state: absent</span><span class="step-mark ml-auto shrink-0"></span></li>`
-            : ""
-        }
+      <ol id="confirm-remove-steps" class="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 p-0 list-none grid gap-y-1.5">${removeSteps(opts)
+        .map(
+          (step, index) => `
+        <li class="flex gap-2" data-step-id="${step.id}"><span class="text-stone-400 shrink-0">${index + 1}.</span><span>${escapeHtml(step.label)}</span><span class="step-mark ml-auto shrink-0"></span></li>`,
+        )
+        .join("")}
       </ol>
       <p class="text-stone-400 text-[0.75rem] leading-snug m-0 ${attachedName ? "mb-2" : "mb-4"}">If a step fails, the ones after it don't run.</p>${
         attachedName
@@ -1021,7 +942,7 @@ export function renderSiteDetail(site: Site, opts: SiteDetailOptions, shell: She
     `),
     {
       shell,
-      banner: opts.created ? { message: addedBanner(site) } : undefined,
+      banner: opts.created ? { message: addedNotice(site) } : undefined,
     },
   );
 }
@@ -1072,11 +993,11 @@ export function renderRequestedLine(tag: string): string {
 
 /**
  * The offer, or the requested line in its place when the declaration already
- * holds that very tag. A pending tag that is not the offered one leaves the
- * offer alone: it is a different request.
+ * holds that very tag (siteDetailModel's `offerFor`). A pending tag that is
+ * not the offered one leaves the offer alone: it is a different request.
  */
-function offerOrRequested(name: string, tag: string, pending: string | undefined, emphasis: "offer" | "primary" = "offer"): string {
-  return pending === tag ? renderRequestedLine(tag) : renderOfferLine(name, tag, emphasis);
+function renderOffer(offer: NonNullable<ReturnType<typeof offerFor>>): string {
+  return offer.requested ? renderRequestedLine(offer.tag) : renderOfferLine(offer.name, offer.tag, offer.emphasis);
 }
 
 /**
