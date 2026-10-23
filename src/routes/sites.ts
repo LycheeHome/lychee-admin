@@ -24,17 +24,18 @@ import {
   renderSiteDetail,
   renderErrorPage,
   renderSiteNotFound,
-  type SiteResourceView,
 } from "../views/html";
+import type { SiteResourceView } from "../views/siteDetailModel";
 import { loadShell } from "./loadShell";
 import { renderClientPage } from "../views/clientShell";
 import { SITES_HEADING_TEXT as SITES_TITLE } from "../views/siteListModel";
 import { clearBoardCache } from "./services";
-import { cachedRead } from "./readCache";
+import { cachedRead, evictRead } from "./readCache";
 import { hostProblems, hostProblemUnits, undeployedStatus, type SiteStatus } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
-import type { ApiOk } from "../shared/board";
+import type { ApiError, ApiOk } from "../shared/board";
 import type { SitesPayload } from "../shared/sites";
+import type { SiteDetailFacts, SiteDetailPayload } from "../shared/siteDetail";
 import type { Site } from "../lib/caddyfile";
 import type { Deps } from "../deps";
 import { IMAGE_PREFIX, RESERVED_PORT_OWNERS } from "../lib/platform";
@@ -211,6 +212,92 @@ export function cachedHostUnitStates(deps: Deps): Promise<Record<string, UnitSta
   );
 }
 
+/**
+ * Everything a site's detail page states about it, gathered once for both the
+ * HTML page and GET /api/sites/:hostname so the two cannot gather differently.
+ * Never pulls the clone: callers that want a fresh one refresh first.
+ */
+export async function loadSiteDetail(site: Site, deps: Deps): Promise<SiteDetailFacts> {
+  // Read for display only, so an unreadable tunnel config must not take the
+  // page down: the DNS step falls back to dashboard instructions.
+  let tunnelId = "";
+  try {
+    tunnelId = tunnelConfig.readTunnelId(deps.fs.readFile(config.tunnelConfigPath));
+  } catch {
+    tunnelId = "";
+  }
+
+  // The tunnel and Caddy hops' live state: one read for both units, run
+  // alongside the per-site check below. A failed read degrades to {} (both
+  // hops render `unknown`) rather than taking the page down.
+  const unitStatesRead = (async (): Promise<Record<string, UnitState>> => {
+    try {
+      return await deps.commands.readUnitStates(["caddy.service", "cloudflared-sites.service"]);
+    } catch {
+      return {};
+    }
+  })();
+
+  const base = {
+    sitesRoot: config.sitesRoot,
+    domain: config.domain,
+    tunnelId,
+    tunnelConfigPath: config.tunnelConfigPath,
+    caddyfilePath: config.caddyfilePath,
+  };
+
+  if (site.type === "static") {
+    const unitStates = await unitStatesRead;
+    return {
+      ...base,
+      unitStates,
+      filesExist: deps.fs.exists(path.posix.join(config.sitesRoot, site.hostname)),
+    };
+  }
+
+  // Guard against a hand-edited Caddyfile block with an out-of-range port
+  // (caddyfile.parseSites only checks the target is digits, not a valid
+  // port number) — treat it as simply "not responding" rather than
+  // letting an invalid value reach net.connect inside checkPortOpen.
+  const port = Number(site.target);
+  const [nextjs, unitStates] = await Promise.all([
+    (async (): Promise<NextjsState> =>
+      site.framework
+        ? resolveNextjsSite(site, await readResourceSources(deps), deps)
+        : {
+            status: { kind: "tcp", responding: port >= 1 && port <= 65535 ? await checkPortOpen(port) : false },
+            detached: false,
+          })(),
+    unitStatesRead,
+  ]);
+  // site.healthcheckPath is unvalidated on this read path (only POST /sites
+  // validates it), and the Dockerfile it lands in is rendered for copying.
+  // That is HTML-safe because every file is escaped at render; the
+  // Caddyfile it comes from is root-owned and written only through add-site.
+  const scaffold = site.framework ? getFrameworkScaffold(site.framework, site.healthcheckPath ?? "/") : null;
+  const scaffoldCommands = scaffold
+    ? { buildCommand: scaffold.buildCommand, runCommand: scaffold.runCommand }
+    : undefined;
+  const scaffoldFiles = site.framework ? getScaffoldFiles(site.framework, site.healthcheckPath ?? "/") : null;
+  const filesPath = caddyfile.computeFilesPath(site, config.sitesRoot);
+
+  return {
+    ...base,
+    status: nextjs.status,
+    scaffold: scaffoldCommands,
+    ...(scaffoldFiles ? { scaffoldFiles } : {}),
+    ...(nextjs.resource ? { resource: nextjs.resource } : {}),
+    detached: nextjs.detached,
+    filesExist: filesPath !== null && deps.fs.exists(filesPath),
+    unitStates,
+  };
+}
+
+/** loadSiteDetail behind the shared 5s read, one entry per hostname. */
+export function cachedSiteDetail(site: Site, deps: Deps): Promise<SiteDetailFacts> {
+  return cachedRead("site-detail:" + site.hostname, deps, () => loadSiteDetail(site, deps));
+}
+
 export function createSitesRouter(deps: Deps): Router {
   const sitesRouter = Router();
 
@@ -273,6 +360,45 @@ export function createSitesRouter(deps: Deps): Router {
     }
   });
 
+  // One site's detail for the client. 404 for an unknown site; an unreadable
+  // Caddyfile is the error variant of a 200, as /api/sites does it.
+  // ?refresh=1 pulls the clone (Next.js sites only) and evicts the cached read.
+  sitesRouter.get("/api/sites/:hostname", async (req, res) => {
+    const hostname = req.params.hostname.toLowerCase();
+    try {
+      let site: Site | undefined;
+      try {
+        site = caddyfile
+          .parseSites(deps.fs.readFile(config.caddyfilePath))
+          .filter((s) => isManagedHostname(s.hostname, config.domain))
+          .find((s) => s.hostname === hostname);
+      } catch (error) {
+        const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
+        const payload: SiteDetailPayload = { caddyfileError: message, domain: config.domain };
+        res.json({ ok: true, ...payload } satisfies ApiOk<SiteDetailPayload>);
+        return;
+      }
+      if (!site) {
+        res.status(404).json({ ok: false, reason: `No site named ${hostname}` } satisfies ApiError);
+        return;
+      }
+      if (req.query.refresh === "1") {
+        if (site.framework && site.type !== "static") await refreshClone(deps);
+        evictRead("site-detail:" + site.hostname, deps);
+      }
+      const facts = await cachedSiteDetail(site, deps);
+      const payload: SiteDetailPayload = {
+        site,
+        filesPath: caddyfile.computeFilesPath(site, config.sitesRoot),
+        caddyfileError: null,
+        ...facts,
+      };
+      res.json({ ok: true, ...payload } satisfies ApiOk<SiteDetailPayload>);
+    } catch (error) {
+      res.status(500).json({ ok: false, reason: String(error) } satisfies ApiError);
+    }
+  });
+
   // Registered above /sites/:hostname deliberately: Express matches in
   // registration order, so if this were below, "new" would be captured as
   // :hostname, fail isManagedHostname, and 404 instead of rendering the form.
@@ -308,93 +434,16 @@ export function createSitesRouter(deps: Deps): Router {
       const sites = caddyfile.parseSites(content).filter((s) => isManagedHostname(s.hostname, config.domain));
       const site = sites.find((s) => s.hostname === hostname);
 
-      // Read for display only, so an unreadable tunnel config must not take the
-      // page down — the DNS step falls back to dashboard instructions.
-      let tunnelId = "";
-      try {
-        tunnelId = tunnelConfig.readTunnelId(deps.fs.readFile(config.tunnelConfigPath));
-      } catch {
-        tunnelId = "";
-      }
-
       if (!site) {
         res.status(404).send(renderSiteNotFound(hostname, loadShell(deps, null)));
         return;
       }
 
-      // The tunnel and Caddy hops' live state: one read for both units, run
-      // alongside the per-site check below. A failed read degrades to {} (both
-      // hops render `unknown`) rather than taking the page down.
-      const unitStatesRead = (async (): Promise<Record<string, UnitState>> => {
-        try {
-          return await deps.commands.readUnitStates(["caddy.service", "cloudflared-sites.service"]);
-        } catch {
-          return {};
-        }
-      })();
-
-      if (site.type === "static") {
-        const unitStates = await unitStatesRead;
-        res.send(
-          renderSiteDetail(site, {
-            sitesRoot: config.sitesRoot,
-            domain: config.domain,
-            tunnelId,
-            tunnelConfigPath: config.tunnelConfigPath,
-            caddyfilePath: config.caddyfilePath,
-            unitStates,
-            filesExist: deps.fs.exists(path.posix.join(config.sitesRoot, site.hostname)),
-            created,
-          }, loadShell(deps, { site: site.hostname })),
-        );
-        return;
-      }
-
-      // Guard against a hand-edited Caddyfile block with an out-of-range port
-      // (caddyfile.parseSites only checks the target is digits, not a valid
-      // port number) — treat it as simply "not responding" rather than
-      // letting an invalid value reach net.connect inside checkPortOpen.
-      const port = Number(site.target);
-      const [nextjs, unitStates] = await Promise.all([
-        (async (): Promise<NextjsState> =>
-          site.framework
-            ? resolveNextjsSite(site, await refreshClone(deps).then(() => readResourceSources(deps)), deps)
-            : {
-                status: { kind: "tcp", responding: port >= 1 && port <= 65535 ? await checkPortOpen(port) : false },
-                detached: false,
-              })(),
-        unitStatesRead,
-      ]);
-      // site.healthcheckPath is unvalidated on this read path (only POST /sites
-      // validates it), and the Dockerfile it lands in is rendered for copying.
-      // That is HTML-safe because every file is escaped at render; the
-      // Caddyfile it comes from is root-owned and written only through add-site.
-      const scaffold = site.framework
-        ? getFrameworkScaffold(site.framework, site.healthcheckPath ?? "/")
-        : null;
-      const scaffoldCommands = scaffold
-        ? { buildCommand: scaffold.buildCommand, runCommand: scaffold.runCommand }
-        : undefined;
-      const scaffoldFiles = site.framework ? getScaffoldFiles(site.framework, site.healthcheckPath ?? "/") : null;
-      const filesPath = caddyfile.computeFilesPath(site, config.sitesRoot);
-
-      res.send(
-        renderSiteDetail(site, {
-          sitesRoot: config.sitesRoot,
-          domain: config.domain,
-          tunnelId,
-          tunnelConfigPath: config.tunnelConfigPath,
-          caddyfilePath: config.caddyfilePath,
-          status: nextjs.status,
-          scaffold: scaffoldCommands,
-          ...(scaffoldFiles ? { scaffoldFiles } : {}),
-          ...(nextjs.resource ? { resource: nextjs.resource } : {}),
-          detached: nextjs.detached,
-          filesExist: filesPath !== null && deps.fs.exists(filesPath),
-          unitStates,
-          created,
-        }, loadShell(deps, { site: site.hostname })),
-      );
+      // The clone is pulled for a Next.js site's page, so a declaration
+      // pruned or added on GitHub by hand shows; loadSiteDetail never pulls.
+      if (site.framework && site.type !== "static") await refreshClone(deps);
+      const facts = await loadSiteDetail(site, deps);
+      res.send(renderSiteDetail(site, { ...facts, created }, loadShell(deps, { site: site.hostname })));
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
       // Unlike GET /'s own fallback, this page's URL is /sites/<hostname> —
