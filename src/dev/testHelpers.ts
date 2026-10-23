@@ -110,8 +110,9 @@ export async function seedSiteDetailFacts(hostname: string): Promise<{ site: Sit
 /**
  * `GET /api/sites/:hostname`'s answer for a seed site, as the route builds it
  * (the site, its files path and the facts), with `override` merged over the
- * facts. The site page's React tests render this and compare it with
- * renderSiteDetail given the same facts.
+ * facts. The site page's React tests render this and compare it with the
+ * retired renderSiteDetail's output for the same facts, frozen in
+ * src/dev/fixtures/detail/.
  */
 export async function seedSiteDetailPayload(
   hostname: string,

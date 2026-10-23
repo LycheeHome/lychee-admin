@@ -157,12 +157,13 @@ claim.
   rejected on conflict with another site, with a port claimed by a declaration
   in `lychee-resources` (in any state, retired included), or with a reserved
   port (the app's own, and Caddy's admin API on 2019).
-- **Server-rendered HTML plus vanilla JS, except the sites list and the
-  services board** — Express templates and Tailwind via its CLI for every page
-  but the sites list and the three board pages, which React renders, with
-  client-side routing between them, a sites list that re-reads itself every
-  15s, and a board that re-reads itself (every 15s, every 3s while a deploy or
-  host action is in progress) instead of reloading. This is a single-purpose
+- **React for every page but add site** — Express templates and Tailwind via
+  its CLI still render the add-site page; the sites list, a site's page and
+  the three board pages are React's, with client-side routing between them, a
+  sites list that re-reads itself every 15s, a site's page that re-reads
+  itself (every 15s, every 3s while a deploy it requested is waiting), and a
+  board that re-reads itself (every 15s, every 3s while a deploy or host
+  action is in progress) instead of reloading. This is a single-purpose
   internal tool; the rest of it moves to React only page by page, with output
   parity.
 - **Served over plain HTTP on the LAN**, so `navigator.clipboard` is

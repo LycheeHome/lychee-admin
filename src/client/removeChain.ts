@@ -1,8 +1,9 @@
 import { showToast } from "./toast";
 
 /*
- * The remove chain, ported step for step from public/app.js's
- * #confirm-remove-submit handler and its helpers (retireDeclaration,
+ * The remove chain, and its only home since the server site page was retired:
+ * ported step for step from the #confirm-remove-submit handler public/app.js
+ * had and its helpers (retireDeclaration,
  * deleteSiteFiles, filesFailureMessage, offerDeclarationRetry,
  * isRemovalSettled, hostStateMessage), with its endpoints, bodies, order and
  * strings unchanged. Each step is its own request, and each runs only if the

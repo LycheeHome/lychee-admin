@@ -49,11 +49,13 @@ import { RemoveDialog, type RemoveDialogHandle } from "./RemoveDialog";
 import { RepositoryCard, type SiteWrites } from "./RepositoryCard";
 
 /*
- * The site page's markup in JSX, element for element what html.ts's
- * renderSiteDetail writes for the header, the request path (What to check
- * included), Manual steps and the Danger card with its closed dialog, plus
- * the not-found and Caddyfile-error bodies. Every decision is
- * siteDetailModel's; SiteDetailParity.test.tsx compares the two renderers.
+ * The site page's markup in JSX, element for element what the retired
+ * html.ts's renderSiteDetail wrote for the header, the request path (What to
+ * check included), Manual steps and the Danger card with its closed dialog,
+ * plus the not-found and Caddyfile-error bodies. Every decision is
+ * siteDetailModel's; SiteDetailParity.test.tsx compares this with the
+ * retired renderer's output, frozen in src/dev/fixtures/detail/, and the
+ * Caddyfile error with the live renderErrorPage.
  *
  * Every phrase the server writes as one text node is one template string
  * here, never adjacent JSX expressions: React would make those separate text
@@ -488,7 +490,7 @@ export function SiteDetail({
   );
 }
 
-/** renderSiteNotFound's body. */
+/** The retired renderSiteNotFound's body. */
 export function SiteNotFound({ hostname }: { hostname: string }) {
   return (
     <div className="max-w-[640px] mx-auto w-full flex flex-col gap-4">

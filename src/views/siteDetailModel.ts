@@ -1,8 +1,9 @@
-// Node-free model for the site detail page: the facts both renderers read, and
-// the decisions both make from them. html.ts and the React page import these,
-// so the two cannot disagree about which hop needs a fix, which runbook step is
-// done, what is on offer or what Remove will do. Every function returns data,
-// never markup: each renderer turns it into its own. No node imports: Vite
+// Node-free model for the site detail page: the facts the page reads, and the
+// decisions it makes from them — which hop needs a fix, which runbook step is
+// done, what is on offer, what Remove will do. Every function returns data,
+// never markup. The React page (src/client/components/SiteDetail.tsx and its
+// cards) renders it; the server renderer that shared it was retired, and the
+// route uses addedNotice for the ?created=1 banner. No node imports: Vite
 // bundles this file for the client.
 import type { Site } from "../lib/caddyfile";
 import { describeStatus, splitHostnameForDisplay, type SiteStatus } from "../lib/siteDisplay";

@@ -7,9 +7,9 @@ import { hideToast, showToast } from "./toast";
 /*
  * The site page's card writes (ruling R5's SiteWrites). Deploy and Prune are
  * the board's own mutations (mutations.ts), whose re-read now includes the
- * site page; Attach and Change repository are ported from public/app.js's
- * form[data-attach] and form[data-change-repository] handlers, with their
- * endpoints, bodies and copy unchanged.
+ * site page; Attach and Change repository are ported from the
+ * form[data-attach] and form[data-change-repository] handlers public/app.js
+ * had, with their endpoints, bodies and copy unchanged.
  *
  * Where app.js loaded the path on success, these re-read the page and keep
  * the mutation pending until it lands, so the form stays disabled until the

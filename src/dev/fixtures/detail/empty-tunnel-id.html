@@ -1,0 +1,115 @@
+
+    
+    
+    <div class="max-w-[760px] mx-auto w-full flex flex-col gap-5">
+      
+      <nav class="font-mono text-[0.72rem] text-stone-400 m-0" aria-label="Breadcrumb">
+        <a href="/" class="text-stone-400 no-underline hover:text-stone-50 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2">sites</a>
+        <span class="text-stone-600 mx-1.5" aria-hidden="true">/</span>
+        <span class="text-stone-50">blog.lychee.land</span>
+      </nav>
+
+      <div class="flex items-start justify-between gap-4">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2.5">
+            <h2 id="site-hostname" class="font-mono text-[1.7rem] leading-[1.2] tracking-[-0.01em] text-stone-50 m-0 break-all">blog<span class="text-stone-500">.lychee.land</span></h2>
+            <button type="button" class="p-1 rounded-md bg-stone-800 border border-stone-700 text-stone-400 hover:text-stone-50 hover:bg-stone-700 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 shrink-0" data-copy-target="site-hostname" aria-label="Copy hostname">
+      <span data-copy-icon="idle"><svg class="w-[1em] h-[1em] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /></svg></span>
+      <span data-copy-icon="copied" class="hidden"><svg class="w-[1em] h-[1em] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg></span>
+    </button>
+          </div>
+          
+        </div>
+        <a href="https://blog.lychee.land" target="_blank" rel="noopener noreferrer" class="font-sans font-semibold text-sm bg-rose-400 text-stone-900 border-none rounded-md min-h-10 px-4 py-2.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-rose-300 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-rose-400/40 disabled:hover:bg-rose-400/40 aria-disabled:cursor-not-allowed aria-disabled:text-stone-500 aria-disabled:bg-rose-400/40 aria-disabled:hover:bg-rose-400/40 no-underline shrink-0">Visit <svg class="w-[1em] h-[1em] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg></a>
+      </div>
+
+      
+      <section class="bg-stone-800 border border-stone-700 rounded-[10px] p-5">
+        <h3 class="font-mono text-[0.75rem] font-medium uppercase tracking-[0.1em] text-stone-300 m-0 mb-3">Request path</h3>
+        <div class="flex flex-col sm:flex-row sm:items-stretch gap-3 sm:gap-0">
+          <div class="min-w-0">
+            <p class="font-mono text-[0.6875rem] font-medium uppercase tracking-[0.09em] text-stone-400 m-0 mb-1.5">Cloudflare DNS</p>
+            <p class="font-mono text-[0.8rem] text-stone-50 m-0 mb-0.5 break-all">blog.lychee.land</p>
+            
+            <p class="font-mono text-[0.72rem] text-stone-400 m-0 break-all">manual step</p>
+          </div><div class="flex items-center justify-center text-stone-600 text-sm sm:flex-1 sm:min-w-[2rem]" aria-hidden="true"><span class="sm:hidden">&darr;</span><span class="hidden sm:inline">&rarr;</span></div><div class="min-w-0">
+            <p class="font-mono text-[0.6875rem] font-medium uppercase tracking-[0.09em] text-stone-400 m-0 mb-1.5">Tunnel</p>
+            <p class="font-mono text-[0.8rem] text-stone-50 m-0 mb-0.5 break-all">cloudflared-sites</p>
+            <p class="font-mono text-[0.72rem] text-green-300 m-0" data-hop-status><span aria-hidden="true">●</span> running</p>
+            <p class="font-mono text-[0.72rem] text-stone-400 m-0 break-all">/etc/cloudflared</p>
+          </div><div class="flex items-center justify-center text-stone-600 text-sm sm:flex-1 sm:min-w-[2rem]" aria-hidden="true"><span class="sm:hidden">&darr;</span><span class="hidden sm:inline">&rarr;</span></div><div class="min-w-0">
+            <p class="font-mono text-[0.6875rem] font-medium uppercase tracking-[0.09em] text-stone-400 m-0 mb-1.5">Caddy</p>
+            <p class="font-mono text-[0.8rem] text-stone-50 m-0 mb-0.5 break-all">:80</p>
+            <p class="font-mono text-[0.72rem] text-green-300 m-0" data-hop-status><span aria-hidden="true">●</span> running</p>
+            <p class="font-mono text-[0.72rem] text-stone-400 m-0 break-all">/etc/caddy</p>
+          </div><div class="flex items-center justify-center text-stone-600 text-sm sm:flex-1 sm:min-w-[2rem]" aria-hidden="true"><span class="sm:hidden">&darr;</span><span class="hidden sm:inline">&rarr;</span></div><div class="min-w-0">
+            <p class="font-mono text-[0.6875rem] font-medium uppercase tracking-[0.09em] text-stone-400 m-0 mb-1.5">Your files</p>
+            <p class="font-mono text-[0.8rem] text-stone-50 m-0 mb-0.5 break-all">file_server</p>
+            
+            <p class="font-mono text-[0.72rem] text-stone-400 m-0 break-all">/var/www/blog.lychee.land</p>
+          </div>
+        </div>
+        
+        
+      </section>
+      
+      <section class="bg-stone-800 border border-stone-700 rounded-[10px] p-5">
+        <h3 class="font-mono text-[0.75rem] font-medium uppercase tracking-[0.1em] text-stone-300 m-0 mb-3">Manual steps</h3>
+        <p class="text-stone-400 text-[0.8rem] leading-snug m-0 max-w-[25rem] mb-4">Nothing on this page does these for you.</p>
+        <div class="flex flex-col gap-4">
+          <div class="flex gap-3">
+          <span class="font-mono text-[0.6875rem] text-rose-400 border border-rose-400/40 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5">1</span>
+          <div class="flex-1 min-w-0">
+            <p class="text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5 max-w-[25rem]">Create the DNS record, once per hostname — add a CNAME for this hostname to your tunnel from the Cloudflare dashboard. Until it exists, the site can't be reached from the internet even while every check on this page passes: lychee-admin checks lychee itself, never Cloudflare.</p>
+            
+            
+          </div>
+        </div>
+          <div class="flex gap-3">
+          <span class="font-mono text-[0.6875rem] text-rose-400 border border-rose-400/40 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5">2</span>
+          <div class="flex-1 min-w-0">
+            <p class="text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5 max-w-[25rem]">Put your site's files in /var/www/blog.lychee.land/. lychee-admin created a placeholder index.html there, which Caddy serves until you replace it.</p>
+            
+            
+          </div>
+        </div>
+        </div>
+      </section>
+      
+
+      
+      <section class="border border-red-900/60 bg-red-950/20 rounded-[10px] p-5 mt-4 flex items-center justify-between gap-4 flex-wrap">
+        <div class="min-w-0">
+          <h3 class="font-mono text-[0.75rem] font-medium uppercase tracking-[0.1em] text-red-300 m-0 mb-1.5">Danger</h3>
+          <p class="text-stone-400 text-[0.8rem] leading-snug m-0 max-w-[25rem]">Removing takes the site out of the Caddyfile and the tunnel route, reloads Caddy, then restarts the sites tunnel. The site's files stay unless you tick the box when you confirm. lychee-admin never touches the DNS record; delete it in Cloudflare afterwards.</p>
+        </div>
+        <button type="button" class="font-sans font-semibold text-[0.8rem] bg-transparent text-red-300 border border-red-800 rounded-md min-h-8 px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-red-900 hover:text-stone-50 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:border-stone-700 disabled:hover:bg-transparent disabled:hover:text-stone-500 shrink-0" data-open-dialog="confirm-remove-dialog"><svg class="w-[1em] h-[1em] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>Remove site</button>
+      </section>
+    </div>
+
+    <dialog id="confirm-remove-dialog" aria-labelledby="confirm-remove-title" class="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in">
+      <h2 id="confirm-remove-title" class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]">Remove site</h2>
+      <p class="m-0 mb-3 leading-relaxed">Remove <strong>blog.lychee.land</strong>? In this order:</p>
+      <ol id="confirm-remove-steps" class="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 p-0 list-none grid gap-y-1.5">
+        <li class="flex gap-2" data-step-id="caddyfile"><span class="text-stone-400 shrink-0">1.</span><span>Caddyfile block removed</span><span class="step-mark ml-auto shrink-0"></span></li>
+        <li class="flex gap-2" data-step-id="tunnel"><span class="text-stone-400 shrink-0">2.</span><span>Tunnel route removed</span><span class="step-mark ml-auto shrink-0"></span></li>
+        <li class="flex gap-2" data-step-id="caddy"><span class="text-stone-400 shrink-0">3.</span><span>Caddy validated and reloaded</span><span class="step-mark ml-auto shrink-0"></span></li>
+        <li class="flex gap-2" data-step-id="cloudflared"><span class="text-stone-400 shrink-0">4.</span><span>cloudflared-sites restarted</span><span class="step-mark ml-auto shrink-0"></span></li>
+      </ol>
+      <p class="text-stone-400 text-[0.75rem] leading-snug m-0 mb-4">If a step fails, the ones after it don't run.</p>
+      <div id="confirm-remove-outcome" class="hidden font-mono text-[0.72rem] text-stone-400 leading-snug m-0 mb-4 flex items-start gap-2" role="status" aria-live="polite"><span id="confirm-remove-progress" class="hidden shrink-0 mt-[0.4em] h-1.5 w-1.5 rounded-full bg-stone-400 motion-safe:animate-pulse" aria-hidden="true"></span><span id="confirm-remove-outcome-text" class="whitespace-pre-wrap"></span></div>
+      
+      <div class="flex flex-col gap-2 mb-5">
+        <label class="flex flex-row items-center text-[0.8rem] text-stone-400 gap-1.5">
+          <input type="checkbox" id="confirm-remove-delete-files" class="accent-rose-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2" />
+          Also delete files at <span class="font-mono">/var/www/blog.lychee.land</span>
+        </label>
+        
+      </div>
+      <div class="flex items-center justify-end gap-2.5">
+        <button type="button" autofocus class="font-sans font-semibold text-sm bg-stone-600 text-stone-50 border-none rounded-md min-h-10 px-4 py-2.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-stone-700 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-transparent disabled:hover:bg-transparent" data-close-dialog="confirm-remove-dialog">Cancel</button>
+        <button type="button" id="confirm-remove-submit" class="font-sans font-semibold text-[0.8rem] bg-transparent text-red-300 border border-red-800 rounded-md min-h-8 px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-red-900 hover:text-stone-50 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:border-stone-700 disabled:hover:bg-transparent disabled:hover:text-stone-500" data-hostname="blog.lychee.land"><svg class="w-[1em] h-[1em] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" /></svg>Remove blog.lychee.land</button>
+      </div>
+    </dialog>
+    
+  

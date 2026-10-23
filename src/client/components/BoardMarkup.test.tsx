@@ -6,8 +6,8 @@ import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import type { ActionState, BoardPayload, ServiceBoard, ServiceGroup } from "../../shared/board";
 import type { Site } from "../../lib/caddyfile";
-import { renderPruneControl, renderSiteDetail } from "../../views/html";
-import { testShell } from "../../dev/testHelpers";
+import { PruneLine } from "./DeployLines";
+import { SiteDetail } from "./SiteDetail";
 import { SERVICE_DETAIL, TONE_PILL, TONE_TEXT, BUTTON_OFFER, BUTTON_DANGER, BUTTON_SECONDARY_COMPACT } from "../../views/shared";
 import { Board } from "./BoardRows";
 import { canonical } from "../test/canonical";
@@ -578,13 +578,15 @@ describe("Prune on the services board", () => {
     return html.slice(start, html.indexOf("</li>", start));
   };
 
-  // Not byte-equal to the site page's string any more (React writes no
-  // whitespace between tags), so the same control is checked as the same DOM.
+  // Was against the server's renderPruneControl; the site page's repository
+  // card now renders DeployLines' PruneLine, so the board's row is checked
+  // against that, as the same DOM. Its markup against what the retired server
+  // control rendered is held by the frozen gone-detached parity fixture.
   test("a row whose site declaration is absent carries the same control as the site page", () => {
     const html = renderServicesPage(board(["gone-lychee-land", "app-lychee-land"]), NOW, new Set(["gone-lychee-land"]), "lychee.land");
     const prune = rowOf(html, "gone-lychee-land").match(/<p [^>]*data-prune-line[\s\S]*?<\/p>/)?.[0];
     assert.ok(prune, "expected the prune line on the retired row");
-    assert.equal(canonical(prune), canonical(renderPruneControl("gone-lychee-land")));
+    assert.equal(canonical(prune), canonical(renderToStaticMarkup(<PruneLine name="gone-lychee-land" />)));
     assert.doesNotMatch(rowOf(html, "app-lychee-land"), /data-prune/);
   });
 
@@ -913,14 +915,19 @@ describe("the board shares its offer and its prose measure with the site page", 
       },
       new Date("2026-10-05T00:00:00Z"), new Set(), "lychee.land",
     );
-    const site = renderSiteDetail(
-      NEXT_SITE,
-      {
-        ...BASE,
-        resource: { name: "app-lychee-land", repo: "app-site", version: "0.2.0", available: "0.3.0", result: "deployed" },
-        status: { kind: "container", state: "running", health: "healthy" },
-      },
-      testShell({ current: { site: NEXT_SITE.hostname } }),
+    // The site page as the client renders it now (React's SiteDetail, from
+    // GET /api/sites/:hostname's payload), where it was renderSiteDetail.
+    const site = renderToStaticMarkup(
+      <SiteDetail
+        payload={{
+          site: NEXT_SITE,
+          filesPath: null,
+          caddyfileError: null,
+          ...BASE,
+          resource: { name: "app-lychee-land", repo: "app-site", version: "0.2.0", available: "0.3.0", result: "deployed" },
+          status: { kind: "container", state: "running", health: "healthy" },
+        }}
+      />,
     );
     const offerOf = (html: string) => html.match(/<p[^>]*data-offer[^>]*>[\s\S]*?<\/p>/)?.[0];
     const fromBoard = offerOf(board);

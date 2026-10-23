@@ -7,11 +7,12 @@ import { Icon } from "./CommandBlock";
 
 /*
  * The site page's remove dialog, the app's one destructive client flow. Its
- * markup is element for element what html.ts writes for the closed dialog
- * (SiteDetailParity.test.tsx compares them); its behaviour is public/app.js's,
- * ported: the confirm handler is runRemoveChain (removeChain.ts), and the
- * open and close triggers, Escape, the backdrop click and the Tab trap are
- * app.js's generic dialog code.
+ * markup is element for element what the retired server renderer wrote for
+ * the closed dialog (SiteDetailParity.test.tsx compares it with that frozen
+ * output); its behaviour is what public/app.js had, ported: the confirm
+ * handler is runRemoveChain (removeChain.ts), and the open and close
+ * triggers, Escape, the backdrop click and the Tab trap are app.js's former
+ * generic dialog code, which went with the server page.
  *
  * Its props are read once, when it opens, and kept for as long as it is open:
  * a page re-read while a removal runs must not change the steps it is marking

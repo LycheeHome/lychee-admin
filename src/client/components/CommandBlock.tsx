@@ -3,7 +3,8 @@ import { BODY, CODE_LINE, COPY_BUTTON, COPY_IN_LINE, ICON_CLASS, MONO_FACT, SERV
 
 /*
  * The pieces the services board and the site page share, each element for
- * element what html.ts writes: the icon set they use, the copy button
+ * element what the retired server renderers in html.ts wrote (the html.ts
+ * names below are theirs): the icon set they use, the copy button
  * public/app.js binds by [data-copy-target], a single-line command box, and
  * a failed deploy's line. Every phrase the server writes as one text node is
  * one template string here.

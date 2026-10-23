@@ -1,11 +1,13 @@
 import "../test/setup";
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import type { ReactNode } from "react";
 import type { SiteDetailFacts } from "../../shared/siteDetail";
-import { renderErrorPage, renderSiteDetail, renderSiteNotFound } from "../../views/html";
+import { renderErrorPage } from "../../views/html";
 import { mainRegion, seedSiteDetailPayload, testShell } from "../../dev/testHelpers";
 import { CaddyfileError, SiteDetail, SiteNotFound } from "./SiteDetail";
 
@@ -79,40 +81,50 @@ function assertOneTextNodes(server: HTMLElement, client: HTMLElement): void {
   }
 }
 
-const REQUESTED_TEMPLATE = /<template data-requested-template>[\s\S]*?<\/template>/;
+// The retired server renderer's output, frozen: see SiteDetailParity.test.tsx's
+// serverRegion. Most cases share the parity file's fixtures; the text-* ones
+// are this file's own.
+const FIXTURES = path.join(__dirname, "../../dev/fixtures/detail");
+const read = new Set<string>();
 
-async function detailCase(hostname: string, override: Partial<SiteDetailFacts> = {}) {
-  const { site, payload } = await seedSiteDetailPayload(hostname, override);
-  // The payload carries every option the renderer reads; its other fields go unread.
-  const html = mainRegion(renderSiteDetail(site, payload, testShell())).replace(REQUESTED_TEMPLATE, "");
-  return { html, payload };
+function serverRegion(name: string): string {
+  read.add(`${name}.html`);
+  return readFileSync(path.join(FIXTURES, `${name}.html`), "utf8");
+}
+
+async function detailCase(fixture: string, hostname: string, override: Partial<SiteDetailFacts> = {}) {
+  const { payload } = await seedSiteDetailPayload(hostname, override);
+  return { html: serverRegion(fixture), payload };
 }
 
 const BAD = { status: "exited", since: null } as const;
 const RESTARTING = { status: "restarting", since: null } as const;
 
-const CASES: Record<string, [hostname: string, override: Partial<SiteDetailFacts>]> = {
-  "a static apex with its directory": ["lychee.land", {}],
+const CASES: Record<string, [fixture: string, hostname: string, override: Partial<SiteDetailFacts>]> = {
+  "a static apex with its directory": ["apex-with-directory", "lychee.land", {}],
   "a plain proxy not responding, under a bad tunnel and Caddy": [
+    "bad-tunnel-caddy-and-app",
     "api.lychee.land",
     {
       status: { kind: "tcp", responding: false },
       unitStates: { "cloudflared-sites.service": BAD, "caddy.service": RESTARTING },
     },
   ],
-  "a plain proxy responding": ["api.lychee.land", { status: { kind: "tcp", responding: true } }],
-  "a legacy Next.js site": ["legacy.lychee.land", {}],
-  "an attached site's dialog": ["app.lychee.land", {}],
-  "an installed container in a bad state": ["app.lychee.land", { status: { kind: "container", state: "exited" } }],
-  "a failed first deploy": ["broken.lychee.land", {}],
-  "an empty tunnelId": ["blog.lychee.land", { tunnelId: "" }],
-  "the detached warning and Prune": ["gone.lychee.land", {}],
-  "a first deploy on offer, steps folded": ["preview.lychee.land", {}],
+  "a plain proxy responding": ["proxy-responding", "api.lychee.land", { status: { kind: "tcp", responding: true } }],
+  "a legacy Next.js site": ["legacy-runbook", "legacy.lychee.land", {}],
+  "an attached site's dialog": ["app-installed", "app.lychee.land", {}],
+  "an installed container in a bad state": ["container-bad-state", "app.lychee.land", { status: { kind: "container", state: "exited" } }],
+  "a failed first deploy": ["broken-failed-first-deploy", "broken.lychee.land", {}],
+  "an empty tunnelId": ["empty-tunnel-id", "blog.lychee.land", { tunnelId: "" }],
+  "the detached warning and Prune": ["gone-detached", "gone.lychee.land", {}],
+  "a first deploy on offer, steps folded": ["preview-awaiting-first-image", "preview.lychee.land", {}],
   "Change repository, no tag found": [
+    "preview-no-tag-found",
     "preview.lychee.land",
     { resource: { name: "preview-lychee-land", repo: "preview-site", result: "awaiting-image" } },
   ],
   "an installed version with its tag requested": [
+    "app-requested-line",
     "app.lychee.land",
     {
       resource: {
@@ -127,22 +139,23 @@ const CASES: Record<string, [hostname: string, override: Partial<SiteDetailFacts
     },
   ],
   "an inventory-only resource with nothing found": [
+    "inventory-only-nothing-installed",
     "preview.lychee.land",
     { resource: { name: "preview-lychee-land", repo: null, result: "awaiting-image" } },
   ],
 };
 
 describe("SiteDetail: every one-line phrase is one text node", () => {
-  for (const [name, [hostname, override]] of Object.entries(CASES)) {
+  for (const [name, [fixture, hostname, override]] of Object.entries(CASES)) {
     test(name, async () => {
-      const { html, payload } = await detailCase(hostname, override);
+      const { html, payload } = await detailCase(fixture, hostname, override);
       live(<SiteDetail payload={payload} />, (client) => assertOneTextNodes(serverHost(html), client));
     });
   }
 
   test("the not-found body", () => {
     const hostname = "nope.lychee.land";
-    const html = mainRegion(renderSiteNotFound(hostname, testShell()));
+    const html = serverRegion("text-not-found");
     live(<SiteNotFound hostname={hostname} />, (client) => assertOneTextNodes(serverHost(html), client));
   });
 
@@ -153,7 +166,7 @@ describe("SiteDetail: every one-line phrase is one text node", () => {
   });
 
   test("a phrase split into two text nodes is caught", async () => {
-    const { html } = await detailCase("broken.lychee.land");
+    const { html } = await detailCase("broken-failed-first-deploy", "broken.lychee.land");
     const whole = serverHost(html);
     const split = serverHost(html);
     const sentence = split.querySelector("[data-deploy-failed] > p");
@@ -207,5 +220,17 @@ describe("SiteDetail's copy buttons keep their targets", () => {
     live(<SiteDetail payload={plain.payload} card={<section id="slot" />} />, (host) => {
       assert.ok(!host.querySelector("#slot"));
     });
+  });
+});
+
+// Last in the file, so every test above has run. This file owns the text-*
+// fixtures (its own cases the parity file has no twin for); the others it
+// shares are checked by SiteDetailParity.test.tsx.
+describe("the frozen text-node fixtures", () => {
+  test("every text-* fixture file is read by a test here", () => {
+    const files = readdirSync(FIXTURES)
+      .filter((f) => f.endsWith(".html") && f.startsWith("text-"))
+      .sort();
+    assert.deepEqual(files, [...read].filter((f) => f.startsWith("text-")).sort());
   });
 });

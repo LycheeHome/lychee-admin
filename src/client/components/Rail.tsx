@@ -306,8 +306,8 @@ export function TopBar({ health, hostnames, healthError, onOpen }: TopBarProps) 
 /**
  * The drawer: a modal `<dialog>`, shown on mount, that closes on Escape or a
  * click on its backdrop. A backdrop click targets the dialog itself and lands
- * outside its box: the same bounding-rect check public/app.js uses for its
- * modals. Shown in a layout effect, so it is open before find (a passive
+ * outside its box: the same bounding-rect check the remove dialog uses
+ * (RemoveDialog.tsx). Shown in a layout effect, so it is open before find (a passive
  * effect) takes focus inside it.
  */
 function Drawer({

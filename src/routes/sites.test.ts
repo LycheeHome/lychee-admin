@@ -5,7 +5,7 @@ import { once } from "node:events";
 import type { Server } from "node:http";
 import bcrypt from "bcrypt";
 import type { createInMemoryFileSystem } from "../dev/fakes";
-import { RETIRED_SWITCHER, testShell, withoutShell } from "../dev/testHelpers";
+import { RETIRED_SWITCHER, withoutShell } from "../dev/testHelpers";
 import type { SiteDetailPayload } from "../shared/siteDetail";
 
 // --- Fixture layout -------------------------------------------------------
@@ -101,17 +101,32 @@ async function json<T>(response: Response): Promise<T> {
 
 /**
  * A site's page as the browser now builds it: the route loader's read,
- * `GET /api/sites/:hostname?refresh=1`, rendered by the server renderer the
- * React page is held to in parity (SiteDetailParity.test.tsx). The HTML GET
- * itself is only the client shell now.
+ * `GET /api/sites/:hostname?refresh=1`, rendered by the client's SiteDetail
+ * without its writes (the page's first paint). The HTML GET itself is only
+ * the client shell. The markup is respelled where React and the retired server
+ * renderer wrote the same DOM differently (`●` as `&#9679;`, an empty
+ * attribute in its bare form), so these assertions read as they did when the
+ * server rendered the page; the frozen parity fixtures
+ * (SiteDetailParity.test.tsx) hold the rest of the markup to it.
  */
+const SITE_DETAIL_MODULE: string = "../client/components/SiteDetail";
+
 async function sitePage(hostname: string): Promise<string> {
   const response = await request(`/api/sites/${hostname}?refresh=1`);
   assert.equal(response.status, 200);
   const payload = await json<Extract<SiteDetailPayload, { caddyfileError: null }>>(response);
   assert.equal(payload.caddyfileError, null);
-  const { renderSiteDetail } = await import("../views/html");
-  return renderSiteDetail(payload.site, payload, testShell());
+  const { createElement } = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  // A non-literal specifier, so the server project's typecheck (no DOM lib,
+  // src/client excluded) does not follow it into the client's sources; tsx
+  // resolves it at run time like any other import.
+  const { SiteDetail } = (await import(SITE_DETAIL_MODULE)) as {
+    SiteDetail: (props: { payload: typeof payload }) => import("react").ReactElement;
+  };
+  return renderToStaticMarkup(createElement(SiteDetail, { payload }))
+    .replace(/●/g, "&#9679;")
+    .replace(/ ([a-z][a-z-]*)=""/g, " $1");
 }
 
 before(async () => {
@@ -364,6 +379,44 @@ describe("GET /sites/:hostname: the client shell", () => {
   test("an unknown site gets no ?created=1 notice", async () => {
     const html = await (await request("/sites/nope.lychee.land?created=1")).text();
     assert.doesNotMatch(html, /id="page-notice"/);
+  });
+
+  // The next three were html.test.ts's "the ?created=1 notice" tests of the
+  // server site page; the notice is still the server's, so they hold the page
+  // GET /sites/:hostname serves. Their sentences are addedNotice's tests in
+  // siteDetailModel.test.ts.
+  /** The notice element alone: it holds a span and a button but no nested div. */
+  const noticeOf = (html: string): string => {
+    const match = /<div id="page-notice"[\s\S]*?<\/div>/.exec(html);
+    assert.ok(match, "expected a page-notice element");
+    return match[0];
+  };
+
+  test("it is dismissible when created, and absent otherwise", async () => {
+    const created = await (await request("/sites/api.lychee.land?created=1")).text();
+    assert.match(noticeOf(created), /id="page-notice-close"/);
+    assert.doesNotMatch(await (await request("/sites/api.lychee.land")).text(), /id="page-notice"/);
+  });
+
+  test("it takes layout space above the page instead of covering it", async () => {
+    const created = await (await request("/sites/api.lychee.land?created=1")).text();
+    // The regression this split exists to prevent: as a fixed element centred
+    // on the viewport, this three-line message landed on top of the breadcrumb
+    // and the hostname. In flow and ahead of the page's mount point (which the
+    // client fills with them), it can't.
+    assert.doesNotMatch(noticeOf(created), /\bfixed\b/);
+    assert.doesNotMatch(noticeOf(created), /\babsolute\b/);
+    assert.match(created, /id="page-notice"[\s\S]*<div id="app-root"/);
+  });
+
+  test("the client toast stays a separate, empty, hidden element either way", async () => {
+    for (const path of ["/sites/api.lychee.land?created=1", "/sites/api.lychee.land"]) {
+      const html = await (await request(path)).text();
+      const toast = /<div id="flash-banner"[\s\S]*?<\/div>/.exec(html)?.[0];
+      assert.ok(toast, `expected a flash-banner element: ${path}`);
+      assert.match(toast, /id="flash-banner" class="hidden/);
+      assert.match(toast, /id="flash-banner-message"><\/span>/);
+    }
   });
 
   test("answers 500 when the bundle is missing", async () => {
@@ -1134,7 +1187,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
   }
 
   async function page(): Promise<string> {
-    return withoutShell(await sitePage("test.lychee.land"));
+    return sitePage("test.lychee.land");
   }
 
   test("with no declaration, renders the three scaffold files and the attach control, and no compose command", async () => {
@@ -1172,7 +1225,8 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
   test("a tag the declaration carries ahead of the inventory replaces the offer with the requested line", async () => {
     declarations([{ ...TEST_DECLARATION, image: "ghcr.io/lycheehome/test-site:0.1.0" }]);
     writeInventory([siteEntry({ result: "awaiting-image", available: "0.1.0" })]);
-    const html = (await page()).replace(/<template[\s\S]*?<\/template>/g, "");
+    // No requested-line template to cut first: the client never renders one.
+    const html = await page();
     assert.match(html, /data-requested/);
     assert.doesNotMatch(html, /data-deploy="test-lychee-land"/);
   });
@@ -1180,7 +1234,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
   test("an unreadable clone still renders the offer", async () => {
     fakeCommands.readDeclarations = () => Promise.reject(new Error("no clone"));
     writeInventory([siteEntry({ result: "awaiting-image", available: "0.1.0" })]);
-    const html = (await sitePage("test.lychee.land")).replace(/<template[\s\S]*?<\/template>/g, "");
+    const html = await sitePage("test.lychee.land");
     assert.doesNotMatch(html, /data-requested/);
     assert.match(html, /data-deploy="test-lychee-land"/);
   });
@@ -1221,22 +1275,20 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
   test("a readable clone with no declaration is not attached, whatever a stale inventory entry says", async () => {
     declarations([]);
     writeInventory([siteEntry({ result: "deployed", version: "", target: "0.2.0" })]);
-    const raw = await sitePage("test.lychee.land");
-    const html = withoutShell(raw);
+    const html = await sitePage("test.lychee.land");
     assert.match(html, /data-attach=/);
     assert.doesNotMatch(html, /awaiting image/);
     assert.match(html, /data-state-pill><span aria-hidden="true">&#9679;<\/span> not deployed/);
-    assert.doesNotMatch(raw, /<dialog[^>]*data-attached/);
+    assert.doesNotMatch(html, /<dialog[^>]*data-attached/);
   });
 
   test("an unreadable clone falls back to the inventory: an entry means attached", async () => {
     fakeCommands.readDeclarations = () => Promise.resolve(null);
     writeInventory([siteEntry({ result: "awaiting-image", available: "0.1.0" })]);
-    const raw = await sitePage("test.lychee.land");
-    const html = withoutShell(raw);
+    const html = await sitePage("test.lychee.land");
     assert.doesNotMatch(html, /data-attach=/);
     assert.match(html, /awaiting image/);
-    assert.match(raw, /<dialog[^>]*data-attached="true"/);
+    assert.match(html, /<dialog[^>]*data-attached="true"/);
   });
 
   test("an unreadable clone and no entry is not attached", async () => {

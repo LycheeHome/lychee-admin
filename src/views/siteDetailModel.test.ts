@@ -234,6 +234,38 @@ describe("addedNotice", () => {
     assert.match(addedNotice((await seedSiteDetailFacts("app.lychee.land")).site), /shows as not deployed/);
     assert.match(addedNotice((await seedSiteDetailFacts("api.lychee.land")).site), /nothing is listening on port 4000 yet/);
   });
+
+  // These three were html.test.ts's "the ?created=1 notice" tests of the
+  // server site page's banner; the sentences are addedNotice's, which the
+  // shell's #page-notice carries (its placement is tested in sites.test.ts).
+  test("a static site is told its placeholder is already live", () => {
+    const notice = addedNotice({ hostname: "blog.lychee.land", type: "static", target: "/var/www/blog.lychee.land" });
+    assert.match(notice, /Added blog\.lychee\.land/);
+    assert.match(notice, /serving the placeholder page it created/);
+    assert.match(notice, /Manual steps has the DNS record/);
+  });
+
+  test("a plain proxy is told why it reads as not responding", () => {
+    const notice = addedNotice({ hostname: "api.lychee.land", type: "reverse-proxy", target: "4000" });
+    assert.match(notice, /routing is live/);
+    assert.match(notice, /nothing is listening on port 4000 yet/);
+    assert.match(notice, /not responding until you start your process/);
+  });
+
+  test("a scaffolded site is told why it reads as not deployed", () => {
+    const notice = addedNotice({
+      hostname: "app.lychee.land",
+      type: "reverse-proxy",
+      target: "3000",
+      framework: "nextjs",
+      healthcheckPath: "/api/health",
+    });
+    assert.match(notice, /routing is live/);
+    // Add-site writes nothing to /var/www for a Next.js site any more.
+    assert.doesNotMatch(notice, /\/var\/www/);
+    assert.match(notice, /not deployed until a repository is attached/);
+    assert.match(notice, /From a repository has the steps/);
+  });
 });
 
 describe("manualSteps", () => {

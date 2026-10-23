@@ -8,8 +8,8 @@ import { hideToast, showToast } from "./toast";
 
 /*
  * The board's writes. Deploy and Prune keep the endpoints and copy of the
- * [data-deploy] and [data-prune] handlers in public/app.js (which the
- * server-rendered site page still uses); both send only the name: the server
+ * retired [data-deploy] and [data-prune] handlers public/app.js had (the
+ * React site page's card reuses these two, siteWrites.ts); both send only the name: the server
  * reads Deploy's tag from the inventory and re-checks Prune's guards after a
  * fresh pull. The host actions' POST keeps the retired [data-host-actions] block's
  * (useHostAction, below; the strip itself is HostActions.tsx).

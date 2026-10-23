@@ -171,8 +171,7 @@ export function icon(name: keyof typeof ICONS): string {
  * A bad-tone status word as a predicate, so a unit and a container read alike
  * in What to check and in the sites list's host-trouble block. Only these four
  * are bad-tone unit or container states; any other word falls back to a plain
- * "is <word>" rather than a wrong claim. html.ts re-exports it, so a test can
- * pin the fallback.
+ * "is <word>" rather than a wrong claim; html.test.ts pins the fallback.
  */
 export function statePhrase(word: string): string {
   switch (word) {

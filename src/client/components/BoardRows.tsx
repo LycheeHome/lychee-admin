@@ -36,10 +36,10 @@ import {
  * src/dev/fixtures/board/. It takes every decision from the same
  * node-free modules (boardFacts.ts, boardRowModel.ts) as the site page. The
  * offer, requested line and Prune control are DeployLines.tsx's, shared with
- * the React site page's repository card; their server twins are still
- * renderOfferLine, renderRequestedLine and renderPruneControl in
- * src/views/html.ts, so a change to one of those three belongs in both
- * (BoardMarkup.test.tsx checks the offer and Prune line are the same DOM).
+ * the React site page's repository card, so the two pages render them from
+ * one component each (BoardMarkup.test.tsx checks the offer and Prune line
+ * are the same DOM on both). Their server twins in html.ts are retired with
+ * both server pages.
  *
  * The controls render as the server's do (same data-* attributes, classes and
  * text) and are wired through `controls`: Deploy, Prune and the host actions
@@ -155,8 +155,10 @@ export const BOARD_ALERT = "font-mono text-[0.8rem] text-red-300 bg-red-950/60 b
 /**
  * One board page's body: eyebrow, freshness line, then the rows or the
  * explanation that stands in for them, and, when a row offers a tag, the
- * inert requested-line template the server page appends for app.js. It is
- * dead markup here, kept for parity until the server board is retired.
+ * inert requested-line template the retired server board appended for
+ * app.js. Nothing reads it any more (app.js's consumer went with the server
+ * site page); it is kept only because the board's frozen parity fixtures
+ * carry it.
  */
 export function Board({ payload, group, controls, headingRef, alert }: BoardProps) {
   const { board, boardEmpty } = payload;

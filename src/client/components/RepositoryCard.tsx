@@ -33,7 +33,9 @@ import { OfferLine, PruneLine, RequestedLine } from "./DeployLines";
 
 /*
  * The site page's "From a repository" card in JSX, element for element what
- * html.ts's renderRepositoryCard writes, in both shapes: the four-step runbook
+ * the retired html.ts's renderRepositoryCard wrote (frozen in
+ * src/dev/fixtures/detail/; the html.ts names below are its helpers), in
+ * both shapes: the four-step runbook
  * while nothing is installed, and the installed facts with the board's offer
  * once something is. Every decision is siteDetailModel's (runbookSteps,
  * deployStep, offerFor, canChangeRepository); the offer, requested line and
@@ -42,9 +44,10 @@ import { OfferLine, PruneLine, RequestedLine } from "./DeployLines";
  * Every phrase the server writes as one text node is one template string or
  * one string run here, never adjacent JSX expressions.
  *
- * The server also appends an inert <template data-requested-template> for
- * app.js to clone after a Deploy. React never renders it (ruling R3, spec §5):
- * the requested line comes from the re-read page instead.
+ * The retired server renderer also appended an inert <template
+ * data-requested-template> for app.js to clone after a Deploy. React never
+ * renders it (ruling R3, spec §5): the requested line comes from the re-read
+ * page instead.
  */
 
 type DetailPayload = Extract<SiteDetailPayload, { caddyfileError: null }>;
@@ -539,7 +542,8 @@ function Heading({ headingRef }: { headingRef?: Ref<HTMLHeadingElement> }) {
 
 /**
  * The repository card, or nothing for a site that has none (no framework, no
- * scaffold, or a hostname with no resource name), as renderSiteDetail decides.
+ * scaffold, or a hostname with no resource name), as the retired
+ * renderSiteDetail decided.
  */
 export function RepositoryCard({ payload, writes, headingRef }: RepositoryCardProps) {
   const { site, resource, scaffold } = payload;

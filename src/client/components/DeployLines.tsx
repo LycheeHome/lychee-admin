@@ -3,7 +3,7 @@ import { BUTTON_OFFER, BUTTON_PRIMARY_COMPACT, BUTTON_SECONDARY_COMPACT } from "
 
 /*
  * The deploy lines the services board and the site page share, element for
- * element what html.ts writes: the offer and its Deploy control
+ * element what the retired server renderers in html.ts wrote: the offer and its Deploy control
  * (renderOfferLine), the requested line that takes its place once the tag is
  * in the declaration (renderRequestedLine), and Prune (renderPruneControl).
  * One component each, so the board's row and the site's repository card can
