@@ -30,6 +30,7 @@ import { hostProblems, hostProblemUnits, undeployedStatus, type SiteStatus } fro
 import type { UnitState } from "../lib/unitState";
 import type { ApiError, ApiOk } from "../shared/board";
 import type { SitesPayload } from "../shared/sites";
+import type { AddSitePayload } from "../shared/addSite";
 import type { SiteDetailFacts, SiteDetailPayload } from "../shared/siteDetail";
 import type { Site } from "../lib/caddyfile";
 import type { Deps } from "../deps";
@@ -57,7 +58,7 @@ const PLACEHOLDER_INDEX_HTML = (hostname: string) =>
 // finished sentence the validator would return (portConflictMessage), so the
 // field and the preview panel show the same words; the client adds none.
 // Declared claims are left to the preview: only the server reads the clone.
-function computePortOwners(sites: Site[]): Record<string, string> {
+export function computePortOwners(sites: Site[]): Record<string, string> {
   const portOwners: Record<string, string> = {};
   for (const [port, who] of SITE_ENV.reservedPorts) {
     portOwners[String(port)] = portConflictMessage(port, { kind: "reserved", who });
@@ -365,6 +366,32 @@ export function createSitesRouter(deps: Deps): Router {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
       const payload: SitesPayload = { sites: [], statuses: {}, problems: [], domain: config.domain, caddyfileError: message };
       res.json({ ok: true, ...payload } satisfies ApiOk<SitesPayload>);
+    }
+  });
+
+  // The add page's facts for the client. Registered above /api/sites/:hostname
+  // so "new" is never taken for a hostname. Always 200: an unreadable
+  // Caddyfile is a field. ?refresh=1 pulls the clone first, as /sites/new does.
+  sitesRouter.get("/api/sites/new", async (req, res) => {
+    const paths = { caddyfilePath: config.caddyfilePath, tunnelConfigPath: config.tunnelConfigPath };
+    const steps = ADD_STEPS.map(({ id, label }) => ({ id, label }));
+    try {
+      if (req.query.refresh === "1") await refreshClone(deps);
+      const sites = caddyfile
+        .parseSites(deps.fs.readFile(config.caddyfilePath))
+        .filter((site) => isManagedHostname(site.hostname, config.domain));
+      const payload: AddSitePayload = {
+        domain: config.domain,
+        portOwners: computePortOwners(sites),
+        paths,
+        steps,
+        caddyfileError: null,
+      };
+      res.json({ ok: true, ...payload } satisfies ApiOk<AddSitePayload>);
+    } catch (error) {
+      const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
+      const payload: AddSitePayload = { domain: config.domain, portOwners: {}, paths, steps, caddyfileError: message };
+      res.json({ ok: true, ...payload } satisfies ApiOk<AddSitePayload>);
     }
   });
 
