@@ -42,7 +42,41 @@ import {
   COPY_BUTTON,
   COPY_IN_LINE,
   MONO_FACT,
+  statePhrase,
 } from "./shared";
+import {
+  ADD_SITE_BUTTON,
+  ADD_SITE_TEXT,
+  EMPTY_STATE,
+  EMPTY_STATE_BODY,
+  EMPTY_STATE_CODE,
+  EMPTY_STATE_CTA_TEXT,
+  EMPTY_STATE_LEAD,
+  EMPTY_STATE_TAIL,
+  EMPTY_STATE_TITLE,
+  EMPTY_STATE_TITLE_TEXT,
+  FRAMEWORK_LABELS,
+  HOST_PROBLEM_LINE,
+  HOST_PROBLEM_LINK,
+  HOST_PROBLEM_UNIT,
+  HOST_PROBLEMS,
+  SITE_ADDRESS,
+  SITE_HOSTNAME,
+  SITE_HOSTNAME_DIMMED,
+  SITE_ROW,
+  SITE_ROW_SIDE,
+  SITE_ROW_TEXT,
+  SITE_ROWS,
+  SITES_HEADING,
+  SITES_HEADING_ROW,
+  SITES_HEADING_TEXT,
+  SPOKEN_COMMA_CLASS,
+  SPOKEN_COMMA_TEXT,
+  STATUS_SLOT,
+  domainPattern,
+  siteAddress,
+  siteHref,
+} from "./siteListModel";
 
 /**
  * The copy affordance app.js already understands: it reads the target
@@ -57,33 +91,11 @@ function copyButton(targetId: string, label: string, extraClass = ""): string {
     </button>`;
 }
 
-const FRAMEWORK_LABELS: Record<string, string> = {
-  nextjs: "Next.js",
-};
+// Re-exported so html.test.ts keeps pinning it where it always has.
+export { statePhrase };
 
-/**
- * One site's row. Full-bleed hover (`-mx-3` against the row's own `px-3`) so
- * the highlight reaches the content column's edges rather than stopping at
- * the text, and a hairline under every row but the last.
- */
-const SITE_ROW =
-  `flex items-center justify-between gap-5 py-4 px-3 -mx-3 rounded-md no-underline ` +
-  `border-b border-stone-700 last:border-b-0 ` +
-  `motion-safe:transition-colors motion-safe:duration-150 hover:bg-stone-800 ${FOCUS_RING}`;
-
-/** The slot right-aligns the status pill so the column lines up; a static row leaves it empty. */
-const STATUS_SLOT = "flex justify-end";
-
-/**
- * A comma only a screen reader hears. A row's accessible name is computed from
- * its contents, so without these the three facts run together as
- * "api.lychee.land localhost:4000 not responding". Separators rather than an
- * aria-label, deliberately: the name keeps deriving from the visible text, so
- * it cannot drift from what is on screen the way a hand-written label does.
- * `sr-only` is absolutely positioned, so it contributes nothing to the flex
- * layout it sits inside — no phantom gap.
- */
-const SPOKEN_COMMA = `<span class="sr-only">, </span>`;
+/** See SPOKEN_COMMA_CLASS in siteListModel.ts for why the list's facts are separated this way. */
+const SPOKEN_COMMA = `<span class="${SPOKEN_COMMA_CLASS}">${SPOKEN_COMMA_TEXT}</span>`;
 
 export function renderSiteList(
   sites: Site[],
@@ -105,44 +117,37 @@ export function renderSiteList(
   // where the URL points — see their call sites in src/routes/sites.ts.
   shell: ShellData,
 ): string {
-  // Consequence first, in plain sans: it is what the operator needs to know,
-  // and only the machine fact (the unit and its state) is red.
+  // The class strings, words and the address all come from siteListModel.ts,
+  // which the React list (src/client/components/SiteList.tsx) renders from
+  // too. Only the markup and its entity spelling are this renderer's own.
   const problemLines = problems
     .map(
       (problem) =>
-        `<p class="m-0 font-sans text-[0.85rem] leading-relaxed text-stone-50">${escapeHtml(problem.consequence)} &mdash; <span class="font-mono text-red-300"><span aria-hidden="true">&#9679;</span> ${escapeHtml(problem.name)} ${escapeHtml(statePhrase(problem.word))}</span> &middot; <a href="${escapeHtml(problem.href)}" class="text-stone-300 underline hover:text-stone-50 ${FOCUS_RING}">${escapeHtml(problem.page)} <span aria-hidden="true">&rarr;</span></a></p>`,
+        `<p class="${HOST_PROBLEM_LINE}">${escapeHtml(problem.consequence)} &mdash; <span class="${HOST_PROBLEM_UNIT}"><span aria-hidden="true">&#9679;</span> ${escapeHtml(problem.name)} ${escapeHtml(statePhrase(problem.word))}</span> &middot; <a href="${escapeHtml(problem.href)}" class="${HOST_PROBLEM_LINK}">${escapeHtml(problem.page)} <span aria-hidden="true">&rarr;</span></a></p>`,
     )
     .join("\n        ");
   const problemBlock =
     problems.length === 0
       ? ""
-      : `<div role="status" data-host-problems class="flex flex-col gap-1.5 pb-4 mb-5 border-b border-stone-700">
+      : `<div role="status" data-host-problems class="${HOST_PROBLEMS}">
         ${problemLines}
       </div>`;
 
   const rows = sites
     .map((site) => {
-      const frameworkLabel = site.framework ? FRAMEWORK_LABELS[site.framework] : undefined;
       const status = statuses[site.hostname];
       const labels = status ? describeStatus(status) : null;
       const { lead, dimmed } = splitHostnameForDisplay(site.hostname, domain);
-      // The address states the type: a path reads as static and localhost:port
-      // as a proxy, so neither needs a label — a path needs no "path:" in front
-      // of it, and a port is meaningless without the host it is on.
-      const target =
-        site.type === "static"
-          ? site.target
-          : `localhost:${site.target}${frameworkLabel ? ` · ${frameworkLabel}` : ""}`;
 
       return `
-      <a href="/sites/${encodeURIComponent(site.hostname)}" class="${SITE_ROW}">
-        <span class="flex flex-col gap-1.5 min-w-0">
-          <span class="font-display text-base leading-relaxed text-stone-50 break-words" data-hostname>${escapeHtml(lead)}${
-            dimmed ? `<span class="text-stone-400">${escapeHtml(dimmed)}</span>` : ""
+      <a href="${siteHref(site.hostname)}" class="${SITE_ROW}">
+        <span class="${SITE_ROW_TEXT}">
+          <span class="${SITE_HOSTNAME}" data-hostname>${escapeHtml(lead)}${
+            dimmed ? `<span class="${SITE_HOSTNAME_DIMMED}">${escapeHtml(dimmed)}</span>` : ""
           }</span>${SPOKEN_COMMA}
-          <span class="font-mono text-stone-400 text-[0.8rem] leading-relaxed break-all">${escapeHtml(target)}</span>
+          <span class="${SITE_ADDRESS}">${escapeHtml(siteAddress(site))}</span>
         </span>
-        <span class="flex items-center gap-3 shrink-0" data-row-side>
+        <span class="${SITE_ROW_SIDE}" data-row-side>
           <span class="${STATUS_SLOT}" data-status-slot>${
             labels
               ? `${SPOKEN_COMMA}<span class="${TONE_PILL[labels.tone]}"><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span>`
@@ -158,10 +163,10 @@ export function renderSiteList(
   // thing there is to do, so the empty state states what a site is and
   // carries its own button, in Ember: the page's one primary action.
   const empty = `
-      <div id="empty-state" class="flex flex-col items-center text-center gap-4 border border-stone-700 rounded-[10px] bg-stone-800 px-6 py-6">
-        <h3 class="font-sans font-semibold text-base text-stone-50 m-0">No sites yet</h3>
-        <p class="text-stone-400 text-[0.8rem] m-0 max-w-[46ch]">A site is one <code class="font-mono text-[0.72rem] text-stone-300 bg-stone-900 rounded-[4px] px-1">*.${escapeHtml(domain)}</code> subdomain wired through Caddy and the sites tunnel — either a folder of static files, or a reverse proxy to a local port.</p>
-        <a id="empty-state-cta" href="/sites/new" class="${BUTTON_PRIMARY} no-underline">${icon("plus")}Add your first site</a>
+      <div id="empty-state" class="${EMPTY_STATE}">
+        <h3 class="${EMPTY_STATE_TITLE}">${EMPTY_STATE_TITLE_TEXT}</h3>
+        <p class="${EMPTY_STATE_BODY}">${EMPTY_STATE_LEAD}<code class="${EMPTY_STATE_CODE}">${escapeHtml(domainPattern(domain))}</code>${EMPTY_STATE_TAIL}</p>
+        <a id="empty-state-cta" href="/sites/new" class="${ADD_SITE_BUTTON}">${icon("plus")}${EMPTY_STATE_CTA_TEXT}</a>
       </div>`;
 
   return layout(
@@ -169,18 +174,18 @@ export function renderSiteList(
     `
     ${error ? `<p class="${ERROR_BOX}">${escapeHtml(error)}</p>` : ""}
     <section>
-      <div class="flex items-center justify-between gap-4 mb-5">
-        <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Sites</h2>
+      <div class="${SITES_HEADING_ROW}">
+        <h2 class="${SITES_HEADING}">${SITES_HEADING_TEXT}</h2>
         ${
           // Add site lives here and nowhere in the rail: it is this page's one
           // Ember action. With no sites the empty state carries the same
           // action, and Ember spent twice on one destination makes neither
           // the obvious one.
-          sites.length === 0 ? "" : `<a href="/sites/new" class="${BUTTON_PRIMARY} no-underline">${icon("plus")}Add site</a>`
+          sites.length === 0 ? "" : `<a href="/sites/new" class="${ADD_SITE_BUTTON}">${icon("plus")}${ADD_SITE_TEXT}</a>`
         }
       </div>
       ${problemBlock}
-      ${sites.length === 0 ? empty : `<div class="flex flex-col">${rows}\n      </div>`}
+      ${sites.length === 0 ? empty : `<div class="${SITE_ROWS}">${rows}\n      </div>`}
     </section>
     `,
     { shell, banner: notice ? { message: notice } : undefined },
@@ -385,27 +390,6 @@ function renderHop(hop: Hop): string {
             ${hop.status ? `<p class="font-mono text-[0.72rem] ${TONE_TEXT[hop.status.tone]} m-0" data-hop-status><span aria-hidden="true">●</span> ${escapeHtml(hop.status.text)}</p>` : ""}
             ${hop.sub ? `<p class="font-mono text-[0.72rem] ${hop.subClass ?? "text-stone-400"} m-0 break-all">${hop.subDot ? `<span aria-hidden="true">●</span> ` : ""}${escapeHtml(hop.sub)}</p>` : ""}
           </div>`;
-}
-
-/**
- * A bad-tone status word as a predicate, so a unit and a container read alike
- * in What to check. Only these four are bad-tone unit or container states; any
- * other word falls back to a plain "is <word>" rather than a wrong claim.
- * Exported so a test can pin the fallback.
- */
-export function statePhrase(word: string): string {
-  switch (word) {
-    case "exited":
-      return "has stopped";
-    case "restarting":
-      return "keeps restarting";
-    case "paused":
-      return "is paused";
-    case "unhealthy":
-      return "is running but failing its health check";
-    default:
-      return `is ${word}`;
-  }
 }
 
 interface HopFix {

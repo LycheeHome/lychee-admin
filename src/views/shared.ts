@@ -135,8 +135,17 @@ export const TONE_TEXT: Record<StatusTone, string> = {
   neutral: "text-stone-300",
 };
 
+/**
+ * The plus icon's path data, as data, so the React list can draw the same
+ * icon without parsing markup. ICONS.plus is built from it.
+ */
+export const PLUS_PATHS: readonly string[] = ["M5 12h14", "M12 5v14"];
+
+/** Every icon's <svg> class: one text line's height, never shrunk by flex. */
+export const ICON_CLASS = "w-[1em] h-[1em] shrink-0";
+
 export const ICONS = {
-  plus: `<path d="M5 12h14" /><path d="M12 5v14" />`,
+  plus: PLUS_PATHS.map((d) => `<path d="${d}" />`).join(""),
   trash: `<path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" x2="10" y1="11" y2="17" /><line x1="14" x2="14" y1="11" y2="17" />`,
   clipboard: `<rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />`,
   check: `<path d="M20 6 9 17l-5-5" />`,
@@ -148,7 +157,29 @@ export const ICONS = {
 };
 
 export function icon(name: keyof typeof ICONS): string {
-  return `<svg class="w-[1em] h-[1em] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+  return `<svg class="${ICON_CLASS}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+}
+
+/**
+ * A bad-tone status word as a predicate, so a unit and a container read alike
+ * in What to check and in the sites list's host-trouble block. Only these four
+ * are bad-tone unit or container states; any other word falls back to a plain
+ * "is <word>" rather than a wrong claim. html.ts re-exports it, so a test can
+ * pin the fallback.
+ */
+export function statePhrase(word: string): string {
+  switch (word) {
+    case "exited":
+      return "has stopped";
+    case "restarting":
+      return "keeps restarting";
+    case "paused":
+      return "is paused";
+    case "unhealthy":
+      return "is running but failing its health check";
+    default:
+      return `is ${word}`;
+  }
 }
 
 /**
