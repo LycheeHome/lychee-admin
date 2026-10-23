@@ -2,12 +2,12 @@ import "../test/setup";
 import assert from "node:assert/strict";
 import { after, afterEach, before, beforeEach, describe, test } from "node:test";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { focusManager, QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
 import type { SiteDetailPayload } from "../../shared/siteDetail";
 import { seedSiteDetailPayload } from "../../dev/testHelpers";
 import { siteDetailQueryKey } from "../api";
 import { BOARD_ALERT } from "../components/BoardRows";
-import { SiteDetailPage, siteDetailInterval, SITE_DETAIL_FAST_MS, SITE_DETAIL_POLL_MS } from "./SiteDetailPage";
+import { SiteDetailPage, siteDetailInterval, siteDetailQuery, SITE_DETAIL_FAST_MS, SITE_DETAIL_POLL_MS } from "./SiteDetailPage";
 
 /*
  * The live site page: GET /api/sites/:hostname re-read every 15s (3s while a
@@ -115,6 +115,56 @@ describe("siteDetailInterval", () => {
   });
 });
 
+describe("siteDetailQuery's focus and reconnect re-reads pause with the polling", () => {
+  const pauses = [
+    { writing: true, dialogOpen: false },
+    { writing: false, dialogOpen: true },
+    { writing: true, dialogOpen: true },
+  ];
+
+  test("both are off under either pause and on otherwise", () => {
+    for (const pause of pauses) {
+      const options = siteDetailQuery(HOST, pause);
+      assert.equal(options.refetchOnWindowFocus, false);
+      assert.equal(options.refetchOnReconnect, false);
+    }
+    const idle = siteDetailQuery(HOST, { writing: false, dialogOpen: false });
+    assert.equal(idle.refetchOnWindowFocus, true);
+    assert.equal(idle.refetchOnReconnect, true);
+  });
+
+  /** Observe the query, let it go stale, fire a window-focus event, and count the reads. */
+  async function readsAfterFocus(pause: { writing: boolean; dialogOpen: boolean }): Promise<number> {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.mount();
+    const observer = new QueryObserver(qc, siteDetailQuery(HOST, pause));
+    const unsubscribe = observer.subscribe(() => {});
+    try {
+      await waitFor(() => assert.equal(reads(), 1), TIMEOUT);
+      await new Promise((r) => setTimeout(r, 2_100));
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+      await new Promise((r) => setTimeout(r, 150));
+      return reads();
+    } finally {
+      unsubscribe();
+      qc.unmount();
+      qc.clear();
+      focusManager.setFocused(undefined);
+    }
+  }
+
+  test("a focus event after staleTime does not re-read while the dialog is open or a write is in flight", async () => {
+    assert.equal(await readsAfterFocus({ writing: false, dialogOpen: true }), 1);
+    calls = [];
+    assert.equal(await readsAfterFocus({ writing: true, dialogOpen: false }), 1);
+  });
+
+  test("the same steps with no pause do re-read", async () => {
+    assert.equal(await readsAfterFocus({ writing: false, dialogOpen: false }), 2);
+  });
+});
+
 describe("SiteDetailPage", () => {
   test("reads /api/sites/<hostname> without refresh and renders the page, titled the hostname", async () => {
     mount();
@@ -134,6 +184,7 @@ describe("SiteDetailPage", () => {
     const options = observerOptions();
     assert.equal(options.refetchIntervalInBackground, false);
     assert.equal(options.refetchOnWindowFocus, true);
+    assert.equal(options.refetchOnReconnect, true);
     assert.equal(options.staleTime, 2_000);
 
     assert.ok(seed.resource);

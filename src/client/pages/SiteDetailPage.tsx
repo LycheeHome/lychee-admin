@@ -40,7 +40,9 @@ export function siteDetailQuery(hostname: string, pause: SiteDetailPause = { wri
     queryFn: () => fetchSiteDetail(hostname, false),
     refetchInterval: (query) => siteDetailInterval(query.state.data, pause),
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
+    // A focus or reconnect re-read ignores refetchInterval, so the pause has to reach both.
+    refetchOnWindowFocus: !(pause.writing || pause.dialogOpen),
+    refetchOnReconnect: !(pause.writing || pause.dialogOpen),
     staleTime: 2_000,
   });
 }
