@@ -12,6 +12,7 @@ import {
   hopFixKeys,
   manualSteps,
   offerFor,
+  removeDeclaration,
   removeSteps,
   runbookSteps,
   unitPhrase,
@@ -197,8 +198,8 @@ describe("removeSteps", () => {
   const BASE = ["caddyfile", "tunnel", "caddy", "cloudflared"];
 
   test("four steps for an unattached site", async () => {
-    const { facts } = await seedSiteDetailFacts("legacy.lychee.land");
-    const steps = removeSteps(facts);
+    const { site, facts } = await seedSiteDetailFacts("legacy.lychee.land");
+    const steps = removeSteps(site, facts);
     assert.deepEqual(steps.map((s) => s.id), BASE);
     assert.deepEqual(steps.map((s) => s.label), [
       "Caddyfile block removed",
@@ -209,10 +210,21 @@ describe("removeSteps", () => {
   });
 
   test("a fifth, retiring the declaration, for an attached one", async () => {
-    const { facts } = await seedSiteDetailFacts("app.lychee.land");
-    const steps = removeSteps(facts);
+    const { site, facts } = await seedSiteDetailFacts("app.lychee.land");
+    const steps = removeSteps(site, facts);
     assert.deepEqual(steps.map((s) => s.id), [...BASE, "declaration"]);
     assert.equal(steps[4].label, "app-lychee-land.yml set to state: absent");
+    assert.equal(removeDeclaration(site, facts), "app-lychee-land");
+  });
+
+  // One predicate decides the fifth step and whether the chain posts /detach:
+  // the two must never disagree.
+  test("no fifth step, and nothing to retire, on a site with no framework", async () => {
+    const { facts: attached } = await seedSiteDetailFacts("app.lychee.land");
+    const { site, facts } = await seedSiteDetailFacts("api.lychee.land");
+    const withResource = { ...facts, resource: attached.resource };
+    assert.deepEqual(removeSteps(site, withResource).map((s) => s.id), BASE);
+    assert.equal(removeDeclaration(site, withResource), null);
   });
 });
 

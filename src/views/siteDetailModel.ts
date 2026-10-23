@@ -250,14 +250,25 @@ export function cardOrder(f: SiteDetailFacts): DetailCard[] {
     : ["path", "manual", "repository", "danger"];
 }
 
+/**
+ * The declaration Remove retires, or null: a framework site that has a
+ * resource. The one predicate behind the dialog's fifth step, its step-5 note,
+ * its data-attached and the client chain's /detach, so the dialog can never
+ * list a step the chain does not run, or run one it does not list.
+ */
+export function removeDeclaration(site: Site, f: SiteDetailFacts): string | null {
+  return site.framework && f.resource ? f.resource.name : null;
+}
+
 /** The remove dialog's steps, in the order they run; retiring the declaration is a fifth only when there is one to retire. */
-export function removeSteps(f: SiteDetailFacts): { id: string; label: string }[] {
+export function removeSteps(site: Site, f: SiteDetailFacts): { id: string; label: string }[] {
+  const declaration = removeDeclaration(site, f);
   return [
     { id: "caddyfile", label: "Caddyfile block removed" },
     { id: "tunnel", label: "Tunnel route removed" },
     { id: "caddy", label: "Caddy validated and reloaded" },
     { id: "cloudflared", label: "cloudflared-sites restarted" },
-    ...(f.resource ? [{ id: "declaration", label: `${f.resource.name}.yml set to state: absent` }] : []),
+    ...(declaration ? [{ id: "declaration", label: `${declaration}.yml set to state: absent` }] : []),
   ];
 }
 

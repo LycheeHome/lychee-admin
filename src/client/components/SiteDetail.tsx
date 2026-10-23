@@ -1,5 +1,4 @@
-import { Fragment, type ReactNode, type Ref } from "react";
-import type { Site } from "../../lib/caddyfile";
+import { Fragment, useRef, type ReactNode, type Ref } from "react";
 import { describeStatus, splitHostnameForDisplay, visitIsForward, type StatusTone } from "../../lib/siteDisplay";
 import { IMAGE_PREFIX } from "../../lib/platform";
 import type { SiteDetailPayload } from "../../shared/siteDetail";
@@ -11,6 +10,7 @@ import {
   dangerSentences,
   hopFixKeys,
   manualSteps,
+  removeDeclaration,
   removeSteps,
   unitPhrase,
   UNIT_FIX_COMMANDS,
@@ -44,6 +44,7 @@ import {
   statePhrase,
 } from "../../views/shared";
 import { CommandBlock, CopyButton, FailureLine, Icon } from "./CommandBlock";
+import { RemoveDialog, type RemoveDialogHandle } from "./RemoveDialog";
 import { RepositoryCard, type SiteWrites } from "./RepositoryCard";
 
 /*
@@ -75,6 +76,8 @@ export type SiteDetailProps = {
   writes?: SiteWrites;
   /** On the repository card's heading (it has no id), so a page can move focus to it. */
   cardHeadingRef?: Ref<HTMLHeadingElement>;
+  /** Told when the remove dialog opens and closes, so the page can pause its re-reads (ruling R6). */
+  onRemoveDialogChange?: (open: boolean) => void;
 };
 
 const TUNNEL_UNIT = "cloudflared-sites.service";
@@ -401,14 +404,27 @@ function ManualSteps({ payload }: { payload: DetailPayload }) {
   );
 }
 
-function DangerZone({ attached, deletableFiles }: { attached: boolean; deletableFiles: boolean }) {
+function DangerZone({
+  attached,
+  deletableFiles,
+  onRemove,
+}: {
+  attached: boolean;
+  deletableFiles: boolean;
+  onRemove: () => void;
+}) {
   return (
     <section className="border border-red-900/60 bg-red-950/20 rounded-[10px] p-5 mt-4 flex items-center justify-between gap-4 flex-wrap">
       <div className="min-w-0">
         <h3 className={`${CARD_LABEL_BASE} text-red-300 m-0 mb-1.5`}>Danger</h3>
         <p className={BODY}>{dangerSentences({ attached, deletableFiles }).join(" ")}</p>
       </div>
-      <button type="button" className={`${BUTTON_DANGER} shrink-0`} data-open-dialog="confirm-remove-dialog">
+      <button
+        type="button"
+        className={`${BUTTON_DANGER} shrink-0`}
+        data-open-dialog="confirm-remove-dialog"
+        onClick={onRemove}
+      >
         <Icon name="trash" />
         Remove site
       </button>
@@ -417,113 +433,23 @@ function DangerZone({ attached, deletableFiles }: { attached: boolean; deletable
 }
 
 /**
- * The closed remove dialog, as static markup: app.js still drives it. Task 6
- * replaces it with a live component.
- */
-function RemoveDialogMarkup({
-  site,
-  payload,
-  attachedName,
-  deletableFiles,
-}: {
-  site: Site;
-  payload: DetailPayload;
-  attachedName: string | null;
-  deletableFiles: boolean;
-}) {
-  return (
-    <dialog
-      id="confirm-remove-dialog"
-      data-attached={attachedName ? "true" : undefined}
-      aria-labelledby="confirm-remove-title"
-      className="modal font-sans bg-stone-800 text-stone-50 border border-stone-700 rounded-[10px] p-6 w-[min(420px,calc(100vw-2rem))] m-auto backdrop:bg-black/60 motion-safe:animate-modal-in"
-    >
-      <h2
-        id="confirm-remove-title"
-        className="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0 mb-[1.1rem]"
-      >
-        Remove site
-      </h2>
-      <p className="m-0 mb-3 leading-relaxed">
-        {"Remove "}
-        <strong>{site.hostname}</strong>
-        {"? In this order:"}
-      </p>
-      <ol id="confirm-remove-steps" className="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 p-0 list-none grid gap-y-1.5">
-        {removeSteps(payload).map((step, index) => (
-          <li key={step.id} className="flex gap-2" data-step-id={step.id}>
-            <span className="text-stone-400 shrink-0">{`${index + 1}.`}</span>
-            <span>{step.label}</span>
-            <span className="step-mark ml-auto shrink-0"></span>
-          </li>
-        ))}
-      </ol>
-      <p className={`text-stone-400 text-[0.75rem] leading-snug m-0 ${attachedName ? "mb-2" : "mb-4"}`}>
-        {"If a step fails, the ones after it don't run."}
-      </p>
-      {attachedName ? (
-        <p className="text-stone-400 text-[0.75rem] leading-snug m-0 mb-4">
-          {"Step 5 is what stops the container: it writes "}
-          <span className="font-mono text-stone-50">state: absent</span>
-          {" to "}
-          <span className="font-mono text-stone-50">{`${attachedName}.yml`}</span>
-          {
-            " in lychee-resources, and the reconciler takes the container down on its next run, usually within two minutes."
-          }
-        </p>
-      ) : null}
-      <div
-        id="confirm-remove-outcome"
-        className="hidden font-mono text-[0.72rem] text-stone-400 leading-snug m-0 mb-4 flex items-start gap-2"
-        role="status"
-        aria-live="polite"
-      >
-        <span
-          id="confirm-remove-progress"
-          className="hidden shrink-0 mt-[0.4em] h-1.5 w-1.5 rounded-full bg-stone-400 motion-safe:animate-pulse"
-          aria-hidden="true"
-        ></span>
-        <span id="confirm-remove-outcome-text" className="whitespace-pre-wrap"></span>
-      </div>
-      {deletableFiles && payload.filesPath ? (
-        <div className="flex flex-col gap-2 mb-5">
-          <label className="flex flex-row items-center text-[0.8rem] text-stone-400 gap-1.5">
-            <input type="checkbox" id="confirm-remove-delete-files" className={`accent-rose-400 ${FOCUS_RING}`} />
-            {" Also delete files at "}
-            <span className="font-mono">{payload.filesPath}</span>
-          </label>
-          {site.framework ? (
-            <p className="text-[0.75rem] text-red-300 bg-red-950/40 border border-red-800/50 rounded-md px-2.5 py-2 leading-snug m-0">
-              {"If a Docker container is running from this directory, stop it first with "}
-              <code className="font-mono">docker compose down</code>
-              {" — deleting the files won't stop it."}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-      <div className="flex items-center justify-end gap-2.5">
-        <button type="button" autoFocus className={BUTTON_SECONDARY} data-close-dialog="confirm-remove-dialog">
-          Cancel
-        </button>
-        <button type="button" id="confirm-remove-submit" className={BUTTON_DANGER} data-hostname={site.hostname}>
-          <Icon name="trash" />
-          {`Remove ${site.hostname}`}
-        </button>
-      </div>
-    </dialog>
-  );
-}
-
-/**
  * The site page's body. `card` is the repository card's slot, placed where
  * cardOrder puts it; a site with no scaffold has no repository card.
  */
-export function SiteDetail({ payload, headingRef, card, writes, cardHeadingRef }: SiteDetailProps) {
+export function SiteDetail({
+  payload,
+  headingRef,
+  card,
+  writes,
+  cardHeadingRef,
+  onRemoveDialogChange,
+}: SiteDetailProps) {
   const { site } = payload;
-  // Retiring the declaration is a fifth step only when there is one to retire.
-  // html.ts names it resourceNameFor(hostname, domain) for a framework site;
-  // the route builds resource.name from that same function.
-  const attachedName = site.framework && payload.resource ? payload.resource.name : null;
+  const removeDialog = useRef<RemoveDialogHandle>(null);
+  // One predicate decides the dialog's fifth step, its note, data-attached,
+  // the Danger card's declaration sentence and whether the chain posts
+  // /detach: siteDetailModel's removeDeclaration, which removeSteps uses too.
+  const declaration = removeDeclaration(site, payload);
   // Offered only for a directory that is actually there.
   const deletableFiles = Boolean(payload.filesPath && payload.filesExist);
   const cards: Record<string, ReactNode> = {
@@ -531,7 +457,13 @@ export function SiteDetail({ payload, headingRef, card, writes, cardHeadingRef }
     manual: <ManualSteps payload={payload} />,
     repository:
       card === undefined ? <RepositoryCard payload={payload} writes={writes} headingRef={cardHeadingRef} /> : card,
-    danger: <DangerZone attached={attachedName !== null} deletableFiles={deletableFiles} />,
+    danger: (
+      <DangerZone
+        attached={declaration !== null}
+        deletableFiles={deletableFiles}
+        onRemove={() => removeDialog.current?.open()}
+      />
+    ),
   };
   return (
     <>
@@ -541,7 +473,16 @@ export function SiteDetail({ payload, headingRef, card, writes, cardHeadingRef }
           <Fragment key={name}>{cards[name]}</Fragment>
         ))}
       </div>
-      <RemoveDialogMarkup site={site} payload={payload} attachedName={attachedName} deletableFiles={deletableFiles} />
+      <RemoveDialog
+        ref={removeDialog}
+        hostname={site.hostname}
+        steps={removeSteps(site, payload)}
+        declaration={declaration}
+        filesPath={payload.filesPath}
+        deletableFiles={deletableFiles}
+        dockerWarning={Boolean(site.framework)}
+        onOpenChange={onRemoveDialogChange}
+      />
     </>
   );
 }
