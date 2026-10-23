@@ -1,9 +1,9 @@
-// The sites list's class strings, words and row logic. The HTML list
-// (renderSiteList in html.ts) and the React list
-// (src/client/components/SiteList.tsx) both render from this, so the two
-// cannot disagree about a row's address, its classes or the empty state's
-// copy. Markup and entity spelling stay with each renderer. No node imports:
-// Vite bundles this file into the client.
+// The sites list's class strings, words and row logic. The React list
+// (src/client/components/SiteList.tsx) renders from this; the retired server
+// list did too, and its output is frozen in src/dev/fixtures/sites/, which
+// SiteListParity.test.tsx compares the React list against. The site page
+// takes FRAMEWORK_LABELS from here. No node imports: Vite bundles this file
+// into the client.
 import { BUTTON_PRIMARY, FOCUS_RING } from "./shared";
 
 /** A framework's display name, as the list's address and the site page's last hop write it. */

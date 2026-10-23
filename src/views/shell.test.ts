@@ -2,7 +2,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { RETIRED_SWITCHER, testShell, withoutShell } from "../dev/testHelpers";
-import { renderSiteList, renderSiteDetail, renderAddSite, renderSiteNotFound } from "./html";
+import { renderSiteDetail, renderAddSite, renderSiteNotFound } from "./html";
 import { renderClientPage } from "./clientShell";
 import type { ShellData } from "./shell";
 
@@ -26,8 +26,9 @@ const PATHS = {
   tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
 };
 
-const list = (shell: ShellData = testShell({ current: { page: "sites" } })) =>
-  renderSiteList(SITES, {}, "lychee.land", undefined, undefined, [], shell);
+// The sites list as GET / serves it: the shell around the client's mount
+// point (the list itself is the client's; see SiteListMarkup.test.tsx).
+const list = (shell: ShellData = testShell({ current: { page: "sites" } })) => renderClientPage("Sites", "sites", shell);
 // A board page as its route serves it: the shell around the client's mount
 // point (the board itself is the client's; see BoardRoutes.test.tsx).
 const BOARD_TITLES = {
@@ -98,7 +99,7 @@ describe("the rail shell", () => {
   });
 
   test("the flash toast stays fixed and centred, and the page notice in flow", () => {
-    const html = renderSiteList(SITES, {}, "lychee.land", undefined, "Removed x", [], testShell());
+    const html = renderClientPage("Sites", "sites", testShell(), { message: "Removed x" });
     assert.match(html, /id="flash-banner"[^>]*fixed[^"]*left-1\/2/);
     assert.match(html, /<main[\s\S]*id="page-notice"/);
   });
@@ -176,11 +177,8 @@ describe("the add-site page", () => {
     assert.doesNotMatch(html, /id="add-site-form"/);
   });
 
-  test("the list page with sites links Add site from its own section header, as a page", () => {
-    const body = withoutShell(list());
-    assert.match(body, /href="\/sites\/new"/);
-    assert.doesNotMatch(body, /data-open-dialog="add-site-dialog"/);
-  });
+  // "The list page with sites links Add site from its own section header, as
+  // a page" is the client list's now: SiteListMarkup.test.tsx.
 });
 
 describe("the shell's h1", () => {

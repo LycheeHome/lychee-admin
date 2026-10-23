@@ -1,0 +1,54 @@
+
+    
+    
+    
+    <section>
+      <div class="flex items-center justify-between gap-4 mb-5">
+        <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Sites</h2>
+        <a href="/sites/new" class="font-sans font-semibold text-sm bg-rose-400 text-stone-900 border-none rounded-md min-h-10 px-4 py-2.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-rose-300 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-rose-400/40 disabled:hover:bg-rose-400/40 aria-disabled:cursor-not-allowed aria-disabled:text-stone-500 aria-disabled:bg-rose-400/40 aria-disabled:hover:bg-rose-400/40 no-underline"><svg class="w-[1em] h-[1em] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="M12 5v14" /></svg>Add site</a>
+      </div>
+      <div role="status" data-host-problems class="flex flex-col gap-1.5 pb-4 mb-5 border-b border-stone-700">
+        <p class="m-0 font-sans text-[0.85rem] leading-relaxed text-stone-50">Sites can't be reached &mdash; <span class="font-mono text-red-300"><span aria-hidden="true">&#9679;</span> caddy has stopped</span> &middot; <a href="/infrastructure" class="text-stone-300 underline hover:text-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2">infrastructure <span aria-hidden="true">&rarr;</span></a></p>
+        <p class="m-0 font-sans text-[0.85rem] leading-relaxed text-stone-50">Changes wait for the 15-minute run &mdash; <span class="font-mono text-red-300"><span aria-hidden="true">&#9679;</span> lychee-watch-timer is unknown</span> &middot; <a href="/reconciler" class="text-stone-300 underline hover:text-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2">reconciler <span aria-hidden="true">&rarr;</span></a></p>
+      </div>
+      <div class="flex flex-col">
+      <a href="/sites/blog.lychee.land" class="flex items-center justify-between gap-5 py-4 px-3 -mx-3 rounded-md no-underline border-b border-stone-700 last:border-b-0 motion-safe:transition-colors motion-safe:duration-150 hover:bg-stone-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2">
+        <span class="flex flex-col gap-1.5 min-w-0">
+          <span class="font-display text-base leading-relaxed text-stone-50 break-words" data-hostname>blog<span class="text-stone-400">.lychee.land</span></span><span class="sr-only">, </span>
+          <span class="font-mono text-stone-400 text-[0.8rem] leading-relaxed break-all">/var/www/blog.lychee.land</span>
+        </span>
+        <span class="flex items-center gap-3 shrink-0" data-row-side>
+          <span class="flex justify-end" data-status-slot></span>
+        </span>
+      </a>
+      <a href="/sites/api.lychee.land" class="flex items-center justify-between gap-5 py-4 px-3 -mx-3 rounded-md no-underline border-b border-stone-700 last:border-b-0 motion-safe:transition-colors motion-safe:duration-150 hover:bg-stone-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2">
+        <span class="flex flex-col gap-1.5 min-w-0">
+          <span class="font-display text-base leading-relaxed text-stone-50 break-words" data-hostname>api<span class="text-stone-400">.lychee.land</span></span><span class="sr-only">, </span>
+          <span class="font-mono text-stone-400 text-[0.8rem] leading-relaxed break-all">localhost:4000</span>
+        </span>
+        <span class="flex items-center gap-3 shrink-0" data-row-side>
+          <span class="flex justify-end" data-status-slot><span class="sr-only">, </span><span class="inline-flex items-center gap-1 shrink-0 font-mono text-[0.6875rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-transparent text-red-300 bg-red-950/60"><span aria-hidden="true">&#9679;</span> not responding</span></span>
+        </span>
+      </a>
+      <a href="/sites/app.lychee.land" class="flex items-center justify-between gap-5 py-4 px-3 -mx-3 rounded-md no-underline border-b border-stone-700 last:border-b-0 motion-safe:transition-colors motion-safe:duration-150 hover:bg-stone-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2">
+        <span class="flex flex-col gap-1.5 min-w-0">
+          <span class="font-display text-base leading-relaxed text-stone-50 break-words" data-hostname>app<span class="text-stone-400">.lychee.land</span></span><span class="sr-only">, </span>
+          <span class="font-mono text-stone-400 text-[0.8rem] leading-relaxed break-all">localhost:3000 · Next.js</span>
+        </span>
+        <span class="flex items-center gap-3 shrink-0" data-row-side>
+          <span class="flex justify-end" data-status-slot><span class="sr-only">, </span><span class="inline-flex items-center gap-1 shrink-0 font-mono text-[0.6875rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-transparent text-stone-300 bg-stone-700"><span aria-hidden="true">&#9679;</span> awaiting image</span></span>
+        </span>
+      </a>
+      <a href="/sites/lychee.land" class="flex items-center justify-between gap-5 py-4 px-3 -mx-3 rounded-md no-underline border-b border-stone-700 last:border-b-0 motion-safe:transition-colors motion-safe:duration-150 hover:bg-stone-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2">
+        <span class="flex flex-col gap-1.5 min-w-0">
+          <span class="font-display text-base leading-relaxed text-stone-50 break-words" data-hostname>lychee.land</span><span class="sr-only">, </span>
+          <span class="font-mono text-stone-400 text-[0.8rem] leading-relaxed break-all">/var/www/lychee.land</span>
+        </span>
+        <span class="flex items-center gap-3 shrink-0" data-row-side>
+          <span class="flex justify-end" data-status-slot></span>
+        </span>
+      </a>
+      </div>
+    </section>
+    
+  

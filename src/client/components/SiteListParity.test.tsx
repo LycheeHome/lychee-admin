@@ -1,20 +1,20 @@
 import "../test/setup";
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import type { HostProblem, SitesPayload, SiteStatus, SiteSummary } from "../../shared/sites";
-import { renderSiteList } from "../../views/html";
-import { testShell } from "../../dev/testHelpers";
 import { SiteList } from "./SiteList";
 import { canonical } from "../test/canonical";
 
 /*
- * The React sites list against the server's renderSiteList, for every branch
- * a row, the host-trouble block and the page's two empty shapes can render.
- * Task 5 freezes the server side into fixtures before renderSiteList is
- * deleted; until then it is compared live.
+ * The React sites list against what the server's list renderer rendered, for
+ * every branch a row, the host-trouble block and the page's two empty shapes
+ * can render. The renderer is retired; its output for each payload below is
+ * frozen in src/dev/fixtures/sites/ (see serverRegion).
  */
 
 const DOMAIN = "lychee.land";
@@ -23,25 +23,23 @@ function payload(extra: Partial<SitesPayload> = {}): SitesPayload {
   return { sites: [], statuses: {}, problems: [], domain: DOMAIN, caddyfileError: null, ...extra };
 }
 
+// In src/dev, not src/client: outside the design detector's scope, and like
+// all of src/dev, outside the build and the release tree.
+const FIXTURES = path.join(__dirname, "../../dev/fixtures/sites");
+const read = new Set<string>();
+
 /**
- * The server's list region: everything layout() puts after the copy-status
- * live region and before </main>, which is the body renderSiteList hands it
- * (no notice is passed, so there is no #page-notice in between).
+ * The server's list region for a fixture, frozen. Each file is exactly what
+ * the retired server list renderer produced for that test's payload, sliced from
+ * just after the copy-status live region to </main> (no notice was passed,
+ * so there is no #page-notice in it). They were generated from the live
+ * renderer and asserted byte-equal to it before it was deleted; they are
+ * never regenerated, because there is nothing left to generate them from. A
+ * fixture's payload is the one its test builds.
  */
-function serverRegion(p: SitesPayload): string {
-  const page = renderSiteList(
-    p.sites,
-    p.statuses,
-    p.domain,
-    p.caddyfileError ?? undefined,
-    undefined,
-    p.problems,
-    testShell({ current: { page: "sites" } }),
-  );
-  const start = page.indexOf('aria-live="polite"></span>');
-  const end = page.indexOf("</main>");
-  assert.ok(start > 0 && end > start, "could not find the list region");
-  return page.slice(start + 'aria-live="polite"></span>'.length, end);
+function serverRegion(name: string): string {
+  read.add(`${name}.html`);
+  return readFileSync(path.join(FIXTURES, `${name}.html`), "utf8");
 }
 
 function clientMarkup(p: SitesPayload): string {
@@ -49,8 +47,8 @@ function clientMarkup(p: SitesPayload): string {
 }
 
 /** Asserts parity and returns the server region, so a test can check it reached the branch it names. */
-function assertParity(p: SitesPayload, reaches: string[] = []): string {
-  const server = serverRegion(p);
+function assertParity(name: string, p: SitesPayload, reaches: string[] = []): string {
+  const server = serverRegion(name);
   assert.equal(canonical(clientMarkup(p)), canonical(server));
   for (const branch of reaches) assert.ok(server.includes(branch), `fixture never reached ${branch}`);
   return server;
@@ -77,52 +75,59 @@ const WATCH_DOWN: HostProblem = {
 
 const nextWith = (status: SiteStatus): SitesPayload => payload({ sites: [NEXT], statuses: { [NEXT.hostname]: status } });
 
-describe("SiteList parity with renderSiteList", () => {
+describe("SiteList parity with the frozen server list", () => {
   test("a static row has an address and no pill", () => {
-    const server = assertParity(payload({ sites: [STATIC] }), ["data-status-slot></span>", "Add site"]);
+    const server = assertParity("static-row", payload({ sites: [STATIC] }), ["data-status-slot></span>", "Add site"]);
     assert.ok(!server.includes("rounded-full"), "a static row must render no pill");
   });
 
   test("a reverse proxy that is responding", () => {
-    assertParity(payload({ sites: [PROXY], statuses: { [PROXY.hostname]: { kind: "tcp", responding: true } } }), [
-      "localhost:4000",
-      "responding",
-    ]);
+    assertParity(
+      "proxy-responding",
+      payload({ sites: [PROXY], statuses: { [PROXY.hostname]: { kind: "tcp", responding: true } } }),
+      ["localhost:4000", "responding"],
+    );
   });
 
   test("a reverse proxy that is not responding", () => {
-    assertParity(payload({ sites: [PROXY], statuses: { [PROXY.hostname]: { kind: "tcp", responding: false } } }), [
-      "not responding",
-    ]);
+    assertParity(
+      "proxy-not-responding",
+      payload({ sites: [PROXY], statuses: { [PROXY.hostname]: { kind: "tcp", responding: false } } }),
+      ["not responding"],
+    );
   });
 
   test("Next.js running", () => {
-    assertParity(nextWith({ kind: "container", state: "running", health: "healthy" }), ["· Next.js", "running"]);
+    assertParity("nextjs-running", nextWith({ kind: "container", state: "running", health: "healthy" }), [
+      "· Next.js",
+      "running",
+    ]);
   });
 
   test("Next.js awaiting image", () => {
-    assertParity(nextWith({ kind: "awaiting-image" }), ["awaiting image"]);
+    assertParity("nextjs-awaiting-image", nextWith({ kind: "awaiting-image" }), ["awaiting image"]);
   });
 
   test("Next.js failed", () => {
-    assertParity(nextWith({ kind: "failed" }), ["failed"]);
+    assertParity("nextjs-failed", nextWith({ kind: "failed" }), ["failed"]);
   });
 
   test("Next.js not deployed", () => {
-    assertParity(nextWith({ kind: "container", state: "not-created" }), ["not deployed"]);
+    assertParity("nextjs-not-deployed", nextWith({ kind: "container", state: "not-created" }), ["not deployed"]);
   });
 
   test("an unknown status", () => {
-    assertParity(nextWith({ kind: "container", state: "unknown" }), ["unknown"]);
+    assertParity("unknown-status", nextWith({ kind: "container", state: "unknown" }), ["unknown"]);
   });
 
   test("a reverse-proxy row with no status entry has no pill", () => {
-    const server = assertParity(payload({ sites: [PROXY] }), ["data-status-slot></span>"]);
+    const server = assertParity("proxy-no-status", payload({ sites: [PROXY] }), ["data-status-slot></span>"]);
     assert.ok(!server.includes("rounded-full"));
   });
 
   test("several rows keep Caddyfile order", () => {
     assertParity(
+      "caddyfile-order",
       payload({
         sites: [STATIC, PROXY, NEXT],
         statuses: { [PROXY.hostname]: { kind: "tcp", responding: true }, [NEXT.hostname]: { kind: "failed" } },
@@ -131,41 +136,48 @@ describe("SiteList parity with renderSiteList", () => {
   });
 
   test("a hostname that is the domain itself is not split", () => {
-    assertParity(payload({ sites: [{ hostname: DOMAIN, type: "static", target: `/var/www/${DOMAIN}` }] }), [
-      `data-hostname>${DOMAIN}</span>`,
-    ]);
+    assertParity(
+      "apex-hostname",
+      payload({ sites: [{ hostname: DOMAIN, type: "static", target: `/var/www/${DOMAIN}` }] }),
+      [`data-hostname>${DOMAIN}</span>`],
+    );
   });
 
   test("the host-trouble block with one line", () => {
-    assertParity(payload({ sites: [STATIC], problems: [CADDY_DOWN] }), ["data-host-problems", "caddy has stopped"]);
+    assertParity("host-trouble-one", payload({ sites: [STATIC], problems: [CADDY_DOWN] }), [
+      "data-host-problems",
+      "caddy has stopped",
+    ]);
   });
 
   test("the host-trouble block with several lines", () => {
-    assertParity(payload({ sites: [STATIC], problems: [CADDY_DOWN, WATCH_DOWN] }), [
+    assertParity("host-trouble-several", payload({ sites: [STATIC], problems: [CADDY_DOWN, WATCH_DOWN] }), [
       "caddy has stopped",
       "lychee-watch-timer is unknown",
     ]);
   });
 
   test("the host-trouble block above the empty state", () => {
-    assertParity(payload({ problems: [CADDY_DOWN] }), ["data-host-problems", "empty-state"]);
+    assertParity("host-trouble-empty-list", payload({ problems: [CADDY_DOWN] }), ["data-host-problems", "empty-state"]);
   });
 
   test("an empty list shows the empty state and no heading button", () => {
-    const server = assertParity(payload(), ["empty-state", "Add your first site", `*.${DOMAIN}`]);
+    const server = assertParity("empty", payload(), ["empty-state", "Add your first site", `*.${DOMAIN}`]);
     assert.ok(!server.includes(">Add site<"));
   });
 
   test("a Caddyfile error renders the error box, then the empty state", () => {
-    assertParity(payload({ caddyfileError: "caddy read failed: permission denied\nopen /etc/caddy/Caddyfile: EACCES" }), [
-      "permission denied",
-      "empty-state",
-    ]);
+    assertParity(
+      "caddyfile-error",
+      payload({ caddyfileError: "caddy read failed: permission denied\nopen /etc/caddy/Caddyfile: EACCES" }),
+      ["permission denied", "empty-state"],
+    );
   });
 
   test("markup-shaped hostnames, addresses, problems and errors escape as the server escapes them", () => {
     const evil = `a<b&c"d'.${DOMAIN}`;
     assertParity(
+      "escaping-sites-and-problems",
       payload({
         sites: [{ hostname: evil, type: "static", target: `/var/www/<x>&"y"` }],
         statuses: {},
@@ -173,12 +185,17 @@ describe("SiteList parity with renderSiteList", () => {
       }),
       ["&lt;b&amp;c", "&lt;cad&amp;dy&gt;"],
     );
-    assertParity(payload({ caddyfileError: `<script>alert("x")</script> & more`, domain: `<d&"x>` }), ["&lt;script&gt;"]);
+    assertParity(
+      "escaping-error-and-domain",
+      payload({ caddyfileError: `<script>alert("x")</script> & more`, domain: `<d&"x>` }),
+      ["&lt;script&gt;"],
+    );
   });
 
   test("a 63-character label", () => {
     const label = "a".repeat(63);
     assertParity(
+      "long-label",
       payload({
         sites: [{ hostname: `${label}.${DOMAIN}`, type: "reverse-proxy", target: "4100", framework: "nextjs" }],
         statuses: { [`${label}.${DOMAIN}`]: { kind: "container", state: "running", health: "unhealthy" } },
@@ -188,8 +205,9 @@ describe("SiteList parity with renderSiteList", () => {
   });
 
   test("a mismatch is caught", () => {
+    // The proxy-responding fixture's payload, compared against its frozen region.
     const p = payload({ sites: [PROXY], statuses: { [PROXY.hostname]: { kind: "tcp", responding: true } } });
-    const server = serverRegion(p);
+    const server = serverRegion("proxy-responding");
     const tampered = server.replace(">localhost:4000<", ">localhost:4001<");
     assert.ok(tampered !== server, "the negative case never changed the server markup");
     assert.notEqual(canonical(clientMarkup(p)), canonical(tampered));
@@ -214,21 +232,25 @@ function shape(node: Node): string {
   return `${el.tagName.toLowerCase()}[${children.join(",")}]`;
 }
 
-const LIVE_FIXTURES: Record<string, SitesPayload> = {
-  "rows of every kind": payload({
-    sites: [STATIC, PROXY, NEXT, { hostname: DOMAIN, type: "static", target: `/var/www/${DOMAIN}` }],
-    statuses: { [PROXY.hostname]: { kind: "tcp", responding: false }, [NEXT.hostname]: { kind: "awaiting-image" } },
-    problems: [CADDY_DOWN, WATCH_DOWN],
-  }),
-  "the empty state": payload(),
-  "a Caddyfile error": payload({ caddyfileError: "caddy read failed\nEACCES" }),
+/** Test name → [fixture file, payload]. "the empty state" shares the parity suite's empty fixture. */
+const SHAPE_FIXTURES: Record<string, [file: string, payload: SitesPayload]> = {
+  "rows of every kind": [
+    "shape-rows-of-every-kind",
+    payload({
+      sites: [STATIC, PROXY, NEXT, { hostname: DOMAIN, type: "static", target: `/var/www/${DOMAIN}` }],
+      statuses: { [PROXY.hostname]: { kind: "tcp", responding: false }, [NEXT.hostname]: { kind: "awaiting-image" } },
+      problems: [CADDY_DOWN, WATCH_DOWN],
+    }),
+  ],
+  "the empty state": ["empty", payload()],
+  "a Caddyfile error": ["shape-caddyfile-error", payload({ caddyfileError: "caddy read failed\nEACCES" })],
 };
 
 describe("SiteList writes each phrase as one text node, as the server does", () => {
-  for (const [name, p] of Object.entries(LIVE_FIXTURES)) {
+  for (const [name, [file, p]] of Object.entries(SHAPE_FIXTURES)) {
     test(name, () => {
       const serverHost = document.createElement("div");
-      serverHost.innerHTML = serverRegion(p);
+      serverHost.innerHTML = serverRegion(file);
       const clientHost = document.createElement("div");
       document.body.append(clientHost);
       const root = createRoot(clientHost);
@@ -243,11 +265,11 @@ describe("SiteList writes each phrase as one text node, as the server does", () 
   }
 
   test("a phrase split into two text nodes is caught", () => {
-    const p = LIVE_FIXTURES["rows of every kind"];
+    const [file] = SHAPE_FIXTURES["rows of every kind"];
     const whole = document.createElement("div");
-    whole.innerHTML = serverRegion(p);
+    whole.innerHTML = serverRegion(file);
     const split = document.createElement("div");
-    split.innerHTML = serverRegion(p);
+    split.innerHTML = serverRegion(file);
     const pill = split.querySelector("[data-status-slot] > span:last-child");
     const text = pill?.lastChild;
     assert.ok(text && text.nodeType === 3, "no pill text to split");
@@ -256,5 +278,16 @@ describe("SiteList writes each phrase as one text node, as the server does", () 
     (text as Text).splitText(4);
     assert.equal(split.textContent, whole.textContent);
     assert.notEqual(shape(split), shape(whole));
+  });
+});
+
+// Last in the file, so every test above has run: a frozen file no test reads
+// is a branch that has quietly stopped being compared.
+describe("the frozen sites fixtures", () => {
+  test("every fixture file is read by a parity test", () => {
+    const files = readdirSync(FIXTURES)
+      .filter((f) => f.endsWith(".html"))
+      .sort();
+    assert.deepEqual(files, [...read].sort());
   });
 });

@@ -4,7 +4,6 @@ import {
   describeStatus,
   troubleGate,
   splitHostnameForDisplay,
-  type HostProblem,
   type SiteStatus,
   type StatusTone,
   visitIsForward,
@@ -44,39 +43,7 @@ import {
   MONO_FACT,
   statePhrase,
 } from "./shared";
-import {
-  ADD_SITE_BUTTON,
-  ADD_SITE_TEXT,
-  EMPTY_STATE,
-  EMPTY_STATE_BODY,
-  EMPTY_STATE_CODE,
-  EMPTY_STATE_CTA_TEXT,
-  EMPTY_STATE_LEAD,
-  EMPTY_STATE_TAIL,
-  EMPTY_STATE_TITLE,
-  EMPTY_STATE_TITLE_TEXT,
-  FRAMEWORK_LABELS,
-  HOST_PROBLEM_LINE,
-  HOST_PROBLEM_LINK,
-  HOST_PROBLEM_UNIT,
-  HOST_PROBLEMS,
-  SITE_ADDRESS,
-  SITE_HOSTNAME,
-  SITE_HOSTNAME_DIMMED,
-  SITE_ROW,
-  SITE_ROW_SIDE,
-  SITE_ROW_TEXT,
-  SITE_ROWS,
-  SITES_HEADING,
-  SITES_HEADING_ROW,
-  SITES_HEADING_TEXT,
-  SPOKEN_COMMA_CLASS,
-  SPOKEN_COMMA_TEXT,
-  STATUS_SLOT,
-  domainPattern,
-  siteAddress,
-  siteHref,
-} from "./siteListModel";
+import { FRAMEWORK_LABELS } from "./siteListModel";
 
 /**
  * The copy affordance app.js already understands: it reads the target
@@ -89,107 +56,6 @@ function copyButton(targetId: string, label: string, extraClass = ""): string {
       <span data-copy-icon="idle">${icon("clipboard")}</span>
       <span data-copy-icon="copied" class="hidden">${icon("check")}</span>
     </button>`;
-}
-
-// Re-exported so html.test.ts keeps pinning it where it always has.
-export { statePhrase };
-
-/** See SPOKEN_COMMA_CLASS in siteListModel.ts for why the list's facts are separated this way. */
-const SPOKEN_COMMA = `<span class="${SPOKEN_COMMA_CLASS}">${SPOKEN_COMMA_TEXT}</span>`;
-
-export function renderSiteList(
-  sites: Site[],
-  statuses: Record<string, SiteStatus>,
-  // Supplied by the route from config.domain rather than read here, matching
-  // renderAddSite and the detail page: a view that knows the domain by itself
-  // is a view that can disagree with the one the app actually manages.
-  domain: string,
-  error: string | undefined,
-  // A removal's DNS reminder is a page-load notice carrying an unfinished
-  // manual action, so it belongs in flow with a close button — not in the
-  // transient toast, which times out after four seconds.
-  notice: string | undefined,
-  // Host units that are down, each already phrased by hostProblems. The 500
-  // fallbacks pass none and render no block.
-  problems: HostProblem[],
-  // GET / marks the sites heading current. The 500 fallbacks render this same
-  // body at /sites/new and /sites/<hostname>, and must not claim "sites" is
-  // where the URL points — see their call sites in src/routes/sites.ts.
-  shell: ShellData,
-): string {
-  // The class strings, words and the address all come from siteListModel.ts,
-  // which the React list (src/client/components/SiteList.tsx) renders from
-  // too. Only the markup and its entity spelling are this renderer's own.
-  const problemLines = problems
-    .map(
-      (problem) =>
-        `<p class="${HOST_PROBLEM_LINE}">${escapeHtml(problem.consequence)} &mdash; <span class="${HOST_PROBLEM_UNIT}"><span aria-hidden="true">&#9679;</span> ${escapeHtml(problem.name)} ${escapeHtml(statePhrase(problem.word))}</span> &middot; <a href="${escapeHtml(problem.href)}" class="${HOST_PROBLEM_LINK}">${escapeHtml(problem.page)} <span aria-hidden="true">&rarr;</span></a></p>`,
-    )
-    .join("\n        ");
-  const problemBlock =
-    problems.length === 0
-      ? ""
-      : `<div role="status" data-host-problems class="${HOST_PROBLEMS}">
-        ${problemLines}
-      </div>`;
-
-  const rows = sites
-    .map((site) => {
-      const status = statuses[site.hostname];
-      const labels = status ? describeStatus(status) : null;
-      const { lead, dimmed } = splitHostnameForDisplay(site.hostname, domain);
-
-      return `
-      <a href="${siteHref(site.hostname)}" class="${SITE_ROW}">
-        <span class="${SITE_ROW_TEXT}">
-          <span class="${SITE_HOSTNAME}" data-hostname>${escapeHtml(lead)}${
-            dimmed ? `<span class="${SITE_HOSTNAME_DIMMED}">${escapeHtml(dimmed)}</span>` : ""
-          }</span>${SPOKEN_COMMA}
-          <span class="${SITE_ADDRESS}">${escapeHtml(siteAddress(site))}</span>
-        </span>
-        <span class="${SITE_ROW_SIDE}" data-row-side>
-          <span class="${STATUS_SLOT}" data-status-slot>${
-            labels
-              ? `${SPOKEN_COMMA}<span class="${TONE_PILL[labels.tone]}"><span aria-hidden="true">&#9679;</span> ${escapeHtml(labels.pill)}</span>`
-              : ""
-          }</span>
-        </span>
-      </a>`;
-    })
-    .join("");
-
-  // The heading carries no Add site button: the rail's quiet Secondary one is
-  // on every page. With no sites that is too quiet and too far from the one
-  // thing there is to do, so the empty state states what a site is and
-  // carries its own button, in Ember: the page's one primary action.
-  const empty = `
-      <div id="empty-state" class="${EMPTY_STATE}">
-        <h3 class="${EMPTY_STATE_TITLE}">${EMPTY_STATE_TITLE_TEXT}</h3>
-        <p class="${EMPTY_STATE_BODY}">${EMPTY_STATE_LEAD}<code class="${EMPTY_STATE_CODE}">${escapeHtml(domainPattern(domain))}</code>${EMPTY_STATE_TAIL}</p>
-        <a id="empty-state-cta" href="/sites/new" class="${ADD_SITE_BUTTON}">${icon("plus")}${EMPTY_STATE_CTA_TEXT}</a>
-      </div>`;
-
-  return layout(
-    "Sites",
-    `
-    ${error ? `<p class="${ERROR_BOX}">${escapeHtml(error)}</p>` : ""}
-    <section>
-      <div class="${SITES_HEADING_ROW}">
-        <h2 class="${SITES_HEADING}">${SITES_HEADING_TEXT}</h2>
-        ${
-          // Add site lives here and nowhere in the rail: it is this page's one
-          // Ember action. With no sites the empty state carries the same
-          // action, and Ember spent twice on one destination makes neither
-          // the obvious one.
-          sites.length === 0 ? "" : `<a href="/sites/new" class="${ADD_SITE_BUTTON}">${icon("plus")}${ADD_SITE_TEXT}</a>`
-        }
-      </div>
-      ${problemBlock}
-      ${sites.length === 0 ? empty : `<div class="${SITE_ROWS}">${rows}\n      </div>`}
-    </section>
-    `,
-    { shell, banner: notice ? { message: notice } : undefined },
-  );
 }
 
 /**
@@ -215,8 +81,8 @@ export function renderAddSite(
   sites: Site[],
   domain: string,
   portOwners: Record<string, string>,
-  // Passed in rather than read from config here, matching renderSiteList and
-  // the detail page: a view that knows these paths by itself is a view that
+  // Passed in rather than read from config here, matching the detail page: a
+  // view that knows these paths by itself is a view that
   // can disagree with the files the app actually edits.
   paths: { caddyfilePath: string; tunnelConfigPath: string },
   shell: ShellData,

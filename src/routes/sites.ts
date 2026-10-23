@@ -278,8 +278,7 @@ export function createSitesRouter(deps: Deps): Router {
   // :hostname, fail isManagedHostname, and 404 instead of rendering the form.
   sitesRouter.get("/sites/new", async (req, res) => {
     // Async handler: an unguarded throw hangs the request and crashes the
-    // process under Express 4, so a read failure becomes an ordinary 500, the
-    // same as GET /.
+    // process under Express 4, so a read failure becomes an ordinary 500.
     try {
       // For the preview and submit this page sends: neither refreshes, so the
       // port claims they check are as fresh as this page load.

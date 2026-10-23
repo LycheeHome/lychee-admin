@@ -36,12 +36,12 @@ import {
 } from "../../views/siteListModel";
 
 /*
- * The sites list's markup in JSX, element for element what renderSiteList
- * (src/views/html.ts) writes; SiteListParity.test.tsx compares the two. Every
- * class string, word and the row's address come from siteListModel.ts and
- * shared.ts, which the server list renders from too.
+ * The sites list's markup in JSX, element for element what the retired server
+ * list wrote. Its output is frozen in src/dev/fixtures/sites/, and
+ * SiteListParity.test.tsx compares this against it. Every class string, word
+ * and the row's address come from siteListModel.ts and shared.ts.
  *
- * Every phrase the server writes as one text node is one template string
+ * Every phrase the server wrote as one text node is one template string
  * here, never adjacent JSX expressions: React would make those separate text
  * nodes, which sit a fraction of a pixel off the server's one (the board's
  * migration caught that in a pixel compare).
