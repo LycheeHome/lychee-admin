@@ -139,14 +139,3 @@ export function mainRegion(page: string): string {
   assert.ok(start !== -1 && end > start, "no content region in the page — anchor is stale");
   return page.slice(start + COPY_STATUS.length, end);
 }
-
-/**
- * The cut for the site page's repository card: the one `<section>` whose
- * first child is the "From a repository" heading. It holds no nested
- * section, so it ends at the first `</section>` after it.
- */
-export const REPOSITORY_CARD = /<section class="[^"]*">\s*<h3 class="[^"]*">From a repository<\/h3>[\s\S]*?<\/section>/;
-
-export function withoutRepositoryCard(html: string): string {
-  return html.replace(REPOSITORY_CARD, "");
-}

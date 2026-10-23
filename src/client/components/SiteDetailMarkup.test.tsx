@@ -6,7 +6,7 @@ import { flushSync } from "react-dom";
 import type { ReactNode } from "react";
 import type { SiteDetailFacts } from "../../shared/siteDetail";
 import { renderErrorPage, renderSiteDetail, renderSiteNotFound } from "../../views/html";
-import { mainRegion, seedSiteDetailPayload, testShell, withoutRepositoryCard } from "../../dev/testHelpers";
+import { mainRegion, seedSiteDetailPayload, testShell } from "../../dev/testHelpers";
 import { CaddyfileError, SiteDetail, SiteNotFound } from "./SiteDetail";
 
 /*
@@ -84,9 +84,7 @@ const REQUESTED_TEMPLATE = /<template data-requested-template>[\s\S]*?<\/templat
 async function detailCase(hostname: string, override: Partial<SiteDetailFacts> = {}) {
   const { site, payload } = await seedSiteDetailPayload(hostname, override);
   // The payload carries every option the renderer reads; its other fields go unread.
-  const html = withoutRepositoryCard(
-    mainRegion(renderSiteDetail(site, payload, testShell())).replace(REQUESTED_TEMPLATE, ""),
-  );
+  const html = mainRegion(renderSiteDetail(site, payload, testShell())).replace(REQUESTED_TEMPLATE, "");
   return { html, payload };
 }
 
@@ -108,6 +106,30 @@ const CASES: Record<string, [hostname: string, override: Partial<SiteDetailFacts
   "an installed container in a bad state": ["app.lychee.land", { status: { kind: "container", state: "exited" } }],
   "a failed first deploy": ["broken.lychee.land", {}],
   "an empty tunnelId": ["blog.lychee.land", { tunnelId: "" }],
+  "the detached warning and Prune": ["gone.lychee.land", {}],
+  "a first deploy on offer, steps folded": ["preview.lychee.land", {}],
+  "Change repository, no tag found": [
+    "preview.lychee.land",
+    { resource: { name: "preview-lychee-land", repo: "preview-site", result: "awaiting-image" } },
+  ],
+  "an installed version with its tag requested": [
+    "app.lychee.land",
+    {
+      resource: {
+        name: "app-lychee-land",
+        repo: "app-site",
+        version: "0.2.0",
+        target: "0.2.0",
+        available: "0.3.0",
+        result: "skipped",
+        requestedTag: "0.3.0",
+      },
+    },
+  ],
+  "an inventory-only resource with nothing found": [
+    "preview.lychee.land",
+    { resource: { name: "preview-lychee-land", repo: null, result: "awaiting-image" } },
+  ],
 };
 
 describe("SiteDetail: every one-line phrase is one text node", () => {

@@ -44,6 +44,7 @@ import {
   statePhrase,
 } from "../../views/shared";
 import { CommandBlock, CopyButton, FailureLine, Icon } from "./CommandBlock";
+import { RepositoryCard, type SiteWrites } from "./RepositoryCard";
 
 /*
  * The site page's markup in JSX, element for element what html.ts's
@@ -64,8 +65,16 @@ export type SiteDetailProps = {
   payload: DetailPayload;
   /** On the hostname heading, so a page can move focus to it. */
   headingRef?: Ref<HTMLHeadingElement>;
-  /** The repository card, placed where cardOrder puts it; rendered only for a site that has one. */
+  /**
+   * The repository card's slot, placed where cardOrder puts it; rendered only
+   * for a site that has one. Absent, it is RepositoryCard with `writes` and
+   * `cardHeadingRef`.
+   */
   card?: ReactNode;
+  /** The repository card's writes; absent, its controls are inert. */
+  writes?: SiteWrites;
+  /** On the repository card's heading (it has no id), so a page can move focus to it. */
+  cardHeadingRef?: Ref<HTMLHeadingElement>;
 };
 
 const TUNNEL_UNIT = "cloudflared-sites.service";
@@ -506,10 +515,10 @@ function RemoveDialogMarkup({
 }
 
 /**
- * The site page's body. `card` is the repository card's slot (Task 4), placed
- * where cardOrder puts it; a site with no scaffold has no repository card.
+ * The site page's body. `card` is the repository card's slot, placed where
+ * cardOrder puts it; a site with no scaffold has no repository card.
  */
-export function SiteDetail({ payload, headingRef, card = null }: SiteDetailProps) {
+export function SiteDetail({ payload, headingRef, card, writes, cardHeadingRef }: SiteDetailProps) {
   const { site } = payload;
   // Retiring the declaration is a fifth step only when there is one to retire.
   // html.ts names it resourceNameFor(hostname, domain) for a framework site;
@@ -520,7 +529,8 @@ export function SiteDetail({ payload, headingRef, card = null }: SiteDetailProps
   const cards: Record<string, ReactNode> = {
     path: <RequestPath payload={payload} />,
     manual: <ManualSteps payload={payload} />,
-    repository: card,
+    repository:
+      card === undefined ? <RepositoryCard payload={payload} writes={writes} headingRef={cardHeadingRef} /> : card,
     danger: <DangerZone attached={attachedName !== null} deletableFiles={deletableFiles} />,
   };
   return (

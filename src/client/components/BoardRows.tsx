@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import { useState, type ReactNode, type Ref } from "react";
 import type { ActionState, BoardPayload, BoardRow, ServiceBoard, ServiceGroup } from "../../shared/board";
 import type { BoardControlsApi } from "../mutations";
 import { HostActions } from "./HostActions";
 import { FailureLine } from "./CommandBlock";
+import { OfferLine, PruneLine, RequestedLine } from "./DeployLines";
 import { summarizeRow } from "../../views/boardFacts";
 import {
   GROUP_LABELS,
@@ -18,8 +19,6 @@ import {
   unknownSentence,
 } from "../../views/boardRowModel";
 import {
-  BUTTON_OFFER,
-  BUTTON_SECONDARY_COMPACT,
   FRAME_WIDTH,
   PROSE_MEASURE,
   SERVICE_DETAIL,
@@ -34,10 +33,11 @@ import {
  * the server board (renderServicesPage and its row helpers, now retired); the
  * parity tests compare it with that board's output, frozen in
  * src/dev/fixtures/board/. It takes every decision from the same
- * node-free modules (boardFacts.ts, boardRowModel.ts) as the server-rendered
- * site page, whose offer, requested line and Prune control are still
+ * node-free modules (boardFacts.ts, boardRowModel.ts) as the site page. The
+ * offer, requested line and Prune control are DeployLines.tsx's, shared with
+ * the React site page's repository card; their server twins are still
  * renderOfferLine, renderRequestedLine and renderPruneControl in
- * src/views/html.ts: a change to one of those three belongs in both
+ * src/views/html.ts, so a change to one of those three belongs in both
  * (BoardMarkup.test.tsx checks the offer and Prune line are the same DOM).
  *
  * The controls render as the server's do (same data-* attributes, classes and
@@ -50,79 +50,6 @@ export type BoardControls = Partial<BoardControlsApi>;
 
 function Dot() {
   return <span aria-hidden="true">{"●"}</span>;
-}
-
-/** html.ts's renderOfferLine at the board's emphasis. */
-function OfferLine({ name, tag, controls }: { name: string; tag: string; controls?: BoardControls }) {
-  const deploy = controls?.deploy;
-  return (
-    <p className="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-offer="">
-      <span className="font-mono text-[0.8rem] text-rose-300">{`${tag} available`}</span>
-      <button
-        type="button"
-        className={BUTTON_OFFER}
-        data-deploy={name}
-        data-deploy-tag={tag}
-        disabled={controls?.busy?.has(name) || undefined}
-        onClick={deploy ? () => deploy(name, tag) : undefined}
-      >
-        {`Deploy ${tag}`}
-      </button>
-    </p>
-  );
-}
-
-/** html.ts's renderRequestedLine: the offer's place once its tag is in the declaration. */
-function RequestedLine({ tag, name, controls }: { tag: string; name?: string; controls?: BoardControls }) {
-  const ref = useRef<HTMLParagraphElement>(null);
-  const wanted = name !== undefined && controls?.focusRequested === name;
-  const focused = controls?.focused;
-  // A Deploy's button is gone once this line replaces the offer: focus goes
-  // here, as app.js's line.focus() did.
-  useEffect(() => {
-    if (!wanted) return;
-    ref.current?.focus();
-    focused?.();
-  }, [wanted, focused]);
-  return (
-    <p
-      ref={ref}
-      className="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5"
-      data-requested=""
-      role="status"
-      tabIndex={-1}
-    >
-      <span className="font-mono text-[0.8rem] text-stone-50">
-        <span data-requested-tag="">{tag}</span> requested
-      </span>{" "}
-      <span className="text-stone-400">· applies on the next run</span>
-    </p>
-  );
-}
-
-/** The server's `&nbsp;`, as a code point: it keeps the note's tail on the filename's line. */
-const NBSP = String.fromCharCode(0xa0);
-
-/** html.ts's renderPruneControl at the board's (secondary) emphasis. */
-function PruneLine({ name, controls }: { name: string; controls?: BoardControls }) {
-  const prune = controls?.prune;
-  return (
-    <p className="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-prune-line="">
-      <button
-        type="button"
-        className={BUTTON_SECONDARY_COMPACT}
-        data-prune={name}
-        disabled={controls?.busy?.has(name) || undefined}
-        onClick={prune ? () => prune(name) : undefined}
-      >
-        Prune old declaration
-      </button>
-      <span className="font-mono text-[0.72rem] text-stone-400 break-all">
-        {`deletes ${name}.yml from lychee-resources${NBSP}`}
-        <span className="whitespace-nowrap">· once its container is confirmed down</span>
-      </span>
-    </p>
-  );
 }
 
 type RowContext = {
