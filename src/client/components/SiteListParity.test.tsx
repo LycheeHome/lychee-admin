@@ -49,7 +49,10 @@ function clientMarkup(p: SitesPayload): string {
 /** Asserts parity and returns the server region, so a test can check it reached the branch it names. */
 function assertParity(name: string, p: SitesPayload, reaches: string[] = []): string {
   const server = serverRegion(name);
-  assert.equal(canonical(clientMarkup(p)), canonical(server));
+  const client = clientMarkup(p);
+  assert.equal(canonical(client), canonical(server));
+  // A space between inline siblings renders; canonical() alone drops it.
+  assert.equal(canonical(client, { inlineWhitespace: true }), canonical(server, { inlineWhitespace: true }));
   for (const branch of reaches) assert.ok(server.includes(branch), `fixture never reached ${branch}`);
   return server;
 }

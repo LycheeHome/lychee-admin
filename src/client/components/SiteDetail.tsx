@@ -109,13 +109,16 @@ function Header({ payload, headingRef }: { payload: DetailPayload; headingRef?: 
   const labels = status ? describeStatus(status) : null;
   return (
     <>
+      {/* A block nav, so its children share one line box: the server's
+          indentation between them rendered as a word space each side of the
+          slash, on top of its mx-1.5, and the explicit spaces keep that. */}
       <nav className="font-mono text-[0.72rem] text-stone-400 m-0" aria-label="Breadcrumb">
         <RailLink href="/" className={`text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}`}>
           sites
-        </RailLink>
+        </RailLink>{" "}
         <span className="text-stone-600 mx-1.5" aria-hidden="true">
           /
-        </span>
+        </span>{" "}
         <span className="text-stone-50">{site.hostname}</span>
       </nav>
 

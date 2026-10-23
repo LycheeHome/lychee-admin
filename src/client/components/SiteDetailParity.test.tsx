@@ -58,9 +58,20 @@ function clientMarkup(payload: Detail): string {
 /** Asserts parity and returns the server region, so a test can check it reached the branch it names. */
 function assertParity(name: string, payload: Detail, reaches: string[] = []): string {
   const server = serverRegion(name);
-  assert.equal(canonical(clientMarkup(payload)), canonical(server));
+  const client = clientMarkup(payload);
+  assert.equal(canonical(client), canonical(server));
+  assertInlineWhitespace(client, server);
   for (const branch of reaches) assert.ok(server.includes(branch), `the fixture never reached ${branch}`);
   return server;
+}
+
+/**
+ * The space a whitespace-only node renders as, between inline siblings, is
+ * the same on both sides. canonical() drops those nodes, so without this the
+ * breadcrumb's "sites / host" and React's "sites/host" compared equal.
+ */
+function assertInlineWhitespace(client: string, server: string): void {
+  assert.equal(canonical(client, { inlineWhitespace: true }), canonical(server, { inlineWhitespace: true }));
 }
 
 /** The seed payload with its resource changed: a branch the seed does not hold as it stands. */
@@ -190,6 +201,21 @@ describe("SiteDetail parity with the frozen server site page", () => {
     const tampered = server.replace("Nothing answered on", "Nothing replied on");
     assert.ok(tampered !== server, "the negative case never changed the server markup");
     assert.notEqual(canonical(clientMarkup(payload)), canonical(tampered));
+  });
+
+  test("a lost space between inline siblings is caught, and flex indentation is not", async () => {
+    const client = clientMarkup(await seeded("blog.lychee.land"));
+    const server = serverRegion("static-subdomain");
+    // The breadcrumb as React first wrote it: no whitespace between its three
+    // children, which rendered "sites/host" where the server rendered "sites / host".
+    const squeezed = server.replace(/<\/a>\s+<span class="text-stone-600 mx-1\.5"/, '</a><span class="text-stone-600 mx-1.5"');
+    assert.ok(squeezed !== server, "the negative case never changed the server markup");
+    assert.equal(canonical(squeezed), canonical(server), "the lenient form cannot see it, which is why both run");
+    assert.notEqual(canonical(client, { inlineWhitespace: true }), canonical(squeezed, { inlineWhitespace: true }));
+    // Indentation inside a flex container is not a space, so dropping it is not a mismatch.
+    const flexSqueezed = server.replace(/(<div class="flex items-start justify-between gap-4">)\s+/, "$1");
+    assert.ok(flexSqueezed !== server, "the flex case never changed the server markup");
+    assertInlineWhitespace(client, flexSqueezed);
   });
 
   test("a mismatch inside the repository card is caught", async () => {
