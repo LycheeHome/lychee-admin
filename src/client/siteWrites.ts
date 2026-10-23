@@ -1,5 +1,5 @@
 import { useIsMutating, useMutation, useMutationState, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState, type RefObject } from "react";
+import { useCallback, useEffect, useState, type RefObject } from "react";
 import type { SiteWrites } from "./components/RepositoryCard";
 import { begin, end, post, refresh, Refused, useDeploy, usePrune, type DeployVars } from "./mutations";
 import { hideToast, showToast } from "./toast";
@@ -89,22 +89,21 @@ export function useSiteWriteInFlight(hostname: string): boolean {
 }
 
 /**
- * Moves focus to the card's heading when the control that had it is gone or
- * about to be: nothing has focus, or it is still inside the card the re-read
- * is re-rendering (the write's own control, which the new payload replaces
- * or removes). usePrune keeps focus in a board row the same way. Focus the
- * operator moved out of the card stays where they put it.
+ * Moves focus to the card's heading only when the control that had it is
+ * gone: nothing has focus, or the focused element was removed (the write's
+ * own control, `before`, which the re-read replaced). A control that
+ * survived the re-read keeps focus, and so does anything the operator moved
+ * focus to meanwhile, inside the card or out of it.
  *
- * This runs as the re-read lands, before React has committed it, so "about
- * to be" is the case that matters: by the time the old control is removed,
- * focus is already on the heading.
+ * Runs after React has committed the re-read (see useSiteWrites), so "gone"
+ * is a fact about the DOM the operator now sees.
  */
-function focusIfLost(heading: HTMLElement | null | undefined): void {
+function focusIfLost(heading: HTMLElement | null | undefined, before: Element | null): void {
   if (!heading?.isConnected) return;
-  const card = heading.closest("section") ?? heading;
   const active = document.activeElement;
-  const lost = !active || active === document.body || !active.isConnected || card.contains(active);
-  if (lost && active !== heading) heading.focus({ preventScroll: true });
+  const lost =
+    !active || active === document.body || !active.isConnected || (active === before && !before.isConnected);
+  if (lost) heading.focus({ preventScroll: true });
 }
 
 /** A failed form write's message, as app.js wrote it into the form's alert region. */
@@ -141,7 +140,27 @@ export function useSiteWrites(hostname: string, headingRef?: RefObject<HTMLHeadi
     select: (m) => m.options.meta?.kind as SiteWriteKind | undefined,
   });
 
-  const focusHeading = () => focusIfLost(headingRef?.current);
+  /*
+   * The heading's focus is decided after React has committed the re-read,
+   * the way Deploy defers to focusRequested. A write's success callback runs
+   * once the re-read is in the cache but before React renders it, so it only
+   * records the request, a task later: the cache's own notification to React
+   * is already queued by then, so the render that carries the request also
+   * carries the new payload, and the effect below sees the DOM it produced.
+   * Per-call callbacks fire only while this page is mounted, so a write that
+   * settles after the operator has left asks for nothing.
+   */
+  const [headingRequest, setHeadingRequest] = useState<{ before: Element | null } | null>(null);
+  useEffect(() => {
+    if (!headingRequest) return;
+    setHeadingRequest(null);
+    focusIfLost(headingRef?.current, headingRequest.before);
+  }, [headingRequest, headingRef]);
+  /** Remembers what had focus as the write was issued, and asks for the heading on success. */
+  const thenFocusHeading = () => {
+    const before = document.activeElement;
+    return { onSuccess: () => void setTimeout(() => setHeadingRequest({ before }), 0) };
+  };
   const focused = useCallback(() => setFocusRequested(null), []);
 
   return {
@@ -149,13 +168,13 @@ export function useSiteWrites(hostname: string, headingRef?: RefObject<HTMLHeadi
       if (begin(client, `deploy:${name}`)) deploy.mutate({ name, tag });
     },
     prune: (name) => {
-      if (begin(client, `prune:${name}`)) prune.mutate(name, { onSuccess: focusHeading });
+      if (begin(client, `prune:${name}`)) prune.mutate(name, thenFocusHeading());
     },
     attach: (repo) => {
-      if (begin(client, `attach:${hostname}`)) attach.mutate(repo, { onSuccess: focusHeading });
+      if (begin(client, `attach:${hostname}`)) attach.mutate(repo, thenFocusHeading());
     },
     changeRepository: (repo) => {
-      if (begin(client, `change-repository:${hostname}`)) changeRepository.mutate(repo, { onSuccess: focusHeading });
+      if (begin(client, `change-repository:${hostname}`)) changeRepository.mutate(repo, thenFocusHeading());
     },
     busy: new Set([...deploying, ...pruning]),
     attaching: ownPending.includes("attach"),

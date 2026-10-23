@@ -341,6 +341,50 @@ for (const c of FORMS) {
   });
 }
 
+describe("focus moves only when the control that had it is gone", () => {
+  test("a Copy button the operator focused during the re-read keeps focus", async () => {
+    const { before, attached } = await unattached();
+    assert.ok(attached.resource);
+    // Attached but not yet looked at: steps 1 and 2 stay unfolded, so their Copy buttons survive the re-read.
+    const unchecked: Detail = { ...attached, resource: { ...attached.resource, available: undefined, result: undefined } };
+    current = before;
+    afterWrite = unchecked;
+    const client = mount("preview.lychee.land");
+    try {
+      const form = await waitFor(() => {
+        const f = document.querySelector<HTMLFormElement>("form[data-attach]");
+        assert.ok(f);
+        return f;
+      }, TIMEOUT);
+      let release: (() => void) | undefined;
+      const baseFetch = globalThis.fetch;
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).startsWith("/api/sites/") && posts().length === 1 && !release) {
+          await new Promise<void>((r) => (release = r));
+        }
+        return baseFetch(input, init);
+      }) as typeof fetch;
+      const input = byId<HTMLInputElement>("attach-repo")!;
+      input.focus();
+      fireEvent.change(input, { target: { value: "r" } });
+      fireEvent.submit(form);
+      await waitFor(() => assert.ok(release), TIMEOUT);
+      const copy = document.querySelector<HTMLButtonElement>('[data-copy-target="scaffold-file-0"]')!;
+      copy.focus();
+      assertFocus(copy);
+      release!();
+      await waitFor(() => assert.ok(!document.querySelector("form[data-attach]")), TIMEOUT);
+      await waitFor(() => assert.equal(client.isMutating(), 0), TIMEOUT);
+      // Let any deferred focus decision run.
+      await new Promise((r) => setTimeout(r, 50));
+      assert.ok(copy.isConnected, "the Copy button was replaced, so this case no longer tests a surviving control");
+      assertFocus(copy);
+    } finally {
+      finish(client);
+    }
+  });
+});
+
 describe("Change repository: the field follows the declaration", () => {
   test("a re-read that changes the repository shows the new name in the field", async () => {
     current = await changeable();
