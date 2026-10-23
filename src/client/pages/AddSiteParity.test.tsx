@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, before, describe, mock, test } from "node:test";
 import { createRef } from "react";
+import { showToast } from "../toast";
 import { createRoot } from "react-dom/client";
 import { act, fireEvent } from "@testing-library/react";
 // Imported before anything loads config: it pins the settings the recorded answers depend on.
@@ -407,7 +408,7 @@ describe("review focus", () => {
     [200, { ok: true, hostname: "shop.lychee.land" }],
     [500, { error: "boom", steps: [] }],
   ] as const) {
-    test(`an add answered ${status} after the page has gone does nothing: no navigation, the toast left alone`, async () => {
+    test(`an add answered ${status} after the page has gone settles its own toast and does not navigate`, async () => {
       s = session();
       await s.answerRecorded(0);
       await s.type("#hostname-field", "shop");
@@ -418,9 +419,28 @@ describe("review focus", () => {
       s.unmount();
       await s.answer(add, status, body);
       assert.equal(s.go.mock.callCount(), 0);
-      assert.ok(!s.el("#flash-banner").classList.contains("hidden"), "the toast was not hidden");
+      if (status === 200) {
+        assert.ok(s.el("#flash-banner").classList.contains("hidden"), "the Adding… toast outlived a successful add");
+      } else {
+        assert.ok(!s.el("#flash-banner").classList.contains("hidden"), "the failure was not shown");
+        assert.equal(s.el("#flash-banner-message").textContent, "boom");
+        assert.ok(!s.el("#flash-banner-close").classList.contains("hidden"), "no close button");
+      }
     });
   }
+
+  test("an add that settles after another toast replaced its own leaves that toast alone", async () => {
+    s = session();
+    await s.answerRecorded(0);
+    await s.type("#hostname-field", "shop");
+    await s.submit();
+    const add = s.held.findIndex((h) => h.key.startsWith("POST /sites "));
+    s.unmount();
+    act(() => showToast("Deploying blog…", "info"));
+    await s.answer(add, 500, { error: "boom", steps: [] });
+    assert.equal(s.el("#flash-banner-message").textContent, "Deploying blog…");
+    assert.ok(!s.el("#flash-banner").classList.contains("hidden"));
+  });
 
   test("RF1: a submit typed within 100 ms of a fix sends one POST /sites with the typed hostname, and a later preview leaves it unblocked", async () => {
     s = session();

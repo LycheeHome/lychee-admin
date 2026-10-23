@@ -334,12 +334,22 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
     setMarks({});
     setAddErrorClass((c) => withToken(c, "hidden", true));
     setSubmitting(true);
-    showToast(`Adding ${hostname} — reloading Caddy and restarting cloudflared-sites…`, "info");
+    const adding = `Adding ${hostname} — reloading Caddy and restarting cloudflared-sites…`;
+    showToast(adding, "info");
+    // The toast outlives this page, so an add that settles after leaving settles
+    // its own message, and only if it is still the one showing.
+    const settleGone = (error?: string) => {
+      if (document.getElementById("flash-banner-message")?.textContent !== adding) return;
+      if (error === undefined) hideToast();
+      else showToast(error, "error");
+    };
     try {
       const response = await fetch("/sites", { method: "POST", body: new URLSearchParams(fields) });
-      if (!mountedRef.current) return;
       const result = (await response.json()) as AddAnswer;
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) {
+        settleGone(response.ok ? undefined : (result.error ?? "Failed to add site"));
+        return;
+      }
       if (!response.ok) {
         setMarks((m) => ({ ...m, ...resultMarks(result.steps ?? []) }));
         throw new Error(result.error ?? "Failed to add site");
@@ -348,7 +358,10 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
       // before the new document loads would re-post a hostname that now exists.
       go(`/sites/${encodeURIComponent(String(result.hostname))}?created=1`);
     } catch (error) {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) {
+        settleGone(error instanceof Error ? error.message : String(error));
+        return;
+      }
       inFlightRef.current = false;
       setSubmitting(false);
       hideToast();

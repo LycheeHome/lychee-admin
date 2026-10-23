@@ -2,6 +2,7 @@ import "../test/setup";
 import assert from "node:assert/strict";
 import { after, afterEach, before, describe, test } from "node:test";
 import { act, fireEvent, waitFor } from "@testing-library/react";
+import { showToast } from "../toast";
 import { QueryClient } from "@tanstack/react-query";
 import type { AddSitePayload } from "../../shared/addSite";
 import type { SitesPayload } from "../../shared/sites";
@@ -298,11 +299,30 @@ describe("RF3: leaving mid-preview and mid-submit", () => {
     assert.equal(window.location.pathname, "/");
   });
 
+  test("an add that settles after another toast replaced its own leaves that toast alone", async () => {
+    await arriveFromList();
+    holdAdd = true;
+    type("shop");
+    act(() => {
+      fireEvent.submit(form() as HTMLFormElement);
+    });
+    await waitFor(() => assert.ok(heldAdd, "POST /sites was not sent"), TIMEOUT);
+    assert.equal(clickCancelled(cancelLink() as HTMLAnchorElement), true);
+    await showingList();
+    act(() => showToast("Deploying blog…", "info"));
+    await act(async () => {
+      heldAdd?.(json(500, { error: "boom" }));
+      await sleep(50);
+    });
+    assert.equal(document.getElementById("flash-banner-message")?.textContent, "Deploying blog…");
+    assert.ok(!document.getElementById("flash-banner")?.classList.contains("hidden"));
+  });
+
   for (const [status, body] of [
     [200, { hostname: "shop.lychee.land" }],
     [500, { error: "boom", steps: [{ id: "backup", status: "ok" }] }],
   ] as const) {
-    test(`an add answered ${status} after leaving does nothing: no navigation, no throw`, async () => {
+    test(`an add answered ${status} after leaving settles its own toast: no navigation, no throw`, async () => {
       const failures: unknown[] = [];
       const record = (error: unknown) => void failures.push(error);
       process.on("unhandledRejection", record);
@@ -325,8 +345,15 @@ describe("RF3: leaving mid-preview and mid-submit", () => {
           await sleep(50);
         });
         assert.deepEqual(assigned, []);
-        // The shared toast may be another page's by now: a gone page leaves it alone.
-        assert.ok(!toast()?.classList.contains("hidden"), "a gone page hid the toast");
+        // The Adding… toast was this add's own, so it settles it: gone on success, the error on failure.
+        const message = document.getElementById("flash-banner-message")?.textContent;
+        if (status === 200) {
+          assert.ok(toast()?.classList.contains("hidden"), "the Adding… toast outlived a successful add");
+        } else {
+          assert.ok(!toast()?.classList.contains("hidden"), "the failure was not shown");
+          assert.equal(message, "boom");
+          assert.ok(!document.getElementById("flash-banner-close")?.classList.contains("hidden"), "no close button");
+        }
         assert.equal(window.location.pathname, "/");
         assert.ok(document.querySelector('#app-root a[href="/sites/blog.lychee.land"]'), "the list went");
         assert.deepEqual(failures, []);
