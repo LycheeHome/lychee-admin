@@ -29,7 +29,7 @@ async function serve(tweak: (fakes: Fakes, commands: Fakes["commands"]) => Fakes
   applySeed(fakes.fs);
   const commands = tweak(fakes, { ...fakes.commands });
   const deps: Deps = { commands, fs: fakes.fs, backup: createBackup(fakes.fs), logger: createLogger(fakes.fs) };
-  const server: Server = createApp(deps).listen(0);
+  const server: Server = createApp(deps).listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address();
   assert.ok(address && typeof address === "object");

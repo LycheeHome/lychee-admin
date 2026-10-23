@@ -52,7 +52,7 @@ async function serve(
   // manifest on every use.
   if (typeof clientAssets === "function") Object.defineProperty(deps, "clientAssets", { get: clientAssets });
   else deps.clientAssets = clientAssets;
-  const server: Server = createApp(deps).listen(0);
+  const server: Server = createApp(deps).listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address();
   assert.ok(address && typeof address === "object");

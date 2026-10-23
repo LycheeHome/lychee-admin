@@ -72,7 +72,7 @@ async function serve(
     backup: createBackup(fakes.fs),
     logger: createLogger(fakes.fs),
   };
-  const server: Server = createApp(deps).listen(0);
+  const server: Server = createApp(deps).listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address();
   assert.ok(address && typeof address === "object");

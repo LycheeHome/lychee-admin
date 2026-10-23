@@ -37,7 +37,7 @@ before(async () => {
     fakes.fs.exists(file)
       ? fakes.fs.readFile(file).split("\n").filter(Boolean).map((l) => JSON.parse(l) as Record<string, string>)
       : [];
-  server = createApp(deps).listen(0);
+  server = createApp(deps).listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address();
   assert.ok(address && typeof address === "object");

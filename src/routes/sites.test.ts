@@ -129,7 +129,7 @@ before(async () => {
   Object.defineProperty(deps, "clientAssets", { get: () => clientAssets });
   const app = createApp(deps);
 
-  server = app.listen(0);
+  server = app.listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address();
   assert.ok(address && typeof address === "object");
@@ -670,7 +670,7 @@ describe("POST /sites/:hostname/delete", () => {
       logger: createLogger(fakes.fs),
     });
 
-    const localServer = app.listen(0);
+    const localServer = app.listen(0, "127.0.0.1");
     await once(localServer, "listening");
     const address = localServer.address();
     assert.ok(address && typeof address === "object");
@@ -793,7 +793,7 @@ describe("rollback", () => {
       logger: createLogger(fakes.fs),
     });
 
-    const localServer = app.listen(0);
+    const localServer = app.listen(0, "127.0.0.1");
     await once(localServer, "listening");
     const address = localServer.address();
     assert.ok(address && typeof address === "object");
@@ -849,7 +849,7 @@ describe("rollback", () => {
       logger: createLogger(fakes.fs),
     });
 
-    const localServer = app.listen(0);
+    const localServer = app.listen(0, "127.0.0.1");
     await once(localServer, "listening");
     const address = localServer.address();
     assert.ok(address && typeof address === "object");
@@ -1509,7 +1509,7 @@ describe("host problems on the site list", () => {
       backup: createBackup(fakes.fs),
       logger: createLogger(fakes.fs),
     });
-    const localServer = app.listen(0);
+    const localServer = app.listen(0, "127.0.0.1");
     await once(localServer, "listening");
     const address = localServer.address();
     assert.ok(address && typeof address === "object");

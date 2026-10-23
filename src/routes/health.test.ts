@@ -30,7 +30,7 @@ async function serve(opts: { inventory: boolean } = { inventory: true }) {
     fakes.fs.writeFile(config.caddyfilePath, SEED_CADDYFILE);
   }
   const deps: Deps = { commands: fakes.commands, fs: fakes.fs, backup: createBackup(fakes.fs), logger: createLogger(fakes.fs) };
-  const server: Server = createApp(deps).listen(0);
+  const server: Server = createApp(deps).listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address();
   assert.ok(address && typeof address === "object");
@@ -111,7 +111,7 @@ describe("GET /api/health container reads", () => {
         commands.readResourceStatus = (p) => (calls.push(`read:${p}`), read(p));
       }
       const deps: Deps = { commands, fs: fakes.fs, backup: createBackup(fakes.fs), logger: createLogger(fakes.fs) };
-      const server: Server = createApp(deps).listen(0);
+      const server: Server = createApp(deps).listen(0, "127.0.0.1");
       await once(server, "listening");
       const address = server.address();
       assert.ok(address && typeof address === "object");
