@@ -18,6 +18,7 @@ import { offeredTag, rowLabels } from "./boardFacts";
 import {
   escapeHtml,
   icon,
+  ERROR_BOX,
   BUTTON_PRIMARY,
   BUTTON_PRIMARY_COMPACT,
   BUTTON_SECONDARY,
@@ -166,7 +167,7 @@ export function renderSiteList(
   return layout(
     "Sites",
     `
-    ${error ? `<p class="font-mono text-[0.85rem] text-stone-50 bg-red-950/60 border border-red-400/70 rounded-md px-4 py-3 mb-5">${escapeHtml(error)}</p>` : ""}
+    ${error ? `<p class="${ERROR_BOX}">${escapeHtml(error)}</p>` : ""}
     <section>
       <div class="flex items-center justify-between gap-4 mb-5">
         <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Sites</h2>
@@ -183,6 +184,25 @@ export function renderSiteList(
     </section>
     `,
     { shell, banner: notice ? { message: notice } : undefined },
+  );
+}
+
+/**
+ * The page a site route answers 500 with when it cannot read the Caddyfile.
+ * It used to borrow the list's layout, so a failed detail page announced an
+ * empty "Sites" heading and an empty state; this carries the message and a
+ * way back, and nothing else.
+ */
+export function renderErrorPage(title: string, message: string, shell: ShellData): string {
+  return layout(
+    title,
+    `
+    <div class="${FRAME_WIDTH} flex flex-col gap-4">
+      <p class="${ERROR_BOX}">${escapeHtml(message)}</p>
+      <p class="m-0"><a href="/" class="text-stone-400 no-underline font-mono text-[0.72rem] hover:text-stone-50 hover:underline ${FOCUS_RING}">← sites</a></p>
+    </div>
+    `,
+    { shell },
   );
 }
 

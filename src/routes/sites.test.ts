@@ -279,6 +279,19 @@ describe("the rail on each page", () => {
     assert.deepEqual(currentHrefs(await (await request("/sites/api.lychee.land")).text()), []);
   });
 
+  test("the site routes' 500s are a dedicated error page with the message and a way back", async () => {
+    fakeFs.rmRecursive(CADDYFILE);
+    for (const path of ["/sites/new", "/sites/api.lychee.land"]) {
+      const response = await request(path);
+      assert.equal(response.status, 500, path);
+      const html = await response.text();
+      assert.match(html, /ENOENT/, path);
+      assert.match(html, /<a href="\/"[^>]*>\u2190 sites<\/a>/, path);
+      assert.deepEqual(currentHrefs(html), [], path);
+      assert.doesNotMatch(withoutShell(html), /id="empty-state"/, path);
+    }
+  });
+
   test("no page carries the header band or the hostname dropdown", async () => {
     for (const path of ["/", "/sites/new", "/sites/api.lychee.land", "/sites/nope.lychee.land"]) {
       const html = await (await request(path)).text();

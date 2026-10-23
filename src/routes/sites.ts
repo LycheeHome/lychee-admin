@@ -23,6 +23,7 @@ import {
   renderAddSite,
   renderSiteDetail,
   renderSiteList,
+  renderErrorPage,
   renderSiteNotFound,
   type SiteResourceView,
 } from "../views/html";
@@ -317,7 +318,7 @@ export function createSitesRouter(deps: Deps): Router {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
       // The URL is /sites/new, not / — same reasoning as the detail page's
       // fallback: no rail item is marked current.
-      res.status(500).send(renderSiteList([], {}, config.domain, message, undefined, [], loadShell(deps, null)));
+      res.status(500).send(renderErrorPage("Can't read the Caddyfile", message, loadShell(deps, null)));
     }
   });
 
@@ -422,7 +423,7 @@ export function createSitesRouter(deps: Deps): Router {
       // Unlike GET /'s own fallback, this page's URL is /sites/<hostname> —
       // marking "sites" current here would claim a location the URL does not
       // have. Nothing is marked.
-      res.status(500).send(renderSiteList([], {}, config.domain, message, undefined, [], loadShell(deps, null)));
+      res.status(500).send(renderErrorPage("Can't read the Caddyfile", message, loadShell(deps, null)));
     }
   });
 

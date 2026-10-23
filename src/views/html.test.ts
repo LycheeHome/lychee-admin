@@ -2688,3 +2688,27 @@ describe("Smoke sentences hold a readable measure", () => {
     assert.ok(!offer.includes("max-w-[25rem]"));
   });
 });
+
+describe("renderErrorPage", () => {
+  const page = (message: string) => views.renderErrorPage("Can't read the Caddyfile", message, testShell({ current: null }));
+
+  test("escapes the message", () => {
+    const html = page(`<script>alert("x")</script>`);
+    assert.doesNotMatch(html, /<script>alert/);
+    assert.match(html, /&lt;script&gt;alert/);
+  });
+
+  test("uses the same error-box classes the site list uses for its error", () => {
+    const boxOf = (html: string) => html.match(/<p class="([^"]*bg-red-950[^"]*)"/)?.[1];
+    const fromList = boxOf(renderSiteList([], {}, "lychee.land", "boom"));
+    assert.ok(fromList);
+    assert.equal(boxOf(page("boom")), fromList);
+  });
+
+  test("has no Sites heading and no empty state, and links back to the list", () => {
+    const html = withoutShell(page("boom"));
+    assert.doesNotMatch(html, /<h2[^>]*>\s*Sites\s*<\/h2>/);
+    assert.doesNotMatch(html, /id="empty-state"/);
+    assert.match(html, /<a href="\/"[^>]*>← sites<\/a>/);
+  });
+});
