@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import type { HostProblem, SitesPayload, SiteSummary } from "../../shared/sites";
 import { describeStatus, splitHostnameForDisplay } from "../../lib/siteDisplay";
 import { ERROR_BOX, ICON_CLASS, PLUS_PATHS, TONE_PILL, statePhrase } from "../../views/shared";
@@ -144,14 +145,27 @@ function EmptyState({ domain }: { domain: string }) {
  * rows or the empty state. An unreadable Caddyfile arrives with no sites, so
  * it renders the error box above the empty state, as the server list did.
  */
-export function SiteList({ payload }: { payload: SitesPayload }) {
+export function SiteList({
+  payload,
+  headingRef,
+}: {
+  payload: SitesPayload;
+  /**
+   * The live page's handle on its heading, for focus after a client
+   * navigation. A ref adds nothing to the markup: the page makes the heading
+   * focusable only when it moves focus there.
+   */
+  headingRef?: Ref<HTMLHeadingElement>;
+}) {
   const { sites, problems, domain, caddyfileError } = payload;
   return (
     <>
       {caddyfileError ? <p className={ERROR_BOX}>{caddyfileError}</p> : null}
       <section>
         <div className={SITES_HEADING_ROW}>
-          <h2 className={SITES_HEADING}>{SITES_HEADING_TEXT}</h2>
+          <h2 ref={headingRef} className={SITES_HEADING}>
+            {SITES_HEADING_TEXT}
+          </h2>
           {sites.length === 0 ? null : (
             <a href="/sites/new" className={ADD_SITE_BUTTON}>
               <PlusIcon />

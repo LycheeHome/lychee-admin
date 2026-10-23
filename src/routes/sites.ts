@@ -22,12 +22,13 @@ import { buildSitePreview } from "../lib/sitePreview";
 import {
   renderAddSite,
   renderSiteDetail,
-  renderSiteList,
   renderErrorPage,
   renderSiteNotFound,
   type SiteResourceView,
 } from "../views/html";
 import { loadShell } from "./loadShell";
+import { renderClientPage } from "../views/clientShell";
+import { SITES_HEADING_TEXT as SITES_TITLE } from "../views/siteListModel";
 import { clearBoardCache } from "./services";
 import { cachedRead } from "./readCache";
 import { hostProblems, hostProblemUnits, undeployedStatus, type SiteStatus } from "../lib/siteDisplay";
@@ -228,43 +229,20 @@ export function createSitesRouter(deps: Deps): Router {
   const { backupFile } = deps.backup;
   const { logAction } = deps.logger;
 
-  sitesRouter.get("/", async (req, res) => {
-    // A fact about a removal that already completed, independent of whether
-    // the Caddyfile happens to be readable on this particular request — so
-    // it's computed once and threaded into both the success and error
-    // renders below, rather than only the happy path.
+  // The list is the client's: the shared shell around its mount point,
+  // titled as the client titles it after an in-app navigation, with the data
+  // from /api/sites. The `?removed` notice is still the server's: a fact
+  // about a removal that already completed, rendered as #page-notice above
+  // the mount point whatever the Caddyfile says on this request.
+  sitesRouter.get("/", (req, res) => {
     const removed = typeof req.query.removed === "string" ? req.query.removed : undefined;
-    const notice = removed
-      ? `Removed ${removed}. Remember to remove the DNS record in Cloudflare manually.`
+    const banner = removed
+      ? { message: `Removed ${removed}. Remember to remove the DNS record in Cloudflare manually.` }
       : undefined;
-
-    try {
-      const content = deps.fs.readFile(config.caddyfilePath);
-      const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname, config.domain));
-
-      // Site pills and host-unit states are independent reads; the unit read
-      // degrades to "no problems" rather than failing the list.
-      const inventory = readInventory(deps.fs);
-      const [statuses, unitStates] = await Promise.all([
-        cachedStatuses(sites, deps),
-        cachedHostUnitStates(deps),
-      ]);
-
-      res.send(
-        renderSiteList(
-          sites,
-          statuses,
-          config.domain,
-          undefined,
-          notice,
-          hostProblems(unitStates, inventory),
-          loadShell(deps, { page: "sites" }),
-        ),
-      );
-    } catch (error) {
-      const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
-      res.status(500).send(renderSiteList([], {}, config.domain, message, notice, [], loadShell(deps, { page: "sites" })));
-    }
+    // One read of the bundle, checked here and emitted by layout() from the same shell.
+    const shell = loadShell(deps, { page: "sites" });
+    if (!shell.assets) return res.status(500).type("text/plain").send("client bundle missing; run npm run build");
+    return res.type("html").send(renderClientPage(SITES_TITLE, "sites", shell, banner));
   });
 
   // The sites list's data for the client. Always 200: an unreadable Caddyfile

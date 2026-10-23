@@ -22,9 +22,10 @@ let client: QueryClient | null = null;
 /** The root's own mount point, which layout() emits on every page. */
 const ROOT = '<div id="react-root"></div>';
 
-// A server page's URL: the router matches it to `*`.
+// A server page's URL: the router matches it to `*`. Not `/`, which is the
+// sites list's client route and would load the list beside the rail.
 beforeEach(() => {
-  (globalThis as unknown as { happyDOM: { setURL(url: string): void } }).happyDOM.setURL("http://localhost/");
+  (globalThis as unknown as { happyDOM: { setURL(url: string): void } }).happyDOM.setURL("http://localhost/sites/new");
 });
 
 afterEach(() => {
