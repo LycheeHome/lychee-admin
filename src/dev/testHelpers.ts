@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import type { RailData, ShellData } from "../views/shell";
 import type { ClientAssets } from "../views/clientShell";
 import type { Site } from "../lib/caddyfile";
-import type { SiteDetailFacts } from "../shared/siteDetail";
+import type { SiteDetailFacts, SiteDetailPayload } from "../shared/siteDetail";
 
 /**
  * Helpers shared by the `*.test.ts` files. This lives in `src/dev/` because
@@ -105,4 +105,48 @@ export async function seedSiteDetailFacts(hostname: string): Promise<{ site: Sit
     logger: createLogger(fakes.fs),
   });
   return { site, facts };
+}
+
+/**
+ * `GET /api/sites/:hostname`'s answer for a seed site, as the route builds it
+ * (the site, its files path and the facts), with `override` merged over the
+ * facts. The site page's React tests render this and compare it with
+ * renderSiteDetail given the same facts.
+ */
+export async function seedSiteDetailPayload(
+  hostname: string,
+  override: Partial<SiteDetailFacts> = {},
+): Promise<{ site: Site; payload: Extract<SiteDetailPayload, { caddyfileError: null }> }> {
+  const { site, facts } = await seedSiteDetailFacts(hostname);
+  const { computeFilesPath } = await import("../lib/caddyfile");
+  const merged = { ...facts, ...override };
+  return {
+    site,
+    payload: { site, filesPath: computeFilesPath(site, merged.sitesRoot), caddyfileError: null, ...merged },
+  };
+}
+
+const COPY_STATUS = '<span id="copy-status" class="sr-only" role="status" aria-live="polite"></span>';
+
+/**
+ * A server page's content region: from just after the copy-status live region
+ * to `</main>`, which is what a React page renders into `#app-root`'s place.
+ * Asserts both anchors, for the reason `withoutShell` does.
+ */
+export function mainRegion(page: string): string {
+  const start = page.indexOf(COPY_STATUS);
+  const end = page.indexOf("</main>");
+  assert.ok(start !== -1 && end > start, "no content region in the page — anchor is stale");
+  return page.slice(start + COPY_STATUS.length, end);
+}
+
+/**
+ * The cut for the site page's repository card: the one `<section>` whose
+ * first child is the "From a repository" heading. It holds no nested
+ * section, so it ends at the first `</section>` after it.
+ */
+export const REPOSITORY_CARD = /<section class="[^"]*">\s*<h3 class="[^"]*">From a repository<\/h3>[\s\S]*?<\/section>/;
+
+export function withoutRepositoryCard(html: string): string {
+  return html.replace(REPOSITORY_CARD, "");
 }

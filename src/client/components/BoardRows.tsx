@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import type { ActionState, BoardPayload, BoardRow, ServiceBoard, ServiceGroup } from "../../shared/board";
 import type { BoardControlsApi } from "../mutations";
 import { HostActions } from "./HostActions";
+import { FailureLine } from "./CommandBlock";
 import { summarizeRow } from "../../views/boardFacts";
 import {
   GROUP_LABELS,
@@ -17,14 +18,9 @@ import {
   unknownSentence,
 } from "../../views/boardRowModel";
 import {
-  BODY,
   BUTTON_OFFER,
   BUTTON_SECONDARY_COMPACT,
-  CODE_LINE,
-  COPY_BUTTON,
-  COPY_IN_LINE,
   FRAME_WIDTH,
-  MONO_FACT,
   PROSE_MEASURE,
   SERVICE_DETAIL,
   SERVICE_NAME,
@@ -54,79 +50,6 @@ export type BoardControls = Partial<BoardControlsApi>;
 
 function Dot() {
   return <span aria-hidden="true">{"●"}</span>;
-}
-
-function Svg({ children }: { children: ReactNode }) {
-  return (
-    <svg
-      className="w-[1em] h-[1em] shrink-0"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {children}
-    </svg>
-  );
-}
-
-/** html.ts's commandBlock without a cwd caption: a command box and its copy button. */
-function CommandBlock({ id, value, label }: { id: string; value: string; label: string }) {
-  return (
-    <div className="relative">
-      <pre id={id} className={CODE_LINE}>
-        {value}
-      </pre>
-      <button type="button" className={`${COPY_BUTTON} ${COPY_IN_LINE}`} data-copy-target={id} aria-label={label}>
-        <span data-copy-icon="idle">
-          <Svg>
-            <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
-            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-          </Svg>
-        </span>
-        <span data-copy-icon="copied" className="hidden">
-          <Svg>
-            <path d="M20 6 9 17l-5-5" />
-          </Svg>
-        </span>
-      </button>
-    </div>
-  );
-}
-
-/** html.ts's failureLine: a failed deploy's tag, step and journal. */
-function FailureLine({ row, extraClass, commandId }: { row: BoardRow; extraClass: string; commandId: string }) {
-  if (row.result !== "failed") return null;
-  const tail = row.failedStep ? " at this step:" : ".";
-  const what = row.target ? (
-    <>
-      Deploying <span className={MONO_FACT}>{row.target}</span> failed{tail}
-    </>
-  ) : (
-    `The last deploy failed${tail}`
-  );
-  const retry = row.target
-    ? "The reconciler retries this tag on every run; its log for the last hour shows each attempt:"
-    : "The reconciler's log for the last hour has the latest attempt:";
-  return (
-    <div className={`flex flex-col gap-2 ${extraClass}`} data-deploy-failed="">
-      <p className={BODY}>{what}</p>
-      {row.failedStep ? (
-        <p className={`${SERVICE_DETAIL} text-stone-300`} data-failed-step="">
-          {row.failedStep}
-        </p>
-      ) : null}
-      <p className={BODY}>{retry}</p>
-      <CommandBlock
-        id={commandId}
-        value={'journalctl -u lychee-reconcile -u lychee-reconcile-app --since "1 hour ago"'}
-        label="Copy journal command"
-      />
-    </div>
-  );
 }
 
 /** html.ts's renderOfferLine at the board's emphasis. */
@@ -274,7 +197,7 @@ export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
             {gate}
           </p>
         ) : null}
-        <FailureLine row={row} extraClass="mt-1.5" commandId={`cmd-reconcile-log-${row.name}`} />
+        <FailureLine facts={row} extraClass="mt-1.5" commandId={`cmd-reconcile-log-${row.name}`} />
         {offer ? offer.requested ? <RequestedLine tag={offer.tag} name={row.name} controls={ctx.controls} /> : <OfferLine name={row.name} tag={offer.tag} controls={ctx.controls} /> : null}
         {showsPrune(row.name, prunable, domain) ? <PruneLine name={row.name} controls={ctx.controls} /> : null}
         <HostActions row={row} run={payloadRun} live={live} onLive={setLive} now={now} api={ctx.controls?.hostActions} />
