@@ -20,7 +20,7 @@ import {
 import { FOCUS_RING, ICONS, formatAge } from "../../views/shared";
 import type { RailCurrent, RailData } from "../../views/shell";
 import { FindPanel } from "./FindPanel";
-import { RailLink, SITES_ROUTE, boardRouteOf, useClientNav, type BoardRoute } from "../clientNav";
+import { RailLink, SITES_ROUTE, boardRouteOf, siteOf, useClientNav, type BoardRoute } from "../clientNav";
 
 /*
  * The rail's children in JSX. It mirrors renderRail in src/views/rail.ts
@@ -143,11 +143,14 @@ export function Rail({
   // keeps the document. Anywhere else the server's marker stands.
   const nav = useClientNav();
   const route = nav ? boardRouteOf(nav.pathname) : null;
+  const site = nav ? siteOf(nav.pathname) : null;
   const current: RailCurrent = route
     ? { page: ROUTE_PAGE[route] }
     : nav?.pathname === SITES_ROUTE
       ? { page: "sites" }
-      : rail.current;
+      : site
+        ? { site }
+        : rail.current;
 
   // A failed poll shows nothing it remembers: TanStack keeps the last data,
   // and a green dot from it would be a lie about now.
@@ -303,8 +306,8 @@ export function TopBar({ health, hostnames, healthError, onOpen }: TopBarProps) 
 /**
  * The drawer: a modal `<dialog>`, shown on mount, that closes on Escape or a
  * click on its backdrop. A backdrop click targets the dialog itself and lands
- * outside its box: the same bounding-rect check public/app.js uses for its
- * modals. Shown in a layout effect, so it is open before find (a passive
+ * outside its box: the same bounding-rect check the remove dialog uses
+ * (RemoveDialog.tsx). Shown in a layout effect, so it is open before find (a passive
  * effect) takes focus inside it.
  */
 function Drawer({

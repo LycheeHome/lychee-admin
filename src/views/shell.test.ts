@@ -2,7 +2,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { RETIRED_SWITCHER, testShell, withoutShell } from "../dev/testHelpers";
-import { renderSiteDetail, renderAddSite, renderSiteNotFound } from "./html";
+import { renderAddSite } from "./html";
 import { renderClientPage } from "./clientShell";
 import type { ShellData } from "./shell";
 
@@ -11,14 +11,6 @@ const SITES: Site[] = [
   { hostname: "api.lychee.land", type: "reverse-proxy", target: "4000" },
   { hostname: "app.lychee.land", type: "reverse-proxy", target: "3000", framework: "nextjs" },
 ];
-
-const DETAIL_OPTS = {
-  sitesRoot: "/var/www",
-  domain: "lychee.land",
-  tunnelId: "11111111-2222-3333-4444-555555555555",
-  tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
-  caddyfilePath: "/etc/caddy/Caddyfile",
-};
 
 const PORT_OWNERS = { "8787": "reserved (lychee-admin itself)", "4000": "api.lychee.land" };
 const PATHS = {
@@ -38,12 +30,18 @@ const BOARD_TITLES = {
 } as const;
 const board = (group: "service" | "reconciler" | "infrastructure", shell: ShellData = testShell()) =>
   renderClientPage(BOARD_TITLES[group][0], BOARD_TITLES[group][1], shell);
+// A site's page as GET /sites/:hostname serves it, found or not: the shell
+// around the client's mount point (the page is the client's; see
+// SiteDetailParity.test.tsx and SiteDetailRules.test.tsx).
+const site = (hostname: string, shell: ShellData = testShell({ current: { site: hostname } })) =>
+  renderClientPage(hostname, "site", shell);
+const notFound = (shell: ShellData = testShell()) => renderClientPage("Site not found", "site", shell);
 
 const pages = (): Record<string, string> => ({
   list: list(),
-  detail: renderSiteDetail(SITES[0], DETAIL_OPTS, testShell({ current: { site: SITES[0].hostname } })),
+  detail: site(SITES[0].hostname),
   add: renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS, testShell({ current: null })),
-  notFound: renderSiteNotFound("nope.lychee.land", testShell()),
+  notFound: notFound(),
   services: board("service"),
   reconciler: board("reconciler"),
   infrastructure: board("infrastructure"),
@@ -76,7 +74,7 @@ describe("the rail shell", () => {
   });
 
   test("the rail is the shell's, so it carries whatever the page's shell marks current", () => {
-    const html = renderSiteDetail(SITES[0], DETAIL_OPTS, testShell({ current: { site: "broken.lychee.land" } }));
+    const html = site(SITES[0].hostname, testShell({ current: { site: "broken.lychee.land" } }));
     const current = [...html.matchAll(/<a\b[^>]*aria-current="page"[^>]*>/g)].map((m) => m[0].match(/href="([^"]+)"/)?.[1]);
     assert.deepEqual(current, ["/sites/broken.lychee.land"]);
   });
@@ -112,7 +110,7 @@ describe("the client bundle", () => {
     for (const [name, html] of Object.entries({
       list: list(testShell({ assets: ASSETS })),
       services: board("service", testShell({ assets: ASSETS })),
-      notFound: renderSiteNotFound("nope.lychee.land", testShell({ assets: ASSETS })),
+      notFound: notFound(testShell({ assets: ASSETS })),
     })) {
       assert.equal(html.split('<script type="module" src="/client/assets/main-abc.js"></script>').length - 1, 1, name);
       assert.equal(html.split('<link rel="stylesheet" href="/client/assets/main-def.css" />').length - 1, 1, name);
@@ -128,6 +126,32 @@ describe("the client bundle", () => {
     const html = list(testShell({ assets: null }));
     assert.doesNotMatch(html, /\/client\//);
     assert.match(html, RAIL);
+  });
+});
+
+// Both were html.test.ts's, against the server site page: what they pin is
+// the shell's, so they hold the shell GET /sites/:hostname serves now.
+describe("the site page's shell", () => {
+  test("copy outcomes get a polite live region, since the icon swap is silent", () => {
+    const span = site("blog.lychee.land").match(/<[a-z]+[^>]* id="copy-status"[^>]*>/)?.[0];
+    assert.ok(span, 'no element with id="copy-status" was rendered');
+    assert.match(span, /role="status"/);
+    assert.match(span, /aria-live="polite"/);
+    assert.match(span, /class="[^"]*sr-only/);
+  });
+
+  test("the rail's current row states its port at readable contrast", () => {
+    // Carried over from the breadcrumb dropdown the rail replaced: stone-400
+    // on the highlighted (stone-700) row measured 3.98:1; stone-300 clears
+    // 4.5:1. Anchored to the current row itself (aria-current="page"), not
+    // the whole document — every other row uses the same hint span, so a
+    // document-wide assertion would pass regardless of whether the current
+    // row in particular carries the fix.
+    const html = site("app.lychee.land");
+    const currentRow = html.match(/<a[^>]*aria-current="page"[^>]*>[\s\S]*?<\/a>/);
+    assert.ok(currentRow, "no current row was rendered");
+    assert.match(currentRow[0], /data-site="app\.lychee\.land"/);
+    assert.match(currentRow[0], /shrink-0 text-\[0\.72rem\] text-stone-300">:3200</);
   });
 });
 

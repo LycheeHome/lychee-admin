@@ -1,4 +1,5 @@
 import type { Ref } from "react";
+import { RailLink } from "../clientNav";
 import type { HostProblem, SitesPayload, SiteSummary } from "../../shared/sites";
 import { describeStatus, splitHostnameForDisplay } from "../../lib/siteDisplay";
 import { ERROR_BOX, ICON_CLASS, PLUS_PATHS, TONE_PILL, statePhrase } from "../../views/shared";
@@ -96,7 +97,7 @@ function SiteRow({ site, payload }: { site: SiteSummary; payload: SitesPayload }
   const labels = status ? describeStatus(status) : null;
   const { lead, dimmed } = splitHostnameForDisplay(site.hostname, payload.domain);
   return (
-    <a href={siteHref(site.hostname)} className={SITE_ROW}>
+    <RailLink href={siteHref(site.hostname)} className={SITE_ROW}>
       <span className={SITE_ROW_TEXT}>
         <span className={SITE_HOSTNAME} data-hostname="">
           {lead}
@@ -118,7 +119,7 @@ function SiteRow({ site, payload }: { site: SiteSummary; payload: SitesPayload }
           ) : null}
         </span>
       </span>
-    </a>
+    </RailLink>
   );
 }
 

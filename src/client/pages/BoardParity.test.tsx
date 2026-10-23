@@ -82,6 +82,8 @@ function assertParity(name: string, p: BoardPayload, group: ServiceGroup, reache
   const server = serverRegion(name);
   const client = renderToStaticMarkup(<Board payload={p} group={group} />);
   assert.equal(canonical(client), canonical(server));
+  // A space between inline siblings renders; canonical() alone drops it.
+  assert.equal(canonical(client, { inlineWhitespace: true }), canonical(server, { inlineWhitespace: true }));
   for (const branch of reaches) assert.ok(server.includes(branch), `fixture never reached ${branch}`);
   return server;
 }

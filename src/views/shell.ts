@@ -61,7 +61,8 @@ const DISMISS_BUTTON =
 
 /**
  * The transient client toast: empty and hidden until showBanner() in
- * public/app.js fills it. It is viewport-anchored on purpose — "Removing
+ * public/app.js or showToast() in src/client/toast.ts fills it. It is
+ * viewport-anchored on purpose — "Removing
  * blog.lychee.land…" fires from the Remove button at the bottom of a long detail
  * page, and an in-flow notice at the top of the column would be scrolled out
  * of sight at the moment it matters. Page-load notices are the other case, and

@@ -16,8 +16,9 @@
  * remove them from the bundle with nothing failing at build or test time.
  *
  * The frozen parity fixtures are excluded, all of src/dev/fixtures/ at once:
- * board/ (what the retired server board rendered) and sites/ (what the
- * retired server sites list rendered). They are test data, and once the live
+ * board/ (what the retired server board rendered), sites/ (what the retired
+ * server sites list rendered) and detail/ (what the retired server site page
+ * rendered). They are test data, and once the live
  * pages move on they would keep the old classes in the bundle.
  */
 @import "tailwindcss" source(none);

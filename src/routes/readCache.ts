@@ -49,3 +49,8 @@ export function cachedRead<T>(
   });
   return promise;
 }
+
+/** Drops one entry, so the next cachedRead of that name reads again. */
+export function evictRead(name: string, deps: Deps): void {
+  caches.get(deps.fs)?.delete(name);
+}

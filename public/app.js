@@ -1,17 +1,10 @@
-let deleteInFlight = false;
-// Once true, the confirm button stays disabled for the rest of this page
-// load — see setRemoveBusy's keepSubmitDisabled param and isRemovalSettled
-// below. A removal that's reached this point has an accurate report on
-// screen (steps ok through caddy or cloudflared, or removed:true); retrying
-// it would call caddyfile.removeSite on a hostname that's already gone,
-// which throws "No Caddyfile block found" and overwrites that report with a
-// misleading one.
-let removalSettled = false;
+// What is left here is the shell's and the add-site page's: the flash toast
+// and the page notice's close button (every page), copy buttons (by
+// delegation, so the React pages' work too), and the add form with its
+// preview. Every other page — the sites list, a site's page and the board —
+// is the client bundle's (src/client/), writes included.
 
 const portOwners = JSON.parse(document.getElementById("port-owners-data")?.textContent ?? "{}");
-
-const confirmRemoveDialog = document.getElementById("confirm-remove-dialog");
-const confirmRemoveDeleteFilesCheckbox = document.getElementById("confirm-remove-delete-files");
 
 const flashBanner = document.getElementById("flash-banner");
 const flashBannerMessage = document.getElementById("flash-banner-message");
@@ -29,7 +22,10 @@ flashBannerAction?.addEventListener("click", () => {
 
 // `action` ({ label, onClick }) is optional and only meaningful on an error:
 // a recovery the operator can take from the toast itself. Every call resets
-// it, so an action can never outlive the message it was offered with.
+// it, so an action can never outlive the message it was offered with. No
+// caller here passes one any more (the remove chain that did is the
+// client's, src/client/removeChain.ts); it stays because src/client/toast.ts
+// is held to this function's markup, action included (toast.test.ts).
 function showBanner(message, kind, action) {
   if (!flashBanner || !flashBannerMessage || !flashBannerClose) return;
   clearTimeout(flashBannerTimeout);
@@ -59,7 +55,7 @@ function showBanner(message, kind, action) {
   // Written last, after the region is visible and toned: a mutation inside a
   // display:none subtree is not announced, and revealing an element that
   // already holds its text generally isn't either — the same ordering
-  // #port-error, #add-site-error and #confirm-remove-outcome all use.
+  // #port-error and #add-site-error use.
   flashBannerMessage.textContent = message;
 }
 
@@ -79,15 +75,11 @@ flashBannerClose?.addEventListener("click", hideBanner);
 const pageNotice = document.getElementById("page-notice");
 document.getElementById("page-notice-close")?.addEventListener("click", () => pageNotice?.remove());
 
-// `?removed` (the list's DNS reminder, server-rendered as #page-notice) is
-// stripped by the client bundle before its router starts (stripRemovedParam
-// in src/client/router.tsx), keeping the URL's other parameters, its hash and
-// the router's history state. This script runs first, and stripping it here
-// would drop all three.
-
-if (new URLSearchParams(window.location.search).has("created")) {
-  history.replaceState(null, "", window.location.pathname);
-}
+// `?removed` (the list's DNS reminder) and `?created=1` (a new site's notice),
+// both server-rendered as #page-notice, are stripped by the client bundle
+// before its router starts (stripNoticeParams in src/client/router.tsx),
+// keeping the URL's other parameters, its hash and the router's history state.
+// This script runs first, and stripping them here would drop all three.
 
 const STEP_MARKS = { ok: "✓", failed: "✗", skipped: "—", "not-run": "·" };
 const STEP_MARK_CLASSES = {
@@ -97,8 +89,8 @@ const STEP_MARK_CLASSES = {
   "not-run": "text-stone-400",
 };
 
-// Takes the list id (rather than hard-coding the remove dialog's) so the
-// add-site form's own step list can reuse this unchanged.
+// Takes the list id, which today is only the add-site form's own step list
+// (the remove dialog's is the client's: src/client/removeChain.ts).
 function markSteps(listId, steps) {
   for (const step of steps ?? []) {
     const row = document.querySelector(`#${listId} [data-step-id="${step.id}"]`);
@@ -115,223 +107,6 @@ function resetSteps(listId) {
     mark.className = "step-mark ml-auto shrink-0";
   });
 }
-
-// Disables both dialog buttons and flags the dialog busy for assistive tech.
-// Deliberately does not touch either button's contents: the submit button
-// renders an icon plus the hostname (see html.ts), so overwriting
-// textContent here would destroy the icon irrecoverably, and restoring it
-// from the button's own (already-overwritten) textContent afterward would
-// leave the label frozen at "Removing…" forever. Progress and outcome text
-// live in #confirm-remove-outcome instead.
-//
-// keepSubmitDisabled is separate from busy: once a removal has settled (see
-// isRemovalSettled), the confirm button must stay disabled even after the
-// in-flight request resolves and busy goes back to false, while Cancel stays
-// usable so the operator can still dismiss the dialog.
-function setRemoveBusy(busy, keepSubmitDisabled = false) {
-  const submit = document.getElementById("confirm-remove-submit");
-  const cancel = document.querySelector('[data-close-dialog="confirm-remove-dialog"]');
-  if (submit) submit.disabled = busy || keepSubmitDisabled;
-  if (cancel) cancel.disabled = busy;
-  confirmRemoveDialog?.setAttribute("aria-busy", busy ? "true" : "false");
-}
-
-// True once retrying would risk destroying the only record of a partially-
-// or fully-completed removal: the config removal itself succeeded
-// (`removed: true`), or the caddy/cloudflared steps — which only ever run
-// once Caddy has actually reloaded — reported "ok". A failure at or before
-// the caddy step, by contrast, is always rolled back server-side (see
-// hostStateMessage), so retrying from there is still safe.
-function isRemovalSettled(result) {
-  if (result?.removed) return true;
-  return (result?.steps ?? []).some(
-    (step) => (step.id === "caddy" || step.id === "cloudflared") && step.status === "ok",
-  );
-}
-
-const OUTCOME_NEUTRAL_CLASSES = ["text-stone-400"];
-const OUTCOME_ERROR_CLASSES = [
-  "text-red-300",
-  "bg-red-950/40",
-  "border",
-  "border-red-800/50",
-  "rounded-md",
-  "px-2.5",
-  "py-2",
-];
-
-// The outcome region is a progress surface first (plain muted text while a
-// step is running) and becomes a failure surface only once a failure
-// actually lands — never styled red for an in-flight or successful removal.
-//
-// The message text lives in a nested span (#confirm-remove-outcome-text)
-// rather than directly in #confirm-remove-outcome, because the pulsing
-// progress dot is a sibling of that span: overwriting the parent's
-// textContent on every call would delete the dot the next time this runs.
-// The dot itself only ever shows for the in-flight (non-error) message —
-// "still working" is never true once a failure has actually landed.
-function setOutcome(message, isError) {
-  const outcome = document.getElementById("confirm-remove-outcome");
-  const outcomeText = document.getElementById("confirm-remove-outcome-text");
-  const progress = document.getElementById("confirm-remove-progress");
-  if (!outcome || !outcomeText) return;
-  outcome.classList.remove(...OUTCOME_NEUTRAL_CLASSES, ...OUTCOME_ERROR_CLASSES);
-  if (!message) {
-    outcomeText.textContent = "";
-    outcome.classList.add("hidden");
-    progress?.classList.add("hidden");
-    return;
-  }
-  // Unhide and set tone before writing text: a mutation inside a
-  // display:none subtree is not announced, and revealing an element that
-  // already holds its text generally isn't either — see the same fix
-  // beside #port-error and #add-site-error.
-  outcome.classList.remove("hidden");
-  outcome.classList.add(...(isError ? OUTCOME_ERROR_CLASSES : OUTCOME_NEUTRAL_CLASSES));
-  progress?.classList.toggle("hidden", isError);
-  outcomeText.textContent = message;
-}
-
-// Describes what actually happened on the host for a failed /delete call.
-// Mirrors src/routes/sites.ts's own logic rather than assuming every
-// non-rolled-back failure means Caddy already reloaded: if the rollback
-// attempt itself failed, result.error already explains that in full (and
-// where the backups are), and appending "Caddy had already reloaded" on top
-// would misstate what happened, since in that branch Caddy never reloaded.
-function hostStateMessage(result) {
-  if (result.rolledBack) {
-    return "The original Caddyfile and tunnel config were restored.";
-  }
-  const caddyStep = (result.steps ?? []).find((step) => step.id === "caddy");
-  if (caddyStep?.status === "ok") {
-    return "Caddy had already reloaded, so the edited config is live and was left in place.";
-  }
-  return "";
-}
-
-// Escape fires "cancel" before "close" on a <dialog>; block it while a
-// delete is in flight for the same reason the outside-click handler below
-// does — the dialog is the only place the outcome is shown, so dismissing
-// it mid-mutation would discard the result the operator is waiting on.
-confirmRemoveDialog?.addEventListener("cancel", (event) => {
-  if (deleteInFlight) event.preventDefault();
-});
-
-// POST /detach. Resolves { ok, reason } and never throws, so every caller —
-// the dialog's own chain and the toast's Retry — handles one shape.
-async function retireDeclaration(hostname) {
-  try {
-    const response = await fetch(`/sites/${encodeURIComponent(hostname)}/detach`, { method: "POST" });
-    const body = await response.json().catch(() => ({}));
-    if (response.ok && body.ok) return { ok: true };
-    return { ok: false, reason: body.reason ?? `HTTP ${response.status}` };
-  } catch {
-    return { ok: false, reason: "could not reach the server" };
-  }
-}
-
-// Site removal already succeeded by the time this runs — files deletion is a
-// separate request specifically so a failure here can't be confused with the
-// (already-completed) config removal. Resolves the error text, or null.
-async function deleteSiteFiles(hostname) {
-  try {
-    const response = await fetch(`/sites/${encodeURIComponent(hostname)}/delete-files`, { method: "POST" });
-    const body = await response.json().catch(() => ({}));
-    return response.ok ? null : (body.error ?? "unknown error");
-  } catch {
-    return "could not reach the server";
-  }
-}
-
-function filesFailureMessage(hostname, error) {
-  return `Removed ${hostname} from Caddy and the sites tunnel, but deleting its files failed:\n${error}\n\nThe site is no longer served. Its files are still on disk.`;
-}
-
-// The site is gone from Caddy and the tunnel, but its container is still
-// declared running. The dialog closes because a modal makes everything
-// beneath it inert, the toast included; the toast then carries the one thing
-// left to do. Retry re-posts /detach and, once it lands, resumes the chain
-// where it stopped — file deletion, if it was asked for, then the list.
-function offerDeclarationRetry(hostname, needsFileConfirm, reason) {
-  if (confirmRemoveDialog?.open) confirmRemoveDialog.close();
-  showBanner(`Site removed, but its container is still declared running: ${reason}`, "error", {
-    label: "Retry",
-    onClick: async () => {
-      showBanner(`Retiring ${hostname}'s container declaration…`, "info");
-      const detached = await retireDeclaration(hostname);
-      if (!detached.ok) {
-        offerDeclarationRetry(hostname, needsFileConfirm, detached.reason);
-        return;
-      }
-      const filesError = needsFileConfirm ? await deleteSiteFiles(hostname) : null;
-      if (filesError) {
-        showBanner(filesFailureMessage(hostname, filesError), "error");
-        return;
-      }
-      window.location.href = `/?removed=${encodeURIComponent(hostname)}`;
-    },
-  });
-  flashBannerAction?.focus();
-}
-
-document.getElementById("confirm-remove-submit")?.addEventListener("click", async (event) => {
-  if (deleteInFlight || removalSettled) return;
-  const hostname = event.currentTarget.dataset.hostname;
-  if (!hostname) return;
-
-  const deleteFilesChecked = confirmRemoveDeleteFilesCheckbox?.checked ?? false;
-
-  deleteInFlight = true;
-  setRemoveBusy(true);
-  resetSteps("confirm-remove-steps");
-  setOutcome(`Removing ${hostname}…`, false);
-  try {
-    const response = await fetch(`/sites/${encodeURIComponent(hostname)}/delete`, {
-      method: "POST",
-      body: new URLSearchParams({ deleteFiles: deleteFilesChecked ? "on" : "" }),
-    });
-    const result = await response.json();
-    markSteps("confirm-remove-steps", result.steps);
-    if (isRemovalSettled(result)) removalSettled = true;
-
-    if (!response.ok) {
-      // The dialog stays open: it stated the four steps, so it is where the
-      // outcome belongs.
-      const state = hostStateMessage(result);
-      const message = state
-        ? `${result.error ?? "Failed to remove site"}\n\n${state}`
-        : (result.error ?? "Failed to remove site");
-      setOutcome(message, true);
-      return;
-    }
-
-    // A resource-backed site's declaration is retired in its own request,
-    // sent only now that the Caddy/tunnel removal has succeeded — never as
-    // part of it. If it fails, nothing after it runs: file deletion waits
-    // until the container has actually been told to stop.
-    if (confirmRemoveDialog?.dataset.attached === "true") {
-      setOutcome(`Retiring ${hostname}'s container declaration…`, false);
-      const detached = await retireDeclaration(hostname);
-      markSteps("confirm-remove-steps", [{ id: "declaration", status: detached.ok ? "ok" : "failed" }]);
-      if (!detached.ok) {
-        offerDeclarationRetry(hostname, result.needsFileConfirm, detached.reason);
-        return;
-      }
-    }
-
-    const filesError = result.needsFileConfirm ? await deleteSiteFiles(hostname) : null;
-    if (filesError) {
-      setOutcome(filesFailureMessage(hostname, filesError), true);
-      return;
-    }
-    window.location.href = `/?removed=${encodeURIComponent(hostname)}`;
-  } catch (error) {
-    setOutcome(error.message, true);
-  } finally {
-    deleteInFlight = false;
-    setRemoveBusy(false, removalSettled);
-  }
-});
 
 const typeInputs = document.querySelectorAll('input[name="type"]');
 const portFieldWrapper = document.querySelector(".port-input");
@@ -747,18 +522,6 @@ window.addEventListener("pageshow", (event) => {
   refreshPreview();
 });
 
-document.querySelectorAll("[data-open-dialog]").forEach((trigger) => {
-  trigger.addEventListener("click", () => {
-    document.getElementById(trigger.dataset.openDialog)?.showModal();
-  });
-});
-
-document.querySelectorAll("[data-close-dialog]").forEach((trigger) => {
-  trigger.addEventListener("click", () => {
-    document.getElementById(trigger.dataset.closeDialog)?.close();
-  });
-});
-
 const copyStatus = document.getElementById("copy-status");
 
 // Delegated from the document rather than bound per button, so a copy button
@@ -797,243 +560,4 @@ document.addEventListener("click", async (event) => {
     idleIcon?.classList.remove("hidden");
     copiedIcon?.classList.add("hidden");
   }, 1500);
-});
-
-document.querySelectorAll("dialog.modal").forEach((dialog) => {
-  dialog.addEventListener("click", (event) => {
-    // The confirm-remove dialog is the progress/result surface for an
-    // in-flight delete; an outside click must not discard it mid-mutation.
-    if (dialog === confirmRemoveDialog && deleteInFlight) return;
-    const rect = dialog.getBoundingClientRect();
-    const inside =
-      event.clientX >= rect.left &&
-      event.clientX <= rect.right &&
-      event.clientY >= rect.top &&
-      event.clientY <= rect.bottom;
-    if (!inside) dialog.close();
-  });
-
-  // A modal <dialog> confines focus to the document, but it does not wrap Tab
-  // at its own edges: tabbing past the last focusable lands on <body> for one
-  // stop before re-entering, once per lap. Harmless on an ordinary form and
-  // expensive here — this is the app's one irreversible screen, and an
-  // operator tabbing fast to the confirm button can fire Enter into nothing.
-  //
-  // Focusables are re-queried on every keystroke rather than cached, because
-  // setRemoveBusy() changes the set mid-removal: both buttons disable while a
-  // delete is in flight, leaving only the checkbox, and on a site with no
-  // files to delete it leaves nothing at all. A cached list would trap focus
-  // onto a disabled button.
-  dialog.addEventListener("keydown", (event) => {
-    if (event.key !== "Tab") return;
-
-    const focusables = [...dialog.querySelectorAll("button, input, select, textarea, a[href]")].filter(
-      (el) => !el.disabled,
-    );
-
-    // Mid-removal on a site with no delete-files checkbox: nothing in here can
-    // hold focus, so the only way to keep it inside is to refuse the key.
-    if (focusables.length === 0) {
-      event.preventDefault();
-      return;
-    }
-
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    const active = document.activeElement;
-
-    // Wrapping at the edges is what keeps focus in: intercept the step that
-    // would have landed on <body>, and it never gets there.
-    if (!event.shiftKey && active === last) {
-      event.preventDefault();
-      first.focus();
-    } else if (event.shiftKey && active === first) {
-      event.preventDefault();
-      last.focus();
-    }
-  });
-});
-
-// A site page's Deploy control (the services board's is the client's own,
-// src/client/mutations.ts). The server decides the tag from the inventory, so
-// only the name is sent. On success the offer is replaced, in
-// place, by the same "<tag> requested" line the server renders on a reload:
-// that line is the feedback, not a toast, because it is still true after the
-// toast would have faded and it takes the button's place, so a second click
-// for the same change is impossible. Its markup comes from the page's own
-// <template>, not a copy here, so the two can never drift; only the tag is
-// filled in, as text. If the template is missing the old behaviour stands: a
-// success toast and a button that stays disabled.
-document.querySelectorAll("[data-deploy]").forEach((button) => {
-  button.addEventListener("click", async () => {
-    const name = button.dataset.deploy;
-    const tag = button.dataset.deployTag;
-    button.disabled = true;
-    showBanner(`Requesting ${tag} for ${name}…`, "info");
-    try {
-      const response = await fetch(`/services/${encodeURIComponent(name)}/deploy`, { method: "POST" });
-      const body = await response.json().catch(() => ({}));
-      if (response.ok && body.ok) {
-        const line = document
-          .querySelector("template[data-requested-template]")
-          ?.content.firstElementChild?.cloneNode(true);
-        const tagSlot = line?.querySelector("[data-requested-tag]");
-        const offer = button.closest("[data-offer]");
-        if (line && tagSlot && offer) {
-          tagSlot.textContent = tag;
-          offer.replaceWith(line);
-          hideBanner();
-          line.focus();
-          return;
-        }
-        showBanner(`Requested ${tag} for ${name}. The reconciler applies it on its next run.`, "success");
-        return;
-      }
-      showBanner(body.reason ?? `Could not request ${tag} for ${name} (HTTP ${response.status}).`, "error");
-    } catch {
-      showBanner(`Could not reach the server to request ${tag} for ${name}.`, "error");
-    }
-    button.disabled = false;
-  });
-});
-
-// Prune, on a site page's detached warning (a retired row on the services
-// board has the client's own, src/client/mutations.ts). Only the name is sent:
-// the route re-reads the declaration after a fresh pull and asks the inventory
-// whether the container is confirmed down, so a refusal (409 most often: not
-// confirmed down yet) carries the reason to show. Success reloads, because the
-// site page is server-rendered: it drops the warning. showBanner writes
-// textContent, so the server's reason is never parsed as markup.
-document.querySelectorAll("[data-prune]").forEach((button) => {
-  button.addEventListener("click", async () => {
-    const name = button.dataset.prune;
-    button.disabled = true;
-    showBanner(`Pruning ${name}.yml from lychee-resources…`, "info");
-    try {
-      const response = await fetch(`/resources/${encodeURIComponent(name)}/prune`, { method: "POST" });
-      const body = await response.json().catch(() => ({}));
-      if (response.status === 200 && body.ok) {
-        window.location.reload();
-        return;
-      }
-      showBanner(`${name}.yml was not pruned: ${body.reason ?? `HTTP ${response.status}`}`, "error");
-    } catch {
-      showBanner(`Could not reach the server to prune ${name}.yml.`, "error");
-    }
-    button.disabled = false;
-  });
-});
-
-// A Next.js site's Attach control. The server takes the port from the site's
-// own Caddyfile block, so only the repository name is sent. Success reloads the
-// page rather than patching it: the attached state (awaiting image, the
-// resource and image rows) is server-rendered, and a reload is also what shows
-// it after the reconciler's next run.
-document.querySelectorAll("form[data-attach]").forEach((attachForm) => {
-  const hostname = attachForm.dataset.attach;
-  const repoInput = attachForm.querySelector('input[name="repo"]');
-  const submit = attachForm.querySelector('button[type="submit"]');
-  const error = attachForm.querySelector("#attach-error");
-  let inFlight = false;
-
-  function showError(message) {
-    if (!error) return;
-    // Unhide before writing, as #add-site-error does: a role="alert" region
-    // inside display:none announces nothing.
-    error.classList.remove("hidden");
-    error.textContent = message;
-  }
-
-  attachForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (inFlight || submit?.disabled) return;
-    const repo = String(repoInput?.value ?? "").trim();
-    if (!repo) {
-      showError("Enter the repository's name.");
-      repoInput?.focus();
-      return;
-    }
-
-    inFlight = true;
-    error?.classList.add("hidden");
-    if (submit) submit.disabled = true;
-    showBanner(`Attaching ${repo} to ${hostname}…`, "info");
-    try {
-      const response = await fetch(`/sites/${encodeURIComponent(hostname)}/attach`, {
-        method: "POST",
-        body: new URLSearchParams({ repo }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (response.ok && body.ok) {
-        // inFlight stays true: the page is about to be replaced, and a second
-        // submit before it is would only be refused as an existing declaration.
-        // The path alone, so a ?created=1 notice from add-site is not replayed.
-        window.location.href = window.location.pathname;
-        return;
-      }
-      hideBanner();
-      showError(body.reason ?? `Could not attach ${repo} (HTTP ${response.status}).`);
-    } catch {
-      hideBanner();
-      showError(`Could not reach the server to attach ${repo}.`);
-    }
-    inFlight = false;
-    if (submit) submit.disabled = false;
-  });
-});
-
-// A Next.js site's Change repository control, shown only while its declaration
-// is tagless and the reconciler has found no image. Mirrors Attach: only the
-// repository name is sent (the resource name comes from the hostname), errors
-// land in the form's own alert region, and success reloads so the page shows
-// what the declaration now says. The server refuses a declaration that gained
-// a tag since this page loaded (409), and that reason is shown as-is.
-document.querySelectorAll("form[data-change-repository]").forEach((changeForm) => {
-  const hostname = changeForm.dataset.changeRepository;
-  const repoInput = changeForm.querySelector('input[name="repo"]');
-  const submit = changeForm.querySelector('button[type="submit"]');
-  const error = changeForm.querySelector("#change-repo-error");
-  let inFlight = false;
-
-  function showError(message) {
-    if (!error) return;
-    // Unhide before writing: a role="alert" region inside display:none announces nothing.
-    error.classList.remove("hidden");
-    error.textContent = message;
-  }
-
-  changeForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (inFlight || submit?.disabled) return;
-    const repo = String(repoInput?.value ?? "").trim();
-    if (!repo) {
-      showError("Enter the repository's name.");
-      repoInput?.focus();
-      return;
-    }
-
-    inFlight = true;
-    error?.classList.add("hidden");
-    if (submit) submit.disabled = true;
-    showBanner(`Changing ${hostname}'s repository to ${repo}…`, "info");
-    try {
-      const response = await fetch(`/sites/${encodeURIComponent(hostname)}/repository`, {
-        method: "POST",
-        body: new URLSearchParams({ repo }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (response.ok && body.ok) {
-        // inFlight stays true: the page is about to be replaced.
-        window.location.href = window.location.pathname;
-        return;
-      }
-      hideBanner();
-      showError(body.reason ?? `Could not change the repository to ${repo} (HTTP ${response.status}).`);
-    } catch {
-      hideBanner();
-      showError(`Could not reach the server to change the repository to ${repo}.`);
-    }
-    inFlight = false;
-    if (submit) submit.disabled = false;
-  });
 });

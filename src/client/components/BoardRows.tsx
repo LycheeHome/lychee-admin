@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import { useState, type ReactNode, type Ref } from "react";
 import type { ActionState, BoardPayload, BoardRow, ServiceBoard, ServiceGroup } from "../../shared/board";
 import type { BoardControlsApi } from "../mutations";
 import { HostActions } from "./HostActions";
+import { RailLink } from "../clientNav";
+import { FailureLine } from "./CommandBlock";
+import { OfferLine, PruneLine, RequestedLine } from "./DeployLines";
 import { summarizeRow } from "../../views/boardFacts";
 import {
   GROUP_LABELS,
@@ -17,14 +20,7 @@ import {
   unknownSentence,
 } from "../../views/boardRowModel";
 import {
-  BODY,
-  BUTTON_OFFER,
-  BUTTON_SECONDARY_COMPACT,
-  CODE_LINE,
-  COPY_BUTTON,
-  COPY_IN_LINE,
   FRAME_WIDTH,
-  MONO_FACT,
   PROSE_MEASURE,
   SERVICE_DETAIL,
   SERVICE_NAME,
@@ -38,11 +34,12 @@ import {
  * the server board (renderServicesPage and its row helpers, now retired); the
  * parity tests compare it with that board's output, frozen in
  * src/dev/fixtures/board/. It takes every decision from the same
- * node-free modules (boardFacts.ts, boardRowModel.ts) as the server-rendered
- * site page, whose offer, requested line and Prune control are still
- * renderOfferLine, renderRequestedLine and renderPruneControl in
- * src/views/html.ts: a change to one of those three belongs in both
- * (BoardMarkup.test.tsx checks the offer and Prune line are the same DOM).
+ * node-free modules (boardFacts.ts, boardRowModel.ts) as the site page. The
+ * offer, requested line and Prune control are DeployLines.tsx's, shared with
+ * the React site page's repository card, so the two pages render them from
+ * one component each (BoardMarkup.test.tsx checks the offer and Prune line
+ * are the same DOM on both). Their server twins in html.ts are retired with
+ * both server pages.
  *
  * The controls render as the server's do (same data-* attributes, classes and
  * text) and are wired through `controls`: Deploy, Prune and the host actions
@@ -54,152 +51,6 @@ export type BoardControls = Partial<BoardControlsApi>;
 
 function Dot() {
   return <span aria-hidden="true">{"●"}</span>;
-}
-
-function Svg({ children }: { children: ReactNode }) {
-  return (
-    <svg
-      className="w-[1em] h-[1em] shrink-0"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {children}
-    </svg>
-  );
-}
-
-/** html.ts's commandBlock without a cwd caption: a command box and its copy button. */
-function CommandBlock({ id, value, label }: { id: string; value: string; label: string }) {
-  return (
-    <div className="relative">
-      <pre id={id} className={CODE_LINE}>
-        {value}
-      </pre>
-      <button type="button" className={`${COPY_BUTTON} ${COPY_IN_LINE}`} data-copy-target={id} aria-label={label}>
-        <span data-copy-icon="idle">
-          <Svg>
-            <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
-            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-          </Svg>
-        </span>
-        <span data-copy-icon="copied" className="hidden">
-          <Svg>
-            <path d="M20 6 9 17l-5-5" />
-          </Svg>
-        </span>
-      </button>
-    </div>
-  );
-}
-
-/** html.ts's failureLine: a failed deploy's tag, step and journal. */
-function FailureLine({ row, extraClass, commandId }: { row: BoardRow; extraClass: string; commandId: string }) {
-  if (row.result !== "failed") return null;
-  const tail = row.failedStep ? " at this step:" : ".";
-  const what = row.target ? (
-    <>
-      Deploying <span className={MONO_FACT}>{row.target}</span> failed{tail}
-    </>
-  ) : (
-    `The last deploy failed${tail}`
-  );
-  const retry = row.target
-    ? "The reconciler retries this tag on every run; its log for the last hour shows each attempt:"
-    : "The reconciler's log for the last hour has the latest attempt:";
-  return (
-    <div className={`flex flex-col gap-2 ${extraClass}`} data-deploy-failed="">
-      <p className={BODY}>{what}</p>
-      {row.failedStep ? (
-        <p className={`${SERVICE_DETAIL} text-stone-300`} data-failed-step="">
-          {row.failedStep}
-        </p>
-      ) : null}
-      <p className={BODY}>{retry}</p>
-      <CommandBlock
-        id={commandId}
-        value={'journalctl -u lychee-reconcile -u lychee-reconcile-app --since "1 hour ago"'}
-        label="Copy journal command"
-      />
-    </div>
-  );
-}
-
-/** html.ts's renderOfferLine at the board's emphasis. */
-function OfferLine({ name, tag, controls }: { name: string; tag: string; controls?: BoardControls }) {
-  const deploy = controls?.deploy;
-  return (
-    <p className="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-offer="">
-      <span className="font-mono text-[0.8rem] text-rose-300">{`${tag} available`}</span>
-      <button
-        type="button"
-        className={BUTTON_OFFER}
-        data-deploy={name}
-        data-deploy-tag={tag}
-        disabled={controls?.busy?.has(name) || undefined}
-        onClick={deploy ? () => deploy(name, tag) : undefined}
-      >
-        {`Deploy ${tag}`}
-      </button>
-    </p>
-  );
-}
-
-/** html.ts's renderRequestedLine: the offer's place once its tag is in the declaration. */
-function RequestedLine({ tag, name, controls }: { tag: string; name?: string; controls?: BoardControls }) {
-  const ref = useRef<HTMLParagraphElement>(null);
-  const wanted = name !== undefined && controls?.focusRequested === name;
-  const focused = controls?.focused;
-  // A Deploy's button is gone once this line replaces the offer: focus goes
-  // here, as app.js's line.focus() did.
-  useEffect(() => {
-    if (!wanted) return;
-    ref.current?.focus();
-    focused?.();
-  }, [wanted, focused]);
-  return (
-    <p
-      ref={ref}
-      className="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5"
-      data-requested=""
-      role="status"
-      tabIndex={-1}
-    >
-      <span className="font-mono text-[0.8rem] text-stone-50">
-        <span data-requested-tag="">{tag}</span> requested
-      </span>{" "}
-      <span className="text-stone-400">· applies on the next run</span>
-    </p>
-  );
-}
-
-/** The server's `&nbsp;`, as a code point: it keeps the note's tail on the filename's line. */
-const NBSP = String.fromCharCode(0xa0);
-
-/** html.ts's renderPruneControl at the board's (secondary) emphasis. */
-function PruneLine({ name, controls }: { name: string; controls?: BoardControls }) {
-  const prune = controls?.prune;
-  return (
-    <p className="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-prune-line="">
-      <button
-        type="button"
-        className={BUTTON_SECONDARY_COMPACT}
-        data-prune={name}
-        disabled={controls?.busy?.has(name) || undefined}
-        onClick={prune ? () => prune(name) : undefined}
-      >
-        Prune old declaration
-      </button>
-      <span className="font-mono text-[0.72rem] text-stone-400 break-all">
-        {`deletes ${name}.yml from lychee-resources${NBSP}`}
-        <span className="whitespace-nowrap">· once its container is confirmed down</span>
-      </span>
-    </p>
-  );
 }
 
 type RowContext = {
@@ -244,9 +95,9 @@ export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
       <div className="flex flex-col gap-0.5 min-w-0">
         <p className={SERVICE_NAME}>
           {siteHost ? (
-            <a href={`/sites/${siteHost}`} className={SITE_NAME_LINK}>
+            <RailLink href={`/sites/${siteHost}`} className={SITE_NAME_LINK}>
               {row.name}
-            </a>
+            </RailLink>
           ) : (
             row.name
           )}
@@ -274,7 +125,7 @@ export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
             {gate}
           </p>
         ) : null}
-        <FailureLine row={row} extraClass="mt-1.5" commandId={`cmd-reconcile-log-${row.name}`} />
+        <FailureLine facts={row} extraClass="mt-1.5" commandId={`cmd-reconcile-log-${row.name}`} />
         {offer ? offer.requested ? <RequestedLine tag={offer.tag} name={row.name} controls={ctx.controls} /> : <OfferLine name={row.name} tag={offer.tag} controls={ctx.controls} /> : null}
         {showsPrune(row.name, prunable, domain) ? <PruneLine name={row.name} controls={ctx.controls} /> : null}
         <HostActions row={row} run={payloadRun} live={live} onLive={setLive} now={now} api={ctx.controls?.hostActions} />
@@ -304,8 +155,10 @@ export const BOARD_ALERT = "font-mono text-[0.8rem] text-red-300 bg-red-950/60 b
 /**
  * One board page's body: eyebrow, freshness line, then the rows or the
  * explanation that stands in for them, and, when a row offers a tag, the
- * inert requested-line template the server page appends for app.js. It is
- * dead markup here, kept for parity until the server board is retired.
+ * inert requested-line template the retired server board appended for
+ * app.js. Nothing reads it any more (app.js's consumer went with the server
+ * site page); it is kept only because the board's frozen parity fixtures
+ * carry it.
  */
 export function Board({ payload, group, controls, headingRef, alert }: BoardProps) {
   const { board, boardEmpty } = payload;

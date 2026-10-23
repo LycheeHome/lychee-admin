@@ -14,7 +14,7 @@ export const FRAMEWORK_LABELS: Record<string, string> = {
 /** The fields of a site the list reads: both a Caddyfile Site and an API SiteSummary carry them. */
 type ListedSite = { hostname: string; type: "static" | "reverse-proxy"; target: string; framework?: string };
 
-/** A row's link: the site's page, server-rendered, so a plain anchor on both sides. */
+/** A row's link: the site's page (a client route, moved to in-app by RailLink inside the router). */
 export function siteHref(hostname: string): string {
   return `/sites/${encodeURIComponent(hostname)}`;
 }

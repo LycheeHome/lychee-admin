@@ -25,3 +25,6 @@ process.env.DOMAIN ??= "lychee.land";
 // Mirrors the host, where admin.<domain> is served by a Caddy file the app
 // never parses, so add-site must refuse it.
 process.env.RESERVED_HOSTNAMES ??= "admin.lychee.land";
+
+// A module, so a test helper can import it lazily (`await import("./env")`).
+export {};
