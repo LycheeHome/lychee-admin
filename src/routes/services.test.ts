@@ -255,12 +255,16 @@ describe("GET /services, /reconciler and /infrastructure: the React mount", () =
     });
   }
 
-  test("a server-rendered page carries the root's mount point too, for the rail", async () => {
+  // No page is server-rendered any more: the add page, the last to move,
+  // carries the one root's mount point and the bundle once each, as every
+  // client page does.
+  test("the add page carries the root's mount point and the bundle once each", async () => {
     await current?.close();
     current = await serve(null, {}, {}, ASSETS);
     const html = await (await current.get("/sites/new")).text();
     assert.equal(html.split('<div id="react-root"></div>').length - 1, 1);
-    assert.ok(!html.includes('id="app-root"'));
+    assert.equal(html.split('id="app-root"').length - 1, 1);
+    assert.ok(html.includes('data-page="add-site"'));
     assert.equal(html.split('<script type="module" src="/client/assets/main-abc.js"></script>').length - 1, 1);
   });
 

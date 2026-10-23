@@ -91,7 +91,7 @@ function stubFetch(): void {
   }) as typeof fetch;
 }
 
-const PAGE: Record<string, Exclude<ClientPage, "site">> = {
+const PAGE: Record<string, Exclude<ClientPage, "site" | "add-site">> = {
   "/": "sites",
   "/services": "services",
   "/reconciler": "reconciler",
@@ -109,13 +109,13 @@ function load(path: string, banner?: string): void {
   happyDOM.setURL(`http://localhost${path}`);
   path = path.split(/[?#]/)[0] ?? path;
   const page = PAGE[path];
-  // The add page is the one server page left: it marks nothing.
+  // Any other path is a server page, which marks nothing.
   const current: RailCurrent = page ? { page } : null;
   const shell = testShell({ current });
   const notice = banner === undefined ? undefined : { message: banner };
   const html = page
     ? renderClientPage(TITLE[path], page, shell, notice)
-    : layout("Add site", "<p id=\"server-body\">a server page</p>", { shell, banner: notice });
+    : layout("A server page", "<p id=\"server-body\">a server page</p>", { shell, banner: notice });
   document.title = html.match(/<title>([^<]*)<\/title>/)?.[1] ?? "";
   // The body without its script tags, which happy-dom would try to fetch.
   document.body.innerHTML = html
@@ -129,6 +129,13 @@ function load(path: string, banner?: string): void {
   assert.ok(app, "the root did not mount");
 }
 
+/**
+ * A URL no client route matches, standing in for a server page. Every page
+ * the server serves is a client route now, but the rule that keeps a server
+ * page's body on screen (the `*` route, plain anchors) is still the router's.
+ */
+const SERVER_PAGE = "/elsewhere";
+
 const row = (name: string) => document.querySelector(`[data-service="${name}"]`);
 /** What has focus, briefly, for a failure message. */
 const focused = () => `focus is on ${document.activeElement?.outerHTML.slice(0, 80) ?? "nothing"}`;
@@ -139,13 +146,13 @@ const railLive = () =>
   waitFor(() => assert.equal(document.querySelector('#rail [data-site="api.lychee.land"] [data-dot]')?.getAttribute("class"), RAIL_DOT.bad), TIMEOUT);
 
 describe("isClientRoute", () => {
-  test("is true for exactly the sites list and the three board pages, with or without a hash or query", () => {
+  test("is true for the sites list, the three board pages and the add page, with or without a hash or query", () => {
     assert.deepEqual(Object.keys(BOARD_ROUTES).sort(), ["/infrastructure", "/reconciler", "/services"]);
-    for (const path of ["/", "/?removed=blog.lychee.land", "/#x", "/services", "/reconciler", "/infrastructure", "/reconciler#service-lychee-watch", "/services?x=1"]) {
+    for (const path of ["/", "/?removed=blog.lychee.land", "/#x", "/services", "/reconciler", "/infrastructure", "/reconciler#service-lychee-watch", "/services?x=1", "/sites/new", "/sites/new#x"]) {
       assert.equal(isClientRoute(path), true, path);
     }
     // "/" matches exactly, never as a prefix of every path.
-    for (const path of ["", "//", "/sites/new", "/sites/new#x", "/sites/x/y", "/services/swee/deploy", "/servicesx", "https://example.com/services", "https://example.com/"]) {
+    for (const path of ["", "//", SERVER_PAGE, "/sites/new/x", "/sites/x/y", "/services/swee/deploy", "/servicesx", "https://example.com/services", "https://example.com/"]) {
       assert.equal(isClientRoute(path), false, path);
     }
   });
@@ -227,15 +234,8 @@ describe("the sites list route", () => {
     assert.ok(!document.querySelector("#app-root h2")?.hasAttribute("tabindex"));
   });
 
-  // A site row is a router link now: SiteDetailRoutes.test.tsx follows it.
-  test("Add site (/sites/new) is a plain anchor", async () => {
-    load("/");
-    await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
-    const add = document.querySelector('#app-root a[href="/sites/new"]');
-    assert.ok(add);
-    assert.equal(clickCancelled(add), false, "a router took Add site");
-    assert.equal(window.location.pathname, "/");
-  });
+  // A site row and Add site are router links now: SiteDetailRoutes.test.tsx
+  // and AddSiteRoutes.test.tsx follow them.
 
   test("on load, ?removed leaves the URL; other parameters and the hash stay (Review Focus 3)", async () => {
     load("/?removed=a%26b.lychee.land&x=1#h", NOTICE);
@@ -273,7 +273,7 @@ describe("the sites list route", () => {
   });
 
   test("a server page's own notice is left alone", async () => {
-    load("/sites/new", "A notice.");
+    load(SERVER_PAGE, "A notice.");
     await railLive();
     assert.ok(document.getElementById("page-notice"));
   });
@@ -440,8 +440,8 @@ describe("the single root", () => {
     await waitFor(() => assert.deepEqual(scrolled, ["service-lychee-watch"]), TIMEOUT);
   });
 
-  test("on a server page (/sites/new) the rail's services link is a plain anchor", async () => {
-    load("/sites/new");
+  test("on a server page the rail's services link is a plain anchor", async () => {
+    load(SERVER_PAGE);
     await railLive();
     assert.ok(document.getElementById("server-body"));
     const link = railLink("/services");
@@ -463,7 +463,7 @@ describe("the single root", () => {
     }
     assert.equal(cancelledBeforeUs, false, "a router took the click on a server page");
     assert.ok(document.getElementById("server-body"), "the server page's body was replaced");
-    assert.equal(window.location.pathname, "/sites/new");
+    assert.equal(window.location.pathname, SERVER_PAGE);
     assert.deepEqual(marked(), []);
     // Nothing on a server page reads a board.
     assert.ok(!fetched.some((u) => u.startsWith("/api/services")));
@@ -502,7 +502,7 @@ describe("scroll restoration", () => {
   test("a server page neither restores the shared position nor takes scrolling over from the browser", async () => {
     stale();
     const ys = recordScrolls();
-    load("/sites/new");
+    load(SERVER_PAGE);
     await railLive();
     assert.ok(!ys.includes(500), `scrolled to ${ys.join(",")}`);
     assert.equal(window.scrollY, 0);

@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent, type Ref } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type FormEvent, type Ref } from "react";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import type { AddSitePayload } from "../../shared/addSite";
 import type { SitePreview } from "../../lib/sitePreview";
 import { FOCUS_RING, FRAME_WIDTH } from "../../views/shared";
+import { ADD_SITE_TITLE } from "../../views/siteListModel";
 import { composeHostname, headlineParts, portMessage, resultMarks, skipMarks, type StepMark } from "../addSiteModel";
-import { RailLink } from "../clientNav";
+import { addSiteQueryKey, fetchAddSite } from "../api";
+import { RailLink, useClientNav } from "../clientNav";
+import { BOARD_ALERT } from "../components/BoardRows";
 import { hideToast, showToast } from "../toast";
 import { AddSiteForm } from "../components/AddSiteForm";
 import { AddSitePreview, type PreviewPanel } from "../components/AddSitePreview";
@@ -40,6 +44,81 @@ export function withToken(className: string, token: string, present: boolean): s
 
 function assign(href: string): void {
   window.location.assign(href);
+}
+
+/**
+ * The add page's facts: the route loader reads them on every arrival (with
+ * `?refresh=1`, which pulls the lychee-resources clone first) and the page
+ * observes them. Read once per arrival and never again while the page is
+ * open: no interval, no focus or reconnect re-read, and never stale, so the
+ * page does not mount on the loader's answer and fetch it again. The form
+ * holds the operator's typing; a re-read has nothing to add to it, and the
+ * preview and submit check the live state themselves.
+ */
+export function addSiteQuery() {
+  return queryOptions({
+    queryKey: addSiteQueryKey(),
+    queryFn: () => fetchAddSite(false),
+    staleTime: Infinity,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+}
+
+/** Focus for an in-app arrival: focusable at runtime only, so the markup at rest stays the server's. */
+function focusHeading(heading: HTMLHeadingElement | null): void {
+  if (!heading) return;
+  if (!heading.hasAttribute("tabindex")) heading.tabIndex = -1;
+  heading.focus({ preventScroll: true });
+}
+
+/**
+ * The add page at `/sites/new`.
+ *
+ * - Titled `Add a site` on every arrival, as the server titles the shell.
+ * - On a client navigation here focus moves to the headline, as the list and
+ *   a site's page do; never out of a wide-screen find box. A document load
+ *   takes no focus.
+ * - An unreadable Caddyfile is the shared CaddyfileError body (AddSiteBody).
+ *   A read that failed outright says so, alone, as a failed first read does
+ *   on the list and a site's page.
+ * - A successful add is a full document load (AddSiteBody's default `go`).
+ */
+export function AddSitePage() {
+  const query = useQuery(addSiteQuery());
+  const heading = useRef<HTMLHeadingElement>(null);
+
+  useLayoutEffect(() => {
+    document.title = ADD_SITE_TITLE;
+  }, []);
+
+  const nav = useClientNav();
+  const arrivedInApp = nav !== null && !nav.documentLoad;
+
+  // Once, when the headline first exists after an in-app arrival. A read that
+  // failed, or found the Caddyfile unreadable, gives the move up.
+  const data = query.data;
+  const hasForm = data !== undefined && data.caddyfileError === null;
+  const settled = data !== undefined || query.isError;
+  const focused = useRef(!arrivedInApp);
+  useEffect(() => {
+    if (focused.current || !settled) return;
+    focused.current = true;
+    if (!hasForm) return;
+    const active = document.activeElement;
+    if (active?.id === "find" && !active.closest("dialog")) return;
+    focusHeading(heading.current);
+  }, [hasForm, settled]);
+
+  if (data) return <AddSiteBody payload={data} headingRef={heading} />;
+  if (query.error)
+    return (
+      <p role="alert" className={BOARD_ALERT}>
+        {`Couldn't load the add page: ${query.error.message}`}
+      </p>
+    );
+  return null;
 }
 
 export type AddSiteBodyProps = {

@@ -1,6 +1,7 @@
 import type { ApiError, ApiOk, BoardPayload, ServiceGroup } from "../shared/board";
 import type { SitesPayload } from "../shared/sites";
 import type { SiteDetailPayload } from "../shared/siteDetail";
+import type { AddSitePayload } from "../shared/addSite";
 
 /** The prefix every board query shares: a write invalidates by it, so no group's board is left stale. */
 export const BOARD_QUERY_ROOT = ["board"] as const;
@@ -21,6 +22,11 @@ export function siteDetailQueryKey(hostname: string) {
 /** The one key the sites list is read under. */
 export function sitesQueryKey() {
   return ["sites"] as const;
+}
+
+/** The one key the add page's facts are read under. */
+export function addSiteQueryKey() {
+  return ["add-site"] as const;
 }
 
 /**
@@ -79,6 +85,24 @@ export async function fetchSiteDetail(hostname: string, refresh: boolean): Promi
   const body = await readApi<SiteDetailPayload>(res);
   const payload = Object.fromEntries(Object.entries(body).filter(([key]) => key !== "ok")) as SiteDetailPayload;
   return { found: true, payload };
+}
+
+/**
+ * GET /api/sites/new: the facts the add page's form and preview need. An
+ * unreadable Caddyfile is the payload's `caddyfileError`, never a throw.
+ * `refresh` asks the server to pull the lychee-resources clone first, so the
+ * port claims the page's preview and submit check are as fresh as the
+ * arrival; only the route loader sends it.
+ */
+export async function fetchAddSite(refresh: boolean): Promise<AddSitePayload> {
+  const body = await getApi<AddSitePayload>(`/api/sites/new${refresh ? "?refresh=1" : ""}`);
+  return {
+    domain: body.domain,
+    portOwners: body.portOwners,
+    paths: body.paths,
+    steps: body.steps,
+    caddyfileError: body.caddyfileError,
+  };
 }
 
 /**

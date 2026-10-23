@@ -20,7 +20,7 @@ import {
 import { FOCUS_RING, ICONS, formatAge } from "../../views/shared";
 import type { RailCurrent, RailData } from "../../views/shell";
 import { FindPanel } from "./FindPanel";
-import { RailLink, SITES_ROUTE, boardRouteOf, siteOf, useClientNav, type BoardRoute } from "../clientNav";
+import { ADD_SITE_ROUTE, RailLink, SITES_ROUTE, boardRouteOf, siteOf, useClientNav, type BoardRoute } from "../clientNav";
 
 /*
  * The rail's children in JSX. It mirrors renderRail in src/views/rail.ts
@@ -140,7 +140,9 @@ export function Rail({
 }: RailProps) {
   // On a client route the router's location is where the operator is: the
   // server's marker described the document's first URL, and an in-app move
-  // keeps the document. Anywhere else the server's marker stands.
+  // keeps the document. The add page marks nothing: the rail has no Add site,
+  // and its breadcrumb carries the location. Anywhere else the server's
+  // marker stands.
   const nav = useClientNav();
   const route = nav ? boardRouteOf(nav.pathname) : null;
   const site = nav ? siteOf(nav.pathname) : null;
@@ -148,9 +150,11 @@ export function Rail({
     ? { page: ROUTE_PAGE[route] }
     : nav?.pathname === SITES_ROUTE
       ? { page: "sites" }
-      : site
-        ? { site }
-        : rail.current;
+      : nav?.pathname === ADD_SITE_ROUTE
+        ? null
+        : site
+          ? { site }
+          : rail.current;
 
   // A failed poll shows nothing it remembers: TanStack keeps the last data,
   // and a green dot from it would be a lie about now.

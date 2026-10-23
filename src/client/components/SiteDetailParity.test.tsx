@@ -24,8 +24,9 @@ import { canonical } from "../test/canonical";
  * rendered an offer, React never renders it, and the fixtures were frozen with
  * it stripped, which is what the comparison compared. Nothing else is cut.
  *
- * CaddyfileError is still compared live: renderErrorPage is not retired
- * (/sites/new answers with it), so freezing it would let the two drift apart.
+ * CaddyfileError is still compared live against renderErrorPage, which no
+ * route answers with any more (/sites/new is the client's) but which has not
+ * been deleted yet; it goes with src/views/html.ts.
  */
 
 type Detail = Extract<SiteDetailPayload, { caddyfileError: null }>;

@@ -13,7 +13,7 @@ import type { ServiceGroup } from "../shared/board";
  * router (router.tsx) provides the context, so neither imports the other.
  */
 
-/** The board's three pages, by path; each renders one group. The other client routes are the sites list (SITES_ROUTE) and a site's page (SITE_ROUTE). */
+/** The board's three pages, by path; each renders one group. The other client routes are the sites list (SITES_ROUTE), the add page (ADD_SITE_ROUTE) and a site's page (SITE_ROUTE). */
 export const BOARD_ROUTES = {
   "/services": "service",
   "/reconciler": "reconciler",
@@ -25,7 +25,10 @@ export type BoardRoute = keyof typeof BOARD_ROUTES;
 /** The sites list's path. Matched exactly, like every route here: never as a prefix of `/sites/…`. */
 export const SITES_ROUTE = "/";
 
-/** A site's page. `/sites/new` (add site) is a server page, and is never this route. */
+/** The add page. Registered before SITE_ROUTE, so "new" is never taken for a hostname. */
+export const ADD_SITE_ROUTE = "/sites/new";
+
+/** A site's page. `/sites/new` (ADD_SITE_ROUTE) is never this route. */
 export const SITE_ROUTE = "/sites/:hostname";
 
 /** The path part of a same-origin href (query and hash dropped), or null for anything absolute. */
@@ -37,7 +40,8 @@ function pathOf(href: string): string | null {
 /**
  * The hostname a site page's href names, decoded and lowercased (the server
  * matches hostnames case-insensitively), or null for anything else:
- * `/sites/new`, a deeper path, an empty or undecodable segment.
+ * `/sites/new` (the add page, in any case), a deeper path, an empty or
+ * undecodable segment.
  */
 export function siteOf(href: string): string | null {
   const path = pathOf(href);
@@ -52,10 +56,13 @@ export function siteOf(href: string): string | null {
   return hostname === "" || hostname === "new" || hostname.includes("/") ? null : hostname;
 }
 
-/** True when `href` is one of the pages the client renders (the sites list, a board page or a site's page), whatever query or hash it carries. */
+/** True when `href` is one of the pages the client renders (the sites list, a board page, the add page or a site's page), whatever query or hash it carries. */
 export function isClientRoute(href: string): boolean {
   const path = pathOf(href);
-  return path !== null && (path === SITES_ROUTE || Object.hasOwn(BOARD_ROUTES, path) || siteOf(path) !== null);
+  return (
+    path !== null &&
+    (path === SITES_ROUTE || path === ADD_SITE_ROUTE || Object.hasOwn(BOARD_ROUTES, path) || siteOf(path) !== null)
+  );
 }
 
 /** The board route a path is, or null. */

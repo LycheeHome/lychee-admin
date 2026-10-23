@@ -19,11 +19,10 @@ import {
   type SiteEnv,
 } from "../lib/siteValidation";
 import { buildSitePreview } from "../lib/sitePreview";
-import { renderAddSite, renderErrorPage } from "../views/html";
 import { addedNotice, type SiteResourceView } from "../views/siteDetailModel";
 import { loadShell } from "./loadShell";
 import { renderClientPage } from "../views/clientShell";
-import { SITES_HEADING_TEXT as SITES_TITLE } from "../views/siteListModel";
+import { ADD_SITE_TITLE, SITES_HEADING_TEXT as SITES_TITLE } from "../views/siteListModel";
 import { clearBoardCache } from "./services";
 import { cachedRead, evictRead } from "./readCache";
 import { hostProblems, hostProblemUnits, undeployedStatus, type SiteStatus } from "../lib/siteDisplay";
@@ -371,7 +370,8 @@ export function createSitesRouter(deps: Deps): Router {
 
   // The add page's facts for the client. Registered above /api/sites/:hostname
   // so "new" is never taken for a hostname. Always 200: an unreadable
-  // Caddyfile is a field. ?refresh=1 pulls the clone first, as /sites/new does.
+  // Caddyfile is a field. ?refresh=1, sent by the route loader on every
+  // arrival, pulls the clone first.
   sitesRouter.get("/api/sites/new", async (req, res) => {
     const paths = { caddyfilePath: config.caddyfilePath, tunnelConfigPath: config.tunnelConfigPath };
     const steps = ADD_STEPS.map(({ id, label }) => ({ id, label }));
@@ -431,30 +431,21 @@ export function createSitesRouter(deps: Deps): Router {
     }
   });
 
+  // The add page is the client's: the shared shell around its mount point,
+  // titled as the client titles it, with the data from /api/sites/new (whose
+  // ?refresh=1 arrival read, sent by the route loader, does the clone pull
+  // this GET used to). No rail row is marked: the page's breadcrumb carries
+  // its location. An unreadable Caddyfile is the page's to show, from the
+  // API's caddyfileError, so this answers 200 whatever the Caddyfile says.
+  //
   // Registered above /sites/:hostname deliberately: Express matches in
   // registration order, so if this were below, "new" would be captured as
-  // :hostname, fail isManagedHostname, and 404 instead of rendering the form.
-  sitesRouter.get("/sites/new", async (req, res) => {
-    // Async handler: an unguarded throw hangs the request and crashes the
-    // process under Express 4, so a read failure becomes an ordinary 500.
-    try {
-      // For the preview and submit this page sends: neither refreshes, so the
-      // port claims they check are as fresh as this page load.
-      await refreshClone(deps);
-      const content = deps.fs.readFile(config.caddyfilePath);
-      const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname, config.domain));
-      res.send(
-        renderAddSite(sites, config.domain, computePortOwners(sites), {
-          caddyfilePath: config.caddyfilePath,
-          tunnelConfigPath: config.tunnelConfigPath,
-        }, loadShell(deps, null)),
-      );
-    } catch (error) {
-      const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
-      // The URL is /sites/new, not / — same reasoning as the detail page's
-      // fallback: no rail item is marked current.
-      res.status(500).send(renderErrorPage("Can't read the Caddyfile", message, loadShell(deps, null)));
-    }
+  // :hostname and answer the not-found page.
+  sitesRouter.get("/sites/new", (_req, res) => {
+    // One read of the bundle, checked here and emitted by layout() from the same shell.
+    const shell = loadShell(deps, null);
+    if (!shell.assets) return res.status(500).type("text/plain").send("client bundle missing; run npm run build");
+    return res.type("html").send(renderClientPage(ADD_SITE_TITLE, "add-site", shell));
   });
 
   // A site's page is the client's: the shared shell around its mount point,
