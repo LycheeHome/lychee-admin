@@ -82,6 +82,10 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
   const blockedRef = useRef(false);
   const inFlightRef = useRef(false);
   const sequenceRef = useRef(0);
+  // False once the page has gone. An add still in flight then must not act:
+  // not navigate the user away from where they went, not hide a toast that
+  // may belong to another page, not set state on a gone tree.
+  const mountedRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // aria-disabled, not `disabled`: the button stays reachable and takes the
@@ -174,6 +178,13 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
   // The arrival preview, the bfcache restore, and leaving: a pending preview
   // is cancelled and any answer still in flight is dropped.
   useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
     void refreshPreview();
     const onPageShow = (event: PageTransitionEvent) => {
       // persisted is true only on a bfcache restore, so this cannot reopen
@@ -247,7 +258,9 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
     showToast(`Adding ${hostname} — reloading Caddy and restarting cloudflared-sites…`, "info");
     try {
       const response = await fetch("/sites", { method: "POST", body: new URLSearchParams(fields) });
+      if (!mountedRef.current) return;
       const result = (await response.json()) as AddAnswer;
+      if (!mountedRef.current) return;
       if (!response.ok) {
         setMarks((m) => ({ ...m, ...resultMarks(result.steps ?? []) }));
         throw new Error(result.error ?? "Failed to add site");
@@ -256,6 +269,7 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
       // before the new document loads would re-post a hostname that now exists.
       go(`/sites/${encodeURIComponent(String(result.hostname))}?created=1`);
     } catch (error) {
+      if (!mountedRef.current) return;
       inFlightRef.current = false;
       setSubmitting(false);
       hideToast();

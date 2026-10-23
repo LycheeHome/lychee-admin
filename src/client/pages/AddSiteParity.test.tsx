@@ -1,6 +1,6 @@
 import "../test/setup";
 import assert from "node:assert/strict";
-import { after, before, describe, mock, test } from "node:test";
+import { afterEach, before, describe, mock, test } from "node:test";
 import { createRef } from "react";
 import { createRoot } from "react-dom/client";
 import { act, fireEvent } from "@testing-library/react";
@@ -137,6 +137,8 @@ function session(p: AddSitePayload = payload) {
   }) as typeof fetch;
   mock.timers.enable({ apis: ["setTimeout"] });
   const teardown = mountCandidate(p, go);
+  let mounted = true;
+  let ended = false;
   const el = <T extends Element>(selector: string): T => {
     const found = document.querySelector<T>(selector);
     if (!found) throw new Error(`no ${selector}`);
@@ -171,8 +173,16 @@ function session(p: AddSitePayload = payload) {
       act(() => mock.timers.tick(ms));
       await flush();
     },
+    /** Unmounts the page only: the shell, the stubs and the clock stay. Idempotent. */
+    unmount() {
+      if (mounted) teardown();
+      mounted = false;
+    },
+    /** Unmounts and restores everything. Idempotent, so afterEach can always call it. */
     end() {
-      teardown();
+      if (ended) return;
+      ended = true;
+      this.unmount();
       mock.timers.reset();
       globalThis.fetch = savedFetch;
       document.body.className = "";
@@ -186,7 +196,30 @@ const addKey = (hostname: string) =>
 
 describe("review focus", () => {
   let s: ReturnType<typeof session> | undefined;
-  after(() => s?.end());
+  // Per test, so a failure part-way through never leaves the clock or fetch stubbed for the next.
+  afterEach(() => {
+    s?.end();
+    s = undefined;
+  });
+
+  for (const [status, body] of [
+    [200, { ok: true, hostname: "shop.lychee.land" }],
+    [500, { error: "boom", steps: [] }],
+  ] as const) {
+    test(`an add answered ${status} after the page has gone does nothing: no navigation, the toast left alone`, async () => {
+      s = session();
+      await s.answerRecorded(0);
+      await s.type("#hostname-field", "shop");
+      await s.submit();
+      const add = s.held.findIndex((h) => h.key.startsWith("POST /sites "));
+      assert.ok(add !== -1, "the add went out");
+      assert.ok(!s.el("#flash-banner").classList.contains("hidden"), "the Adding… toast is up");
+      s.unmount();
+      await s.answer(add, status, body);
+      assert.equal(s.go.mock.callCount(), 0);
+      assert.ok(!s.el("#flash-banner").classList.contains("hidden"), "the toast was not hidden");
+    });
+  }
 
   test("RF1: a submit typed within 100 ms of a fix sends one POST /sites with the typed hostname, and a later preview leaves it unblocked", async () => {
     s = session();
