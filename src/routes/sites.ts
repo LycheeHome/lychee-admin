@@ -28,8 +28,11 @@ import {
 } from "../views/html";
 import { loadShell } from "./loadShell";
 import { clearBoardCache } from "./services";
+import { cachedRead } from "./readCache";
 import { hostProblems, hostProblemUnits, undeployedStatus, type SiteStatus } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
+import type { ApiOk } from "../shared/board";
+import type { SitesPayload } from "../shared/sites";
 import type { Site } from "../lib/caddyfile";
 import type { Deps } from "../deps";
 import { IMAGE_PREFIX, RESERVED_PORT_OWNERS } from "../lib/platform";
@@ -190,6 +193,22 @@ export async function computeStatuses(sites: Site[], deps: Deps): Promise<Record
   return Object.fromEntries(entries);
 }
 
+/**
+ * computeStatuses behind the shared 5s read, for /, /api/sites and /api/health.
+ * The cached value is for the full managed-site list, so every caller must
+ * pass that same list.
+ */
+export function cachedStatuses(sites: Site[], deps: Deps): Promise<Record<string, SiteStatus>> {
+  return cachedRead("site-statuses", deps, () => computeStatuses(sites, deps));
+}
+
+/** Host-unit states for hostProblems, read once per 5s; a failed read degrades to none. */
+export function cachedHostUnitStates(deps: Deps): Promise<Record<string, UnitState>> {
+  return cachedRead("host-unit-states", deps, () =>
+    deps.commands.readUnitStates(hostProblemUnits(readInventory(deps.fs))).catch(() => ({})),
+  );
+}
+
 export function createSitesRouter(deps: Deps): Router {
   const sitesRouter = Router();
 
@@ -226,8 +245,8 @@ export function createSitesRouter(deps: Deps): Router {
       // degrades to "no problems" rather than failing the list.
       const inventory = readInventory(deps.fs);
       const [statuses, unitStates] = await Promise.all([
-        computeStatuses(sites, deps),
-        deps.commands.readUnitStates(hostProblemUnits(inventory)).catch(() => ({})),
+        cachedStatuses(sites, deps),
+        cachedHostUnitStates(deps),
       ]);
 
       res.send(
@@ -244,6 +263,34 @@ export function createSitesRouter(deps: Deps): Router {
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
       res.status(500).send(renderSiteList([], {}, config.domain, message, notice, [], loadShell(deps, { page: "sites" })));
+    }
+  });
+
+  // The sites list's data for the client. Always 200: an unreadable Caddyfile
+  // is a field, not a status, so the page can keep its last good list.
+  sitesRouter.get("/api/sites", async (_req, res) => {
+    try {
+      const sites = caddyfile
+        .parseSites(deps.fs.readFile(config.caddyfilePath))
+        .filter((site) => isManagedHostname(site.hostname, config.domain));
+      const [statuses, unitStates] = await Promise.all([cachedStatuses(sites, deps), cachedHostUnitStates(deps)]);
+      const payload: SitesPayload = {
+        sites: sites.map((s) => ({
+          hostname: s.hostname,
+          type: s.type,
+          target: s.target,
+          ...(s.framework ? { framework: s.framework } : {}),
+        })),
+        statuses,
+        problems: hostProblems(unitStates, readInventory(deps.fs)),
+        domain: config.domain,
+        caddyfileError: null,
+      };
+      res.json({ ok: true, ...payload } satisfies ApiOk<SitesPayload>);
+    } catch (error) {
+      const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
+      const payload: SitesPayload = { sites: [], statuses: {}, problems: [], domain: config.domain, caddyfileError: message };
+      res.json({ ok: true, ...payload } satisfies ApiOk<SitesPayload>);
     }
   });
 

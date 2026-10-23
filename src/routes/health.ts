@@ -8,11 +8,11 @@ import type { ApiError, ApiOk } from "../shared/board";
 import type { HealthPayload } from "../shared/health";
 import { buildHealth } from "../views/railModel";
 import { loadBoardPage } from "./services";
-import { computeStatuses } from "./sites";
+import { cachedStatuses } from "./sites";
 
 /**
  * GET /api/health: one batched read of every site's and unit's health, for the
- * navigation rail's poll. It reuses computeStatuses and loadBoardPage, the
+ * navigation rail's poll. It reuses cachedStatuses and loadBoardPage, the
  * reads the sites list and the boards make, so the rail cannot disagree with
  * them. It never refreshes the lychee-resources clone: it runs every 15s.
  */
@@ -51,7 +51,7 @@ export function createHealthRouter(deps: Deps): Router {
         .parseSites(deps.fs.readFile(config.caddyfilePath))
         .filter((site) => isManagedHostname(site.hostname, config.domain));
       const shared = withSharedContainerReads(deps);
-      const [statuses, page] = await Promise.all([computeStatuses(sites, shared), loadBoardPage(shared)]);
+      const [statuses, page] = await Promise.all([cachedStatuses(sites, shared), loadBoardPage(shared)]);
       const health = buildHealth(sites, statuses, page.board, config.domain, new Date());
       return res.json({ ok: true, ...health } satisfies ApiOk<HealthPayload>);
     } catch (error) {
