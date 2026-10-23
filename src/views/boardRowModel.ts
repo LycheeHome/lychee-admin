@@ -1,7 +1,7 @@
 // What a services-board row's controls say and which of them it shows, as
-// data and class strings. The HTML board (html.ts) and the React board
-// (src/client/components/BoardRows.tsx) both render from this, so the two
-// cannot disagree about which controls a row carries or what they say.
+// data and class strings. The React board (src/client/components/BoardRows.tsx)
+// renders from this, as the retired server board did, so the two could not
+// disagree about which controls a row carries or what they say.
 // boardFacts.ts holds the row's words; this file holds everything around
 // them. No node imports: Vite bundles this file into the client.
 import type { HostAction } from "../lib/platform";

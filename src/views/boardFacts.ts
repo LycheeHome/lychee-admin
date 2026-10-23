@@ -1,7 +1,7 @@
-// What a services-board row says, as data. The HTML board (html.ts) and the
-// React board (src/client/components/BoardRows.tsx) both render from this, so
-// the two cannot disagree about a row's words. No node imports: Vite bundles
-// this file into the client.
+// What a services-board row says, as data. The React board
+// (src/client/components/BoardRows.tsx) renders from this, as the retired
+// server board did, so the two could not disagree about a row's words. No
+// node imports: Vite bundles this file into the client.
 import {
   type DeployTrouble,
   type SiteStatus,

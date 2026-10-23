@@ -20,8 +20,12 @@ import type { AddressInfo } from "node:net";
  *
  *   npx tsx src/dev/addSiteAnswers.ts > src/client/test/addSiteAnswers.json
  *
- * `AddSiteReference.test.tsx` re-records on every run and fails when the
- * saved file has drifted from what the app answers now, naming this command.
+ * `addSiteAnswers.test.ts` re-records on every run and fails when the saved
+ * file has drifted from what the app answers now, naming this command. The
+ * frozen reference in `src/dev/fixtures/add-site/` was snapshotted against
+ * the saved answers, with the retired server page and app.js, and cannot be
+ * re-snapshotted: a re-record that changes what a step's request receives
+ * breaks the comparison with it, and needs a reason rather than a regenerate.
  */
 
 /**
@@ -42,7 +46,7 @@ Object.assign(process.env, RECORDING_ENV);
 
 export type RecordedRequest ={ url: "/sites/preview" | "/sites"; fields: Record<string, string> };
 
-/** The fields app.js sends, in its order: the URL-encoded body is a key. */
+/** The fields the add page sends, in its order (the retired app.js's): the URL-encoded body is a key. */
 function body(hostname: string, type: string, port: string, framework: string, healthcheckPath: string) {
   return { hostname, type, port, framework, healthcheckPath };
 }

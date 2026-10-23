@@ -1,7 +1,5 @@
 import "./test/setup";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { after, afterEach, before, beforeEach, describe, test } from "node:test";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -10,10 +8,11 @@ import { BoardPage } from "./pages/BoardPage";
 import { useHealth } from "./health";
 import { seedHealth } from "./test/healthFixture";
 
-// The whole path under test: the real page, a stubbed fetch, and the real
-// public/app.js loaded into the document, which binds [data-deploy] and
-// [data-prune] at load. React's buttons are rendered after that, so a click
-// must still send exactly one write.
+// The whole path under test: the real page and a stubbed fetch. The retired
+// public/app.js used to be loaded into the document here too, because it
+// bound [data-deploy] and [data-prune] at load and a click on React's button
+// had to send exactly one write regardless; with it gone, the page's own
+// handler is the only one there is, and every write is still counted.
 
 afterEach(cleanup);
 
@@ -70,12 +69,7 @@ before(() => {
     <span id="flash-banner-progress" class="hidden"></span><span id="flash-banner-message"></span>
     <button type="button" id="flash-banner-action" class="hidden"></button>
     <button type="button" id="flash-banner-close" class="hidden">x</button></div>
-    <span id="copy-status"></span>
-    <button type="button" data-deploy="app-lychee-land" data-deploy-tag="0.3.0" id="server-rendered">Deploy</button>`;
-  const source = readFileSync(path.join(__dirname, "../../public/app.js"), "utf8");
-  (0, eval)(source);
-  // The server-rendered button exists only so app.js binds something at load.
-  document.getElementById("server-rendered")!.remove();
+    <span id="copy-status"></span>`;
 });
 
 beforeEach(() => {
@@ -353,7 +347,7 @@ describe("Prune", () => {
     }
   });
 
-  test("a 409 shows the reason in the app.js format and re-enables the button", async () => {
+  test("a 409 shows the reason in the retired app.js's format and re-enables the button", async () => {
     current = prunable();
     writeAnswer = () => json(409, { ok: false, reason: "the container hasn't been confirmed down yet" });
     const client = mount();
@@ -370,7 +364,7 @@ describe("Prune", () => {
     }
   });
 
-  test("a network failure shows the app.js message", async () => {
+  test("a network failure shows the retired app.js's message", async () => {
     current = prunable();
     writeAnswer = () => {
       throw new TypeError("fetch failed");

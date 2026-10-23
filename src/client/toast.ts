@@ -1,8 +1,8 @@
 /*
  * The page's flash toast (#flash-banner, rendered by the server's shell) as
- * React code can reach it. This is the toast's implementation; public/app.js
- * keeps its own showBanner only for the add page until that script is deleted.
- * The close button's click is bound in sharedBindings.ts, and the elements are looked up at call time rather than cached, because a page
+ * React code can reach it. This is the toast's only implementation; the
+ * retired public/app.js's showBanner, which it was held to, went with the
+ * server add page. The close button's click is bound in sharedBindings.ts, and the elements are looked up at call time rather than cached, because a page
  * island can mount before or after a shell script has run.
  */
 

@@ -2,21 +2,15 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { RETIRED_SWITCHER, testShell, withoutShell } from "../dev/testHelpers";
-import { renderAddSite } from "./html";
 import { renderClientPage } from "./clientShell";
 import type { ShellData } from "./shell";
+import { ADD_SITE_TITLE } from "./siteListModel";
 
 const SITES: Site[] = [
   { hostname: "blog.lychee.land", type: "static", target: "/var/www/blog.lychee.land" },
   { hostname: "api.lychee.land", type: "reverse-proxy", target: "4000" },
   { hostname: "app.lychee.land", type: "reverse-proxy", target: "3000", framework: "nextjs" },
 ];
-
-const PORT_OWNERS = { "8787": "reserved (lychee-admin itself)", "4000": "api.lychee.land" };
-const PATHS = {
-  caddyfilePath: "/etc/caddy/Caddyfile",
-  tunnelConfigPath: "/etc/cloudflared/sites-config.yml",
-};
 
 // The sites list as GET / serves it: the shell around the client's mount
 // point (the list itself is the client's; see SiteListMarkup.test.tsx).
@@ -36,11 +30,15 @@ const board = (group: "service" | "reconciler" | "infrastructure", shell: ShellD
 const site = (hostname: string, shell: ShellData = testShell({ current: { site: hostname } })) =>
   renderClientPage(hostname, "site", shell);
 const notFound = (shell: ShellData = testShell()) => renderClientPage("Site not found", "site", shell);
+// The add page as GET /sites/new serves it: the shell around the client's
+// mount point (the page is the client's; see AddSiteMarkup.test.tsx and
+// AddSiteParity.test.tsx). Nothing in the rail is current there.
+const add = (shell: ShellData = testShell({ current: null })) => renderClientPage(ADD_SITE_TITLE, "add-site", shell);
 
 const pages = (): Record<string, string> => ({
   list: list(),
   detail: site(SITES[0].hostname),
-  add: renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS, testShell({ current: null })),
+  add: add(),
   notFound: notFound(),
   services: board("service"),
   reconciler: board("reconciler"),
@@ -96,6 +94,16 @@ describe("the rail shell", () => {
     assert.match(withoutShell(list()), /<main class="max-w-\[1080px\] mx-auto /);
   });
 
+  // Was html.test.ts's, against the server add page; the site page's half is
+  // "copy outcomes get a polite live region" below.
+  test("the copy live region is on every page the shell renders, not only the site page", () => {
+    for (const [name, html] of Object.entries(pages())) {
+      const span = html.match(/<[a-z]+[^>]* id="copy-status"[^>]*>/)?.[0];
+      assert.ok(span, `${name}: no element with id="copy-status"`);
+      assert.match(span, /aria-live="polite"/, name);
+    }
+  });
+
   test("the flash toast stays fixed and centred, and the page notice in flow", () => {
     const html = renderClientPage("Sites", "sites", testShell(), { message: "Removed x" });
     assert.match(html, /id="flash-banner"[^>]*fixed[^"]*left-1\/2/);
@@ -111,15 +119,27 @@ describe("the client bundle", () => {
       list: list(testShell({ assets: ASSETS })),
       services: board("service", testShell({ assets: ASSETS })),
       notFound: notFound(testShell({ assets: ASSETS })),
+      add: add(testShell({ current: null, assets: ASSETS })),
     })) {
       assert.equal(html.split('<script type="module" src="/client/assets/main-abc.js"></script>').length - 1, 1, name);
       assert.equal(html.split('<link rel="stylesheet" href="/client/assets/main-def.css" />').length - 1, 1, name);
     }
   });
 
-  test("comes before the shell's own scripts", () => {
-    const html = list(testShell({ assets: ASSETS }));
-    assert.ok(html.indexOf("/client/assets/main-abc.js") < html.indexOf('src="/app.js"'));
+  // public/app.js is retired: every page's behaviour is the bundle's, so the
+  // bundle is the only script any page loads.
+  test("is the only script a page loads, on every page", () => {
+    for (const [name, html] of Object.entries({
+      list: list(testShell({ assets: ASSETS })),
+      add: add(testShell({ current: null, assets: ASSETS })),
+      site: site(SITES[0].hostname, testShell({ current: { site: SITES[0].hostname }, assets: ASSETS })),
+    })) {
+      assert.deepEqual([...html.matchAll(/<script\b[^>]*\bsrc="([^"]*)"/g)].map((m) => m[1]), ["/client/assets/main-abc.js"], name);
+    }
+  });
+
+  test("no page loads /app.js, built or not", () => {
+    for (const [name, html] of Object.entries(pages())) assert.ok(!html.includes("/app.js"), name);
   });
 
   test("is absent when the bundle is not built, leaving the rail as plain links", () => {
@@ -167,32 +187,14 @@ describe("the flash toast", () => {
   });
 });
 
+// The add page's own form and its endpoint are the client's now:
+// AddSiteMarkup.test.tsx.
 describe("the add-site page", () => {
-  const add = () => renderAddSite(SITES, "lychee.land", PORT_OWNERS, PATHS, testShell({ current: null }));
-
-  test("renders the fields that used to live in the dialog", () => {
+  test("is the shell around the client's mount point, with no server-rendered form", () => {
     const html = add();
-    assert.match(html, /name="hostname"/);
-    assert.match(html, /name="type"[^>]*value="static"/);
-    assert.match(html, /name="type"[^>]*value="reverse-proxy"/);
-    assert.match(html, /id="port-field"/);
-    assert.match(html, /id="framework-field"/);
-    assert.match(html, /id="healthcheck-field"/);
-    assert.match(html, /id="healthcheck-field-wrapper"/);
-    assert.match(html, /id="port-owners-data"/);
-    // These four are not named in the brief's list, but their loss would
-    // silently kill progressive disclosure and port-conflict feedback with
-    // no other test failing: the port/framework sync in app.js selects
-    // .port-input and #healthcheck-field-wrapper, validatePortField selects
-    // .port-error, and the submit handler's catch branch selects
-    // #add-site-error.
-    assert.match(html, /\bport-input\b/);
-    assert.match(html, /\bport-error\b/);
-    assert.match(html, /id="add-site-error"/);
-  });
-
-  test("posts to the unchanged endpoint", () => {
-    assert.match(add(), /action="\/sites"/);
+    assert.match(html, /<div id="app-root" class="contents" data-page="add-site"><\/div>/);
+    assert.doesNotMatch(html, /id="add-site-form"/);
+    assert.doesNotMatch(html, /id="port-owners-data"/);
   });
 
   test("the list page no longer carries the dialog", () => {

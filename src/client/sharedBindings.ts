@@ -4,7 +4,8 @@
  * delegated from the document so a button in markup rendered after this ran
  * (anything React renders) works the same as one the server rendered; the two
  * closes are delegated too, because the page notice and the toast live in the
- * server's shell and a route can replace neither. Strings are app.js's, verbatim.
+ * server's shell and a route can replace neither. Strings are the retired
+ * app.js's, verbatim.
  */
 
 import { hideToast } from "./toast";

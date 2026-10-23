@@ -51,7 +51,7 @@ describe("renderClientPage", () => {
   // server's page bodies did. Without it the sites list's Caddyfile error box
   // sat 20px above its section instead of 44px.
   test("the mount point is layout-transparent: it carries `contents`, on every client page", () => {
-    for (const page of ["sites", "services", "reconciler", "infrastructure"] as const) {
+    for (const page of ["sites", "services", "reconciler", "infrastructure", "site", "add-site"] as const) {
       const out = renderClientPage("T", page, testShell({ assets: ASSETS }));
       const tag = out.match(/<div id="app-root"[^>]*>/)?.[0] ?? "";
       assert.ok(tag, page);
@@ -65,9 +65,10 @@ describe("renderClientPage", () => {
     assert.ok(html.includes('<link rel="stylesheet" href="/client/assets/main-def.css"'));
   });
 
-  test("puts the module script before the shell's own scripts", () => {
-    assert.ok(html.indexOf("/client/assets/main-abc.js") < html.indexOf('src="/app.js"'));
-    // actionPoll.js is retired: its decision moved into the bundle.
+  test("the module script is the page's only script: the shell has none of its own", () => {
+    assert.deepEqual([...html.matchAll(/<script\b[^>]*\bsrc="([^"]*)"/g)].map((m) => m[1]), ["/client/assets/main-abc.js"]);
+    // public/app.js and actionPoll.js are retired: what they did is the bundle's.
+    assert.ok(!html.includes("/app.js"));
     assert.ok(!html.includes("actionPoll"));
   });
 

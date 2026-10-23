@@ -1,0 +1,143 @@
+
+    <div id="flash-banner" class="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[min(480px,calc(100vw-2rem))] font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 border shadow-lg shadow-black/40 flex items-center justify-between gap-3 bg-rose-950 border-rose-400/70 hidden" role="status" aria-live="polite">
+        <span class="flex items-center gap-2 min-w-0">
+          <span id="flash-banner-progress" class="shrink-0 h-1.5 w-1.5 rounded-full bg-stone-50 motion-safe:animate-pulse hidden" aria-hidden="true"></span>
+          <span id="flash-banner-message">Adding shop.lychee.land — reloading Caddy and restarting cloudflared-sites…</span>
+        </span>
+        <span class="flex items-center gap-2 shrink-0">
+          <button type="button" id="flash-banner-action" class="hidden font-sans font-semibold text-[0.8rem] bg-transparent text-rose-300 border border-rose-800 rounded-md min-h-8 px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-rose-950 hover:text-rose-200 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:border-stone-700 disabled:hover:bg-transparent disabled:hover:text-stone-500"></button>
+          <button type="button" id="flash-banner-close" class="hidden shrink-0 text-stone-400 hover:text-stone-50 bg-transparent border-none cursor-pointer text-base leading-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2" aria-label="Dismiss">×</button>
+        </span>
+      </div>
+    <!--
+      Copying is confirmed visually by the icon swapping to a check, which
+      says nothing to a screen reader. The button's own aria-label changes
+      too, but a label change on the focused element is not reliably
+      announced — so the outcome goes here instead. It matters most in the
+      fallback case, where the user has to be told to press Ctrl+C: on plain
+      HTTP, that is every case.
+    -->
+    <span id="copy-status" class="sr-only" role="status" aria-live="polite"></span>
+    
+    
+    <div class="max-w-[1080px] mx-auto w-full flex flex-col gap-6">
+      <div class="flex flex-col gap-3">
+        <nav class="font-mono text-[0.72rem] text-stone-400 m-0" aria-label="Breadcrumb">
+          <a href="/" class="text-stone-400 no-underline hover:text-stone-50 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2">sites</a>
+          <span class="text-stone-600 mx-1.5" aria-hidden="true">/</span>
+          <span class="text-stone-50">new</span>
+        </nav>
+
+        <!--
+          The headline is the site being composed, in the same Headline
+          treatment its detail page will give it — so the page you are filling
+          in already looks like the page you are about to create. app.js
+          retypes #composed-hostname as you type; before that it reads "Add a
+          site", which is what the page is when it has no subject yet.
+        -->
+        <h2 class="font-mono text-[1.7rem] leading-[1.2] tracking-[-0.01em] text-stone-50 m-0">
+          <span id="composed-hostname" data-domain="lychee.land">shop<span class="text-stone-500">.lychee.land</span></span>
+        </h2>
+      </div>
+
+      <div id="add-site-columns" class="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 items-start">
+        <form id="add-site-form" method="post" action="/sites" class="flex flex-col gap-6">
+          <label class="flex flex-col gap-1.5 text-[0.85rem] text-stone-400">
+            Hostname
+            <span id="hostname-row" class="flex items-stretch rounded-md focus-within:outline focus-within:outline-2 focus-within:outline-rose-400 focus-within:outline-offset-2">
+              <input type="text" id="hostname-field" name="hostname" required="" autocomplete="off" aria-describedby="hostname-suffix" class="font-mono bg-stone-900 border border-stone-700 rounded-md text-stone-50 px-2.5 py-2 text-sm placeholder:text-stone-400 focus:outline focus:outline-2 focus:outline-rose-400 focus:outline-offset-2 rounded-r-none flex-1 min-w-0 focus:outline-none!" placeholder="blog">
+              <span id="hostname-suffix" class="font-mono text-[0.72rem] text-stone-300 bg-stone-700 border border-l-0 border-stone-700 rounded-r-md px-2.5 flex items-center shrink-0">.lychee.land</span>
+            </span>
+          </label>
+
+          <fieldset class="border-0 p-0 m-0 flex flex-col gap-3">
+            <legend class="font-mono text-[0.7rem] uppercase tracking-[0.06em] text-stone-400 px-0 mb-2">Type</legend>
+
+            <label class="flex flex-col gap-1 rounded-md border border-stone-600 bg-stone-700/50 px-3 py-2.5 cursor-pointer motion-safe:transition-colors hover:bg-stone-700/80 has-[:checked]:bg-stone-700 has-[:checked]:border-stone-500">
+              <span class="flex items-center gap-2 text-stone-50 text-[0.9rem] font-semibold">
+                <input type="radio" name="type" value="static" checked="" aria-label="Static site" aria-describedby="type-static-description" class="accent-stone-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2">
+                Static site
+              </span>
+              <span id="type-static-description" class="text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]">Serves plain files from <code class="font-mono">/var/www/&lt;hostname&gt;</code>, which lychee-admin creates for you with a placeholder page — no process to run yourself.</span>
+            </label>
+
+            <label class="flex flex-col gap-1 rounded-md border border-stone-700 bg-transparent px-3 py-2.5 cursor-pointer motion-safe:transition-colors hover:bg-stone-800/40 has-[:checked]:bg-rose-950/50 has-[:checked]:border-rose-800/70">
+              <span class="flex items-center gap-2 text-stone-50 text-[0.9rem] font-semibold">
+                <input type="radio" name="type" value="reverse-proxy" aria-label="Reverse proxy" aria-describedby="type-proxy-description-nextjs" class="accent-rose-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2">
+                Reverse proxy
+              </span>
+              <span id="type-proxy-description" class="text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem] hidden">Routes to a process you already run and manage yourself on a local port (e.g. <code class="font-mono">next start</code>). lychee-admin only wires up the routing — it won't start, stop, or restart that process for you.</span>
+              <span id="type-proxy-description-nextjs" class="text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]">Routes to a container the reconciler runs on this port, built from the site's own repository. After you add it, the site's page has the steps to attach and deploy.</span>
+            </label>
+          </fieldset>
+
+          <div class="port-input hidden flex-col gap-3 border-l-2 border-l-rose-800/70 pl-3 ml-1" style="display: flex;">
+            <label class="flex flex-col gap-1.5 text-[0.85rem] text-stone-400">
+              Local port (reverse proxy only)
+              <input type="number" name="port" min="1" max="65535" class="font-mono bg-stone-900 border border-stone-700 rounded-md text-stone-50 px-2.5 py-2 text-sm placeholder:text-stone-400 focus:outline focus:outline-2 focus:outline-rose-400 focus:outline-offset-2" id="port-field" aria-describedby="port-error" required="">
+              <span id="port-error" class="port-error text-red-300 text-[0.8rem] hidden" role="status" aria-live="polite"></span>
+            </label>
+            <label class="flex flex-col gap-1.5 text-[0.85rem] text-stone-400">
+              Framework (optional)
+              <select name="framework" class="font-mono bg-stone-900 border border-stone-700 rounded-md text-stone-50 px-2.5 py-2 text-sm placeholder:text-stone-400 focus:outline focus:outline-2 focus:outline-rose-400 focus:outline-offset-2" id="framework-field">
+                <option value="none">None</option>
+                <option value="nextjs">Next.js — built from its own repository; the reconciler runs it</option>
+              </select>
+            </label>
+            <label class="hidden flex-col gap-1.5 text-[0.85rem] text-stone-400" id="healthcheck-field-wrapper" style="display: flex;">
+              Healthcheck path (optional)
+              <input type="text" name="healthcheckPath" placeholder="/" class="font-mono bg-stone-900 border border-stone-700 rounded-md text-stone-50 px-2.5 py-2 text-sm placeholder:text-stone-400 focus:outline focus:outline-2 focus:outline-rose-400 focus:outline-offset-2" id="healthcheck-field">
+              <span class="text-[0.75rem] text-stone-400 leading-snug">Path Docker will poll inside the container to decide if it's healthy. Defaults to <code class="font-mono">/</code>.</span>
+            </label>
+          </div>
+          
+
+          <p id="add-site-error" role="alert" class="font-mono text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0">Command failed: sudo /usr/bin/caddy validate --config /etc/caddy/Caddyfile
+[mock] recorded failure: Error: adapting config using caddyfile: Caddyfile:52 - Error during parsing
+
+Backed-up copies of the Caddyfile and tunnel config were saved to /etc/lychee-admin/backups before this attempt — review and restore manually if the configs were left in a bad state.</p>
+
+          <div class="flex items-center justify-end gap-2.5">
+            <a href="/" class="font-sans font-semibold text-sm bg-stone-600 text-stone-50 border-none rounded-md min-h-10 px-4 py-2.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-stone-700 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-transparent disabled:hover:bg-transparent no-underline">Cancel</a>
+            <button type="submit" id="add-site-submit" class="font-sans font-semibold text-sm bg-rose-400 text-stone-900 border-none rounded-md min-h-10 px-4 py-2.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-rose-300 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-rose-400/40 disabled:hover:bg-rose-400/40 aria-disabled:cursor-not-allowed aria-disabled:text-stone-500 aria-disabled:bg-rose-400/40 aria-disabled:hover:bg-rose-400/40">Add site</button>
+          </div>
+        </form>
+
+        <!--
+          Deliberately not aria-live: this panel rewrites on every debounced
+          keystroke, and announcing a Caddyfile block that often would bury the
+          field the user is typing into. The one actionable thing in here — a
+          rejection the submit would also make — is announced by #preview-error
+          instead.
+        -->
+        <aside id="write-preview" class="bg-stone-800 border border-stone-700 rounded-[10px] p-5 flex flex-col gap-3.5">
+          <p class="font-mono text-[0.75rem] font-medium uppercase tracking-[0.1em] text-stone-300 m-0">Will be written</p>
+
+          <p id="preview-error" role="status" tabindex="-1" class="font-mono text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0 hidden">blog.lychee.land already exists in the Caddyfile</p>
+
+          <div id="preview-body" class="flex flex-col gap-3.5">
+            <div class="flex flex-col gap-1.5">
+              <p class="font-mono text-[0.6875rem] font-medium tracking-[0.02em] text-stone-400 m-0 break-all">/etc/caddy/Caddyfile</p>
+              <p class="font-mono text-[0.72rem] text-stone-400 m-0">—</p>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <p class="font-mono text-[0.6875rem] font-medium tracking-[0.02em] text-stone-400 m-0 break-all">/etc/cloudflared/sites-config.yml</p>
+              <p class="font-mono text-[0.72rem] text-stone-400 m-0">—</p>
+            </div>
+            <p class="text-stone-400 text-[0.8rem] leading-snug m-0 max-w-[25rem]">Name the site and the exact block and route appear here, before anything is written.</p>
+          </div>
+
+          <hr class="border-0 border-t border-stone-700 m-0">
+
+          <div>
+            <p class="font-mono text-[0.75rem] font-medium uppercase tracking-[0.1em] text-stone-300 m-0 mb-3">In this order</p>
+            <ol id="add-site-steps" class="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 p-0 list-none grid gap-y-1.5">
+              <li class="flex gap-2" data-step-id="backup"><span class="text-stone-400 shrink-0">1.</span><span>Configs backed up</span><span class="step-mark ml-auto shrink-0 text-green-300">✓</span></li><li class="flex gap-2" data-step-id="caddyfile"><span class="text-stone-400 shrink-0">2.</span><span>Caddyfile block appended</span><span class="step-mark ml-auto shrink-0 text-green-300">✓</span></li><li class="flex gap-2" data-step-id="files"><span class="text-stone-400 shrink-0">3.</span><span>Site directory created</span><span class="step-mark ml-auto shrink-0 text-stone-400">—</span></li><li class="flex gap-2" data-step-id="tunnel"><span class="text-stone-400 shrink-0">4.</span><span>Tunnel route added</span><span class="step-mark ml-auto shrink-0 text-green-300">✓</span></li><li class="flex gap-2" data-step-id="caddy"><span class="text-stone-400 shrink-0">5.</span><span>Caddy validated and reloaded</span><span class="step-mark ml-auto shrink-0 text-red-300">✗</span></li><li class="flex gap-2" data-step-id="cloudflared"><span class="text-stone-400 shrink-0">6.</span><span>cloudflared-sites restarted</span><span class="step-mark ml-auto shrink-0 text-stone-400">·</span></li>
+            </ol>
+            <p class="text-stone-400 text-[0.75rem] leading-snug m-0">If a step fails, the ones after it don't run.</p>
+          </div>
+        </aside>
+      </div>
+    </div>
+    
+  

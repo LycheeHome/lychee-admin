@@ -1,5 +1,7 @@
 import "../test/setup";
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { afterEach, before, describe, mock, test } from "node:test";
 import { createRef } from "react";
 import { createRoot } from "react-dom/client";
@@ -11,26 +13,62 @@ import type { AddSitePayload } from "../../shared/addSite";
 import { renderClientPage } from "../../views/clientShell";
 import { canonical } from "../test/canonical";
 import recorded from "../test/addSiteAnswers.json";
-import {
-  ADD_SITE_STEPS,
-  candidateRun,
-  evaluateAppJs,
-  referenceRun,
-  writeAddSiteReference,
-  type Snapshot,
-  type StubAnswers,
-} from "../test/addSiteDualRun";
+import { ADD_SITE_STEPS, candidateRun, type Snapshot, type StubAnswers } from "../test/addSiteDualRun";
 import { AddSiteBody } from "./AddSitePage";
 
-// The React add page held to the server's page with the real public/app.js,
-// step for step, through the dual-run harness (src/client/test/addSiteDualRun.ts):
-// <main> under both canonical modes, and the toast, the submit button, the
-// requests and the focus exactly.
+// The React add page held to the retired server add page with the retired
+// public/app.js evaluated against it, step for step, through the dual-run
+// harness (src/client/test/addSiteDualRun.ts): <main> under both canonical
+// modes, and the toast, the submit button, the requests and the focus
+// exactly. The reference side is frozen (see `frozen`).
 
 const answers = recorded as StubAnswers;
 let payload: AddSitePayload;
 let reference: Snapshot[];
 let candidate: Snapshot[];
+
+// In src/dev, not src/client: outside the design detector's scope, and like
+// all of src/dev, outside the build and the release tree.
+const FIXTURES = path.join(__dirname, "../../dev/fixtures/add-site");
+const read = new Set<string>();
+
+/** A step's fixture name: its position, then its slug. */
+const fixtureName = (i: number) => `${String(i + 1).padStart(2, "0")}-${ADD_SITE_STEPS[i].name}`;
+
+/**
+ * The reference run's snapshot for step `i`, frozen. `<NN-step>.html` is the
+ * step's `main` exactly as the harness snapshotted it (#app-root unwrapped,
+ * #port-owners-data dropped), and `meta.json` holds its `toast`, `submit`,
+ * `fetches` and `focus` under the same name. They are the last output of
+ * the retired renderAddSite with the retired public/app.js driven through
+ * every step against the same recorded answers, generated from the live
+ * reference run and asserted byte-equal to a second live run before either
+ * was deleted. They are never regenerated: there is nothing left to
+ * generate them from.
+ */
+function frozen(i: number, meta: Record<string, Omit<Snapshot, "main">>): Snapshot {
+  const name = fixtureName(i);
+  read.add(`${name}.html`);
+  const facts = meta[name];
+  assert.ok(facts, `meta.json has no ${name}`);
+  return { main: readFileSync(path.join(FIXTURES, `${name}.html`), "utf8"), ...facts };
+}
+
+/** Whether a run matches the frozen reference by the per-step test's own comparisons, at every step. */
+function matchesReference(run: Snapshot[]): boolean {
+  if (run.length !== reference.length) return false;
+  return run.every((c, i) => {
+    const r = reference[i];
+    return (
+      canonical(c.main) === canonical(r.main) &&
+      canonical(c.main, { inlineWhitespace: true }) === canonical(r.main, { inlineWhitespace: true }) &&
+      c.toast === r.toast &&
+      c.submit === r.submit &&
+      JSON.stringify(c.fetches) === JSON.stringify(r.fetches) &&
+      c.focus === r.focus
+    );
+  });
+}
 
 /**
  * Writes the real shell (layout() through renderClientPage, the seed's rail)
@@ -56,11 +94,155 @@ function mountCandidate(p: AddSitePayload, go: (href: string) => void = () => {}
 
 before(async () => {
   payload = await seedAddSitePayload();
-  reference = await referenceRun(payload, answers);
+  const meta = JSON.parse(readFileSync(path.join(FIXTURES, "meta.json"), "utf8")) as Record<string, Omit<Snapshot, "main">>;
+  assert.deepEqual(Object.keys(meta), ADD_SITE_STEPS.map((_, i) => fixtureName(i)), "meta.json names every step, in order");
+  reference = ADD_SITE_STEPS.map((_, i) => frozen(i, meta));
   candidate = await candidateRun(() => mountCandidate(payload), answers);
 });
 
-describe("the React add page against renderAddSite + public/app.js", () => {
+/** A frozen step's `<main>`, parsed, to query. */
+function parsed(html: string): DocumentFragment {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  return template.content;
+}
+
+function one(fragment: DocumentFragment | Element, selector: string): Element {
+  const found = fragment.querySelector(selector);
+  assert.ok(found, `no ${selector}`);
+  return found;
+}
+
+const stepOf = (name: string): Snapshot => {
+  const index = ADD_SITE_STEPS.findIndex((s) => s.name === name);
+  assert.ok(index !== -1, `no step named ${name}`);
+  return reference[index];
+};
+
+/** A static preview's key, in the field order the page sends. */
+const previewKey = (hostname: string) =>
+  requestKey({ url: "/sites/preview", fields: { hostname, type: "static", port: "", framework: "none", healthcheckPath: "" } });
+
+const PROXY_RADIO = 'input[name="type"][value="reverse-proxy"]';
+
+// What each step was written to reach, asserted on the frozen reference: a
+// fixture that stopped reaching its branch would still compare equal to a
+// candidate that never reaches it either. These were the retired reference
+// test's assertions against the live run.
+describe("the frozen reference reaches each step's branch", () => {
+  test("one fixture per step, the spec's eleven", () => {
+    assert.equal(ADD_SITE_STEPS.length, 11);
+    assert.equal(reference.length, 11);
+  });
+
+  test("1: at rest, the arrival preview leaves the server's at-rest panel", () => {
+    const s = stepOf("at-rest");
+    assert.deepEqual(s.fetches, [previewKey("")]);
+    const page = parsed(s.main);
+    assert.equal(one(page, "#composed-hostname").textContent, "Add a site");
+    assert.match(one(page, "#preview-body").textContent ?? "", /Name the site and the exact block and route appear here/);
+    assert.ok(!one(page, "#add-site-submit").hasAttribute("aria-disabled"));
+  });
+
+  test("2: typing blog composes blog + .lychee.land, the suffix dimmed", () => {
+    const heading = one(parsed(stepOf("typing-blog").main), "#composed-hostname");
+    assert.equal(heading.childNodes[0].textContent, "blog");
+    assert.equal(one(heading, "span.text-stone-500").textContent, ".lychee.land");
+    assert.equal(heading.textContent, "blog.lychee.land");
+  });
+
+  test("3: a full hostname is not doubled, and its ready preview has all three sections", () => {
+    const s = stepOf("typing-a-full-hostname");
+    assert.deepEqual(s.fetches, [previewKey("shop.lychee.land")]);
+    const page = parsed(s.main);
+    assert.equal(one(page, "#composed-hostname").textContent, "shop.lychee.land");
+    assert.equal(page.querySelectorAll("#preview-body > div").length, 3);
+    assert.ok(one(page, "#preview-error").classList.contains("hidden"));
+  });
+
+  test("4: reverse proxy shows the port block with inline display: flex", () => {
+    const page = parsed(stepOf("switching-to-reverse-proxy").main);
+    assert.equal(one(page, ".port-input").getAttribute("style"), "display: flex;");
+    assert.ok(!one(page, "#port-field").hasAttribute("disabled"));
+  });
+
+  test("5: a claimed port shows the seed's owner sentence in #port-error", () => {
+    const page = parsed(stepOf("a-free-port-then-a-claimed-one").main);
+    const sentence = payload.portOwners["4000"];
+    assert.ok(sentence, "the seed's api.lychee.land owns 4000");
+    const portError = one(page, "#port-error");
+    assert.ok(!portError.classList.contains("hidden"));
+    assert.equal(portError.textContent, sentence);
+  });
+
+  test("6: Next.js shows the healthcheck field and points the proxy radio at its description", () => {
+    const page = parsed(stepOf("nextjs-then-a-healthcheck-path").main);
+    assert.equal(one(page, "#healthcheck-field-wrapper").getAttribute("style"), "display: flex;");
+    assert.equal(one(page, PROXY_RADIO).getAttribute("aria-describedby"), "type-proxy-description-nextjs");
+    assert.ok(one(page, "#type-proxy-description").classList.contains("hidden"));
+    assert.ok(!one(page, "#type-proxy-description-nextjs").classList.contains("hidden"));
+  });
+
+  test("7: a preview error blocks submit, and the blocked submit sends nothing and focuses the reason", () => {
+    const s = stepOf("a-preview-error-then-a-blocked-submit");
+    const submit = one(parsed(s.main), "#add-site-submit");
+    assert.equal(submit.getAttribute("aria-disabled"), "true");
+    assert.equal(submit.getAttribute("aria-describedby"), "preview-error");
+    assert.equal(s.focus, "preview-error");
+    assert.ok(!s.fetches.some((f) => f.startsWith("POST /sites ")));
+    assert.equal(one(parsed(s.main), "#preview-error").textContent, "blog.lychee.land already exists in the Caddyfile");
+  });
+
+  test("8: an empty submit reads Enter a hostname.", () => {
+    const s = stepOf("an-empty-submit");
+    const error = one(parsed(s.main), "#add-site-error");
+    assert.ok(!error.classList.contains("hidden"));
+    assert.equal(error.textContent, "Enter a hostname.");
+    assert.ok(!s.fetches.some((f) => f.startsWith("POST /sites ")));
+  });
+
+  test("9: a failed submit marks the steps from the answer, hides the toast and shows the error", () => {
+    const s = stepOf("a-failed-submit-with-step-marks");
+    const sent = s.fetches.filter((f) => f.startsWith("POST /sites "));
+    assert.equal(sent.length, 1);
+    const page = parsed(s.main);
+    const marks = Array.from(page.querySelectorAll("#add-site-steps .step-mark")).map((m) => m.textContent);
+    assert.deepEqual(marks, ["✓", "✓", "—", "✓", "✗", "·"]);
+    assert.ok(one(page, '[data-step-id="caddy"] .step-mark').classList.contains("text-red-300"));
+    assert.ok(parsed(s.toast).querySelector("#flash-banner.hidden"), "the toast is hidden");
+    const failure = (answers[sent[0]].body as { error: string }).error;
+    assert.equal(one(page, "#add-site-error").textContent, failure);
+    assert.ok(!one(page, "#add-site-submit").hasAttribute("disabled"));
+    // The failure re-runs the preview; its answer is the next step's.
+    assert.equal(s.fetches.filter((f) => f.startsWith("POST /sites/preview ")).length, 1);
+  });
+
+  test("10: the stale answer does not overwrite the newer panel", () => {
+    const page = parsed(stepOf("a-stale-preview-answer").main);
+    const body = one(page, "#preview-body").textContent ?? "";
+    assert.match(body, /reverse_proxy localhost:3700/);
+    assert.doesNotMatch(body, /3600/);
+    const marks = Array.from(page.querySelectorAll("#add-site-steps .step-mark")).map((m) => m.textContent);
+    assert.deepEqual(marks, ["", "", "—", "", "", ""]);
+  });
+
+  test("11: a persisted pageshow re-enables submit, hides the toast and re-runs the preview", () => {
+    const s = stepOf("the-pageshow-restore");
+    assert.ok(!one(parsed(s.main), "#add-site-submit").hasAttribute("disabled"));
+    assert.ok(parsed(s.toast).querySelector("#flash-banner.hidden"), "the toast is hidden");
+    assert.deepEqual(
+      s.fetches.map((f) => f.split(" ").slice(0, 2).join(" ")),
+      ["POST /sites", "POST /sites/preview"],
+    );
+  });
+
+  test("every recorded answer is asked for by some step", () => {
+    const asked = new Set(reference.flatMap((s) => s.fetches));
+    for (const key of Object.keys(answers)) assert.ok(asked.has(key), `unused answer ${key}`);
+  });
+});
+
+describe("the React add page against the frozen reference", () => {
   test("both runs snapshot every step", () => {
     assert.equal(reference.length, ADD_SITE_STEPS.length);
     assert.equal(candidate.length, ADD_SITE_STEPS.length);
@@ -80,18 +262,37 @@ describe("the React add page against renderAddSite + public/app.js", () => {
   });
 });
 
+// Each control is judged by matchesReference, the per-step test's own
+// comparisons, so a control passing means that comparison can fail.
 describe("the harness can fail", () => {
-  test("a candidate that evaluates app.js twice (a leaked listener) differs", async () => {
-    const twice = await candidateRun(() => {
-      writeAddSiteReference(payload);
-      const first = evaluateAppJs();
-      const second = evaluateAppJs();
+  test("the candidate matches by the same comparison the controls use", () => {
+    assert.ok(matchesReference(candidate));
+  });
+
+  test("a second candidate run in the same document matches too: the first left nothing behind", async () => {
+    assert.ok(matchesReference(await candidateRun(() => mountCandidate(payload), answers)));
+  });
+
+  // Replaces "app.js evaluated twice", which needed the live app.js. That
+  // control proved a leaked second set of listeners shows up as duplicate
+  // requests; the same leak on the React side is a second copy of the page's
+  // behaviour still running where nobody sees it. The second root renders
+  // into a detached node, so <main> is untouched and only what it does (its
+  // arrival preview, its pageshow listener) can tell the runs apart.
+  test("a candidate with a second, unseen copy of the page running (a leaked listener) differs", async () => {
+    const leaked = await candidateRun(() => {
+      const teardown = mountCandidate(payload);
+      const hidden = createRoot(document.createElement("div"));
+      act(() => hidden.render(<AddSiteBody payload={payload} headingRef={createRef<HTMLHeadingElement>()} go={() => {}} />));
       return () => {
-        first();
-        second();
+        act(() => hidden.unmount());
+        teardown();
       };
-    }, answers);
-    assert.notDeepEqual(twice, reference);
+    }, answers).then(matchesReference, () => false);
+    // Today the leak's extra arrival preview sits first in the queue, so the
+    // script's answers go to the wrong requests and the run stops at a
+    // request it has no answer for; either way, the parity suite fails.
+    assert.equal(leaked, false);
   });
 
   test("a candidate that adds one class after mount differs", async () => {
@@ -100,7 +301,7 @@ describe("the harness can fail", () => {
       document.getElementById("add-site-columns")?.classList.add("extra");
       return teardown;
     }, answers);
-    assert.notDeepEqual(extra, reference);
+    assert.ok(!matchesReference(extra));
   });
 });
 
@@ -324,5 +525,17 @@ describe("review focus", () => {
       teardown();
       document.body.innerHTML = "";
     }
+  });
+});
+
+// Last in the file, so every test above has run: a frozen file no test reads
+// is a step that has quietly stopped being compared.
+describe("the frozen add-site fixtures", () => {
+  test("every fixture file is read by the parity run", () => {
+    const files = readdirSync(FIXTURES)
+      .filter((f) => f.endsWith(".html"))
+      .sort();
+    assert.deepEqual(files, [...read].sort());
+    assert.deepEqual(readdirSync(FIXTURES).filter((f) => !f.endsWith(".html")), ["meta.json"]);
   });
 });

@@ -5,9 +5,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { SiteDetailPayload } from "../../shared/siteDetail";
-import { renderErrorPage } from "../../views/html";
 import { DETAIL_KEY, type SiteResourceView } from "../../views/siteDetailModel";
-import { mainRegion, seedSiteDetailPayload as seedPayload, testShell } from "../../dev/testHelpers";
+import { seedSiteDetailPayload as seedPayload } from "../../dev/testHelpers";
 import { CaddyfileError, SiteDetail, SiteNotFound } from "./SiteDetail";
 import { canonical } from "../test/canonical";
 
@@ -24,9 +23,9 @@ import { canonical } from "../test/canonical";
  * rendered an offer, React never renders it, and the fixtures were frozen with
  * it stripped, which is what the comparison compared. Nothing else is cut.
  *
- * CaddyfileError is still compared live against renderErrorPage, which no
- * route answers with any more (/sites/new is the client's) but which has not
- * been deleted yet; it goes with src/views/html.ts.
+ * CaddyfileError is compared with the retired server error page's content
+ * region, frozen the same way when that renderer went with the server add
+ * page (caddyfile-error-escaped).
  */
 
 type Detail = Extract<SiteDetailPayload, { caddyfileError: null }>;
@@ -39,7 +38,8 @@ const read = new Set<string>();
 /**
  * The server's content region for a fixture, frozen. Each file is exactly what
  * the retired site page renderer produced for that test's payload (or, for
- * not-found-escaped, the retired not-found renderer for its hostname), sliced
+ * not-found-escaped, the retired not-found renderer for its hostname, and for
+ * caddyfile-error-escaped, the retired error page for its message), sliced
  * from just after the copy-status live region to </main> (no ?created=1, so
  * there is no #page-notice in it), with the requested-line template removed.
  * They were generated from the live renderer and asserted byte-equal to it
@@ -398,9 +398,10 @@ describe("SiteNotFound and CaddyfileError parity", () => {
     assert.equal(canonical(renderToStaticMarkup(<SiteNotFound hostname={hostname} />)), canonical(server));
   });
 
-  test("CaddyfileError matches renderErrorPage", () => {
+  test("CaddyfileError matches the frozen error page body", () => {
     const message = `caddy read failed: permission denied <&"x>\nopen /etc/caddy/Caddyfile: EACCES`;
-    const server = mainRegion(renderErrorPage("Can't read the Caddyfile", message, testShell()));
+    const server = serverRegion("caddyfile-error-escaped");
+    assert.ok(server.includes("permission denied &lt;&amp;"), "the fixture never reached the escaped message");
     assert.equal(canonical(renderToStaticMarkup(<CaddyfileError message={message} />)), canonical(server));
   });
 });

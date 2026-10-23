@@ -7,8 +7,7 @@ import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import type { ReactNode } from "react";
 import type { SiteDetailFacts } from "../../shared/siteDetail";
-import { renderErrorPage } from "../../views/html";
-import { mainRegion, seedSiteDetailPayload, testShell } from "../../dev/testHelpers";
+import { seedSiteDetailPayload } from "../../dev/testHelpers";
 import { CaddyfileError, SiteDetail, SiteNotFound } from "./SiteDetail";
 
 /*
@@ -161,7 +160,7 @@ describe("SiteDetail: every one-line phrase is one text node", () => {
 
   test("the Caddyfile-error body", () => {
     const message = "caddy read failed: permission denied";
-    const html = mainRegion(renderErrorPage("Can't read the Caddyfile", message, testShell()));
+    const html = serverRegion("text-caddyfile-error");
     live(<CaddyfileError message={message} />, (client) => assertOneTextNodes(serverHost(html), client));
   });
 

@@ -60,15 +60,15 @@ const DISMISS_BUTTON =
   `shrink-0 text-stone-400 hover:text-stone-50 bg-transparent border-none cursor-pointer text-base leading-none ${FOCUS_RING}`;
 
 /**
- * The transient client toast: empty and hidden until showBanner() in
- * public/app.js or showToast() in src/client/toast.ts fills it. It is
+ * The transient client toast: empty and hidden until showToast() in
+ * src/client/toast.ts fills it. It is
  * viewport-anchored on purpose — "Removing
  * blog.lychee.land…" fires from the Remove button at the bottom of a long detail
  * page, and an in-flow notice at the top of the column would be scrolled out
  * of sight at the moment it matters. Page-load notices are the other case, and
  * they get renderPageNotice() below instead.
  *
- * No tone classes are set here: showBanner() supplies them, and strips
+ * No tone classes are set here: showToast() supplies them, and strips
  * bg-rose-950 and border-rose-400/70 (and the error tone's own classes)
  * before applying its own, so a second banner on the same page cannot
  * inherit the first one's colour. The info/default tone's background is
@@ -78,14 +78,14 @@ const DISMISS_BUTTON =
  * #flash-banner-progress is a quiet pulsing dot, shown only for the "info"
  * (in-flight) tone — the alternative to a static, motionless ellipsis for
  * the length of a `systemctl restart`. It is a sibling of the message span,
- * not nested inside it, because showBanner() replaces the message text
+ * not nested inside it, because showToast() replaces the message text
  * wholesale; nesting it would delete it the next time the banner fires.
  * motion-safe: means a reduced-motion viewer sees a plain static dot rather
  * than a moving one, the same gating every other motion in this app uses.
  *
  * #flash-banner-action is the toast's one optional recovery control (today
  * only Retry, after a site was removed but its declaration was not retired).
- * showBanner() labels and reveals it, and hides it again on every other call,
+ * showToast() labels and reveals it, and hides it again on every other call,
  * so an action can never outlive the message it belongs to.
  */
 function renderFlashBanner(): string {
@@ -160,7 +160,6 @@ export function layout(title: string, body: string, opts: LayoutOptions): string
   </main>
   </div>${opts.bodyEnd ? `\n  ${opts.bodyEnd}` : ""}
   <div id="react-root"></div>${bundleScript(opts.shell.assets)}
-  <script src="/app.js"></script>
 </body>
 </html>`;
 }

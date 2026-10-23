@@ -1,22 +1,18 @@
 import "./setup";
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { mock } from "node:test";
 import { act, fireEvent } from "@testing-library/react";
-import type { AddSitePayload } from "../../shared/addSite";
-import { renderAddSite } from "../../views/html";
-import { testShell } from "../../dev/testHelpers";
 
 /**
  * The add page's dual run (spec § Testing): one script of steps, driven
- * against the server's page with the real `public/app.js` (the reference)
- * and against the React page (the candidate), with a snapshot after each
- * step. The two runs share everything but what is on the page: the same
- * stubbed `fetch` answering from the same recorded answers
- * (`addSiteAnswers.json`, recorded by `src/dev/addSiteAnswers.ts`), the same
- * mocked `setTimeout`, and the same driver, which fires the events a browser
- * would (`input` on a text field, `change` on a select, a click on a radio or
- * the submit button), so app.js's listeners and React's both see them.
+ * against the React page (the candidate), with a snapshot after each step.
+ * The reference side was the server's page with the real `public/app.js`
+ * driven by this same script; both are retired, and its snapshots are frozen
+ * in `src/dev/fixtures/add-site/` (see AddSiteParity.test.tsx). What the
+ * reference shared with the candidate still holds: the same stubbed `fetch`
+ * answering from the same recorded answers (`addSiteAnswers.json`, recorded
+ * by `src/dev/addSiteAnswers.ts`), the same mocked `setTimeout`, and the
+ * same driver, which fires the events a browser would (`input` on a text
+ * field, `change` on a select, a click on a radio or the submit button).
  *
  * Every `fetch` is held until a step answers it with `resolvePending`, which
  * is how a step decides the order answers land in: the stale-answer step
@@ -78,8 +74,8 @@ async function settle(d: Driver): Promise<void> {
  * name the frozen fixtures.
  */
 export const ADD_SITE_STEPS: Step[] = [
-  // The preview app.js sends on arrival, for an empty form: neither ready nor
-  // an error, so the panel keeps the server's at-rest content.
+  // The preview the page sends on arrival, for an empty form: neither ready
+  // nor an error, so the panel keeps its at-rest content.
   { name: "at-rest", act: (d) => d.resolvePending(0) },
   // blog.lychee.land is in the seed, so the preview rejects it: the headline
   // splits label and suffix, and submit blocks.
@@ -142,7 +138,7 @@ export const ADD_SITE_STEPS: Step[] = [
     },
   },
   // A space passes native `required` and composes to nothing. The edit lifts
-  // the block at once, so the submit reaches app.js's own check.
+  // the block at once, so the submit reaches the page's own check.
   {
     name: "an-empty-submit",
     act: async (d) => {
@@ -180,7 +176,7 @@ export const ADD_SITE_STEPS: Step[] = [
     },
   },
   // A submit left in flight stands in for the success that navigated away:
-  // app.js leaves the same state behind (in flight, button disabled, the
+  // the page is left in the same state (in flight, button disabled, the
   // "Adding…" toast), and a real success would start a navigation. A
   // non-persisted pageshow changes nothing; a persisted one reopens the
   // form and re-runs the preview, which is answered.
@@ -195,56 +191,7 @@ export const ADD_SITE_STEPS: Step[] = [
   },
 ];
 
-/**
- * Writes the server's add page for `payload` into the document: the body of
- * `renderAddSite`'s page with the seed's shell, without its `<script src>`
- * tags (the harness evaluates app.js itself). `payload.steps` is not read:
- * the server renderer lists `ADD_STEPS` itself.
- */
-export function writeAddSiteReference(payload: AddSitePayload): void {
-  const page = renderAddSite([], payload.domain, payload.portOwners, payload.paths, testShell());
-  const match = /<body class="([^"]*)">([\s\S]*)<\/body>/.exec(page);
-  if (!match) throw new Error("renderAddSite's page has no <body> — the harness's anchor is stale");
-  document.body.className = match[1];
-  document.body.innerHTML = match[2].replace(/<script src="[^"]*"><\/script>/g, "");
-}
-
-/**
- * Evaluates `public/app.js` against the document as it is now. Wrapped in a
- * function scope, because its top-level `const`s cannot be declared twice in
- * one global scope, and a second run would throw. The listeners it adds to
- * `window` and `document` outlive the body it was evaluated against, so they
- * are recorded as it adds them; the returned teardown removes them.
- */
-export function evaluateAppJs(): () => void {
-  const source = readFileSync(path.join(__dirname, "../../../public/app.js"), "utf8");
-  const added: Array<{ target: EventTarget; args: Parameters<EventTarget["addEventListener"]> }> = [];
-  const targets: EventTarget[] = [window, document];
-  const saved = targets.map((target) => ({
-    target,
-    own: Object.prototype.hasOwnProperty.call(target, "addEventListener"),
-    original: target.addEventListener,
-  }));
-  for (const { target, original } of saved) {
-    target.addEventListener = function (...args: Parameters<EventTarget["addEventListener"]>) {
-      added.push({ target, args });
-      return original.apply(target, args);
-    };
-  }
-  try {
-    (0, eval)(`(function(){${source}\n})()`);
-  } finally {
-    for (const { target, own, original } of saved) {
-      if (own) target.addEventListener = original;
-      else delete (target as { addEventListener?: unknown }).addEventListener;
-    }
-  }
-  return () => {
-    for (const { target, args } of added) target.removeEventListener(args[0], args[1], args[2]);
-  };
-}
-
-/** Enough of a Response for app.js and the client's readers: status, ok, json. */
+/** Enough of a Response for the page's readers: status, ok, json. */
 function answerResponse(answer: { status: number; body: unknown }): Response {
   const text = JSON.stringify(answer.body);
   return {
@@ -270,15 +217,16 @@ function element<T extends Element>(selector: string): T {
 
 /**
  * The page's state after a step. `<main>` is read from a copy with
- * `#app-root` replaced by its children, so the server's content (written
- * straight into `<main>`) and React's (rendered into the mount point) are
- * compared as the same tree, and without `#port-owners-data`: that script is
- * how the server handed app.js the port owners, which the React page reads
- * from `/api/sites/new` instead, and it renders nothing.
+ * `#app-root` replaced by its children, so React's content (rendered into
+ * the mount point) compares as the same tree as the retired server page's,
+ * which was written straight into `<main>`. The frozen reference was
+ * snapshotted the same way, and also without the server's
+ * `#port-owners-data` script, the retired app.js's data channel, which
+ * rendered nothing; the React page reads the port owners from
+ * `/api/sites/new` and never has one.
  */
 function snapshot(fetches: string[]): Snapshot {
   const main = element<HTMLElement>("main").cloneNode(true) as HTMLElement;
-  main.querySelector("#port-owners-data")?.remove();
   const root = main.querySelector("#app-root");
   if (root) root.replaceWith(...Array.from(root.childNodes));
   const active = document.activeElement;
@@ -395,14 +343,6 @@ async function run(mount: () => unknown, answers: StubAnswers): Promise<Snapshot
     document.body.className = "";
     document.body.innerHTML = "";
   }
-}
-
-/** The server's page with the real app.js evaluated against it, through every step. */
-export function referenceRun(payload: AddSitePayload, answers: StubAnswers): Promise<Snapshot[]> {
-  return run(() => {
-    writeAddSiteReference(payload);
-    return evaluateAppJs();
-  }, answers);
 }
 
 /**

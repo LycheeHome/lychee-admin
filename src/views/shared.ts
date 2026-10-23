@@ -111,7 +111,7 @@ export const PATH_LABEL = "font-mono text-[0.6875rem] font-medium tracking-[0.02
 /** A single-line copyable command box. */
 export const CODE_LINE =
   "font-mono text-[0.72rem] bg-stone-900 border border-stone-700 rounded-md pl-2.5 pr-11 py-2.5 text-stone-50 overflow-x-auto whitespace-nowrap m-0";
-/** The copy button app.js binds by [data-copy-target]; callers append its position. */
+/** The copy button the client binds by [data-copy-target] (sharedBindings.ts); callers append its position. */
 export const COPY_BUTTON = `p-1 rounded-md bg-stone-800 border border-stone-700 text-stone-400 hover:text-stone-50 hover:bg-stone-700 cursor-pointer ${FOCUS_RING}`;
 /**
  * Position for a copy button sitting in a single-line command box: vertically
@@ -171,7 +171,7 @@ export function icon(name: keyof typeof ICONS): string {
  * A bad-tone status word as a predicate, so a unit and a container read alike
  * in What to check and in the sites list's host-trouble block. Only these four
  * are bad-tone unit or container states; any other word falls back to a plain
- * "is <word>" rather than a wrong claim; html.test.ts pins the fallback.
+ * "is <word>" rather than a wrong claim; shared.test.ts pins the fallback.
  */
 export function statePhrase(word: string): string {
   switch (word) {

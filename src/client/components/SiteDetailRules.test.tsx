@@ -13,8 +13,9 @@ import {
   BUTTON_PRIMARY_COMPACT,
   BUTTON_SECONDARY,
   BUTTON_SECONDARY_COMPACT,
+  ERROR_BOX,
 } from "../../views/shared";
-import { SiteDetail, SiteNotFound } from "./SiteDetail";
+import { CaddyfileError, SiteDetail, SiteNotFound } from "./SiteDetail";
 import { PruneLine, RequestedLine } from "./DeployLines";
 
 /*
@@ -30,7 +31,7 @@ import { PruneLine, RequestedLine } from "./DeployLines";
  * - the copy-status live region and the rail's current row: the shell's, in
  *   src/views/shell.test.ts against the page GET /sites/:hostname serves;
  * - offeredTag's rules: src/views/boardFacts.test.ts, beside the function;
- * - statePhrase's: src/views/html.test.ts, with the other shared.ts helpers.
+ * - statePhrase's: src/views/shared.test.ts, with the other shared.ts helpers.
  *
  * Assertions that matched `&#9679;` now match `●`: the server wrote the
  * header pill's dot as an entity and the hops' as the character, React writes
@@ -857,7 +858,7 @@ describe("the not-found page", () => {
 });
 
 describe("hardening: browser defaults never carry the design", () => {
-  // The add-site half of this test stays in src/views/html.test.ts.
+  // The add page's half of this test is in AddSiteMarkup.test.tsx.
   test("every interactive element the design draws gets the project focus ring", () => {
     const notFound = renderSiteNotFound("nope.lychee.land");
     const back = notFound.match(/<a href="\/"[^>]*>/);
@@ -1813,8 +1814,9 @@ describe("Smoke sentences hold a readable measure", () => {
   }
 
   // The services board's own case is in BoardMarkup.test.tsx, the sites
-  // list's in SiteListMarkup.test.tsx, and the add-site page's (with the
-  // measure's own value) in src/views/html.test.ts.
+  // list's in SiteListMarkup.test.tsx, the add page's in
+  // AddSiteMarkup.test.tsx, and the measure's own value in
+  // src/views/shared.test.ts.
   const pages: [string, string][] = [
     ["static site", renderSiteDetail(STATIC_SITE, OPTS)],
     ["proxy not responding", renderSiteDetail(PROXY_SITE, { ...OPTS, status: { kind: "tcp", responding: false } })],
@@ -1840,5 +1842,30 @@ describe("Smoke sentences hold a readable measure", () => {
     const offer = html.match(/<p\b[^>]*data-offer[^>]*>/)?.[0];
     assert.ok(offer, "expected an offer line");
     assert.ok(!offer.includes("max-w-[25rem]"));
+  });
+});
+
+// Were html.test.ts's tests of the server's error page (renderErrorPage),
+// carried over when it was retired: CaddyfileError is that page's body, on a
+// site's page and on the add page alike.
+describe("the unreadable-Caddyfile body", () => {
+  const body = (message: string) => renderToStaticMarkup(<CaddyfileError message={message} />);
+
+  test("escapes the message", () => {
+    const html = body(`<script>alert("x")</script>`);
+    assert.doesNotMatch(html, /<script>alert/);
+    assert.match(html, /&lt;script&gt;alert/);
+  });
+
+  // The list's half: SiteListMarkup.test.tsx pins its error box to ERROR_BOX too.
+  test("uses the same error-box classes the site list uses for its error", () => {
+    assert.equal(body("boom").match(/<p class="([^"]*bg-red-950[^"]*)"/)?.[1], ERROR_BOX);
+  });
+
+  test("has no Sites heading and no empty state, and links back to the list", () => {
+    const html = body("boom");
+    assert.doesNotMatch(html, /<h2[^>]*>\s*Sites\s*<\/h2>/);
+    assert.doesNotMatch(html, /id="empty-state"/);
+    assert.match(html, /<a href="\/"[^>]*>← sites<\/a>/);
   });
 });
