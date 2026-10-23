@@ -196,7 +196,7 @@ export async function computeStatuses(sites: Site[], deps: Deps): Promise<Record
 }
 
 /**
- * computeStatuses behind the shared 5s read, for /, /api/sites and /api/health.
+ * computeStatuses behind the shared 5s read, for /api/sites and /api/health.
  * The cached value is for the full managed-site list, so every caller must
  * pass that same list.
  */
