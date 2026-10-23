@@ -1,10 +1,8 @@
 /*
  * The page's flash toast (#flash-banner, rendered by the server's shell) as
- * React code can reach it. These reproduce showBanner and hideBanner in
- * public/app.js step for step: the same element, the same class toggles, the
- * same textContent write last, the same 4s dismissal of a success. app.js
- * still owns the close button's own click (it binds hideBanner at load), and
- * the elements are looked up at call time rather than cached, because a page
+ * React code can reach it. This is the toast's implementation; public/app.js
+ * keeps its own showBanner only for the add page until that script is deleted.
+ * The close button's click is bound in sharedBindings.ts, and the elements are looked up at call time rather than cached, because a page
  * island can mount before or after a shell script has run.
  */
 

@@ -1,7 +1,6 @@
-// What is left here is the shell's and the add-site page's: the flash toast
-// and the page notice's close button (every page), copy buttons (by
-// delegation, so the React pages' work too), and the add form with its
-// preview. Every other page — the sites list, a site's page and the board —
+// What is left here is the add-site page's: the add form with its preview and
+// the flash toast it shows. Copy buttons and the two closes are the client's
+// (src/client/sharedBindings.ts). Every other page — the sites list, a site's page and the board —
 // is the client bundle's (src/client/), writes included.
 
 const portOwners = JSON.parse(document.getElementById("port-owners-data")?.textContent ?? "{}");
@@ -67,13 +66,8 @@ function hideBanner() {
   flashBannerProgress?.classList.add("hidden");
 }
 
-flashBannerClose?.addEventListener("click", hideBanner);
-
-// The server-rendered page notice (?created=1) is a different element: it sits
-// in the content column and takes layout space, so dismissing it removes it
-// rather than hiding it — there is nothing to bring back.
-const pageNotice = document.getElementById("page-notice");
-document.getElementById("page-notice-close")?.addEventListener("click", () => pageNotice?.remove());
+// The toast's close button and the page notice's close are the client's
+// (installSharedBindings, src/client/sharedBindings.ts).
 
 // `?removed` (the list's DNS reminder) and `?created=1` (a new site's notice),
 // both server-rendered as #page-notice, are stripped by the client bundle
@@ -520,44 +514,4 @@ window.addEventListener("pageshow", (event) => {
   // The restored heap may hold a rejection about input the form no longer
   // shows (or the reverse); ask again rather than trust it.
   refreshPreview();
-});
-
-const copyStatus = document.getElementById("copy-status");
-
-// Delegated from the document rather than bound per button, so a copy button
-// in markup rendered after this script ran (the React pages under #app-root)
-// works the same as one the server rendered.
-document.addEventListener("click", async (event) => {
-  const button = event.target instanceof Element ? event.target.closest("[data-copy-target]") : null;
-  if (!button) return;
-  const idleIcon = button.querySelector('[data-copy-icon="idle"]');
-  const copiedIcon = button.querySelector('[data-copy-icon="copied"]');
-  const target = document.getElementById(button.dataset.copyTarget);
-  if (!target) return;
-  const originalLabel = button.getAttribute("aria-label") ?? "Copy to clipboard";
-  try {
-    await navigator.clipboard.writeText(target.textContent ?? "");
-    button.setAttribute("aria-label", "Copied!");
-    if (copyStatus) copyStatus.textContent = "Copied to clipboard";
-    idleIcon?.classList.add("hidden");
-    copiedIcon?.classList.remove("hidden");
-  } catch {
-    // Insecure context (plain http over the LAN, which is how this app is
-    // actually deployed — see CLAUDE.md) or clipboard permission denied.
-    // navigator.clipboard is undefined outside secure contexts, so even
-    // accessing .writeText throws synchronously; select the text so the
-    // user can still copy it manually with Ctrl+C. No icon change here —
-    // the selected/highlighted text is the real signal for this case.
-    window.getSelection()?.selectAllChildren(target);
-    button.setAttribute("aria-label", "Press Ctrl+C to copy");
-    // The selection is the whole affordance in this branch, and a selection
-    // is not something a screen reader announces on its own.
-    if (copyStatus) copyStatus.textContent = "Text selected — press Ctrl+C to copy";
-  }
-  setTimeout(() => {
-    button.setAttribute("aria-label", originalLabel);
-    if (copyStatus) copyStatus.textContent = "";
-    idleIcon?.classList.remove("hidden");
-    copiedIcon?.classList.add("hidden");
-  }, 1500);
 });

@@ -20,6 +20,7 @@ import { AddSitePage } from "./pages/AddSitePage";
 import { BoardPage, boardQuery } from "./pages/BoardPage";
 import { SiteDetailRoute } from "./pages/SiteDetailPage";
 import { SitesPage, sitesQuery } from "./pages/SitesPage";
+import { installSharedBindings } from "./sharedBindings";
 
 export { BOARD_ROUTES, isClientRoute } from "./clientNav";
 
@@ -201,6 +202,7 @@ export function mountApp(client: QueryClient, doc: Document = document): { route
   if (!el) return null;
   // Before the router reads the URL, so it starts on the clean one.
   stripNoticeParams(doc.defaultView ?? window);
+  const uninstallBindings = installSharedBindings(doc);
   const router = createAppRouter(client);
   const root = createRoot(el);
   root.render(
@@ -215,6 +217,7 @@ export function mountApp(client: QueryClient, doc: Document = document): { route
     unmount: () => {
       root.unmount();
       router.dispose();
+      uninstallBindings();
     },
   };
 }

@@ -1,12 +1,7 @@
 import "./test/setup";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { before, beforeEach, describe, test } from "node:test";
+import { beforeEach, describe, test } from "node:test";
 import { hideToast, showToast } from "./toast";
-
-// The toast must be indistinguishable from public/app.js's showBanner, so the
-// real script is loaded into the document and both write to the same banner.
 
 const BANNER = `<div id="flash-banner" class="hidden fixed top-6" role="status" aria-live="polite">
   <span class="flex items-center gap-2 min-w-0">
@@ -19,43 +14,50 @@ const BANNER = `<div id="flash-banner" class="hidden fixed top-6" role="status" 
   </span>
 </div>`;
 
-type AppGlobals = { showBanner: (m: string, k: string, a?: { label: string; onClick: () => void }) => void; hideBanner: () => void };
-const app = globalThis as unknown as AppGlobals;
-
-before(() => {
-  document.body.innerHTML = `${BANNER}<span id="copy-status" class="sr-only" role="status" aria-live="polite"></span>`;
-  const source = readFileSync(path.join(__dirname, "../../public/app.js"), "utf8");
-  // Indirect eval: global scope, as a <script> would run it.
-  (0, eval)(source);
-});
+const el = (id: string) => document.getElementById(id)!;
+const hidden = (id: string) => el(id).classList.contains("hidden");
 
 beforeEach(() => {
-  app.hideBanner();
-  document.getElementById("flash-banner-message")!.textContent = "";
+  document.body.innerHTML = BANNER;
 });
 
-const snapshot = () => document.getElementById("flash-banner")!.outerHTML;
-
 describe("showToast", () => {
-  for (const kind of ["info", "success", "error"] as const) {
-    test(`${kind} writes exactly the markup app.js's showBanner writes`, () => {
-      app.showBanner("Requesting 0.3.0 for app-lychee-land…", kind);
-      const expected = snapshot();
-      app.hideBanner();
-      document.getElementById("flash-banner-message")!.textContent = "";
-      showToast("Requesting 0.3.0 for app-lychee-land…", kind);
-      assert.equal(snapshot(), expected);
-    });
-  }
+  test("info: rose tone, progress dot, no close, no auto dismissal", (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    showToast("Working…", "info");
+    const banner = el("flash-banner");
+    assert.ok(!hidden("flash-banner"));
+    assert.ok(banner.classList.contains("bg-rose-950") && banner.classList.contains("border-rose-400/70"));
+    assert.ok(!banner.classList.contains("bg-red-950/60"));
+    assert.ok(!hidden("flash-banner-progress"));
+    assert.ok(hidden("flash-banner-close"));
+    assert.equal(el("flash-banner-message").textContent, "Working…");
+    t.mock.timers.tick(60000);
+    assert.ok(!hidden("flash-banner"));
+  });
 
-  test("an action is labelled, revealed and run when pressed, like app.js's", () => {
-    app.showBanner("Failed", "error", { label: "Retry", onClick: () => {} });
-    const expected = snapshot();
-    app.hideBanner();
+  test("error: red tone, close shown, no progress dot", () => {
+    showToast("Failed", "error");
+    const banner = el("flash-banner");
+    assert.ok(banner.classList.contains("bg-red-950/60") && banner.classList.contains("border-red-400/70"));
+    assert.ok(!banner.classList.contains("bg-rose-950"));
+    assert.ok(hidden("flash-banner-progress"));
+    assert.ok(!hidden("flash-banner-close"));
+  });
+
+  test("success: rose tone, no progress, no close", () => {
+    showToast("Done", "success");
+    assert.ok(el("flash-banner").classList.contains("bg-rose-950"));
+    assert.ok(hidden("flash-banner-progress"));
+    assert.ok(hidden("flash-banner-close"));
+  });
+
+  test("an action is labelled, revealed and run when pressed", () => {
     let ran = 0;
     showToast("Failed", "error", { label: "Retry", run: () => (ran += 1) });
-    assert.equal(snapshot(), expected);
-    (document.getElementById("flash-banner-action") as HTMLButtonElement).click();
+    assert.ok(!hidden("flash-banner-action"));
+    assert.equal(el("flash-banner-action").textContent, "Retry");
+    el("flash-banner-action").click();
     assert.equal(ran, 1);
   });
 
@@ -63,43 +65,37 @@ describe("showToast", () => {
     let ran = 0;
     showToast("Failed", "error", { label: "Retry", run: () => (ran += 1) });
     showToast("Requesting…", "info");
-    const action = document.getElementById("flash-banner-action") as HTMLButtonElement;
-    assert.ok(action.classList.contains("hidden"));
-    assert.equal(action.textContent, "");
-    action.click();
+    assert.ok(hidden("flash-banner-action"));
+    assert.equal(el("flash-banner-action").textContent, "");
+    el("flash-banner-action").click();
     assert.equal(ran, 0);
   });
 
-  test("success dismisses itself after 4s, like app.js's", async (t) => {
+  test("success dismisses itself after 4s", (t) => {
     t.mock.timers.enable({ apis: ["setTimeout"] });
     showToast("Done", "success");
-    const banner = document.getElementById("flash-banner")!;
-    assert.ok(!banner.classList.contains("hidden"));
     t.mock.timers.tick(3999);
-    assert.ok(!banner.classList.contains("hidden"));
+    assert.ok(!hidden("flash-banner"));
     t.mock.timers.tick(1);
-    assert.ok(banner.classList.contains("hidden"));
+    assert.ok(hidden("flash-banner"));
   });
 });
 
 describe("hideToast", () => {
-  test("leaves exactly the markup app.js's hideBanner leaves", () => {
-    showToast("Requesting…", "info", { label: "Retry", run: () => {} });
-    app.hideBanner();
-    const expected = snapshot();
-    showToast("Requesting…", "info", { label: "Retry", run: () => {} });
+  test("hides the banner, the progress dot and the action, and clears the action", () => {
+    let ran = 0;
+    showToast("Working…", "info", { label: "Retry", run: () => (ran += 1) });
     hideToast();
-    assert.equal(snapshot(), expected);
+    assert.ok(hidden("flash-banner"));
+    assert.ok(hidden("flash-banner-progress"));
+    assert.ok(hidden("flash-banner-action"));
+    el("flash-banner-action").click();
+    assert.equal(ran, 0);
   });
 
   test("without a banner in the document, both are no-ops", () => {
-    const saved = document.body.innerHTML;
     document.body.innerHTML = "";
-    try {
-      showToast("x", "info");
-      hideToast();
-    } finally {
-      document.body.innerHTML = saved;
-    }
+    showToast("x", "info");
+    hideToast();
   });
 });
