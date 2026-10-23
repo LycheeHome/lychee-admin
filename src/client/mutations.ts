@@ -2,7 +2,8 @@ import { useMutation, useMutationState, useQueryClient, type QueryClient } from 
 import { useState } from "react";
 import type { ActionState, BoardPayload } from "../shared/board";
 import type { HostAction } from "../lib/platform";
-import { BOARD_QUERY_ROOT } from "./api";
+import type { SiteDetailPayload } from "../shared/siteDetail";
+import { BOARD_QUERY_ROOT, SITE_DETAIL_ROOT } from "./api";
 import { HEALTH_QUERY } from "./health";
 import { hideToast, showToast } from "./toast";
 
@@ -15,7 +16,8 @@ import { hideToast, showToast } from "./toast";
  * (useHostAction, below; the strip itself is HostActions.tsx).
  *
  * Unlike app.js, success does not swap markup or reload. It invalidates the
- * board and the rail's health and waits for the board to be re-read, and the
+ * board, the rail's health and any site page (whose card writes,
+ * siteWrites.ts, reuse Deploy and Prune) and waits for them to be re-read, and the
  * rows then render the requested line (or drop the prune line) from the
  * fresh payload. The mutation stays pending until that read lands, which is
  * what keeps the button disabled, so a second click for one change cannot
@@ -23,21 +25,33 @@ import { hideToast, showToast } from "./toast";
  */
 
 /** A write the server answered and refused: its text is already the message to show. */
-class Refused extends Error {}
+export class Refused extends Error {}
 
 type Answer = { ok?: boolean; reason?: string };
 
-async function post(url: string, accepted: (status: number) => boolean, fallback: (status: number) => string): Promise<void> {
-  const response = await fetch(url, { method: "POST" });
-  const body = (await response.json().catch(() => ({}))) as Answer;
-  if (accepted(response.status) && body.ok) return;
-  throw new Refused(body.reason ?? fallback(response.status));
+/** A write's POST; `body` (the site page's forms send one) is sent as is. */
+export async function post(
+  url: string,
+  accepted: (status: number) => boolean,
+  fallback: (status: number) => string,
+  body?: URLSearchParams,
+): Promise<void> {
+  const response = await fetch(url, body ? { method: "POST", body } : { method: "POST" });
+  const answer = (await response.json().catch(() => ({}))) as Answer;
+  if (accepted(response.status) && answer.ok) return;
+  throw new Refused(answer.reason ?? fallback(response.status));
 }
 
-function refresh(client: QueryClient): Promise<unknown> {
+/**
+ * After a write: re-read every board, the rail's health and every site page,
+ * resolving once the active ones have landed. A write on either page can
+ * change what the other shows.
+ */
+export function refresh(client: QueryClient): Promise<unknown> {
   return Promise.all([
     client.invalidateQueries({ queryKey: BOARD_QUERY_ROOT }),
     client.invalidateQueries({ queryKey: HEALTH_QUERY.queryKey }),
+    client.invalidateQueries({ queryKey: SITE_DETAIL_ROOT }),
   ]);
 }
 
@@ -54,18 +68,34 @@ function inFlightFor(client: QueryClient): Set<string> {
   return set;
 }
 
-function begin(client: QueryClient, key: string): boolean {
+/** Claims `key` for a write; false when one is already in flight. */
+export function begin(client: QueryClient, key: string): boolean {
   const set = inFlightFor(client);
   if (set.has(key)) return false;
   set.add(key);
   return true;
 }
 
-/** True when a board query in the cache now says the declaration holds `tag` for `name`. */
+/** Releases `key` once its write has settled. */
+export function end(client: QueryClient, key: string): void {
+  inFlightFor(client).delete(key);
+}
+
+/**
+ * True when a query in the cache now says the declaration holds `tag` for
+ * `name`: a board's `requested`, or a site page's `resource.requestedTag`.
+ */
 function shows(client: QueryClient, name: string, tag: string): boolean {
-  return client
+  const onBoard = client
     .getQueriesData<BoardPayload>({ queryKey: BOARD_QUERY_ROOT })
     .some(([, data]) => data && Object.hasOwn(data.requested, name) && data.requested[name] === tag);
+  const onSitePage = client
+    .getQueriesData<SiteDetailPayload>({ queryKey: SITE_DETAIL_ROOT })
+    .some(
+      ([, data]) =>
+        data && data.caddyfileError === null && data.resource?.name === name && data.resource.requestedTag === tag,
+    );
+  return onBoard || onSitePage;
 }
 
 export type DeployVars = { name: string; tag: string };

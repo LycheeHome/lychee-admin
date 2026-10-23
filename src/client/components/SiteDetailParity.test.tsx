@@ -29,7 +29,16 @@ const REQUESTED_TEMPLATE = /<template data-requested-template>[\s\S]*?<\/templat
 
 function serverMarkup(site: Site, payload: Detail): string {
   // The payload carries every option the renderer reads; its other fields go unread.
-  return mainRegion(renderSiteDetail(site, payload, testShell())).replace(REQUESTED_TEMPLATE, "");
+  const raw = mainRegion(renderSiteDetail(site, payload, testShell()));
+  const stripped = raw.replace(REQUESTED_TEMPLATE, "");
+  // The server appends the template wherever it renders an offer: if the
+  // strip stops matching it, the comparison would fail on it, or (worse) a
+  // changed template would no longer be stripped at all.
+  if (raw.includes("data-offer")) {
+    assert.ok(raw.includes("data-requested-template"), "an offer without its requested-line template");
+    assert.ok(!stripped.includes("data-requested-template"), "the requested-line template was not stripped");
+  }
+  return stripped;
 }
 
 function clientMarkup(payload: Detail): string {
@@ -254,6 +263,10 @@ describe("the repository card, whole, in every branch", () => {
 
   test("app: installed, the board's offer", async () => {
     const { site, payload } = await seedPayload("app.lychee.land");
+    // The R3 strip removed something here, so the offer cases compare without it rather than never having it.
+    const raw = mainRegion(renderSiteDetail(site, payload, testShell()));
+    assert.ok(raw.includes("data-requested-template"));
+    assert.ok(raw.replace(REQUESTED_TEMPLATE, "").length < raw.length);
     const server = assertParity(site, payload, [
       rowKey("running"),
       rowKey("repository"),

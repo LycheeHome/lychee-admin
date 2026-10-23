@@ -9,6 +9,14 @@ export function boardQueryKey(group: ServiceGroup) {
   return [...BOARD_QUERY_ROOT, group] as const;
 }
 
+/** The prefix every site page's query shares: a write invalidates by it, so no site page is left stale. */
+export const SITE_DETAIL_ROOT = ["site"] as const;
+
+/** The one key a site's page is read under. */
+export function siteDetailQueryKey(hostname: string) {
+  return [...SITE_DETAIL_ROOT, hostname] as const;
+}
+
 /** The one key the sites list is read under. */
 export function sitesQueryKey() {
   return ["sites"] as const;

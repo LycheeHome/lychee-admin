@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState, type FormEvent, type ReactNode, type Ref } from "react";
+import { Fragment, useEffect, useRef, useState, type FormEvent, type ReactNode, type Ref } from "react";
 import { troubleGate } from "../../lib/siteDisplay";
 import { IMAGE_PREFIX } from "../../lib/platform";
 import { resourceNameFor } from "../../lib/siteResource";
@@ -280,11 +280,18 @@ function useRepoForm(send: ((repo: string) => void) | undefined, pending: boolea
   return { inputRef, onSubmit, error };
 }
 
-/** The form's alert region: hidden and empty until there is something to say. */
+/**
+ * The form's alert region: hidden and empty until there is something to say.
+ * A new message is written in the commit after the one that reveals the
+ * region, as app.js unhid before writing: a role="alert" region revealed
+ * already holding its text may not be announced.
+ */
 function FormError({ id, error }: { id: string; error: string | null }) {
+  const [written, setWritten] = useState<string | null>(null);
+  useEffect(() => setWritten(error), [error]);
   return (
     <p id={id} role="alert" className={error ? FORM_ERROR : `hidden ${FORM_ERROR}`}>
-      {error}
+      {error !== null && written === error ? error : null}
     </p>
   );
 }
@@ -615,7 +622,9 @@ export function RepositoryCard({ payload, writes, headingRef }: RepositoryCardPr
                 <span className="text-stone-400">{`· ${resource.name}.yml`}</span>
               </p>
               {canChangeRepository(resource) ? (
-                <ChangeRepositoryForm hostname={site.hostname} resource={resource} writes={writes} />
+                // Keyed on the repository: the field's value is uncontrolled, so a
+                // re-read that changes the declaration gives it a fresh form.
+                <ChangeRepositoryForm key={resource.repo} hostname={site.hostname} resource={resource} writes={writes} />
               ) : null}
             </>
           ) : (
