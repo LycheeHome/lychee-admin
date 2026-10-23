@@ -10,7 +10,7 @@ import { readInventory } from "../lib/serviceInventory";
 import { buildBoard, findTimerUnit } from "../lib/serviceBoard";
 import type { ServiceBoard } from "../lib/serviceBoard";
 import type { ApiError, ApiOk, BoardPayload } from "../shared/board";
-import { renderServicesPage } from "../views/html";
+import { GROUP_LABELS } from "../views/boardRowModel";
 import { renderClientPage } from "../views/clientShell";
 import { loadShell } from "./loadShell";
 import type { ServiceGroup } from "../lib/serviceInventory";
@@ -21,10 +21,14 @@ import type { ServiceStatus, TimerSchedule } from "../lib/unitState";
 const noSchedule = (): TimerSchedule => ({ next: null, last: null });
 const CONFIRM_DOWN_REASON = "the container hasn't been confirmed down yet; try after the next reconcile";
 
-/** The board's three pages, one group each. Every row's POSTs stay under /services. */
-const BOARD_PAGES: ReadonlyArray<[path: string, group: ServiceGroup]> = [
+/**
+ * The board's three pages, one group each, all rendered by the client. Every
+ * row's POSTs stay under /services.
+ */
+const CLIENT_PAGES: ReadonlyArray<[path: string, group: ServiceGroup]> = [
   ["/services", "service"],
   ["/reconciler", "reconciler"],
+  ["/infrastructure", "infrastructure"],
 ];
 
 /** Each board page's rail link, by the group it holds. */
@@ -46,12 +50,43 @@ export interface BoardPageData {
   now: Date;
 }
 
+const BOARD_CACHE_MS = 5_000;
+// Keyed by deps.fs, not by deps: /api/health hands loadBoardPage a per-request
+// wrapper (withSharedContainerReads) whose identity differs on every call, but
+// it spreads the same fs, so fs is the one object both endpoints share. A
+// WeakMap keeps each test's app (and its fake fs) isolated.
+const boardCache = new WeakMap<object, { at: number; gen: number; promise: Promise<BoardPageData> }>();
+// Clearing bumps a generation instead of emptying the map (a WeakMap cannot be
+// emptied), so one call invalidates every app's entry.
+let cacheGeneration = 0;
+
+/** Drops the cached board. Every write route calls it before answering. */
+export function clearBoardCache(): void {
+  cacheGeneration++;
+}
+
 /**
- * The whole board, read and joined: one data path for the HTML pages and
- * /api/services. Every read degrades on its own; the board always comes back.
+ * The whole board, read and joined: one data path for /api/services and
+ * /api/health. Every read degrades on its own; the board always comes back.
  * It reads the whole board; each caller narrows it to its own group.
  */
-export async function loadBoardPage(deps: Deps): Promise<BoardPageData> {
+export function loadBoardPage(deps: Deps, opts: { now?: () => number } = {}): Promise<BoardPageData> {
+  const clock = opts.now ?? Date.now;
+  const at = clock();
+  const hit = boardCache.get(deps.fs);
+  if (hit && hit.gen === cacheGeneration && at - hit.at < BOARD_CACHE_MS) return hit.promise;
+  const promise = readBoardPage(deps);
+  const entry = { at, gen: cacheGeneration, promise };
+  boardCache.set(deps.fs, entry);
+  // A rejection must not be served for 5s; readBoardPage degrades everything
+  // and should not reject, but the cache must not depend on that.
+  promise.catch(() => {
+    if (boardCache.get(deps.fs) === entry) boardCache.delete(deps.fs);
+  });
+  return promise;
+}
+
+async function readBoardPage(deps: Deps): Promise<BoardPageData> {
   const inventory = readInventory(deps.fs);
   const timer = findTimerUnit(inventory);
 
@@ -112,38 +147,21 @@ export async function loadBoardPage(deps: Deps): Promise<BoardPageData> {
 export function createServicesRouter(deps: Deps): express.Router {
   const router = express.Router();
 
-  // One data path for all three pages: the whole board is read and joined
-  // exactly as it was when it was one page, and the renderer keeps the page's
-  // group. Reading only one group's units would be a second path to keep in
-  // step with this one, for the price of a few systemctl properties.
-  for (const [path, group] of BOARD_PAGES) router.get(path, (_req, res) => renderBoardPage(res, group));
-
-  // Migrated to the client: the shared shell around a React mount point. The
-  // data comes from /api/services, so nothing here reads the board.
-  router.get("/infrastructure", (_req, res) => {
-    // One read of the bundle (the dev server's getter re-reads the manifest),
-    // checked here and then emitted by layout() from the same shell.
-    const shell = loadShell(deps, { page: "infrastructure" });
-    if (!shell.assets) return res.status(500).type("text/plain").send("client bundle missing; run npm run build");
-    return res.type("html").send(renderClientPage("Infrastructure", "infrastructure", shell));
-  });
-
-  async function renderBoardPage(res: express.Response, group: ServiceGroup): Promise<void> {
-    // Every read below already degrades, so this should be unreachable; it is
-    // here because Express 4 does not catch an async handler's rejection, and
-    // these are the pages whose design goal is that they never error.
-    try {
-      const { board, prunable, managed, requested, lastRuns, now } = await loadBoardPage(deps);
-      res.type("html").send(
-        renderServicesPage(board, now, prunable, config.domain, lastRuns, group, managed, requested, loadShell(deps, { page: GROUP_PAGES[group] })),
-      );
-    } catch (error) {
-      res.status(500).type("text/plain").send(`Could not render services: ${String(error)}`);
-    }
+  // The three board pages are the client's: the shared shell around a React
+  // mount point, titled as the client titles them after an in-app navigation.
+  // The data comes from /api/services, so nothing here reads the board.
+  for (const [path, group] of CLIENT_PAGES) {
+    router.get(path, (_req, res) => {
+      // One read of the bundle (the dev server's getter re-reads the manifest),
+      // checked here and then emitted by layout() from the same shell.
+      const shell = loadShell(deps, { page: GROUP_PAGES[group] });
+      if (!shell.assets) return res.status(500).type("text/plain").send("client bundle missing; run npm run build");
+      return res.type("html").send(renderClientPage(GROUP_LABELS[group], GROUP_PAGES[group], shell));
+    });
   }
 
   // The same board as JSON, for the client. Sets and Maps do not serialise, so
-  // only the board itself goes out, narrowed to the requested group.
+  // the board goes out narrowed to the requested group, with the sets as arrays and the map as a record.
   router.get("/api/services", async (req, res) => {
     const group = req.query.group;
     if (typeof group !== "string" || !isServiceGroup(group)) {
@@ -151,12 +169,22 @@ export function createServicesRouter(deps: Deps): express.Router {
       return res.status(400).json({ ok: false, reason } satisfies ApiError);
     }
     try {
-      const { board, now } = await loadBoardPage(deps);
+      const { board, now, prunable, managed, requested, lastRuns } = await loadBoardPage(deps);
       const only: ServiceBoard = { ...board, groups: board.groups.filter((g) => g.group === group) };
       // The page's "unavailable" vs "lists no X" choice depends on the whole
       // board, which the narrowing above discards, so it travels separately.
       const boardEmpty = board.groups.length === 0;
-      return res.json({ ok: true, board: only, boardEmpty, now: now.toISOString() } satisfies ApiOk<BoardPayload>);
+      return res.json({
+        ok: true,
+        board: only,
+        boardEmpty,
+        now: now.toISOString(),
+        prunable: [...prunable],
+        managed: [...managed],
+        domain: config.domain,
+        requested: Object.fromEntries(requested),
+        lastRuns,
+      } satisfies ApiOk<BoardPayload>);
     } catch (error) {
       return res.status(500).json({ ok: false, reason: `Could not read services: ${String(error)}` } satisfies ApiError);
     }
@@ -170,6 +198,7 @@ export function createServicesRouter(deps: Deps): express.Router {
     if (!isHostAction(action)) return res.status(404).json({ ok: false, reason: `no action ${action}` });
     try {
       const result = await requestAction(deps, name, action, { kind: "operator" });
+      clearBoardCache();
       if (!result.ok) return res.status(result.status).json({ ok: false, reason: result.message });
       if (String(req.headers.accept ?? "").includes("application/json")) {
         return res.status(202).json({ ok: true, state: result.state });
@@ -185,6 +214,10 @@ export function createServicesRouter(deps: Deps): express.Router {
     try {
       const result = await readCheckedActionState(deps, name, action, { kind: "operator" });
       if (!result.ok) return res.status(result.status).json({ ok: false, reason: result.message });
+      // A run that has settled changes the board's last-run line, and the
+      // client re-fetches the board right after seeing it: do not serve that
+      // re-fetch the read from before the run finished.
+      if (result.state.state !== "running") clearBoardCache();
       return res.json({ ok: true, state: result.state });
     } catch (error) {
       return res.status(502).json({ ok: false, reason: `could not read ${name}'s ${action}: ${String(error)}` });
@@ -214,6 +247,7 @@ export function createServicesRouter(deps: Deps): express.Router {
       }
       // Never throws by contract; the catch below is for the contract failing.
       const result = await deps.commands.writeDeclarationTag(name, entry.available);
+      clearBoardCache();
       if (!result.ok) {
         logAction({ action: "deploy-service-failed", hostname: name, detail: `${entry.available}: ${result.reason}` });
         res.status(502).json({ ok: false, reason: result.reason });
@@ -269,6 +303,7 @@ export function createServicesRouter(deps: Deps): express.Router {
         return;
       }
       const result = await deps.commands.pruneSiteDeclaration(name, { requireTagless: entry.result === "awaiting-image" });
+      clearBoardCache();
       if (!result.ok) {
         if (result.code === "tagged") {
           // Same refusal as an unconfirmed entry, so the same body; the log

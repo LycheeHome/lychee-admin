@@ -52,8 +52,9 @@ describe("renderClientPage", () => {
   });
 
   test("puts the module script before the shell's own scripts", () => {
-    assert.ok(html.indexOf("/client/assets/main-abc.js") < html.indexOf('src="/actionPoll.js"'));
-    assert.ok(html.indexOf('src="/actionPoll.js"') < html.indexOf('src="/app.js"'));
+    assert.ok(html.indexOf("/client/assets/main-abc.js") < html.indexOf('src="/app.js"'));
+    // actionPoll.js is retired: its decision moved into the bundle.
+    assert.ok(!html.includes("actionPoll"));
   });
 
   test("loads each bundle tag exactly once", () => {
@@ -66,7 +67,7 @@ describe("renderClientPage", () => {
   });
 
   test("escapes asset paths", () => {
-    const evil = renderClientPage("T", "p", testShell({ assets: { script: 'a"><b', styles: ['c"><i'] } }));
+    const evil = renderClientPage("T", "services", testShell({ assets: { script: 'a"><b', styles: ['c"><i'] } }));
     assert.ok(!evil.includes('"><b'));
     assert.ok(!evil.includes('"><i'));
   });

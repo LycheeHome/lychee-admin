@@ -855,8 +855,9 @@ document.querySelectorAll("dialog.modal").forEach((dialog) => {
   });
 });
 
-// The services board's Deploy control. The server decides the tag from the
-// inventory, so only the name is sent. On success the offer is replaced, in
+// A site page's Deploy control (the services board's is the client's own,
+// src/client/mutations.ts). The server decides the tag from the inventory, so
+// only the name is sent. On success the offer is replaced, in
 // place, by the same "<tag> requested" line the server renders on a reload:
 // that line is the feedback, not a toast, because it is still true after the
 // toast would have faded and it takes the button's place, so a second click
@@ -897,13 +898,13 @@ document.querySelectorAll("[data-deploy]").forEach((button) => {
   });
 });
 
-// Prune, on a site page's detached warning and a retired row on the services
-// board. Only the name is sent: the route re-reads the declaration after a
-// fresh pull and asks the inventory whether the container is confirmed down,
-// so a refusal (409 most often: not confirmed down yet) carries the reason to
-// show. Success reloads, because the page it changes is server-rendered: the
-// site page drops the warning and the board drops the control. showBanner
-// writes textContent, so the server's reason is never parsed as markup.
+// Prune, on a site page's detached warning (a retired row on the services
+// board has the client's own, src/client/mutations.ts). Only the name is sent:
+// the route re-reads the declaration after a fresh pull and asks the inventory
+// whether the container is confirmed down, so a refusal (409 most often: not
+// confirmed down yet) carries the reason to show. Success reloads, because the
+// site page is server-rendered: it drops the warning. showBanner writes
+// textContent, so the server's reason is never parsed as markup.
 document.querySelectorAll("[data-prune]").forEach((button) => {
   button.addEventListener("click", async () => {
     const name = button.dataset.prune;
@@ -922,182 +923,6 @@ document.querySelectorAll("[data-prune]").forEach((button) => {
     }
     button.disabled = false;
   });
-});
-
-// Host actions on the services board (start/stop/restart/update on a unit whose
-// inventory entry lists them). Stop, Restart and Update replace the button strip
-// with an inline confirmation; Start goes straight through. A 202 puts the row
-// into its running state here, rather than by reloading: the job was only
-// queued (--no-block), so a page rendered now could still read the previous
-// run. While a run is active the page polls its state every 2s, and only then;
-// once it settles the page reloads, which restores the pill and the buttons
-// from the server's own reading.
-const ACTION_RUNNING_WORD = { start: "starting", stop: "stopping", restart: "restarting", update: "updating" };
-const ACTION_POLL_MS = 2000;
-
-// The server sends ISO 8601 (never systemd's own format, which Safari cannot
-// parse), so Date.parse is enough here.
-function ageSince(text) {
-  if (!text) return null;
-  const ms = Date.parse(text);
-  if (!Number.isFinite(ms)) return null;
-  const seconds = Math.max(0, Math.round((Date.now() - ms) / 1000));
-  if (seconds < 5) return "just now";
-  const plural = (n, unit) => `${n} ${unit}${n === 1 ? "" : "s"}`;
-  if (seconds < 60) return `${plural(seconds, "second")} ago`;
-  if (seconds < 3600) return `${plural(Math.round(seconds / 60), "minute")} ago`;
-  return `${plural(Math.round(seconds / 3600), "hour")} ago`;
-}
-
-document.querySelectorAll("[data-host-actions]").forEach((box) => {
-  const unit = box.dataset.hostActions;
-  const row = box.closest("[data-service]");
-  const strip = box.querySelector("[data-action-strip]");
-  const fact = box.querySelector("[data-action-fact]");
-  const tail = box.querySelector("[data-action-tail]");
-  const busy = box.querySelector("[data-action-busy]");
-  const actionButtons = [...box.querySelectorAll("[data-host-action]")];
-  const confirms = [...box.querySelectorAll("[data-action-confirm]")];
-  let opener = null;
-  let inFlight = false;
-
-  function closeConfirms(restoreFocus) {
-    confirms.forEach((c) => {
-      c.hidden = true;
-    });
-    strip.hidden = false;
-    if (restoreFocus && opener) opener.focus();
-    opener = null;
-  }
-
-  function setRunningFact(action, startedAt) {
-    const dot = document.createElement("span");
-    dot.className = "inline-block h-1.5 w-1.5 rounded-full bg-stone-400 motion-safe:animate-pulse align-middle mr-1.5";
-    dot.setAttribute("aria-hidden", "true");
-    const age = ageSince(startedAt);
-    fact.replaceChildren(dot, `${action} running${age ? ` · started ${age}` : ""}`);
-    fact.hidden = false;
-  }
-
-  function setTail(logTail) {
-    tail.textContent = (logTail ?? "").trimEnd() || "no output yet";
-    tail.hidden = false;
-  }
-
-  function enterRunning(action, state) {
-    const pillSlot = row?.querySelector("[data-row-pill]");
-    if (pillSlot) {
-      const pill = document.createElement("span");
-      pill.className = box.dataset.neutralPill;
-      const dot = document.createElement("span");
-      dot.setAttribute("aria-hidden", "true");
-      dot.textContent = "●";
-      pill.append(dot, ` ${ACTION_RUNNING_WORD[action]}`);
-      pillSlot.replaceChildren(pill);
-    }
-    actionButtons.forEach((b) => {
-      b.disabled = true;
-    });
-    closeConfirms(false);
-    box.querySelector("[data-action-log]")?.remove();
-    setRunningFact(action, state.startedAt);
-    setTail(state.logTail);
-    busy.hidden = false;
-    box.dataset.running = action;
-    // The clicked control is gone or disabled; keep focus in the row.
-    fact.tabIndex = -1;
-    fact.focus();
-  }
-
-  // Every answer goes through decidePoll (public/actionPoll.js), which is
-  // what guarantees the loop ends: a settled run, a 401/403/404, an answer
-  // with no state, or a minute of 502s and network failures all reload, and
-  // the server render decides what the row is.
-  function poll(action, clickedAt) {
-    let memo = { failingSince: null, stalePolls: 0 };
-    const tick = async () => {
-      let outcome;
-      try {
-        const response = await fetch(`/services/${encodeURIComponent(unit)}/actions/${action}/state`, {
-          headers: { Accept: "application/json" },
-        });
-        const body = await response.json().catch(() => ({}));
-        outcome = { kind: "response", status: response.status, body };
-      } catch {
-        outcome = { kind: "network-error" };
-      }
-      const decision = window.actionPoll.decidePoll(outcome, memo, Date.now(), clickedAt);
-      memo = decision.memo;
-      if (decision.next === "reload") {
-        window.location.reload();
-        return;
-      }
-      if (decision.next === "update") {
-        setRunningFact(action, outcome.body.state.startedAt);
-        setTail(outcome.body.state.logTail);
-      }
-      setTimeout(tick, ACTION_POLL_MS);
-    };
-    setTimeout(tick, ACTION_POLL_MS);
-  }
-
-  async function request(action) {
-    if (inFlight) return;
-    inFlight = true;
-    const clickedAt = Date.now();
-    box.querySelectorAll("button").forEach((b) => {
-      b.disabled = true;
-    });
-    try {
-      const response = await fetch(`/services/${encodeURIComponent(unit)}/actions/${action}`, {
-        method: "POST",
-        headers: { Accept: "application/json" },
-      });
-      const body = await response.json().catch(() => ({}));
-      if (response.status === 202 && body.ok) {
-        enterRunning(action, body.state ?? {});
-        poll(action, clickedAt);
-        return;
-      }
-      showBanner(body.reason ?? `Could not ${action} ${unit} (HTTP ${response.status}).`, "error");
-    } catch {
-      showBanner(`Could not reach the server to ${action} ${unit}.`, "error");
-    } finally {
-      inFlight = false;
-    }
-    // Refused: back to the strip, every control live again.
-    box.querySelectorAll("button").forEach((b) => {
-      b.disabled = false;
-    });
-    closeConfirms(true);
-  }
-
-  actionButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      const action = button.dataset.hostAction;
-      const confirm = confirms.find((c) => c.dataset.actionConfirm === action);
-      if (!confirm) {
-        opener = button;
-        request(action);
-        return;
-      }
-      opener = button;
-      strip.hidden = true;
-      confirm.hidden = false;
-      confirm.querySelector("[data-action-cancel]")?.focus();
-    });
-  });
-
-  confirms.forEach((confirm) => {
-    confirm.querySelector("[data-action-cancel]")?.addEventListener("click", () => closeConfirms(true));
-    confirm.querySelector("[data-action-go]")?.addEventListener("click", () => request(confirm.dataset.actionConfirm));
-    confirm.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") closeConfirms(true);
-    });
-  });
-
-  // Rendered mid-run (a reload, or a run started elsewhere): follow it.
-  if (box.dataset.running) poll(box.dataset.running, null);
 });
 
 // A Next.js site's Attach control. The server takes the port from the site's

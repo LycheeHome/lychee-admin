@@ -1,0 +1,69 @@
+<div class="max-w-[1080px] mx-auto w-full flex flex-col gap-8">
+      <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Services</h2>
+        <p class="m-0 text-[0.8rem] text-stone-400 max-w-[25rem]" data-inventory-age>Inventory written 2 minutes ago</p>
+      </div>
+      
+      <ul class="list-none m-0 p-0 flex flex-col">
+      <li class="grid grid-cols-1 sm:grid-cols-[9.5rem_minmax(0,1fr)] gap-x-4 gap-y-1.5 items-start py-4 border-b border-stone-700 last:border-b-0" id="service-notes" data-service="notes">
+        <div class="pt-px" data-row-pill><span class="inline-flex items-center gap-1 shrink-0 font-mono text-[0.6875rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-transparent text-green-300 bg-green-950/60"><span aria-hidden="true">&#9679;</span> running</span></div>
+        <div class="flex flex-col gap-0.5 min-w-0">
+          <p class="font-mono text-base leading-6 text-stone-50 break-words m-0">notes</p>
+          <p class="font-mono text-[0.8rem] leading-relaxed m-0" data-deploy-state><span class="text-red-300"><span aria-hidden="true">&#9679;</span> deploy failed</span></p>
+          <p class="font-mono text-[0.8rem] leading-relaxed text-stone-400 break-words m-0">v1.4.0 · 2 attempts</p>
+          
+          
+          <div class="flex flex-col gap-2 mt-1.5" data-deploy-failed>
+            <p class="text-stone-400 text-[0.8rem] leading-snug m-0 max-w-[25rem]">Deploying <span class="font-mono text-stone-50 break-all">v1.5.0</span> failed at this step:</p>
+            <p class="font-mono text-[0.8rem] leading-relaxed text-stone-400 break-words m-0 text-stone-300" data-failed-step>pull: denied</p>
+            <p class="text-stone-400 text-[0.8rem] leading-snug m-0 max-w-[25rem]">The reconciler retries this tag on every run; its log for the last hour shows each attempt:</p>
+            <div class="relative">
+              <pre id="cmd-reconcile-log-notes" class="font-mono text-[0.72rem] bg-stone-900 border border-stone-700 rounded-md pl-2.5 pr-11 py-2.5 text-stone-50 overflow-x-auto whitespace-nowrap m-0">journalctl -u lychee-reconcile -u lychee-reconcile-app --since &quot;1 hour ago&quot;</pre>
+              <button type="button" class="p-1 rounded-md bg-stone-800 border border-stone-700 text-stone-400 hover:text-stone-50 hover:bg-stone-700 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 absolute top-1/2 -translate-y-1/2 right-1.5" data-copy-target="cmd-reconcile-log-notes" aria-label="Copy journal command">
+      <span data-copy-icon="idle"><svg class="w-[1em] h-[1em] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /></svg></span>
+      <span data-copy-icon="copied" class="hidden"><svg class="w-[1em] h-[1em] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg></span>
+    </button>
+            </div>
+            
+          </div>
+          <p class="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-offer>
+            <span class="font-mono text-[0.8rem] text-rose-300">v1.6.0 available</span>
+            <button type="button" class="font-sans font-semibold text-[0.8rem] bg-transparent text-rose-300 border border-rose-800 rounded-md min-h-8 px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-rose-950 hover:text-rose-200 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:border-stone-700 disabled:hover:bg-transparent disabled:hover:text-stone-500" data-deploy="notes" data-deploy-tag="v1.6.0">Deploy v1.6.0</button>
+          </p>
+          
+          
+        </div>
+      </li>
+      <li class="grid grid-cols-1 sm:grid-cols-[9.5rem_minmax(0,1fr)] gap-x-4 gap-y-1.5 items-start py-4 border-b border-stone-700 last:border-b-0" id="service-bare" data-service="bare">
+        <div class="pt-px" data-row-pill><span class="inline-flex items-center gap-1 shrink-0 font-mono text-[0.6875rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-transparent text-green-300 bg-green-950/60"><span aria-hidden="true">&#9679;</span> running</span></div>
+        <div class="flex flex-col gap-0.5 min-w-0">
+          <p class="font-mono text-base leading-6 text-stone-50 break-words m-0">bare</p>
+          <p class="font-mono text-[0.8rem] leading-relaxed m-0" data-deploy-state><span class="text-red-300"><span aria-hidden="true">&#9679;</span> deploy failed</span></p>
+          <p class="font-mono text-[0.8rem] leading-relaxed text-stone-400 break-words m-0">v1</p>
+          
+          
+          <div class="flex flex-col gap-2 mt-1.5" data-deploy-failed>
+            <p class="text-stone-400 text-[0.8rem] leading-snug m-0 max-w-[25rem]">The last deploy failed.</p>
+            
+            <p class="text-stone-400 text-[0.8rem] leading-snug m-0 max-w-[25rem]">The reconciler's log for the last hour has the latest attempt:</p>
+            <div class="relative">
+              <pre id="cmd-reconcile-log-bare" class="font-mono text-[0.72rem] bg-stone-900 border border-stone-700 rounded-md pl-2.5 pr-11 py-2.5 text-stone-50 overflow-x-auto whitespace-nowrap m-0">journalctl -u lychee-reconcile -u lychee-reconcile-app --since &quot;1 hour ago&quot;</pre>
+              <button type="button" class="p-1 rounded-md bg-stone-800 border border-stone-700 text-stone-400 hover:text-stone-50 hover:bg-stone-700 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 absolute top-1/2 -translate-y-1/2 right-1.5" data-copy-target="cmd-reconcile-log-bare" aria-label="Copy journal command">
+      <span data-copy-icon="idle"><svg class="w-[1em] h-[1em] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /></svg></span>
+      <span data-copy-icon="copied" class="hidden"><svg class="w-[1em] h-[1em] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg></span>
+    </button>
+            </div>
+            
+          </div>
+          
+          
+          
+        </div>
+      </li>
+      </ul>
+    </div>
+    
+    <template data-requested-template><p class="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-requested role="status" tabindex="-1">
+            <span class="font-mono text-[0.8rem] text-stone-50"><span data-requested-tag>TAG</span> requested</span> <span class="text-stone-400">· applies on the next run</span>
+          </p></template>
+  

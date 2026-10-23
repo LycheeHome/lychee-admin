@@ -6,7 +6,8 @@ import bcrypt from "bcrypt";
 import type { Deps } from "../deps";
 import type { ClientAssets } from "../views/clientShell";
 import type { SystemCommands } from "../lib/systemCommands";
-import { RETIRED_SWITCHER, withoutShell } from "../dev/testHelpers";
+import type { ServiceGroup } from "../lib/serviceInventory";
+import { RETIRED_SWITCHER } from "../dev/testHelpers";
 
 const PASSWORD = "test-password";
 process.env.ADMIN_USERNAME = "tester";
@@ -34,7 +35,7 @@ async function serve(
   overrides: Partial<SystemCommands>,
   seed: { opRun?: { delayMs?: number } } = {},
   clientAssets?: ClientAssets | null | (() => ClientAssets | null),
-): Promise<{ base: string; fs: Deps["fs"]; get: (p: string) => Promise<Response>; actions: () => string[]; audit: () => Record<string, unknown>[]; close: () => Promise<void> }> {
+): Promise<{ base: string; fs: Deps["fs"]; get: (p: string) => Promise<Response>; api: (group: ServiceGroup) => Promise<Response>; actions: () => string[]; audit: () => Record<string, unknown>[]; close: () => Promise<void> }> {
   const { createApp } = await import("../app");
   const { createBackup } = await import("../lib/backup");
   const { createLogger } = await import("../lib/logger");
@@ -60,6 +61,7 @@ async function serve(
     base,
     fs: fakes.fs,
     get: (p) => fetch(`${base}${p}`, { headers: { Authorization: AUTH } }),
+    api: (group) => fetch(`${base}/api/services?group=${group}`, { headers: { Authorization: AUTH } }),
     audit: () => {
       const file = process.env.LOG_FILE as string;
       if (!fakes.fs.exists(file)) return [];
@@ -81,12 +83,17 @@ async function serve(
   };
 }
 
-/** The status word of each rendered row, in page order. */
-function pills(html: string): string[] {
-  return [...html.matchAll(/&#9679;<\/span> ([a-z ]+)<\/span>/g)].map((m) => m[1]);
-}
+type BoardPath = "/services" | "/reconciler" | "/infrastructure";
 
-describe("GET /services", () => {
+/*
+ * What a board page shows is rendered by the client now. The tests of a board
+ * page's markup (pills, eyebrows, Prune, the requested line, host-action
+ * state, site links) render GET /api/services through the React Board in
+ * src/client/pages/BoardRoutes.test.tsx; the tests below that only count the
+ * host reads behind that payload ask the JSON directly.
+ */
+
+describe("GET /services: the reads behind the board", () => {
   let current: Awaited<ReturnType<typeof serve>> | undefined;
   after(async () => {
     await current?.close();
@@ -104,87 +111,14 @@ describe("GET /services", () => {
     assert.equal(res.status, 401);
   });
 
-  test("reads states once for every declared unit and finds the timer from the data", async () => {
-    let stateCalls = 0;
-    let requested: string[] = [];
-    const timers: string[] = [];
-    const s = await start(inventory([...RECONCILER, SWEE]), {
-      readUnitStates: (units) => {
-        stateCalls++;
-        requested = units;
-        return Promise.resolve({ "swee.service": { status: "running", since: null } });
-      },
-      readTimerSchedule: (t) => {
-        timers.push(t);
-        return Promise.resolve({ next: new Date(Date.now() + 180_000), last: null });
-      },
-    });
-    const res = await s.get("/services");
-    assert.equal(res.status, 200);
-    const html = await res.text();
-    assert.equal(stateCalls, 1);
-    assert.deepEqual(requested, ["lychee-reconcile.timer", "lychee-reconcile.service", "swee.service"]);
-    assert.deepEqual(timers, ["lychee-reconcile.timer"]);
-    assert.deepEqual(pills(html), ["running"]);
-    // The schedule is shown where the timer's row is: on the reconciler page.
-    assert.match(await (await s.get("/reconciler")).text(), /next run in 3 minutes/);
-  });
-
-  test("a reconciler entry that is not a timer is not mistaken for one", async () => {
-    const timers: string[] = [];
-    const s = await start(inventory([RECONCILER[1], SWEE]), {
-      readTimerSchedule: (t) => {
-        timers.push(t);
-        return Promise.resolve({ next: null, last: null });
-      },
-    });
-    const html = await (await s.get("/reconciler")).text();
-    assert.deepEqual(timers, []);
-    assert.ok(!html.includes("next run"));
-  });
-
   test("a timer in another group is not the reconciler's timer", async () => {
     const timers: string[] = [];
     const s = await start(
       inventory([{ name: "x", unit: "x.timer", group: "service", reconciled: false }]),
       { readTimerSchedule: (t) => (timers.push(t), Promise.resolve({ next: null, last: null })) },
     );
-    await s.get("/services");
+    await s.api("service");
     assert.deepEqual(timers, []);
-  });
-
-  test("a missing inventory yields a page, not an error", async () => {
-    const s = await start(null, {});
-    const res = await s.get("/services");
-    assert.equal(res.status, 200);
-    const html = await res.text();
-    assert.ok(html.includes("inventory-unavailable"));
-    assert.deepEqual(pills(html), []);
-  });
-
-  test("unreadable systemctl degrades every row to unknown", async () => {
-    const s = await start(inventory([...RECONCILER, SWEE]), {
-      readUnitStates: () => Promise.reject(new Error("systemctl not found")),
-    });
-    const statuses: string[] = [];
-    for (const page of ["/services", "/reconciler"]) {
-      const res = await s.get(page);
-      assert.equal(res.status, 200);
-      statuses.push(...pills(await res.text()));
-    }
-    assert.equal(statuses.length, 3);
-    assert.ok(statuses.every((st) => st === "unknown"));
-  });
-
-  test("a failed schedule read leaves liveness intact", async () => {
-    const s = await start(inventory([...RECONCILER, SWEE]), {
-      readUnitStates: () => Promise.resolve({ "swee.service": { status: "running", since: null } }),
-      readTimerSchedule: () => Promise.reject(new Error("boom")),
-    });
-    const res = await s.get("/reconciler");
-    assert.equal(res.status, 200);
-    assert.ok(!(await res.text()).includes("next run"));
-    assert.deepEqual(pills(await (await s.get("/services")).text()), ["running"]);
   });
 
   test("the two reads run concurrently", async () => {
@@ -201,7 +135,7 @@ describe("GET /services", () => {
         return Promise.resolve({ next: null, last: null });
       },
     });
-    const res = await s.get("/services");
+    const res = await s.api("service");
     assert.equal(res.status, 200);
     assert.ok(scheduleStarted);
   });
@@ -209,52 +143,6 @@ describe("GET /services", () => {
   const CONTAINER = {
     name: "palsave-api", kind: "container", container: "palsave-api", group: "service", reconciled: true, version: "0.3.0",
   };
-
-  test("container rows render beside unit rows, and are not asked of systemctl", async () => {
-    let requested: string[] = [];
-    const projects: string[] = [];
-    const s = await start(inventory([SWEE, CONTAINER]), {
-      readUnitStates: (units) => {
-        requested = units;
-        return Promise.resolve({ "swee.service": { status: "running", since: null } });
-      },
-      readResourceStatus: (p) => {
-        projects.push(p);
-        return Promise.resolve("unhealthy");
-      },
-    });
-    const html = await (await s.get("/services")).text();
-    assert.deepEqual(requested, ["swee.service"]);
-    assert.deepEqual(projects, ["palsave-api"]);
-    assert.deepEqual(pills(html), ["running", "unhealthy"]);
-  });
-
-  test("a failed container status read degrades to unknown, not a 500", async () => {
-    const s = await start(inventory([SWEE, CONTAINER]), {
-      readUnitStates: () => Promise.resolve({ "swee.service": { status: "running", since: null } }),
-      readResourceStatus: () => Promise.reject(new Error("docker not found")),
-    });
-    const res = await s.get("/services");
-    assert.equal(res.status, 200);
-    assert.deepEqual(pills(await res.text()), ["running", "unknown"]);
-  });
-
-  test("an unknown container renders neutral, not as a failure", async () => {
-    const s = await start(inventory([CONTAINER]), {
-      readResourceStatus: () => Promise.resolve("unknown"),
-    });
-    const html = await (await s.get("/services")).text();
-    const { TONE_PILL } = await import("../views/shared");
-    assert.ok(html.includes(TONE_PILL.neutral));
-    assert.ok(!html.includes(TONE_PILL.bad));
-  });
-
-  test("an inventory with no kind still renders its units", async () => {
-    const s = await start(inventory([SWEE]), {
-      readUnitStates: () => Promise.resolve({ "swee.service": { status: "running", since: null } }),
-    });
-    assert.deepEqual(pills(await (await s.get("/services")).text()), ["running"]);
-  });
 
   test("container reads run concurrently with each other", async () => {
     const release: Array<() => void> = [];
@@ -270,7 +158,7 @@ describe("GET /services", () => {
           }),
       },
     );
-    const res = await s.get("/services");
+    const res = await s.api("service");
     assert.equal(res.status, 200);
     assert.equal(started, 2);
   });
@@ -288,110 +176,96 @@ describe("the three board pages", () => {
     return current;
   }
 
-  /** The data-service names of the rendered rows, in page order. */
-  const rows = (html: string): string[] => [...html.matchAll(/<li [^>]*data-service="([^"]+)"/g)].map((m) => m[1]);
-  /** The page's eyebrow: the h2 that names its group. */
-  const eyebrow = (html: string): string | undefined => html.match(/<h2 [^>]*>([^<]*)<\/h2>/)?.[1];
   const currentItems = (html: string): string[] =>
     [...html.matchAll(/<a href="([^"]+)"[^>]*aria-current="page"/g)].map((m) => m[1]);
 
-  const PAGES = [
-    { path: "/services", eyebrow: "Services", only: ["lychee-admin", "swee", "palsave-api"], never: ["lychee-reconcile-timer", "caddy"] },
-    { path: "/reconciler", eyebrow: "Reconciler", only: ["lychee-reconcile-timer", "lychee-watch-timer"], never: ["swee", "caddy"] },
-  ];
+  const PAGES: BoardPath[] = ["/services", "/reconciler"];
 
-  for (const page of PAGES) {
-    test(`${page.path} renders only its own group's rows, under its own eyebrow`, async () => {
+  for (const path of PAGES) {
+    test(`${path} marks exactly its own header item current`, async () => {
       const { SEEDED_INVENTORY } = await import("../dev/seed");
-      const s = await start(SEEDED_INVENTORY, {});
-      const res = await s.get(page.path);
-      assert.equal(res.status, 200);
-      const html = await res.text();
-      const names = rows(html);
-      for (const name of page.only) assert.ok(names.includes(name), `${page.path} is missing ${name}`);
-      for (const name of page.never) assert.ok(!names.includes(name), `${page.path} shows ${name}`);
-      assert.equal(eyebrow(html), page.eyebrow);
-      assert.match(html, /Inventory written/);
-      // One group per page, so no group heading beneath the eyebrow.
-      assert.doesNotMatch(html, /<h3[^>]*>(Reconciler|Services|Infrastructure)<\/h3>/);
+      // The real route, with the bundle: the shell's rail marks the page.
+      const s = await start(SEEDED_INVENTORY, {}, {}, { script: "assets/main-abc.js", styles: [] });
+      assert.deepEqual(currentItems(await (await s.get(path)).text()), [path]);
     });
 
-    test(`${page.path} marks exactly its own header item current`, async () => {
-      const { SEEDED_INVENTORY } = await import("../dev/seed");
-      const s = await start(SEEDED_INVENTORY, {});
-      assert.deepEqual(currentItems(await (await s.get(page.path)).text()), [page.path]);
-    });
-
-    test(`${page.path} explains a missing inventory instead of erroring`, async () => {
+    test(`${path} requires authentication`, async () => {
       const s = await start(null, {});
-      const res = await s.get(page.path);
-      assert.equal(res.status, 200);
-      const html = await res.text();
-      assert.ok(html.includes('id="inventory-unavailable"'));
-      assert.equal(eyebrow(html), page.eyebrow);
-    });
-
-    test(`${page.path} requires authentication`, async () => {
-      const s = await start(null, {});
-      assert.equal((await fetch(`${s.base}${page.path}`)).status, 401);
+      assert.equal((await fetch(`${s.base}${path}`)).status, 401);
     });
   }
 
-  test("a readable inventory with nothing in a page's group says so in one sentence", async () => {
-    const s = await start(inventory([SWEE]), {});
-    for (const path of ["/reconciler"]) {
-      const html = await (await s.get(path)).text();
-      assert.ok(html.includes('id="group-empty"'), path);
-      assert.ok(!html.includes('id="inventory-unavailable"'), path);
-      assert.deepEqual(rows(html), [], path);
-    }
-    const services = await (await s.get("/services")).text();
-    assert.ok(!services.includes('id="group-empty"'));
-    assert.deepEqual(rows(services), ["swee"]);
-  });
-
-  test("every page reads the whole board once: one systemctl call for every declared unit", async () => {
+  test("every page reads the whole board: one systemctl call for every declared unit, shared within the cache window", async () => {
     const calls: string[][] = [];
     const s = await start(inventory([...RECONCILER, SWEE]), {
       readUnitStates: (units) => (calls.push(units), Promise.resolve({})),
     });
-    for (const path of ["/services", "/reconciler"]) await s.get(path);
-    assert.equal(calls.length, 2);
+    for (const group of ["service", "reconciler"] as const) await s.api(group);
+    assert.equal(calls.length, 1);
     for (const units of calls) assert.deepEqual(units, ["lychee-reconcile.timer", "lychee-reconcile.service", "swee.service"]);
   });
 });
 
-describe("GET /infrastructure: the React mount", () => {
+describe("GET /services, /reconciler and /infrastructure: the React mount", () => {
   let current: Awaited<ReturnType<typeof serve>> | undefined;
   after(async () => {
     await current?.close();
   });
   const ASSETS: ClientAssets = { script: "assets/main-abc.js", styles: ["assets/main-def.css"] };
+  const MOUNTS = [
+    { path: "/services", page: "services", title: "Services" },
+    { path: "/reconciler", page: "reconciler", title: "Reconciler" },
+    { path: "/infrastructure", page: "infrastructure", title: "Infrastructure" },
+  ] as const;
 
-  test("serves the shell with the mount point and the bundle", async () => {
-    current = await serve(null, {}, {}, ASSETS);
-    const res = await current.get("/infrastructure");
-    assert.equal(res.status, 200);
-    const html = await res.text();
-    assert.ok(html.includes('id="app-root" data-page="infrastructure"'));
-    assert.ok(html.includes('<script type="module" src="/client/assets/main-abc.js">'));
-    assert.match(html, /<a href="\/infrastructure"[^>]*aria-current="page"/);
-    // layout() is the bundle's only emitter, so each tag appears once.
-    assert.equal(html.split("/client/assets/main-abc.js").length - 1, 1);
-    assert.equal(html.split("/client/assets/main-def.css").length - 1, 1);
-    await current.close();
-  });
+  for (const { path, page, title } of MOUNTS) {
+    test(`${path} serves the shell with its mount point, its title, its rail mark and the bundle`, async () => {
+      await current?.close();
+      current = await serve(null, {}, {}, ASSETS);
+      const res = await current.get(path);
+      assert.equal(res.status, 200);
+      const html = await res.text();
+      assert.ok(html.includes(`<div id="app-root" data-page="${page}"></div>`), path);
+      assert.ok(html.includes(`<title>${title}</title>`), path);
+      assert.ok(html.includes('<script type="module" src="/client/assets/main-abc.js">'));
+      const marked = [...html.matchAll(/<a\b[^>]*\baria-current="page"[^>]*>/g)].map((m) => m[0].match(/href="([^"]+)"/)?.[1]);
+      assert.deepEqual(marked, [path]);
+      // The server renders no board: the client reads it from /api/services.
+      assert.ok(!html.includes("data-service="), path);
+      // The one root mounts here, ahead of the bundle.
+      assert.ok(html.includes('<div id="react-root"></div>'), path);
+      assert.ok(html.indexOf('<div id="react-root"></div>') < html.indexOf('<script type="module"'), path);
+      // layout() is the bundle's only emitter, so each tag appears once.
+      assert.equal(html.split("/client/assets/main-abc.js").length - 1, 1);
+      assert.equal(html.split("/client/assets/main-def.css").length - 1, 1);
+    });
 
-  test("the server-rendered board pages load the bundle too, for the rail island", async () => {
+    test(`${path} answers 500 when the bundle is missing`, async () => {
+      await current?.close();
+      current = await serve(null, {}, {}, null);
+      const res = await current.get(path);
+      assert.equal(res.status, 500);
+      assert.equal(await res.text(), "client bundle missing; run npm run build");
+    });
+
+    test(`${path} requires authentication`, async () => {
+      await current?.close();
+      current = await serve(null, {}, {}, ASSETS);
+      assert.equal((await fetch(`${current.base}${path}`)).status, 401);
+    });
+  }
+
+  test("a server-rendered page carries the root's mount point too, for the rail", async () => {
+    await current?.close();
     current = await serve(null, {}, {}, ASSETS);
-    for (const path of ["/services", "/reconciler"]) {
-      const html = await (await current.get(path)).text();
-      assert.equal(html.split('<script type="module" src="/client/assets/main-abc.js"></script>').length - 1, 1, path);
-    }
-    await current.close();
+    const html = await (await current.get("/sites/new")).text();
+    assert.equal(html.split('<div id="react-root"></div>').length - 1, 1);
+    assert.ok(!html.includes('id="app-root"'));
+    assert.equal(html.split('<script type="module" src="/client/assets/main-abc.js"></script>').length - 1, 1);
   });
 
   test("each board page marks its own rail link, and a missing inventory says so in the rail", async () => {
+    await current?.close();
     current = await serve(null, {}, {}, ASSETS);
     for (const [path, href] of [["/services", "/services"], ["/reconciler", "/reconciler"], ["/infrastructure", "/infrastructure"]]) {
       const html = await (await current.get(path)).text();
@@ -401,20 +275,6 @@ describe("GET /infrastructure: the React mount", () => {
       assert.doesNotMatch(html, /id="site-header"/, path);
       assert.doesNotMatch(html, RETIRED_SWITCHER, path);
     }
-    await current.close();
-  });
-
-  test("answers 500 when the bundle is missing", async () => {
-    current = await serve(null, {}, {}, null);
-    const res = await current.get("/infrastructure");
-    assert.equal(res.status, 500);
-    assert.equal(await res.text(), "client bundle missing; run npm run build");
-    await current.close();
-  });
-
-  test("requires authentication", async () => {
-    current = await serve(null, {}, {}, ASSETS);
-    assert.equal((await fetch(`${current.base}/infrastructure`)).status, 401);
     await current.close();
   });
 
@@ -435,40 +295,6 @@ describe("GET /infrastructure: the React mount", () => {
     assets = { script: "assets/main-new.js", styles: [] };
     assert.ok((await (await current.get("/infrastructure")).text()).includes('src="/client/assets/main-new.js"'));
     await current.close();
-  });
-});
-
-describe("GET /services: Prune on retired site rows", () => {
-  let current: Awaited<ReturnType<typeof serve>> | undefined;
-  after(async () => {
-    await current?.close();
-  });
-  const site = (name: string) => ({ name, kind: "container", container: name, group: "service", reconciled: true, result: "deployed" });
-  const PALSAVE = { name: "palsave-api", unit: "palsave-api.service", group: "service", reconciled: true, result: "deployed" };
-  const DECLS = [
-    { name: "gone-lychee-land", port: 3400, state: "absent", image: "ghcr.io/lycheehome/gone" },
-    { name: "app-lychee-land", port: 3200, state: "running", image: "ghcr.io/lycheehome/app:0.2.0" },
-    { name: "palsave-api", port: 8788, state: "absent", image: "ghcr.io/lycheehome/palsave-api" },
-  ];
-  async function board(readDeclarations: SystemCommands["readDeclarations"]): Promise<string> {
-    await current?.close();
-    current = await serve(inventory([site("gone-lychee-land"), site("app-lychee-land"), PALSAVE]), { readDeclarations });
-    const res = await current.get("/services");
-    assert.equal(res.status, 200);
-    return res.text();
-  }
-  const pruned = (html: string) => [...html.matchAll(/data-prune="([^"]+)"/g)].map((m) => m[1]);
-
-  test("only a site whose declaration is absent gets the control", async () => {
-    assert.deepEqual(pruned(await board(() => Promise.resolve(DECLS))), ["gone-lychee-land"]);
-  });
-
-  test("an unreadable clone shows no control anywhere", async () => {
-    assert.deepEqual(pruned(await board(() => Promise.resolve(null))), []);
-  });
-
-  test("a declarations read that throws still renders the board, without the control", async () => {
-    assert.deepEqual(pruned(await board(() => Promise.reject(new Error("boom")))), []);
   });
 });
 
@@ -541,38 +367,6 @@ describe("POST /services/:name/deploy", () => {
     const overrides = { writeDeclarationTag: () => (writes++, Promise.resolve({ ok: true as const })) };
     assert.equal((await post([{ ...NOTES, target: "v1.5.0" }], overrides)).status, 409);
     assert.equal(writes, 0);
-  });
-});
-
-describe("GET /services — a pending Deploy", () => {
-  let current: Awaited<ReturnType<typeof serve>> | undefined;
-  after(async () => {
-    await current?.close();
-  });
-  const ROW = { name: "notes", kind: "container", container: "notes", group: "service", reconciled: true,
-    version: "v1.4.0", target: "v1.4.0", available: "v1.5.0" };
-  const ahead = [{ name: "notes", port: 3000, state: "running", image: "ghcr.io/lycheehome/notes:v1.5.0" }];
-
-  async function rowHtml(overrides: Partial<SystemCommands>): Promise<string> {
-    await current?.close();
-    current = await serve(inventory([ROW]), overrides);
-    const res = await current.get("/services");
-    assert.equal(res.status, 200);
-    return (await res.text()).replace(/<template[\s\S]*?<\/template>/g, "");
-  }
-
-  test("a declaration ahead of the inventory shows the requested line, not the offer", async () => {
-    const html = await rowHtml({ readDeclarations: () => Promise.resolve(ahead) });
-    assert.match(html, /data-requested/);
-    assert.doesNotMatch(html, /data-deploy="notes"/);
-  });
-
-  test("an unreadable clone renders the offer", async () => {
-    for (const readDeclarations of [() => Promise.resolve(null), () => Promise.reject(new Error("x"))]) {
-      const html = await rowHtml({ readDeclarations });
-      assert.doesNotMatch(html, /data-requested/);
-      assert.match(html, /data-deploy="notes"/);
-    }
   });
 });
 
@@ -894,113 +688,6 @@ describe("host actions on the board", () => {
   });
 });
 
-describe("GET /services: host action state", () => {
-  const PAL = "palworld-palchuds";
-  const GAME = { name: PAL, unit: `${PAL}.service`, group: "service", reconciled: false, actions: ["start", "stop", "restart", "update"] };
-  let current: Awaited<ReturnType<typeof serve>> | undefined;
-  after(async () => {
-    await current?.close();
-  });
-
-  test("the board reads every action's state in one call and shows a running one", async () => {
-    const reads: string[][] = [];
-    current = await serve(inventory([GAME]), {
-      readOpUnits: (names) => {
-        reads.push(names);
-        return Promise.resolve({
-          [`lychee-op-${PAL}-update.service`]: { activeState: "activating", result: "success", startedAt: "Tue 2026-10-13 10:00:00 UTC", finishedAt: null },
-        });
-      },
-    });
-    const html = await (await current.get("/services")).text();
-    assert.equal(reads.length, 1);
-    assert.equal(reads[0].length, 4);
-    assert.ok(html.includes('data-running="update"'));
-    assert.ok(html.includes(`an action is already running on ${PAL}`));
-  });
-
-  test("an unreadable systemd still renders the board and its buttons, without a last run", async () => {
-    await current?.close();
-    current = await serve(inventory([GAME]), { readOpUnits: () => Promise.reject(new Error("systemctl broke")) });
-    const res = await current.get("/services");
-    assert.equal(res.status, 200);
-    const html = await res.text();
-    assert.ok(html.includes('data-host-action="restart"'));
-    assert.ok(!html.includes("data-running="));
-    assert.ok(!html.includes("data-action-log"));
-  });
-
-  test("the last-run line shows a succeeded run whose unit systemd has unloaded", async () => {
-    await current?.close();
-    // A garbage-collected oneshot: `systemctl show` loads it afresh, no times.
-    current = await serve(inventory([GAME]), {
-      readOpUnits: (names) =>
-        Promise.resolve(Object.fromEntries(names.map((n) => [n, { activeState: "inactive", result: "success", startedAt: null, finishedAt: null }]))),
-    });
-    current.fs.writeFile(
-      `/var/lib/lychee-op/${PAL}-restart.result.json`,
-      JSON.stringify({ unit: PAL, action: "restart", result: "success", exit_status: 0, started_at: "2026-10-14T15:14:58Z", finished_at: "2026-10-14T15:15:03Z" }),
-    );
-    current.fs.writeFile(`/var/lib/lychee-op/${PAL}-restart.log`, "restarted\n");
-    const html = await (await current.get("/services")).text();
-    assert.match(html, /restart <span class="[^"]*">succeeded<\/span>/);
-    assert.ok(html.includes("took 5s"), "the duration comes from the file's times");
-    assert.ok(html.includes("data-action-log"));
-    assert.ok(!html.includes("data-running="));
-  });
-
-  test("dev fakes, end to end: start, running, then succeeded from the file after the unit is unloaded", async () => {
-    await current?.close();
-    current = await serve(inventory([GAME]), {}, { opRun: { delayMs: 30 } });
-    const s = current;
-    const started = await fetch(`${s.base}/services/${PAL}/actions/restart`, {
-      method: "POST",
-      headers: { Authorization: AUTH, Accept: "application/json" },
-      redirect: "manual",
-    });
-    assert.equal(started.status, 202);
-    const running = (await (await s.get(`/services/${PAL}/actions/restart/state`)).json()) as { state: { state: string } };
-    assert.equal(running.state.state, "running");
-    assert.ok((await (await s.get("/services")).text()).includes('data-running="restart"'));
-    await new Promise((r) => setTimeout(r, 90));
-    const done = (await (await s.get(`/services/${PAL}/actions/restart/state`)).json()) as {
-      state: { state: string; startedAt?: string; finishedAt?: string };
-    };
-    assert.equal(done.state.state, "succeeded");
-    assert.ok(done.state.startedAt && done.state.finishedAt);
-    assert.ok(s.fs.exists(`/var/lib/lychee-op/${PAL}-restart.result.json`));
-    assert.match(await (await s.get("/services")).text(), /restart <span class="[^"]*">succeeded<\/span>/);
-  });
-});
-
-describe("GET /services: links to managed sites", () => {
-  let current: Awaited<ReturnType<typeof serve>> | undefined;
-  after(async () => {
-    await current?.close();
-  });
-  const APP = { name: "app-lychee-land", kind: "container", container: "app-lychee-land", group: "service", reconciled: true, result: "deployed" };
-
-  test("the board links a managed site's row", async () => {
-    current = await serve(inventory([APP]), {});
-    current.fs.writeFile(
-      "/etc/caddy/Caddyfile",
-      "{\n  auto_https off\n}\n\nhttp://app.lychee.land {\n  reverse_proxy localhost:3200\n}\n",
-    );
-    const res = await current.get("/services");
-    assert.equal(res.status, 200);
-    // Without the shell: the rail lists app.lychee.land from the same Caddyfile.
-    assert.ok(withoutShell(await res.text()).includes('href="/sites/app.lychee.land"'));
-  });
-
-  test("an unreadable Caddyfile renders the board without site links", async () => {
-    await current?.close();
-    current = await serve(inventory([APP]), {});
-    const res = await current.get("/services");
-    assert.equal(res.status, 200);
-    assert.ok(!withoutShell(await res.text()).includes('href="/sites/'));
-  });
-});
-
 describe("GET /api/services", () => {
   let current: Awaited<ReturnType<typeof serve>> | undefined;
   after(async () => {
@@ -1074,5 +761,178 @@ describe("GET /api/services boardEmpty", () => {
     current = await serve(inventory([]), {});
     const body = (await (await current.get("/api/services?group=service")).json()) as { boardEmpty: boolean };
     assert.equal(body.boardEmpty, true);
+  });
+});
+
+describe("the shared board read", () => {
+  let current: Awaited<ReturnType<typeof serve>> | undefined;
+  after(async () => {
+    await current?.close();
+  });
+  const NOTES = { name: "notes", kind: "container", container: "notes", group: "service", reconciled: true,
+    version: "v1.4.0", target: "v1.4.0", available: "v1.5.0" };
+
+  async function start(...args: Parameters<typeof serve>): Promise<Awaited<ReturnType<typeof serve>>> {
+    await current?.close();
+    current = await serve(...args);
+    return current;
+  }
+
+  test("one host read serves both endpoints within 5s", async () => {
+    let reads = 0;
+    const s = await start(inventory([SWEE]), {
+      readUnitStates: () => (reads++, Promise.resolve({})),
+    });
+    s.fs.writeFile("/etc/caddy/Caddyfile", "http://app.lychee.land {\n  reverse_proxy localhost:3200\n}\n");
+    assert.equal((await s.get("/api/health")).status, 200);
+    assert.equal((await s.get("/api/services?group=service")).status, 200);
+    assert.equal(reads, 1);
+  });
+
+  test("concurrent callers share one in-flight read", async () => {
+    let reads = 0;
+    const s = await start(inventory([SWEE]), {
+      readUnitStates: () => (reads++, new Promise((r) => setTimeout(() => r({}), 50))),
+    });
+    s.fs.writeFile("/etc/caddy/Caddyfile", "http://app.lychee.land {\n  reverse_proxy localhost:3200\n}\n");
+    await Promise.all([s.get("/api/health"), s.get("/api/services?group=service"), s.get("/api/services?group=reconciler")]);
+    assert.equal(reads, 1);
+  });
+
+  test("a read after 5s refreshes", async () => {
+    const { loadBoardPage } = await import("./services");
+    const { createBackup } = await import("../lib/backup");
+    const { createLogger } = await import("../lib/logger");
+    const { createFakes } = await import("../dev/fakes");
+    let reads = 0;
+    const fakes = createFakes({ readUnitStates: () => (reads++, Promise.resolve({})) });
+    fakes.fs.writeFile(INVENTORY_PATH, inventory([SWEE]));
+    const deps: Deps = { commands: fakes.commands, fs: fakes.fs, backup: createBackup(fakes.fs), logger: createLogger(fakes.fs) };
+    let t = 1_000_000;
+    const opts = { now: () => t };
+    await loadBoardPage(deps, opts);
+    t += 4_999;
+    await loadBoardPage(deps, opts);
+    assert.equal(reads, 1);
+    t += 2;
+    await loadBoardPage(deps, opts);
+    assert.equal(reads, 2);
+  });
+
+  test("a write clears the cache", async () => {
+    let reads = 0;
+    let declared = "ghcr.io/lycheehome/notes:v1.4.0";
+    const s = await start(inventory([NOTES]), {
+      readUnitStates: () => (reads++, Promise.resolve({})),
+      readDeclarations: () => Promise.resolve([{ name: "notes", port: 3000, state: "running", image: declared }]),
+      writeDeclarationTag: (_n, tag) => {
+        declared = `ghcr.io/lycheehome/notes:${tag}`;
+        return Promise.resolve({ ok: true });
+      },
+    });
+    const first = (await (await s.get("/api/services?group=service")).json()) as { requested: Record<string, string> };
+    assert.deepEqual(first.requested, {});
+    assert.equal(reads, 1);
+    const res = await fetch(`${s.base}/services/notes/deploy`, { method: "POST", headers: { Authorization: AUTH } });
+    assert.equal(res.status, 200);
+    const second = (await (await s.get("/api/services?group=service")).json()) as { requested: Record<string, string> };
+    assert.equal(reads, 2);
+    assert.deepEqual(second.requested, { notes: "v1.5.0" });
+  });
+
+  test("prune and a host action clear the cache too", async () => {
+    let reads = 0;
+    const gone = { name: "gone-lychee-land", kind: "container", container: "gone-lychee-land", group: "service", reconciled: true, result: "deployed" };
+    const s = await start(inventory([gone, { name: "palworld-palchuds", kind: "unit", unit: "palworld-palchuds.service", group: "service", reconciled: false, actions: ["start"] }]), {
+      readUnitStates: () => (reads++, Promise.resolve({})),
+      readDeclarations: () => Promise.resolve([{ name: "gone-lychee-land", port: 3400, state: "absent", image: "ghcr.io/lycheehome/gone" }]),
+      pruneSiteDeclaration: () => Promise.resolve({ ok: true }),
+    });
+    await s.get("/api/services?group=service");
+    await fetch(`${s.base}/resources/gone-lychee-land/prune`, { method: "POST", headers: { Authorization: AUTH } });
+    await s.get("/api/services?group=service");
+    assert.equal(reads, 2);
+    await fetch(`${s.base}/services/palworld-palchuds/actions/start`, { method: "POST", headers: { Authorization: AUTH, Accept: "application/json" } });
+    await s.get("/api/services?group=service");
+    assert.equal(reads, 3);
+  });
+
+  test("the payload carries prunable, managed, domain, requested and lastRuns", async () => {
+    const gone = { name: "gone-lychee-land", kind: "container", container: "gone-lychee-land", group: "service", reconciled: true, result: "deployed" };
+    const pal = { name: "palworld-palchuds", kind: "unit", unit: "palworld-palchuds.service", group: "service", reconciled: false, actions: ["start", "stop"] };
+    const s = await start(inventory([gone, NOTES, pal]), {
+      readDeclarations: () =>
+        Promise.resolve([
+          { name: "gone-lychee-land", port: 3400, state: "absent", image: "ghcr.io/lycheehome/gone" },
+          { name: "notes", port: 3000, state: "running", image: "ghcr.io/lycheehome/notes:v1.5.0" },
+        ]),
+      readOpUnits: (names) =>
+        Promise.resolve(Object.fromEntries(names.map((n) => [n, { activeState: "inactive", result: "success", startedAt: null, finishedAt: null }]))),
+    });
+    s.fs.writeFile(
+      "/var/lib/lychee-op/palworld-palchuds-stop.result.json",
+      JSON.stringify({ unit: "palworld-palchuds", action: "stop", result: "success", exit_status: 0, started_at: "2026-10-14T15:14:58Z", finished_at: "2026-10-14T15:15:03Z" }),
+    );
+    const { config } = await import("../config");
+    s.fs.writeFile(config.caddyfilePath, "http://blog.lychee.land {\n\troot * /var/www/blog.lychee.land\n\tfile_server\n}\n");
+    const body = (await (await s.get("/api/services?group=service")).json()) as {
+      prunable: string[]; managed: string[]; domain: string; requested: Record<string, string>; lastRuns: Record<string, { action: string; state: string }>;
+    };
+    assert.deepEqual(body.prunable, ["gone-lychee-land"]);
+    assert.deepEqual(body.managed, ["blog.lychee.land"]);
+    // The client maps a row's name to a managed hostname through it.
+    assert.equal(body.domain, config.domain);
+    assert.deepEqual(body.requested, { notes: "v1.5.0" });
+    assert.equal(body.lastRuns["palworld-palchuds"].action, "stop");
+    assert.equal(body.lastRuns["palworld-palchuds"].state, "succeeded");
+  });
+
+  test("the site page's writes clear the cache too: add, attach, repository, detach, delete, delete-files", async () => {
+    let reads = 0;
+    const s = await start(inventory([SWEE]), { readUnitStates: () => (reads++, Promise.resolve({})) });
+    const { config } = await import("../config");
+    s.fs.writeFile(config.caddyfilePath, "http://blog.lychee.land {\n\troot * /var/www/blog.lychee.land\n\tfile_server\n}\n");
+    s.fs.writeFile(
+      config.tunnelConfigPath,
+      "tunnel: 11111111-2222-3333-4444-555555555555\ningress:\n  - hostname: blog.lychee.land\n    service: http://localhost:80\n  - service: http_status:404\n",
+    );
+    type Board = { managed: string[]; prunable: string[] };
+    const board = async () => (await (await s.get("/api/services?group=service")).json()) as Board;
+    const post = (p: string, fields: Record<string, string> = {}) =>
+      fetch(`${s.base}${p}`, {
+        method: "POST",
+        headers: { Authorization: AUTH, "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(fields).toString(),
+      });
+
+    assert.deepEqual((await board()).managed, ["blog.lychee.land"]);
+    assert.equal(reads, 1);
+
+    // Add: the new site is linked at once.
+    assert.equal((await post("/sites", { hostname: "test.lychee.land", type: "reverse-proxy", port: "3000", framework: "nextjs" })).status, 200);
+    assert.deepEqual((await board()).managed.sort(), ["blog.lychee.land", "test.lychee.land"]);
+    assert.equal(reads, 2, "add: a fresh read");
+
+    // Attach: a tagless running declaration changes nothing the board shows, but the read is fresh.
+    assert.equal((await post("/sites/test.lychee.land/attach", { repo: "test-site" })).status, 200);
+    await board();
+    assert.equal(reads, 3, "attach: a fresh read");
+
+    assert.equal((await post("/sites/test.lychee.land/repository", { repo: "test-site-2" })).status, 200);
+    await board();
+    assert.equal(reads, 4, "repository: a fresh read");
+
+    // Remove: the Caddy block goes, then the declaration is retired.
+    assert.equal((await post("/sites/test.lychee.land/delete")).status, 200);
+    assert.deepEqual((await board()).managed, ["blog.lychee.land"], "delete: the removed site is no longer linked");
+    assert.equal(reads, 5, "delete: a fresh read");
+
+    assert.equal((await post("/sites/test.lychee.land/detach")).status, 200);
+    assert.deepEqual((await board()).prunable, ["test-lychee-land"], "detach: the retired declaration is prunable");
+    assert.equal(reads, 6, "detach: a fresh read");
+
+    assert.equal((await post("/sites/blog.lychee.land/delete-files")).status, 200);
+    await board();
+    assert.equal(reads, 7, "delete-files: a fresh read");
   });
 });

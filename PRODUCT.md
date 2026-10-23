@@ -157,9 +157,12 @@ claim.
   rejected on conflict with another site, with a port claimed by a declaration
   in `lychee-resources` (in any state, retired included), or with a reserved
   port (the app's own, and Caddy's admin API on 2019).
-- **Server-rendered HTML plus vanilla JS, deliberately** — Express templates
-  and Tailwind via its CLI, no frontend framework, no client-side routing.
-  This is a single-purpose internal tool and that choice is durable.
+- **Server-rendered HTML plus vanilla JS, except the services board** — Express
+  templates and Tailwind via its CLI for every page but the three board pages,
+  which React renders, with client-side routing between them and a board that
+  re-reads itself (every 15s, every 3s while a deploy or host action is in
+  progress) instead of reloading. This is a single-purpose internal tool; the
+  rest of it moves to React only page by page, with output parity.
 - **Served over plain HTTP on the LAN**, so `navigator.clipboard` is
   unavailable. Any copy affordance needs a select-the-text fallback.
 - **Single user, basic auth, bcrypt hash from the environment.** No roles, no

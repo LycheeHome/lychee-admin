@@ -1,0 +1,31 @@
+<div class="max-w-[1080px] mx-auto w-full flex flex-col gap-8">
+      <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 class="font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0">Reconciler</h2>
+        <p class="m-0 text-[0.8rem] text-stone-400 max-w-[25rem]" data-inventory-age>Inventory written 2 minutes ago</p>
+      </div>
+      
+      <ul class="list-none m-0 p-0 flex flex-col">
+      <li class="grid grid-cols-1 sm:grid-cols-[9.5rem_minmax(0,1fr)] gap-x-4 gap-y-1.5 items-start py-4 border-b border-stone-700 last:border-b-0" id="service-notes" data-service="notes">
+        <div class="pt-px" data-row-pill><span class="inline-flex items-center gap-1 shrink-0 font-mono text-[0.6875rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-transparent text-green-300 bg-green-950/60"><span aria-hidden="true">&#9679;</span> running</span></div>
+        <div class="flex flex-col gap-0.5 min-w-0">
+          <p class="font-mono text-base leading-6 text-stone-50 break-words m-0">notes</p>
+          <p class="font-mono text-[0.8rem] leading-relaxed m-0" data-deploy-state><span class="text-red-300"><span aria-hidden="true">&#9679;</span> deploy blocked</span></p>
+          <p class="font-mono text-[0.8rem] leading-relaxed text-stone-400 break-words m-0">v1.4.0</p>
+          
+          <p class="font-mono text-[0.8rem] leading-relaxed text-stone-400 break-words m-0 text-stone-300" data-gate>job test concluded: failure</p>
+          
+          <p class="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-offer>
+            <span class="font-mono text-[0.8rem] text-rose-300">v1.6.0 available</span>
+            <button type="button" class="font-sans font-semibold text-[0.8rem] bg-transparent text-rose-300 border border-rose-800 rounded-md min-h-8 px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-rose-950 hover:text-rose-200 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:border-stone-700 disabled:hover:bg-transparent disabled:hover:text-stone-500" data-deploy="notes" data-deploy-tag="v1.6.0">Deploy v1.6.0</button>
+          </p>
+          
+          
+        </div>
+      </li>
+      </ul>
+    </div>
+    
+    <template data-requested-template><p class="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-requested role="status" tabindex="-1">
+            <span class="font-mono text-[0.8rem] text-stone-50"><span data-requested-tag>TAG</span> requested</span> <span class="text-stone-400">· applies on the next run</span>
+          </p></template>
+  

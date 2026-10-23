@@ -27,6 +27,7 @@ import {
   type SiteResourceView,
 } from "../views/html";
 import { loadShell } from "./loadShell";
+import { clearBoardCache } from "./services";
 import { hostProblems, hostProblemUnits, undeployedStatus, type SiteStatus } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
 import type { Site } from "../lib/caddyfile";
@@ -453,6 +454,7 @@ export function createSitesRouter(deps: Deps): Router {
 
       await report.run("cloudflared", () => deps.commands.restartCloudflared());
 
+      clearBoardCache();
       logAction({
         action: "add-site",
         hostname,
@@ -476,6 +478,8 @@ export function createSitesRouter(deps: Deps): Router {
       // for the same rejected input.
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : error instanceof Error ? error.message : String(error);
       logAction({ action: "add-site-failed", hostname, detail: message });
+      // A step may have written before the failure, and a rollback writes again.
+      clearBoardCache();
 
       // Only roll back if Caddy never actually reloaded with the edited
       // config — once it has, the live server already matches the edited
@@ -592,6 +596,7 @@ export function createSitesRouter(deps: Deps): Router {
 
       // Never throws by contract; the catch below is for the contract failing.
       const result = await deps.commands.createSiteDeclaration(name, repo.repo, port);
+      clearBoardCache();
       if (!result.ok) {
         logAction({ action: "attach-site-failed", hostname, detail: `${name} ${repo.repo}: ${result.reason}` });
         res.status(502).json({ ok: false, reason: result.reason });
@@ -637,6 +642,7 @@ export function createSitesRouter(deps: Deps): Router {
 
       // Never throws by contract; the catch below is for the contract failing.
       const result = await deps.commands.changeSiteRepository(name, repo.repo);
+      clearBoardCache();
       if (!result.ok) {
         logAction({ action: "change-repository-failed", hostname, detail: `${name} ${repo.repo}: ${result.reason}` });
         res.status(result.code === "tagged" ? 409 : 502).json({ ok: false, reason: result.reason });
@@ -688,6 +694,7 @@ export function createSitesRouter(deps: Deps): Router {
       }
       // Never throws by contract; the catch below is for the contract failing.
       const result = await deps.commands.setDeclarationState(name, "absent");
+      clearBoardCache();
       if (!result.ok) {
         logAction({ action: "detach-site-failed", hostname, detail: `${name}: ${result.reason}` });
         res.status(502).json({ ok: false, reason: result.reason });
@@ -749,6 +756,7 @@ export function createSitesRouter(deps: Deps): Router {
 
       await report.run("cloudflared", () => deps.commands.restartCloudflared());
 
+      clearBoardCache();
       logAction({ action: "remove-site", hostname });
 
       // Site file deletion is a separate, explicit request — never triggered
@@ -764,6 +772,8 @@ export function createSitesRouter(deps: Deps): Router {
     } catch (error) {
       const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
       logAction({ action: "remove-site-failed", hostname, detail: message });
+      // A step may have written before the failure, and a rollback writes again.
+      clearBoardCache();
 
       // Only roll back if Caddy never actually reloaded with the edited
       // config — once it has, the live server already matches the edited
@@ -805,11 +815,13 @@ export function createSitesRouter(deps: Deps): Router {
 
     try {
       deps.fs.rmRecursive(sitePath);
+      clearBoardCache();
       logAction({ action: "delete-site-files", hostname, detail: sitePath });
       res.json({ deleted: true });
     } catch (error) {
       const message = String(error);
       logAction({ action: "delete-site-files-failed", hostname, detail: message });
+      clearBoardCache();
       res.status(500).json({ error: message });
     }
   });

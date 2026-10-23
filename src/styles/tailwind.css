@@ -14,11 +14,16 @@
  * `public/` is NOT optional — several classes exist only there (the flash
  * banner's tone classes, the step-mark colours), and dropping it would
  * remove them from the bundle with nothing failing at build or test time.
+ *
+ * The frozen board fixtures are excluded: they are test data, a copy of what
+ * the retired server board rendered, and once the live board moves on they
+ * would keep its old classes in the bundle.
  */
 @import "tailwindcss" source(none);
 
 @source "../../src";
 @source "../../public";
+@source not "../../src/dev/fixtures";
 
 @theme {
   --font-display: "Poetsen One", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;

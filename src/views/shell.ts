@@ -41,10 +41,11 @@ export interface LayoutOptions {
 }
 
 /**
- * The client bundle's tags, on every page whose bundle is built: the island
- * takes the rail over everywhere, not only on migrated pages. This is the one
- * place they are emitted. Without a bundle the server rail still works as
- * plain links.
+ * The client bundle's tags, on every page whose bundle is built: the client's
+ * one React root (mounted on the empty `#react-root` layout() emits on every
+ * page) takes the rail over everywhere, through a portal, not only on
+ * migrated pages. This is the one place they are emitted. Without a bundle
+ * the server rail still works as plain links.
  */
 function bundleHead(assets: ClientAssets | null): string {
   if (!assets) return "";
@@ -156,8 +157,8 @@ export function layout(title: string, body: string, opts: LayoutOptions): string
     ${renderPageNotice(opts.banner)}
     ${body}
   </main>
-  </div>${opts.bodyEnd ? `\n  ${opts.bodyEnd}` : ""}${bundleScript(opts.shell.assets)}
-  <script src="/actionPoll.js"></script>
+  </div>${opts.bodyEnd ? `\n  ${opts.bodyEnd}` : ""}
+  <div id="react-root"></div>${bundleScript(opts.shell.assets)}
   <script src="/app.js"></script>
 </body>
 </html>`;

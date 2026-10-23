@@ -2,7 +2,8 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import { RETIRED_SWITCHER, testShell, withoutShell } from "../dev/testHelpers";
-import { renderSiteList, renderSiteDetail, renderAddSite, renderSiteNotFound, renderServicesPage } from "./html";
+import { renderSiteList, renderSiteDetail, renderAddSite, renderSiteNotFound } from "./html";
+import { renderClientPage } from "./clientShell";
 import type { ShellData } from "./shell";
 
 const SITES: Site[] = [
@@ -27,11 +28,15 @@ const PATHS = {
 
 const list = (shell: ShellData = testShell({ current: { page: "sites" } })) =>
   renderSiteList(SITES, {}, "lychee.land", undefined, undefined, [], shell);
+// A board page as its route serves it: the shell around the client's mount
+// point (the board itself is the client's; see BoardRoutes.test.tsx).
+const BOARD_TITLES = {
+  service: ["Services", "services"],
+  reconciler: ["Reconciler", "reconciler"],
+  infrastructure: ["Infrastructure", "infrastructure"],
+} as const;
 const board = (group: "service" | "reconciler" | "infrastructure", shell: ShellData = testShell()) =>
-  renderServicesPage(
-    { groups: [], schedule: { next: null, last: null }, timerUnit: null, generated: null, inventoryAvailable: false },
-    new Date(), new Set(), "lychee.land", {}, group, new Set(), new Map(), shell,
-  );
+  renderClientPage(BOARD_TITLES[group][0], BOARD_TITLES[group][1], shell);
 
 const pages = (): Record<string, string> => ({
   list: list(),
@@ -115,7 +120,7 @@ describe("the client bundle", () => {
 
   test("comes before the shell's own scripts", () => {
     const html = list(testShell({ assets: ASSETS }));
-    assert.ok(html.indexOf("/client/assets/main-abc.js") < html.indexOf('src="/actionPoll.js"'));
+    assert.ok(html.indexOf("/client/assets/main-abc.js") < html.indexOf('src="/app.js"'));
   });
 
   test("is absent when the bundle is not built, leaving the rail as plain links", () => {

@@ -3,8 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { load } from "js-yaml";
 import { normalizeRepo, parseDeclaration, claimedPorts, siteSuffixFor, type DeclarationSummary } from "./siteResource";
-import { siteNamePatternFor } from "./siteValidation";
-import { IMAGE_PREFIX, MAX_RESOURCE_NAME_LENGTH, RESERVED_PORTS, escapeRegex, SITE_MIN_PORT, isValidTag } from "./platform";
+import { isSiteName } from "./siteValidation";
+import { IMAGE_PREFIX, RESERVED_PORTS, escapeRegex, SITE_MIN_PORT, isValidTag } from "./platform";
 
 /**
  * `code: "tagged"` marks the one refusal a caller must tell apart from a failed
@@ -72,14 +72,8 @@ export interface WriterOptions {
   timeoutMs?: number;
 }
 
-// A site's resource name: a DNS-label-shaped site label plus the domain's
-// suffix (siteNamePatternFor), capped at MAX_RESOURCE_NAME_LENGTH like every
-// resource name. Narrower than NAME_RE on purpose: creating and retiring are
-// reachable only for sites, never for a declaration such as palsave-api that
-// this app did not write.
-export function isSiteName(name: string, domain: string): boolean {
-  return name.length <= MAX_RESOURCE_NAME_LENGTH && siteNamePatternFor(domain).test(name);
-}
+// Defined beside siteNamePatternFor, node-free, so the client board can use it.
+export { isSiteName };
 
 /** What a write callback hands back: the file it changed and the commit message. */
 type Change = { file: string; message: string; remove?: boolean };

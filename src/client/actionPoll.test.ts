@@ -1,24 +1,23 @@
-// The board's host-action poll decision, from public/actionPoll.js. That file
-// is a classic browser script (a global for app.js) that also exports itself
-// for Node, so the rule that the poll always ends is tested here even though
-// app.js itself has no harness.
+// The host-action poll's decision, ported from public/actionPoll.js (retired)
+// to a typed module the React board imports. Every case of the retired
+// src/views/actionPoll.test.ts is here, against the port: the one property
+// that matters is that the poll always ends.
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
+import { POLL_GIVE_UP_MS, STALE_POLLS, STALE_SLACK_MS, decidePoll, type PollMemo, type PollOutcome } from "./actionPoll";
 
-type Outcome = { kind: "response"; status: number; body: unknown } | { kind: "network-error" };
-type Memo = { failingSince: number | null; stalePolls: number };
-type Decision = { next: "continue" | "update" | "reload"; memo: Memo };
-const { decidePoll, POLL_GIVE_UP_MS, STALE_POLLS } = createRequire(__filename)("../../public/actionPoll.js") as {
-  decidePoll: (outcome: Outcome, memo: Memo, now: number, clickedAt: number | null) => Decision;
-  POLL_GIVE_UP_MS: number;
-  STALE_POLLS: number;
-};
-
-const FRESH: Memo = { failingSince: null, stalePolls: 0 };
+const FRESH: PollMemo = { failingSince: null, stalePolls: 0 };
 const NOW = Date.UTC(2026, 9, 13, 10, 0, 0);
-const res = (status: number, body: unknown): Outcome => ({ kind: "response", status, body });
+const res = (status: number, body: unknown): PollOutcome => ({ kind: "response", status, body });
 const state = (s: string, startedAt?: string) => ({ ok: true, state: { unit: "u", action: "restart", state: s, logTail: "", ...(startedAt ? { startedAt } : {}) } });
+
+describe("the port keeps public/actionPoll.js's constants", () => {
+  test("60s give-up, 30s slack, five stale polls", () => {
+    assert.equal(POLL_GIVE_UP_MS, 60000);
+    assert.equal(STALE_SLACK_MS, 30000);
+    assert.equal(STALE_POLLS, 5);
+  });
+});
 
 describe("decidePoll: the poll always ends", () => {
   for (const status of [401, 403, 404]) {
@@ -37,7 +36,7 @@ describe("decidePoll: the poll always ends", () => {
   test("502s and network failures retry, then reload after about a minute of them", () => {
     let memo = FRESH;
     let t = NOW;
-    for (const outcome of [res(502, { ok: false }), { kind: "network-error" } as Outcome, res(502, {})]) {
+    for (const outcome of [res(502, { ok: false }), { kind: "network-error" } as PollOutcome, res(502, {})]) {
       const d = decidePoll(outcome, memo, t, null);
       assert.equal(d.next, "continue");
       memo = d.memo;

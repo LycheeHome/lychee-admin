@@ -1,9 +1,8 @@
 import "./test/setup";
 import assert from "node:assert/strict";
-import { afterEach, describe, test } from "node:test";
+import { afterEach, beforeEach, describe, test } from "node:test";
 import { act, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
-import type { Root } from "react-dom/client";
 import { renderRail, renderRailData } from "../views/rail";
 import { RAIL_DOT } from "../views/railModel";
 import { testShell } from "../dev/testHelpers";
@@ -11,15 +10,26 @@ import { layout } from "../views/shell";
 import { seedHealth } from "./test/healthFixture";
 import { displayedAt } from "./test/visibility";
 import { HEALTH_QUERY, fetchHealth } from "./health";
-import { mountRailIsland } from "./RailIsland";
+import { mountApp } from "./router";
+
+// The rail as the app's one root renders it: a portal into the server's
+// aside, on a server page (the `*` route), so nothing but the rail is mounted.
 
 const originalFetch = globalThis.fetch;
-let root: Root | null = null;
+let app: ReturnType<typeof mountApp> = null;
 let client: QueryClient | null = null;
 
+/** The root's own mount point, which layout() emits on every page. */
+const ROOT = '<div id="react-root"></div>';
+
+// A server page's URL: the router matches it to `*`.
+beforeEach(() => {
+  (globalThis as unknown as { happyDOM: { setURL(url: string): void } }).happyDOM.setURL("http://localhost/");
+});
+
 afterEach(() => {
-  if (root) act(() => root?.unmount());
-  root = null;
+  if (app) act(() => app?.unmount());
+  app = null;
   // Drops the cache's timers, which would otherwise keep the process alive.
   client?.clear();
   client = null;
@@ -44,12 +54,12 @@ const ok = (): Answer => ({ status: 200, body: { ok: true, ...seedHealth() } });
 /** Server markup, as layout() emits it, then the island mounted over it. */
 function mount(): void {
   const rail = testShell({ current: { page: "sites" } }).rail;
-  document.body.innerHTML = renderRail(rail) + renderRailData(rail);
+  document.body.innerHTML = renderRail(rail) + renderRailData(rail) + ROOT;
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   act(() => {
-    root = mountRailIsland(client as QueryClient);
+    app = mountApp(client as QueryClient);
   });
-  assert.ok(root, "the island did not mount");
+  assert.ok(app, "the root did not mount");
 }
 
 const dot = (hostname: string): string =>
@@ -154,14 +164,14 @@ describe("the rail island", () => {
   test("text typed into the server's find box before mount is kept, with its focus", async () => {
     stubFetch(ok);
     const rail = testShell({ current: { page: "sites" } }).rail;
-    document.body.innerHTML = renderRail(rail) + renderRailData(rail);
+    document.body.innerHTML = renderRail(rail) + renderRailData(rail) + ROOT;
     const server = document.querySelector<HTMLInputElement>("#find");
     assert.ok(server);
     server.value = "sw";
     server.focus();
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     act(() => {
-      root = mountRailIsland(client as QueryClient);
+      app = mountApp(client as QueryClient);
     });
     const input = document.querySelector<HTMLInputElement>("#rail #find");
     assert.ok(input);
@@ -174,13 +184,13 @@ describe("the rail island", () => {
   test("text typed without focus is kept, and the box stays closed", async () => {
     stubFetch(ok);
     const rail = testShell().rail;
-    document.body.innerHTML = renderRail(rail) + renderRailData(rail);
+    document.body.innerHTML = renderRail(rail) + renderRailData(rail) + ROOT;
     const server = document.querySelector<HTMLInputElement>("#find");
     assert.ok(server);
     server.value = "api";
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     act(() => {
-      root = mountRailIsland(client as QueryClient);
+      app = mountApp(client as QueryClient);
     });
     const input = document.querySelector<HTMLInputElement>("#rail #find");
     assert.equal(input?.value, "api");
@@ -229,7 +239,7 @@ describe("the rail island", () => {
     check("server");
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     act(() => {
-      root = mountRailIsland(client as QueryClient);
+      app = mountApp(client as QueryClient);
     });
     await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), { timeout: 5000 });
     check("island");
@@ -241,10 +251,20 @@ describe("the rail island", () => {
     });
   });
 
-  test("does nothing without the server's rail data", () => {
+  test("leaves the server's aside alone without the server's rail data", () => {
+    document.body.innerHTML = `<aside id="rail" data-rail><a href="/services">services</a></aside>${ROOT}`;
+    client = new QueryClient();
+    act(() => {
+      app = mountApp(client as QueryClient);
+    });
+    assert.equal(document.querySelector("#rail")?.innerHTML, '<a href="/services">services</a>');
+    assert.ok(!document.querySelector("#find"));
+  });
+
+  test("mounts nothing without the root's mount point", () => {
     document.body.innerHTML = '<aside id="rail" data-rail></aside>';
     client = new QueryClient();
-    assert.equal(mountRailIsland(client), null);
+    assert.ok(!mountApp(client));
   });
 });
 

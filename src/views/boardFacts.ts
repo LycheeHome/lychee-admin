@@ -47,6 +47,28 @@ export function isApplying(row: DeployFacts): boolean {
   return settled && Boolean(row.version && row.target && row.target !== row.version);
 }
 
+/**
+ * The tag a row offers, or null. Nothing is offered while a deploy is in
+ * flight (applying), because a second request on top of an unapplied one would
+ * race the first, and the pinned tag is never offered again, so the tag that
+ * just failed or was blocked cannot be re-requested from here.
+ *
+ * `blocked` and `failed` both offer anything else. The failure stays visible
+ * beside the offer (the gate line, or the failure line naming the tag, the
+ * step and the journal), and the reconciler retries the failing pin every
+ * tick, so a different, newer tag is the way out; withholding it left a hand
+ * edit of lychee-resources as the only one. A failed row is never applying:
+ * isApplying() requires a clean last run.
+ *
+ * Shared by the services board (both renderers) and a site's own page, so
+ * they can never disagree about whether a tag is on offer.
+ */
+export function offeredTag(row: DeployFacts): string | null {
+  return row.available && row.available !== row.version && row.available !== row.target && !isApplying(row)
+    ? row.available
+    : null;
+}
+
 export interface RowSummary {
   applying: boolean;
   /** Non-null for a container with nothing installed: the reconciler's verdict stands in for its live state. */
