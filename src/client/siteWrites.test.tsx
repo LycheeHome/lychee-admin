@@ -6,7 +6,7 @@ import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import type { SiteDetailPayload } from "../shared/siteDetail";
 import { seedSiteDetailPayload } from "../dev/testHelpers";
-import { siteDetailQueryKey } from "./api";
+import { fetchSiteDetail, siteDetailQueryKey } from "./api";
 import { RepositoryCard } from "./components/RepositoryCard";
 import { useSiteWriteInFlight, useSiteWrites } from "./siteWrites";
 
@@ -74,15 +74,15 @@ function Page({ hostname }: { hostname: string }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const writes = useSiteWrites(hostname, headingRef);
   inFlightSeen.push(useSiteWriteInFlight(hostname));
+  // The page's own read, so the cache holds what the page's holds.
   const { data } = useQuery({
     queryKey: siteDetailQueryKey(hostname),
-    queryFn: async () => {
-      const res = await fetch(`/api/sites/${encodeURIComponent(hostname)}`);
-      // The answer is the payload plus ok: true, which the page never reads.
-      return (await res.json()) as Detail;
-    },
+    queryFn: () => fetchSiteDetail(hostname, false),
   });
-  return data && data.caddyfileError === null ? <RepositoryCard payload={data} writes={writes} headingRef={headingRef} /> : null;
+  const payload = data?.found ? data.payload : null;
+  return payload && payload.caddyfileError === null ? (
+    <RepositoryCard payload={payload} writes={writes} headingRef={headingRef} />
+  ) : null;
 }
 
 function mount(hostname: string): QueryClient {

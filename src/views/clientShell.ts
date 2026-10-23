@@ -28,7 +28,7 @@ export function readClientManifest(publicDir: string): ClientAssets | null {
 }
 
 /** The pages the client renders, by the name their mount point carries. */
-export type ClientPage = "sites" | "services" | "reconciler" | "infrastructure";
+export type ClientPage = "sites" | "services" | "reconciler" | "infrastructure" | "site";
 
 /**
  * The shared shell around an empty mount point the client renders into. The
@@ -39,7 +39,7 @@ export type ClientPage = "sites" | "services" | "reconciler" | "infrastructure";
  * read from the same constant.
  *
  * `banner` is layout()'s `#page-notice`, rendered by the server above the
- * mount point and outside it (today only the list's `?removed`); the client
+ * mount point and outside it (the list's `?removed`, a site's `?created=1`); the client
  * removes it on the first in-app move away. Omitted, the page is unchanged.
  */
 export function renderClientPage(title: string, page: ClientPage, shell: ShellData, banner?: Banner): string {

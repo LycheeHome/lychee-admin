@@ -2,6 +2,7 @@ import { useState, type ReactNode, type Ref } from "react";
 import type { ActionState, BoardPayload, BoardRow, ServiceBoard, ServiceGroup } from "../../shared/board";
 import type { BoardControlsApi } from "../mutations";
 import { HostActions } from "./HostActions";
+import { RailLink } from "../clientNav";
 import { FailureLine } from "./CommandBlock";
 import { OfferLine, PruneLine, RequestedLine } from "./DeployLines";
 import { summarizeRow } from "../../views/boardFacts";
@@ -94,9 +95,9 @@ export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
       <div className="flex flex-col gap-0.5 min-w-0">
         <p className={SERVICE_NAME}>
           {siteHost ? (
-            <a href={`/sites/${siteHost}`} className={SITE_NAME_LINK}>
+            <RailLink href={`/sites/${siteHost}`} className={SITE_NAME_LINK}>
               {row.name}
-            </a>
+            </RailLink>
           ) : (
             row.name
           )}

@@ -5,7 +5,8 @@ import { once } from "node:events";
 import type { Server } from "node:http";
 import bcrypt from "bcrypt";
 import type { createInMemoryFileSystem } from "../dev/fakes";
-import { RETIRED_SWITCHER, withoutShell } from "../dev/testHelpers";
+import { RETIRED_SWITCHER, testShell, withoutShell } from "../dev/testHelpers";
+import type { SiteDetailPayload } from "../shared/siteDetail";
 
 // --- Fixture layout -------------------------------------------------------
 // These must match what config resolves to, since nothing redirects them
@@ -96,6 +97,21 @@ function form(fields: Record<string, string>): RequestInit {
 // runtime behavior here differs from calling response.json() directly.
 async function json<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
+}
+
+/**
+ * A site's page as the browser now builds it: the route loader's read,
+ * `GET /api/sites/:hostname?refresh=1`, rendered by the server renderer the
+ * React page is held to in parity (SiteDetailParity.test.tsx). The HTML GET
+ * itself is only the client shell now.
+ */
+async function sitePage(hostname: string): Promise<string> {
+  const response = await request(`/api/sites/${hostname}?refresh=1`);
+  assert.equal(response.status, 200);
+  const payload = await json<Extract<SiteDetailPayload, { caddyfileError: null }>>(response);
+  assert.equal(payload.caddyfileError, null);
+  const { renderSiteDetail } = await import("../views/html");
+  return renderSiteDetail(payload.site, payload, testShell());
 }
 
 before(async () => {
@@ -261,17 +277,17 @@ describe("the rail on each page", () => {
     assert.deepEqual(currentHrefs(await (await request("/sites/api.lychee.land")).text()), []);
   });
 
-  test("the site routes' 500s are a dedicated error page with the message and a way back", async () => {
+  // A site's page is the client's, which shows /api/sites/:hostname's
+  // caddyfileError itself (GET /sites/:hostname: the client shell, below).
+  test("the add page's 500 is a dedicated error page with the message and a way back", async () => {
     fakeFs.rmRecursive(CADDYFILE);
-    for (const path of ["/sites/new", "/sites/api.lychee.land"]) {
-      const response = await request(path);
-      assert.equal(response.status, 500, path);
-      const html = await response.text();
-      assert.match(html, /ENOENT/, path);
-      assert.match(html, /<a href="\/"[^>]*>\u2190 sites<\/a>/, path);
-      assert.deepEqual(currentHrefs(html), [], path);
-      assert.doesNotMatch(withoutShell(html), /id="empty-state"/, path);
-    }
+    const response = await request("/sites/new");
+    assert.equal(response.status, 500);
+    const html = await response.text();
+    assert.match(html, /ENOENT/);
+    assert.match(html, /<a href="\/"[^>]*>\u2190 sites<\/a>/);
+    assert.deepEqual(currentHrefs(html), []);
+    assert.doesNotMatch(withoutShell(html), /id="empty-state"/);
   });
 
   test("no page carries the header band or the hostname dropdown", async () => {
@@ -279,6 +295,83 @@ describe("the rail on each page", () => {
       const html = await (await request(path)).text();
       assert.doesNotMatch(html, /id="site-header"/, path);
       assert.doesNotMatch(html, RETIRED_SWITCHER, path);
+    }
+  });
+});
+
+describe("GET /sites/:hostname: the client shell", () => {
+  // The page itself is the client's, read from /api/sites/:hostname
+  // (apiSiteDetail.test.ts) and compared with the server renderer's markup in
+  // SiteDetailParity.test.tsx. The server sends the shell, its mount point,
+  // and the ?created=1 notice.
+  const marked = (html: string): string[] =>
+    [...html.matchAll(/<a\b[^>]*\baria-current="page"[^>]*>/g)].map((m) => m[0].match(/href="([^"]+)"/)?.[1] ?? "");
+  const MOUNT = '<div id="app-root" class="contents" data-page="site"></div>';
+
+  test("a known site: 200, the site mount point, titled the hostname, its rail row current, the bundle", async () => {
+    const response = await request("/sites/blog.lychee.land");
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.ok(html.includes(MOUNT));
+    assert.ok(html.includes("<title>blog.lychee.land</title>"));
+    assert.deepEqual(marked(html), ["/sites/blog.lychee.land"]);
+    assert.ok(html.includes('<script type="module" src="/client/assets/main-abc.js">'));
+    // No page on the server: no hostname heading, no dialog.
+    assert.doesNotMatch(withoutShell(html), /id="site-hostname"|<dialog/);
+    assert.doesNotMatch(html, /id="page-notice"/);
+  });
+
+  test("the hostname is matched case-insensitively and titled lowercased", async () => {
+    const response = await request("/sites/BLOG.lychee.land");
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.ok(html.includes("<title>blog.lychee.land</title>"));
+    assert.deepEqual(marked(html), ["/sites/blog.lychee.land"]);
+  });
+
+  test("an unknown site: 404, the same mount point, titled Site not found, no row current", async () => {
+    const response = await request("/sites/nope.lychee.land");
+    assert.equal(response.status, 404);
+    const html = await response.text();
+    assert.ok(html.includes(MOUNT));
+    assert.ok(html.includes("<title>Site not found</title>"));
+    assert.deepEqual(marked(html), []);
+  });
+
+  test("an unreadable Caddyfile: 200, no row current, no notice", async () => {
+    fakeFs.rmRecursive(CADDYFILE);
+    const response = await request("/sites/blog.lychee.land?created=1");
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.ok(html.includes(MOUNT));
+    assert.ok(html.includes("<title>blog.lychee.land</title>"));
+    assert.deepEqual(marked(html), []);
+    assert.doesNotMatch(html, /id="page-notice"/);
+  });
+
+  test("?created=1 renders addedNotice's #page-notice, outside the mount point", async () => {
+    const { addedNotice } = await import("../views/siteDetailModel");
+    const { parseSites } = await import("../lib/caddyfile");
+    const site = parseSites(SEED_CADDYFILE).find((s) => s.hostname === "blog.lychee.land");
+    assert.ok(site);
+    const html = await (await request("/sites/blog.lychee.land?created=1")).text();
+    const { escapeHtml } = await import("../views/shared");
+    assert.ok(html.includes(`<span id="page-notice-message">${escapeHtml(addedNotice(site))}</span>`));
+    assert.ok(html.indexOf('id="page-notice"') < html.indexOf('<div id="app-root"'));
+    assert.equal(html.split('id="page-notice"').length - 1, 1);
+  });
+
+  test("an unknown site gets no ?created=1 notice", async () => {
+    const html = await (await request("/sites/nope.lychee.land?created=1")).text();
+    assert.doesNotMatch(html, /id="page-notice"/);
+  });
+
+  test("answers 500 when the bundle is missing", async () => {
+    clientAssets = null;
+    for (const path of ["/sites/blog.lychee.land", "/sites/nope.lychee.land"]) {
+      const response = await request(path);
+      assert.equal(response.status, 500, path);
+      assert.equal(await response.text(), "client bundle missing; run npm run build", path);
     }
   });
 });
@@ -347,8 +440,12 @@ http://test.lychee.land {
     assert.equal(refreshes, 1);
   });
 
-  test("a Next.js site's page refreshes the clone before reading its declaration", async () => {
+  // The page's arrival read refreshes (the route loader sends ?refresh=1);
+  // the shell around it reads nothing but the Caddyfile.
+  test("a Next.js site's arrival read refreshes the clone before reading its declaration; its shell does not", async () => {
     assert.equal((await request("/sites/test.lychee.land")).status, 200);
+    assert.equal(refreshes, 0);
+    assert.equal((await request("/api/sites/test.lychee.land?refresh=1")).status, 200);
     assert.equal(refreshes, 1);
   });
 
@@ -362,9 +459,7 @@ http://test.lychee.land {
   test("a refresh that fails still renders both pages", async () => {
     fakeCommands.refreshDeclarations = () => Promise.reject(new Error("network down"));
     assert.equal((await request("/sites/new")).status, 200);
-    const response = await request("/sites/test.lychee.land");
-    assert.equal(response.status, 200);
-    assert.match(await response.text(), /From a repository/);
+    assert.match(await sitePage("test.lychee.land"), /From a repository/);
   });
 });
 
@@ -1039,9 +1134,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
   }
 
   async function page(): Promise<string> {
-    const response = await request("/sites/test.lychee.land");
-    assert.equal(response.status, 200);
-    return withoutShell(await response.text());
+    return withoutShell(await sitePage("test.lychee.land"));
   }
 
   test("with no declaration, renders the three scaffold files and the attach control, and no compose command", async () => {
@@ -1087,9 +1180,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
   test("an unreadable clone still renders the offer", async () => {
     fakeCommands.readDeclarations = () => Promise.reject(new Error("no clone"));
     writeInventory([siteEntry({ result: "awaiting-image", available: "0.1.0" })]);
-    const response = await request("/sites/test.lychee.land");
-    assert.equal(response.status, 200);
-    const html = (await response.text()).replace(/<template[\s\S]*?<\/template>/g, "");
+    const html = (await sitePage("test.lychee.land")).replace(/<template[\s\S]*?<\/template>/g, "");
     assert.doesNotMatch(html, /data-requested/);
     assert.match(html, /data-deploy="test-lychee-land"/);
   });
@@ -1130,8 +1221,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
   test("a readable clone with no declaration is not attached, whatever a stale inventory entry says", async () => {
     declarations([]);
     writeInventory([siteEntry({ result: "deployed", version: "", target: "0.2.0" })]);
-    const response = await request("/sites/test.lychee.land");
-    const raw = await response.text();
+    const raw = await sitePage("test.lychee.land");
     const html = withoutShell(raw);
     assert.match(html, /data-attach=/);
     assert.doesNotMatch(html, /awaiting image/);
@@ -1142,8 +1232,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
   test("an unreadable clone falls back to the inventory: an entry means attached", async () => {
     fakeCommands.readDeclarations = () => Promise.resolve(null);
     writeInventory([siteEntry({ result: "awaiting-image", available: "0.1.0" })]);
-    const response = await request("/sites/test.lychee.land");
-    const raw = await response.text();
+    const raw = await sitePage("test.lychee.land");
     const html = withoutShell(raw);
     assert.doesNotMatch(html, /data-attach=/);
     assert.match(html, /awaiting image/);
@@ -1382,9 +1471,7 @@ describe("removing a Next.js site: the confirm dialog", () => {
   }
 
   async function dialog(): Promise<string> {
-    const response = await request("/sites/test.lychee.land");
-    assert.equal(response.status, 200);
-    const match = (await response.text()).match(/<dialog id="confirm-remove-dialog"[\s\S]*?<\/dialog>/);
+    const match = (await sitePage("test.lychee.land")).match(/<dialog id="confirm-remove-dialog"[\s\S]*?<\/dialog>/);
     assert.ok(match, "no confirm-remove dialog was rendered");
     return match[0];
   }

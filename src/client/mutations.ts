@@ -2,8 +2,7 @@ import { useMutation, useMutationState, useQueryClient, type QueryClient } from 
 import { useState } from "react";
 import type { ActionState, BoardPayload } from "../shared/board";
 import type { HostAction } from "../lib/platform";
-import type { SiteDetailPayload } from "../shared/siteDetail";
-import { BOARD_QUERY_ROOT, SITE_DETAIL_ROOT } from "./api";
+import { BOARD_QUERY_ROOT, SITE_DETAIL_ROOT, type SiteDetailResult } from "./api";
 import { HEALTH_QUERY } from "./health";
 import { hideToast, showToast } from "./toast";
 
@@ -90,10 +89,13 @@ function shows(client: QueryClient, name: string, tag: string): boolean {
     .getQueriesData<BoardPayload>({ queryKey: BOARD_QUERY_ROOT })
     .some(([, data]) => data && Object.hasOwn(data.requested, name) && data.requested[name] === tag);
   const onSitePage = client
-    .getQueriesData<SiteDetailPayload>({ queryKey: SITE_DETAIL_ROOT })
+    .getQueriesData<SiteDetailResult>({ queryKey: SITE_DETAIL_ROOT })
     .some(
       ([, data]) =>
-        data && data.caddyfileError === null && data.resource?.name === name && data.resource.requestedTag === tag,
+        data?.found === true &&
+        data.payload.caddyfileError === null &&
+        data.payload.resource?.name === name &&
+        data.payload.resource.requestedTag === tag,
     );
   return onBoard || onSitePage;
 }

@@ -1,5 +1,6 @@
 import type { ApiError, ApiOk, BoardPayload, ServiceGroup } from "../shared/board";
 import type { SitesPayload } from "../shared/sites";
+import type { SiteDetailPayload } from "../shared/siteDetail";
 
 /** The prefix every board query shares: a write invalidates by it, so no group's board is left stale. */
 export const BOARD_QUERY_ROOT = ["board"] as const;
@@ -28,7 +29,11 @@ export function sitesQueryKey() {
  * proxy error page, an unparsable body).
  */
 async function getApi<T>(url: string): Promise<ApiOk<T>> {
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  return readApi<T>(await fetch(url, { headers: { Accept: "application/json" } }));
+}
+
+/** getApi's reading of an answer already in hand. */
+async function readApi<T>(res: Response): Promise<ApiOk<T>> {
   let body: ApiOk<T> | ApiError | null = null;
   try {
     body = (await res.json()) as ApiOk<T> | ApiError;
@@ -55,6 +60,25 @@ export async function fetchBoard(group: ServiceGroup): Promise<BoardPayload> {
     requested: body.requested,
     lastRuns: body.lastRuns,
   };
+}
+
+/** What a site page's read found: the page's payload, or no such site. */
+export type SiteDetailResult = { found: true; payload: SiteDetailPayload } | { found: false };
+
+/**
+ * GET /api/sites/:hostname. A `404` is `found: false`, never a throw: a site
+ * removed elsewhere is a page (not found), not a failed read. `refresh` asks
+ * the server to pull the lychee-resources clone first; only the route
+ * loader's arrival read sends it, never a poll. An unreadable Caddyfile is
+ * the payload's `caddyfileError`, as on the list.
+ */
+export async function fetchSiteDetail(hostname: string, refresh: boolean): Promise<SiteDetailResult> {
+  const url = `/api/sites/${encodeURIComponent(hostname)}${refresh ? "?refresh=1" : ""}`;
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (res.status === 404) return { found: false };
+  const body = await readApi<SiteDetailPayload>(res);
+  const payload = Object.fromEntries(Object.entries(body).filter(([key]) => key !== "ok")) as SiteDetailPayload;
+  return { found: true, payload };
 }
 
 /**

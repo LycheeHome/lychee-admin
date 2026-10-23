@@ -19,13 +19,8 @@ import {
   type SiteEnv,
 } from "../lib/siteValidation";
 import { buildSitePreview } from "../lib/sitePreview";
-import {
-  renderAddSite,
-  renderSiteDetail,
-  renderErrorPage,
-  renderSiteNotFound,
-} from "../views/html";
-import type { SiteResourceView } from "../views/siteDetailModel";
+import { renderAddSite, renderErrorPage } from "../views/html";
+import { addedNotice, type SiteResourceView } from "../views/siteDetailModel";
 import { loadShell } from "./loadShell";
 import { renderClientPage } from "../views/clientShell";
 import { SITES_HEADING_TEXT as SITES_TITLE } from "../views/siteListModel";
@@ -213,8 +208,8 @@ export function cachedHostUnitStates(deps: Deps): Promise<Record<string, UnitSta
 }
 
 /**
- * Everything a site's detail page states about it, gathered once for both the
- * HTML page and GET /api/sites/:hostname so the two cannot gather differently.
+ * Everything a site's detail page states about it, as GET /api/sites/:hostname
+ * answers it (and the test helpers' seed payloads gather it).
  * Never pulls the clone: callers that want a fresh one refresh first.
  */
 export async function loadSiteDetail(site: Site, deps: Deps): Promise<SiteDetailFacts> {
@@ -293,6 +288,19 @@ export async function loadSiteDetail(site: Site, deps: Deps): Promise<SiteDetail
   };
 }
 
+/**
+ * The managed site a (lowercased) hostname names, read from the Caddyfile:
+ * undefined when there is none. Throws when the Caddyfile cannot be read. One
+ * reading for the page's shell and its API, so the two cannot disagree about
+ * which sites exist.
+ */
+function findManagedSite(deps: Deps, hostname: string): Site | undefined {
+  return caddyfile
+    .parseSites(deps.fs.readFile(config.caddyfilePath))
+    .filter((s) => isManagedHostname(s.hostname, config.domain))
+    .find((s) => s.hostname === hostname);
+}
+
 /** loadSiteDetail behind the shared 5s read, one entry per hostname. */
 export function cachedSiteDetail(site: Site, deps: Deps): Promise<SiteDetailFacts> {
   return cachedRead("site-detail:" + site.hostname, deps, () => loadSiteDetail(site, deps));
@@ -368,10 +376,7 @@ export function createSitesRouter(deps: Deps): Router {
     try {
       let site: Site | undefined;
       try {
-        site = caddyfile
-          .parseSites(deps.fs.readFile(config.caddyfilePath))
-          .filter((s) => isManagedHostname(s.hostname, config.domain))
-          .find((s) => s.hostname === hostname);
+        site = findManagedSite(deps, hostname);
       } catch (error) {
         const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
         const payload: SiteDetailPayload = { caddyfileError: message, domain: config.domain };
@@ -425,32 +430,32 @@ export function createSitesRouter(deps: Deps): Router {
     }
   });
 
-  sitesRouter.get("/sites/:hostname", async (req, res) => {
+  // A site's page is the client's: the shared shell around its mount point,
+  // with the data from /api/sites/:hostname (whose ?refresh=1 arrival read,
+  // sent by the route loader, does the clone pull this GET used to). The
+  // server still decides the status, the title and the rail's current row,
+  // and draws the `?created=1` notice, so a direct load is right before the
+  // bundle runs. An unreadable Caddyfile is the page's to show, from the
+  // API's caddyfileError, as on the list: 200, nothing marked (marking a row
+  // would claim a site the server could not find), no notice.
+  sitesRouter.get("/sites/:hostname", (req, res) => {
     const hostname = req.params.hostname.toLowerCase();
     const created = req.query.created === "1";
-
+    let site: Site | undefined;
+    let readable = true;
     try {
-      const content = deps.fs.readFile(config.caddyfilePath);
-      const sites = caddyfile.parseSites(content).filter((s) => isManagedHostname(s.hostname, config.domain));
-      const site = sites.find((s) => s.hostname === hostname);
-
-      if (!site) {
-        res.status(404).send(renderSiteNotFound(hostname, loadShell(deps, null)));
-        return;
-      }
-
-      // The clone is pulled for a Next.js site's page, so a declaration
-      // pruned or added on GitHub by hand shows; loadSiteDetail never pulls.
-      if (site.framework && site.type !== "static") await refreshClone(deps);
-      const facts = await loadSiteDetail(site, deps);
-      res.send(renderSiteDetail(site, { ...facts, created }, loadShell(deps, { site: site.hostname })));
-    } catch (error) {
-      const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
-      // Unlike GET /'s own fallback, this page's URL is /sites/<hostname> —
-      // marking "sites" current here would claim a location the URL does not
-      // have. Nothing is marked.
-      res.status(500).send(renderErrorPage("Can't read the Caddyfile", message, loadShell(deps, null)));
+      site = findManagedSite(deps, hostname);
+    } catch {
+      readable = false;
     }
+    // One read of the bundle, checked here and emitted by layout() from the same shell.
+    const shell = loadShell(deps, site ? { site: site.hostname } : null);
+    if (!shell.assets) return res.status(500).type("text/plain").send("client bundle missing; run npm run build");
+    if (readable && !site) {
+      return res.status(404).type("html").send(renderClientPage("Site not found", "site", shell));
+    }
+    const banner = site && created ? { message: addedNotice(site) } : undefined;
+    return res.type("html").send(renderClientPage(hostname, "site", shell, banner));
   });
 
   sitesRouter.post("/sites", async (req, res) => {

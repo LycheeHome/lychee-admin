@@ -79,15 +79,11 @@ flashBannerClose?.addEventListener("click", hideBanner);
 const pageNotice = document.getElementById("page-notice");
 document.getElementById("page-notice-close")?.addEventListener("click", () => pageNotice?.remove());
 
-// `?removed` (the list's DNS reminder, server-rendered as #page-notice) is
-// stripped by the client bundle before its router starts (stripRemovedParam
-// in src/client/router.tsx), keeping the URL's other parameters, its hash and
-// the router's history state. This script runs first, and stripping it here
-// would drop all three.
-
-if (new URLSearchParams(window.location.search).has("created")) {
-  history.replaceState(null, "", window.location.pathname);
-}
+// `?removed` (the list's DNS reminder) and `?created=1` (a new site's notice),
+// both server-rendered as #page-notice, are stripped by the client bundle
+// before its router starts (stripNoticeParams in src/client/router.tsx),
+// keeping the URL's other parameters, its hash and the router's history state.
+// This script runs first, and stripping them here would drop all three.
 
 const STEP_MARKS = { ok: "✓", failed: "✗", skipped: "—", "not-run": "·" };
 const STEP_MARK_CLASSES = {
