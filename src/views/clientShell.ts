@@ -43,5 +43,13 @@ export type ClientPage = "sites" | "services" | "reconciler" | "infrastructure";
  * removes it on the first in-app move away. Omitted, the page is unchanged.
  */
 export function renderClientPage(title: string, page: ClientPage, shell: ShellData, banner?: Banner): string {
-  return layout(title, `<div id="app-root" data-page="${escapeHtml(page)}"></div>`, banner ? { shell, banner } : { shell });
+  // `contents`: the mount point generates no box, so what React renders into
+  // it takes part in <main>'s flex column (and its gap) exactly as a server
+  // page's body sections do. A box here would hold the sites list's error and
+  // its section in a plain block, 24px closer together than on the server.
+  return layout(
+    title,
+    `<div id="app-root" class="contents" data-page="${escapeHtml(page)}"></div>`,
+    banner ? { shell, banner } : { shell },
+  );
 }

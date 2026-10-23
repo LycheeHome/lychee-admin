@@ -43,7 +43,21 @@ describe("renderClientPage", () => {
   const html = renderClientPage("Infrastructure", "infrastructure", testShell({ current: { page: "infrastructure" }, assets: ASSETS }));
 
   test("renders the mount point", () => {
-    assert.ok(html.includes('id="app-root" data-page="infrastructure"'));
+    assert.ok(html.includes('<div id="app-root" class="contents" data-page="infrastructure"></div>'));
+  });
+
+  // `contents` takes the mount point out of layout, so the sections React
+  // renders into it sit in <main>'s flex column and keep its gap, as the
+  // server's page bodies did. Without it the sites list's Caddyfile error box
+  // sat 20px above its section instead of 44px.
+  test("the mount point is layout-transparent: it carries `contents`, on every client page", () => {
+    for (const page of ["sites", "services", "reconciler", "infrastructure"] as const) {
+      const out = renderClientPage("T", page, testShell({ assets: ASSETS }));
+      const tag = out.match(/<div id="app-root"[^>]*>/)?.[0] ?? "";
+      assert.ok(tag, page);
+      const classes = tag.match(/\bclass="([^"]*)"/)?.[1]?.split(/\s+/) ?? [];
+      assert.deepEqual(classes, ["contents"], page);
+    }
   });
 
   test("loads the module script and the stylesheet", () => {

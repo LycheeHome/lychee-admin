@@ -95,12 +95,12 @@ export function SitesPage() {
     focusHeading(heading.current);
   }, [locationKey]);
 
+  // A direct child of <main>'s column (the mount point is `contents`), so
+  // main's own gap spaces it from the list, as it spaces every section.
   const alertLine = alert ? (
-    <div className="mb-6">
-      <p role="alert" className={BOARD_ALERT}>
-        {alert}
-      </p>
-    </div>
+    <p role="alert" className={BOARD_ALERT}>
+      {alert}
+    </p>
   ) : null;
   if (!query.data) return alertLine;
   return (

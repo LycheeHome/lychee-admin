@@ -174,7 +174,7 @@ describe("GET /: the client shell", () => {
     const response = await request("/");
     assert.equal(response.status, 200);
     const html = await response.text();
-    assert.ok(html.includes('<div id="app-root" data-page="sites"></div>'));
+    assert.ok(html.includes('<div id="app-root" class="contents" data-page="sites"></div>'));
     assert.ok(html.includes("<title>Sites</title>"));
     assert.deepEqual(marked(html), ["/"]);
     assert.ok(html.includes('<script type="module" src="/client/assets/main-abc.js">'));
@@ -214,7 +214,7 @@ describe("GET /: the client shell", () => {
     const response = await request("/?removed=blog.lychee.land");
     assert.equal(response.status, 200);
     const html = await response.text();
-    assert.ok(html.includes('<div id="app-root" data-page="sites"></div>'));
+    assert.ok(html.includes('<div id="app-root" class="contents" data-page="sites"></div>'));
     assert.ok(html.includes(`<span id="page-notice-message">${NOTICE}</span>`));
   });
 });
