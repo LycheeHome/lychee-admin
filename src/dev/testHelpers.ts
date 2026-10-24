@@ -1,6 +1,4 @@
 import assert from "node:assert/strict";
-import type { RailData, ShellData } from "../views/shell";
-import type { ClientAssets } from "../views/clientShell";
 import type { Site } from "../lib/caddyfile";
 import type { SiteDetailFacts, SiteDetailPayload } from "../shared/siteDetail";
 import type { AddSitePayload } from "../shared/addSite";
@@ -32,49 +30,11 @@ export const SEEDED_RAIL_SITES: ReadonlyArray<{ hostname: string; hint: string }
 ];
 
 /**
- * A shell for a renderer under test: the seeded sites, a readable inventory,
- * no current page and no client bundle, each overridable.
- */
-export function testShell(overrides: Partial<RailData> & { assets?: ClientAssets | null } = {}): ShellData {
-  const { assets = null, ...rail } = overrides;
-  return {
-    rail: {
-      sites: SEEDED_RAIL_SITES.map((s) => ({ ...s })),
-      hostAvailable: true,
-      current: null,
-      domain: "lychee.land",
-      ...rail,
-    },
-    assets,
-  };
-}
-
-/**
  * The retired breadcrumb dropdown's id, which tests assert no page carries.
  * Assembled rather than written out so that a grep of src and public for the
  * literal id stays empty: that grep is how its removal is checked.
  */
 export const RETIRED_SWITCHER = new RegExp(["hostname", "switcher"].join("-"));
-
-const RAIL = /<aside id="rail"[\s\S]*?<\/aside>/;
-const TOP_BAR = /<header id="top-bar"[\s\S]*?<\/header>/;
-
-/**
- * The page with the rail and the narrow-screen top bar cut out of it.
- * Assertions about a page's body would otherwise be satisfied by the shell
- * alone: the rail lists every site and carries "sites" and "Add site" links on
- * every page.
- *
- * The asserts are the point. `String.replace` returns its input unchanged when
- * the pattern misses and throws nothing, so if either id ever changes, every
- * caller would quietly revert to page-wide matching — the exact vacuity they
- * exist to prevent.
- */
-export function withoutShell(html: string): string {
-  assert.match(html, RAIL, "expected a rail to strip — anchor is stale");
-  assert.match(html, TOP_BAR, "expected a top bar to strip — anchor is stale");
-  return html.replace(RAIL, "").replace(TOP_BAR, "");
-}
 
 /**
  * A seed site and the facts `GET /api/sites/:hostname` would answer with for
@@ -126,20 +86,6 @@ export async function seedSiteDetailPayload(
     site,
     payload: { site, filesPath: computeFilesPath(site, merged.sitesRoot), caddyfileError: null, ...merged },
   };
-}
-
-const COPY_STATUS = '<span id="copy-status" class="sr-only" role="status" aria-live="polite"></span>';
-
-/**
- * A server page's content region: from just after the copy-status live region
- * to `</main>`, which is what a React page renders into `#app-root`'s place.
- * Asserts both anchors, for the reason `withoutShell` does.
- */
-export function mainRegion(page: string): string {
-  const start = page.indexOf(COPY_STATUS);
-  const end = page.indexOf("</main>");
-  assert.ok(start !== -1 && end > start, "no content region in the page — anchor is stale");
-  return page.slice(start + COPY_STATUS.length, end);
 }
 
 /**

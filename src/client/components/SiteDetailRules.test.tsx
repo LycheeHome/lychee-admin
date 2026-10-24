@@ -29,8 +29,10 @@ import { PruneLine, RequestedLine } from "./DeployLines";
  *   (when it shows, and that an unknown site or an unreadable Caddyfile gets
  *   none) are in src/client/AppFrame.test.tsx's page-notice tests, and its
  *   sentences model tests of addedNotice in siteDetailModel.test.ts;
- * - the copy-status live region and the rail's current row: the shell's, in
- *   src/views/shell.test.ts against the page GET /sites/:hostname serves;
+ * - the copy-status live region and the rail's current row: AppFrame's, held
+ *   to the retired server shell's frozen output in
+ *   src/client/AppFrameParity.test.tsx (the site-* cases), with the current
+ *   row's port contrast in src/client/components/Rail.test.tsx;
  * - offeredTag's rules: src/views/boardFacts.test.ts, beside the function;
  * - statePhrase's: src/views/shared.test.ts, with the other shared.ts helpers.
  *
@@ -42,7 +44,7 @@ import { PruneLine, RequestedLine } from "./DeployLines";
 /**
  * The retired renderer's signature, now building the payload the way
  * GET /api/sites/:hostname does (the site, its files path, the facts; never
- * `created`, which the server's shell renders) and rendering it with the React
+ * `created`, whose notice AppFrame renders) and rendering it with the React
  * SiteDetail, without writes: the page's first paint.
  *
  * The markup is respelled where React and the server wrote the same DOM

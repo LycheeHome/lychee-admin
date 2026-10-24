@@ -8,9 +8,13 @@
  * prose rather than as utilities, so this comment can never itself become a
  * source of the classes it describes.)
  *
- * The one explicit source below is exhaustive for this app: `src/` holds the
- * server's shell and rail, their Tailwind class constants, and the React
- * client, including every class it adds at runtime (the toast's tones in
+ * The two explicit sources below are exhaustive for this app. `index.html`
+ * is the static document every page is served, and its `<html>` and `<body>`
+ * classes (the dark colour scheme, the body's two-column grid) are named
+ * nowhere else: the retired server shell carried them inside src/ until it
+ * went, and without this line the colour scheme left the bundle with nothing
+ * failing. `src/` holds the Tailwind class constants in src/views and the
+ * React client, including every class it adds at runtime (the toast's tones in
  * src/client/toast.ts, the step marks' colours in src/client/addSiteModel.ts).
  * `public/` used to be a second source, and was not optional while it held
  * the retired app.js, whose classList calls carried classes no other file
@@ -22,12 +26,15 @@
  * The frozen parity fixtures are excluded, all of src/dev/fixtures/ at once:
  * board/ (what the retired server board rendered), sites/ (what the retired
  * server sites list rendered), detail/ (what the retired server site page
- * and error page rendered) and add-site/ (what the retired server add page
- * showed after each step, app.js driving it). They are test data, and once the live
- * pages move on they would keep the old classes in the bundle.
+ * and error page rendered), add-site/ (what the retired server add page
+ * showed after each step, app.js driving it), and shell/ and rail/ (what
+ * the retired server shell and rail rendered around every page). They are
+ * test data, and once the live pages move on they would keep the old
+ * classes in the bundle.
  */
 @import "tailwindcss" source(none);
 
+@source "../../index.html";
 @source "../../src";
 @source not "../../src/dev/fixtures";
 

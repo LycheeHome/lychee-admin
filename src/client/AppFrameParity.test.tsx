@@ -9,7 +9,7 @@ import { RouterProvider, createMemoryRouter } from "react-router";
 import type { RailPayload } from "../shared/rail";
 import type { SiteDetailPayload } from "../shared/siteDetail";
 import { SEEDED_RAIL_SITES, seedSiteDetailPayload } from "../dev/testHelpers";
-import type { RailCurrent, RailData } from "../views/shell";
+import type { RailCurrent, RailData } from "../shared/rail";
 import { RAIL_QUERY_KEY, siteDetailQueryKey } from "./api";
 import type { InitialNotice } from "./AppFrame";
 import { Navigation } from "./components/Rail";
@@ -17,15 +17,17 @@ import { canonical } from "./test/canonical";
 import { FrameLayout } from "./test/frameHarness";
 
 /*
- * AppFrame against the server shell it replaces. Each fixture in
- * src/dev/fixtures/shell/ is layout()'s body for one page type, from just
- * after <body> to the React mount point, frozen from the live renderer
- * (src/views/shellFixtures.test.ts). The React side is AppFrame, health-free,
- * at that page's path, fed the same rail data and the same notice, with the
- * server's empty #app-root as its children, so only the frame is compared.
+ * AppFrame against the server shell it replaced. Each fixture in
+ * src/dev/fixtures/shell/ is that shell's body for one page type, from just
+ * after <body> to the React mount point: the last output of the retired
+ * renderer, generated from it and checked byte-equal to it before it was
+ * deleted, and never regenerated, since there is nothing left to generate
+ * them from. The React side is AppFrame, health-free, at that page's path,
+ * fed the same rail data and the same notice, with the server's empty
+ * #app-root as its children, so only the frame is compared.
  *
  * Normalisation, and the only one besides unwrapping the test container:
- * layout() writes `<script type="application/json" id="rail-data">` beside
+ * the shell wrote `<script type="application/json" id="rail-data">` beside
  * the aside, the server rail's data for the retired island, which AppFrame
  * replaces with GET /api/rail and does not render. On the fixture side only,
  * the script must occur exactly once; its JSON's `sites`, `hostAvailable`
@@ -179,7 +181,7 @@ function clientFrame(c: ShellCase, payload: RailPayload): string {
   return (container as HTMLElement | null)?.innerHTML ?? "";
 }
 
-describe("AppFrame parity with layout()", () => {
+describe("AppFrame parity with the frozen server shell", () => {
   for (const [name, c] of Object.entries(SHELL_CASES)) {
     test(name, () => {
       const payload: RailPayload = { ...SEED_RAIL, ...c.rail };
@@ -209,13 +211,14 @@ const RAIL_CASES: Record<string, Partial<RailData>> = {
 function navigation(rail: RailData): HTMLElement {
   let container: HTMLElement | null = null;
   act(() => {
-    container = render(<Navigation owned topBar={null} rail={rail} health={null} healthError={false} lastRead={null} />).container;
+    container = render(<Navigation rail={rail} health={null} healthError={false} lastRead={null} />).container;
   });
   return container as unknown as HTMLElement;
 }
 
-
-describe("the frame's rail parity with renderRail", () => {
+// src/dev/fixtures/rail/ is the retired server rail's output, frozen the same
+// way as the shell fixtures: the whole aside per case, and the top bar.
+describe("the frame's rail parity with the frozen server rail", () => {
   for (const [name, overrides] of Object.entries(RAIL_CASES)) {
     test(name, () => {
       const rail: RailData = { ...SEED_RAIL, sites: SEED_RAIL.sites!.map((s) => ({ ...s })), current: null, ...overrides };

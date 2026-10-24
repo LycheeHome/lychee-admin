@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
-import { createPortal } from "react-dom";
 import { splitHostnameForDisplay } from "../../lib/siteDisplay";
 import type { HealthPayload, Tone } from "../../shared/health";
 import {
@@ -20,21 +19,19 @@ import {
   attentionCounts,
 } from "../../views/railModel";
 import { FOCUS_RING, ICONS, formatAge } from "../../views/shared";
-import type { RailCurrent, RailData } from "../../views/shell";
+import type { RailCurrent, RailData } from "../../shared/rail";
 import { FindPanel } from "./FindPanel";
 import { ADD_SITE_ROUTE, RailLink, SITES_ROUTE, boardRouteOf, siteOf, useClientNav, type BoardRoute } from "../clientNav";
 
 /*
- * The rail's children in JSX. It mirrors renderRail in src/views/rail.ts
- * element for element — with `health: null` its render equals the server
- * aside's inner markup, which the parity test pins — so a change to either
- * belongs in both until the server rail is retired. The aside itself stays
- * the server's: the app's root renders into it through a portal and renders
- * only what is inside.
+ * The rail's children in JSX. With `health: null` its render equals the
+ * retired server rail's, element for element, frozen in
+ * src/dev/fixtures/rail/ and pinned by Rail.test.tsx and
+ * AppFrameParity.test.tsx. Navigation (below) renders the aside around it.
  *
  * Every link goes through RailLink (clientNav.tsx): a router link only
- * between two client routes, otherwise the same plain anchor the server
- * renders, which is all the parity test (rendering outside any router) sees.
+ * between two client routes, otherwise a plain anchor, which is all the
+ * parity tests (rendering outside any router) see.
  */
 
 export interface RailProps {
@@ -45,11 +42,11 @@ export interface RailProps {
   healthError: boolean;
   /** When health was last read successfully (ISO), for the unavailable line. */
   lastRead: string | null;
-  /** The find box's printed shortcut: `⌘K` (the server's) or `Ctrl K`. */
+  /** The find box's printed shortcut: `⌘K` (the default) or `Ctrl K`. */
   findHint?: string;
   /** The reference time for "last read …"; now by default. */
   now?: Date;
-  /** What the server's find box held when the island mounted over it. */
+  /** How the find box starts: the drawer's opens empty, focused when opened on find. */
   findInitial?: { query: string; focused: boolean };
   /** Opens a find result; by default the router between client routes, `location.assign` otherwise. */
   navigate?: (href: string) => void;
@@ -79,7 +76,7 @@ function Wordmark() {
   );
 }
 
-/** shared.ts's icon(name), from the same path data. */
+/** An icon from shared.ts's ICONS, as the retired server rail drew it. */
 function Icon({ name }: { name: keyof typeof ICONS }) {
   return (
     <svg
@@ -140,11 +137,10 @@ export function Rail({
   inDrawer,
   onNarrowShortcut,
 }: RailProps) {
-  // On a client route the router's location is where the operator is: the
-  // server's marker described the document's first URL, and an in-app move
-  // keeps the document. The add page marks nothing: the rail has no Add site,
-  // and its breadcrumb carries the location. Anywhere else the server's
-  // marker stands.
+  // On a client route the router's location is where the operator is. The
+  // add page marks nothing: the rail has no Add site, and its breadcrumb
+  // carries the location. Anywhere else (outside a router, as the parity
+  // tests render it) `rail.current` stands.
   const nav = useClientNav();
   const route = nav ? boardRouteOf(nav.pathname) : null;
   const site = nav ? siteOf(nav.pathname) : null;
@@ -262,9 +258,10 @@ export interface TopBarProps {
 }
 
 /**
- * The narrow-screen top bar's children, mirroring renderTopBar in
- * src/views/rail.ts (the parity test pins it): the wordmark h1, the overall
- * attention count (sites plus units), a find button and the menu button.
+ * The narrow-screen top bar's children, the retired server top bar's element
+ * for element (frozen in src/dev/fixtures/rail/top-bar.html, which the parity
+ * tests pin): the wordmark h1, the overall attention count (sites plus
+ * units), a find button and the menu button.
  */
 export function TopBar({ health, hostnames, healthError, onOpen }: TopBarProps) {
   const counts = !healthError && health ? attentionCounts(health, hostnames) : null;
@@ -364,16 +361,8 @@ function Drawer({
   );
 }
 
-export interface NavigationProps extends RailProps {
-  /** The server's `<header id="top-bar">`, whose children this takes over; null where there is none. */
-  topBar: Element | null;
-  /**
-   * Render the `<header id="top-bar">` and `<aside id="rail">` as this
-   * component's own elements, with layout()'s attributes, instead of into the
-   * server's (AppFrame, which owns the whole body). `topBar` is then null.
-   */
-  owned?: boolean;
-}
+/** The rail's props, less the ones Navigation decides itself (where find starts, and the drawer). */
+export type NavigationProps = Omit<RailProps, "findInitial" | "inDrawer" | "onNarrowShortcut">;
 
 interface DrawerState {
   /** What opened the drawer, which gets focus back when it closes. */
@@ -383,30 +372,19 @@ interface DrawerState {
 }
 
 /**
- * The rail and the top bar together, with the narrow-screen drawer between
- * them. Portalled into the rail's aside, it renders the rail there and the top
- * bar's children into the server's header through a portal, removing the
- * server's own once React's are in.
+ * The narrow-screen `<header id="top-bar">` and the rail's
+ * `<aside id="rail">`, with the drawer inside the header. AppFrame renders
+ * it first in the body, so the two are the body grid's first items.
  *
  * The drawer holds the rail itself: while it is open the rail renders inside
  * the dialog and not in the aside, so there is only ever one rail, one `#find`
  * and one ⌘K listener in the document.
  */
-export function Navigation({ topBar, owned = false, ...props }: NavigationProps) {
+export function Navigation(props: NavigationProps) {
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
-  // What the server's find box held applies once, to the aside's first render.
-  const [findInitial, setFindInitial] = useState(props.findInitial);
   const restoreTo = useRef<HTMLElement | null>(null);
 
-  // The server's top-bar children, captured before React's go in beside them
-  // and removed in the same commit, so the bar never shows twice.
-  const [serverBar] = useState(() => (topBar ? Array.from(topBar.childNodes) : []));
-  useLayoutEffect(() => {
-    for (const node of serverBar) node.parentNode?.removeChild(node);
-  }, [serverBar]);
-
   const open = (opener: Element | null, focusFind: boolean) => {
-    setFindInitial(undefined);
     setDrawer({ opener: opener instanceof HTMLElement && opener !== document.body ? opener : null, focusFind });
   };
 
@@ -460,41 +438,22 @@ export function Navigation({ topBar, owned = false, ...props }: NavigationProps)
   const rail = drawer ? (
     <Rail {...props} inDrawer findInitial={{ query: "", focused: drawer.focusFind }} />
   ) : (
-    <Rail
-      {...props}
-      findInitial={findInitial}
-      onNarrowShortcut={topBar || owned ? (previous) => open(previous, true) : undefined}
-    />
+    <Rail {...props} onNarrowShortcut={(previous) => open(previous, true)} />
   );
-
-  const topBarChildren = (
-    <>
-      <TopBar health={props.health} hostnames={(props.rail.sites ?? []).map((s) => s.hostname)} healthError={props.healthError} onOpen={open} />
-      {drawer ? (
-        <Drawer onClose={close} dialogRef={dialogRef}>
-          {rail}
-        </Drawer>
-      ) : null}
-    </>
-  );
-
-  if (owned) {
-    return (
-      <>
-        <header id="top-bar" className={TOP_BAR}>
-          {topBarChildren}
-        </header>
-        <aside id="rail" data-rail="" aria-label="Navigation" className={RAIL_ASIDE}>
-          {drawer ? null : rail}
-        </aside>
-      </>
-    );
-  }
 
   return (
     <>
-      {drawer ? null : rail}
-      {topBar ? createPortal(topBarChildren, topBar) : null}
+      <header id="top-bar" className={TOP_BAR}>
+        <TopBar health={props.health} hostnames={(props.rail.sites ?? []).map((s) => s.hostname)} healthError={props.healthError} onOpen={open} />
+        {drawer ? (
+          <Drawer onClose={close} dialogRef={dialogRef}>
+            {rail}
+          </Drawer>
+        ) : null}
+      </header>
+      <aside id="rail" data-rail="" aria-label="Navigation" className={RAIL_ASIDE}>
+        {drawer ? null : rail}
+      </aside>
     </>
   );
 }

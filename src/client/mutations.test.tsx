@@ -102,7 +102,7 @@ function finish(client: QueryClient) {
   client.clear();
 }
 
-/** Stands in for the rail island, which shares the client and so keeps the health query observed. */
+/** Stands in for AppFrame's rail, which shares the client and so keeps the health query observed. */
 function HealthObserver() {
   useHealth();
   return null;

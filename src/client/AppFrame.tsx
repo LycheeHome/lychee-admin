@@ -2,20 +2,21 @@ import { memo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BUTTON_OFFER, DISMISS_BUTTON, FLASH_BANNER, SHELL_COLUMN, SHELL_MAIN } from "../views/shared";
 import { addedNotice } from "../views/siteDetailModel";
-import type { RailData } from "../views/shell";
+import type { RailData } from "../shared/rail";
 import { fetchSiteDetail, siteDetailQueryKey } from "./api";
 import { SITES_ROUTE, siteOf, useClientNav } from "./clientNav";
 import { Navigation } from "./components/Rail";
 import { PageNotice } from "./components/PageNotice";
+import { useRailHealth } from "./health";
 import { useRail } from "./rail";
-import { useRailHealth } from "./RailIsland";
 
 /*
- * React's whole body: what layout() in src/views/shell.ts renders around a
- * page, element for element and class for class (AppFrameParity.test.tsx
- * pins it against the frozen shell): the narrow-screen top bar, the rail,
- * then the content column's <main> holding the toast host, the copy-status
- * region, the page notice and the routed page.
+ * React's whole body: what the retired server shell rendered
+ * around a page, element for element and class for class
+ * (AppFrameParity.test.tsx pins it against that shell's output, frozen in
+ * src/dev/fixtures/shell/): the narrow-screen top bar, the rail, then the
+ * content column's <main> holding the toast host, the copy-status region,
+ * the page notice and the routed page.
  *
  * It renders inside the router, beneath the layout route's ClientNav
  * context, so the rail's links are router links and its current item follows
@@ -26,7 +27,7 @@ import { useRailHealth } from "./RailIsland";
 export type InitialNotice = { kind: "removed"; host: string } | { kind: "created" } | null;
 
 /**
- * What the server drew a #page-notice for: `?removed=<host>` on the list
+ * What the server shell drew a #page-notice for: `?removed=<host>` on the list
  * (`/`), `?created=1` on a site's page, each given exactly once, as Express
  * reads them (a repeated parameter is an array there, and no notice).
  */
@@ -41,7 +42,7 @@ export function readInitialNotice(win: Window): InitialNotice {
 }
 
 /**
- * The flash toast's host, as renderFlashBanner drew it: empty and hidden
+ * The flash toast's host, as the server shell drew it: empty and hidden
  * until showToast() (toast.ts) fills it by id. Memoised with no props, so it
  * renders once and never again: toast.ts owns its classes and text from then
  * on, and a re-render of the frame (a rail re-read, a health poll) must
@@ -120,7 +121,7 @@ export function AppFrame({ notice, children }: { notice: InitialNotice; children
 
   return (
     <>
-      <Navigation owned topBar={null} rail={rail} {...live} />
+      <Navigation rail={rail} {...live} />
       <div className={SHELL_COLUMN}>
         <main className={SHELL_MAIN}>
           <ToastHost />

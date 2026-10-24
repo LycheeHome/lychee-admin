@@ -13,14 +13,15 @@ import {
   RAIL_WIDE_QUERY,
 } from "../../views/railModel";
 import { TONE_PILL } from "../../views/shared";
-import type { RailData } from "../../views/shell";
+import type { RailData } from "../../shared/rail";
 import { attentionResults, findResults, type FindGroupKey, type FindItem } from "../find";
 import { useOpen } from "../clientNav";
 
 /*
  * The ⌘K find box and its panel: a combobox over every site and unit. Closed
- * and unfocused it renders exactly the server's find box (src/views/rail.ts),
- * which the rail parity test pins. It lists places only, never actions.
+ * and unfocused it renders exactly the retired server rail's find box, which
+ * the frozen rail fixtures (src/dev/fixtures/rail/) pin. It lists places
+ * only, never actions.
  */
 
 export interface FindPanelProps {
@@ -32,11 +33,11 @@ export interface FindPanelProps {
   navigate?: (href: string) => void;
   /** The managed domain, dimmed in hostnames as the rail dims it. */
   domain?: string;
-  /** The printed shortcut: `⌘K` (the server's) or `Ctrl K`. */
+  /** The printed shortcut: `⌘K` (the default) or `Ctrl K`. */
   findHint?: string;
-  /** Text typed into the server's input before this mounted over it. */
+  /** The text the box starts with. */
   initialQuery?: string;
-  /** The server's input had focus when this mounted over it. */
+  /** Whether the box takes focus, open, when it mounts (the drawer opened on find). */
   initialFocused?: boolean;
   /**
    * This box is inside the narrow-screen drawer. The panel then opens below
@@ -46,7 +47,7 @@ export interface FindPanelProps {
   inDrawer?: boolean;
   /**
    * Below 900px the rail, and this box with it, is collapsed: ⌘K calls this
-   * with whatever had focus, and the island opens the rail as a drawer on find.
+   * with whatever had focus, and Navigation opens the rail as a drawer on find.
    */
   onNarrowShortcut?: (previous: Element | null) => void;
 }
@@ -169,7 +170,7 @@ export function FindPanel({
       const input = inputRef.current;
       if (!input) return;
       const previous = document.activeElement;
-      // Below 900px this box is collapsed with the rail: the island opens the
+      // Below 900px this box is collapsed with the rail: Navigation opens the
       // rail as a drawer and focuses find there instead.
       const narrow = narrowShortcut.current;
       if (narrow && typeof window.matchMedia === "function" && !window.matchMedia(RAIL_WIDE_QUERY).matches) {
@@ -190,13 +191,13 @@ export function FindPanel({
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  // The server's input had focus: take it over, caret at the end.
+  // Asked to start focused (the drawer opened on find): take focus, caret at the end.
   useEffect(() => {
     const input = inputRef.current;
     if (!initialFocused || !input) return;
     input.focus();
     input.setSelectionRange(input.value.length, input.value.length);
-    // Mount-only: these describe the server input this replaced.
+    // Mount-only: these describe how the box starts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

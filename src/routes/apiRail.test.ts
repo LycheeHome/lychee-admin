@@ -105,7 +105,7 @@ describe("GET /api/rail", () => {
     const { readFileSync } = await import("node:fs");
     const { join } = await import("node:path");
     const banned = /portStatus|cachedStatuses|computeStatuses|readResourceStatus|checkResourceContainerStatus/;
-    for (const file of ["rail.ts", "loadShell.ts"]) {
+    for (const file of ["rail.ts"]) {
       const source = readFileSync(join(__dirname, file), "utf8");
       const imports = source.split("\n").filter((line) => /^\s*(import\b|\}\s*from\b)/.test(line));
       assert.ok(imports.length > 0, `${file} has import lines`);

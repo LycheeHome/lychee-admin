@@ -146,7 +146,7 @@ describe("index.html, the Vite input", () => {
   const source = nodeFs.readFileSync(path.join(ROOT, "index.html"), "utf8");
   const viteConfig = nodeFs.readFileSync(path.join(ROOT, "vite.config.ts"), "utf8");
 
-  test("carries layout()'s <html>, metas, fonts and /style.css, titled lychee admin", () => {
+  test("carries the retired server shell's <html>, metas, fonts and /style.css, titled lychee admin", () => {
     assert.match(source, /^<!doctype html>\n<html lang="en" class="\[color-scheme:dark\]">/);
     assert.ok(source.includes('<meta charset="utf-8" />'));
     assert.ok(source.includes('<meta name="viewport" content="width=device-width, initial-scale=1" />'));
@@ -161,7 +161,10 @@ describe("index.html, the Vite input", () => {
     assert.ok(source.includes("<title>lychee admin</title>"));
   });
 
-  test("its body has layout()'s classes and holds only the root and the entry script", () => {
+  // The body is only the root and the entry script: the bundle is the only
+  // script any page loads (no /app.js, no actionPoll.js), which the retired
+  // shell.test.ts and clientShell.test.ts checked of the server's pages.
+  test("its body has the retired shell's classes and holds only the root and the entry script", () => {
     const body = source.match(/<body class="([^"]*)">([\s\S]*)<\/body>/);
     assert.ok(body, "no <body class> in index.html");
     assert.equal(body[1], "min-h-screen bg-stone-900 font-sans text-stone-50 m-0 min-[900px]:grid min-[900px]:grid-cols-[250px_minmax(0,1fr)]");

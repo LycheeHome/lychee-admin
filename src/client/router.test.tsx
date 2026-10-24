@@ -147,7 +147,7 @@ const row = (name: string) => document.querySelector(`[data-service="${name}"]`)
 const focused = () => `focus is on ${document.activeElement?.outerHTML.slice(0, 80) ?? "nothing"}`;
 const railLink = (href: string) => document.querySelector<HTMLAnchorElement>(`#rail a[href="${href}"]`);
 const marked = () => Array.from(document.querySelectorAll("#rail a[aria-current=\"page\"]")).map((a) => a.getAttribute("href"));
-/** The rail's dots are coloured once the island owns the rail and health has landed. */
+/** The rail's dots are coloured once its rows are in and health has landed. */
 const railLive = () =>
   waitFor(() => assert.equal(document.querySelector('#rail [data-site="api.lychee.land"] [data-dot]')?.getAttribute("class"), RAIL_DOT.bad), TIMEOUT);
 
@@ -289,7 +289,7 @@ describe("the single root", () => {
     assert.ok(root);
     assert.equal(root.getAttribute("class"), "contents");
     // The frame's parts are the root's own children, so with `contents` they
-    // are the body grid's items, as layout()'s were.
+    // are the body grid's items, as the server shell's were.
     assert.deepEqual(
       Array.from(root.children).map((el) => `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}`),
       ["header#top-bar", "aside#rail", "div"],
@@ -302,6 +302,14 @@ describe("the single root", () => {
     assert.equal(document.querySelectorAll("#flash-banner").length, 1);
     assert.equal(document.querySelectorAll("#copy-status").length, 1);
     assert.ok(await waitFor(() => row("swee") ?? assert.fail("no board"), TIMEOUT));
+  });
+
+  // Moved from the retired RailIsland.test.tsx.
+  test("mounts nothing without the root's mount point", () => {
+    document.body.innerHTML = '<aside id="rail" data-rail></aside>';
+    client = new QueryClient();
+    assert.ok(!mountApp(client));
+    assert.equal(document.body.innerHTML, '<aside id="rail" data-rail=""></aside>');
   });
 
   test("a direct visit to each board URL renders its own board", async () => {

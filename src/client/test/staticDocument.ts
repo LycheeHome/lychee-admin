@@ -14,6 +14,9 @@ const SOURCE = readFileSync(path.join(__dirname, "..", "..", "..", "index.html")
 /** index.html's <title>, which the document carries until a page sets its own. */
 export const STATIC_TITLE = SOURCE.match(/<title>([^<]*)<\/title>/)?.[1] ?? "";
 
+/** index.html's `<body>` classes: the grid that splits the rail and the content from 900px. */
+export const STATIC_BODY_CLASS = SOURCE.match(/<body class="([^"]*)">/)?.[1] ?? "";
+
 /**
  * index.html's body, without the entry script (happy-dom would try to load
  * it). Asserts the body holds only the root, so a test cannot quietly mount

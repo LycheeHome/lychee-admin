@@ -24,6 +24,7 @@ import { stripNoticeParams } from "./router";
 import { installSharedBindings } from "./sharedBindings";
 import { seedHealth } from "./test/healthFixture";
 import { FrameLayout } from "./test/frameHarness";
+import { displayedAt } from "./test/visibility";
 import { hideToast, showToast } from "./toast";
 
 /*
@@ -295,6 +296,122 @@ describe("the rail's data", () => {
     assert.equal(document.getElementById("flash-banner-message")?.textContent, "x");
     assert.ok(!document.getElementById("flash-banner-close")?.classList.contains("hidden"), "the close button was hidden");
   });
+});
+
+// Moved from the retired RailIsland.test.tsx, which held them against the
+// server rail with the island portalled over it; here they hold AppFrame,
+// which reads the same poll through useRailHealth.
+describe("the rail's health", () => {
+  const dot = (host: string) => rail()?.querySelector(`[data-site="${host}"] [data-dot]`)?.getAttribute("class") ?? "";
+  const unavailable = () => rail()?.querySelector("[data-health-unavailable]")?.textContent ?? null;
+  const failing = async () => json(500, { ok: false, reason: "boom" });
+  const good = async () => json(200, { ok: true, ...seedHealth() });
+  const refetchHealth = () =>
+    act(async () => {
+      await client!.refetchQueries({ queryKey: HEALTH_QUERY.queryKey });
+    });
+
+  test("the poll fills in the rows' dots and the counts", async () => {
+    mount("/");
+    await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), TIMEOUT);
+    assert.equal(dot("app.lychee.land"), RAIL_DOT.ok);
+    assert.equal(dot("blog.lychee.land"), RAIL_DOT.none);
+    assert.equal(document.querySelectorAll("#rail [data-site]").length, 8);
+    assert.equal(document.querySelector('#rail [data-count="sites"]')?.textContent, "2");
+    await waitFor(() => assert.equal(document.querySelector('#top-bar [data-count="all"]')?.firstChild?.textContent, "5"), TIMEOUT);
+  });
+
+  test("a failed poll after a good one never shows the remembered green", async () => {
+    const s = stubFetch();
+    mount("/", s);
+    await waitFor(() => assert.equal(dot("app.lychee.land"), RAIL_DOT.ok), TIMEOUT);
+    s.health = failing;
+    await refetchHealth();
+    await waitFor(() => assert.equal(dot("app.lychee.land"), RAIL_DOT.neutral), TIMEOUT);
+    assert.match(unavailable() ?? "", /^health unavailable · last read (just now|\d+ seconds? ago)$/);
+    assert.equal(document.querySelector('#rail [data-count="sites"]')?.textContent, "");
+  });
+
+  test("a failed first poll stays unavailable while the next poll is in flight", async () => {
+    const s = stubFetch();
+    s.health = failing;
+    mount("/", s);
+    await waitFor(() => assert.equal(unavailable(), "health unavailable"), TIMEOUT);
+    await waitFor(() => assert.ok(rows().length > 0), TIMEOUT);
+    // The next poll is held open. TanStack resets a data-less errored query
+    // to pending while it refetches; the rail must still say unavailable.
+    const held = gate<Response>();
+    s.health = () => held.promise;
+    const refetch = client!.refetchQueries({ queryKey: HEALTH_QUERY.queryKey });
+    try {
+      await waitFor(() => assert.equal(client!.getQueryState(HEALTH_QUERY.queryKey)?.fetchStatus, "fetching"), TIMEOUT);
+      assert.equal(unavailable(), "health unavailable");
+      assert.equal(dot("api.lychee.land"), RAIL_DOT.neutral);
+    } finally {
+      // Settle the held poll so nothing is left in flight.
+      held.open(json(500, { ok: false, reason: "boom" }));
+      await act(async () => {
+        await refetch;
+      });
+    }
+  });
+
+  test("an errored poll between two good ones clears: the dots show their tones again", async () => {
+    const s = stubFetch();
+    mount("/", s);
+    await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), TIMEOUT);
+    s.health = failing;
+    await refetchHealth();
+    await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.neutral), TIMEOUT);
+    assert.ok(unavailable() !== null, "the error state did not show");
+    s.health = good;
+    await refetchHealth();
+    await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), TIMEOUT);
+    assert.equal(dot("app.lychee.land"), RAIL_DOT.ok);
+    assert.ok(unavailable() === null, "the error state stayed");
+    assert.equal(document.querySelector('#rail [data-count="sites"]')?.textContent, "2");
+  });
+
+  for (const [platform, hint] of [
+    ["Win32", "Ctrl K"],
+    ["MacIntel", "⌘K"],
+  ] as const) {
+    test(`prints ${hint} on ${platform}`, async () => {
+      Object.defineProperty(navigator, "platform", { value: platform, configurable: true });
+      try {
+        mount("/");
+        await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), TIMEOUT);
+        assert.equal(document.querySelector("#rail [data-find-hint]")?.textContent, hint);
+      } finally {
+        delete (navigator as unknown as Record<string, unknown>).platform;
+      }
+    });
+  }
+});
+
+// Moved from the retired RailIsland.test.tsx ("each width displays exactly
+// one wordmark h1"), and from src/views/shell.test.ts's "the shell's h1",
+// which counted the two h1s in the server shell's markup. Now the whole page is
+// React's, so it holds every page type, body included.
+describe("the page's h1", () => {
+  const visibleH1s = (width: number) => Array.from(document.querySelectorAll("h1")).filter((h) => displayedAt(h, width));
+
+  for (const url of ["/", "/services", "/sites/app.lychee.land", "/sites/nope.lychee.land", "/sites/new"]) {
+    test(`${url}: each width displays exactly one, the wordmark`, async () => {
+      mount(url);
+      await waitFor(() => assert.ok(rows().length > 0), TIMEOUT);
+      // The page has rendered into <main>, past the toast host and the copy-status region.
+      await waitFor(() => assert.ok((document.querySelector("main")?.children.length ?? 0) > 2), TIMEOUT);
+      for (const width of [390, 899, 900, 1280]) {
+        const shown = visibleH1s(width);
+        assert.equal(shown.length, 1, `${width}px: ${shown.length} h1s displayed`);
+        assert.equal(shown[0]?.querySelector('a[href="/"]')?.getAttribute("aria-label"), "lychee-admin", `${width}px`);
+      }
+      assert.ok(displayedAt(document.querySelector("#top-bar h1") as Element, 390));
+      assert.ok(displayedAt(document.querySelector("#rail h1") as Element, 1280));
+      assert.equal(document.querySelectorAll("h1").length, 2, "the page has an h1 of its own");
+    });
+  }
 });
 
 describe("readInitialNotice", () => {

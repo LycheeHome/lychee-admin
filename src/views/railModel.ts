@@ -1,5 +1,5 @@
 // What the navigation rail says, as data: tones, attention, the counting rule,
-// unit hrefs and the class strings both rail renderers share. No node imports:
+// unit hrefs and the rail's class strings (Rail.tsx, FindPanel.tsx). No node imports:
 // Vite bundles this file into the client.
 import type { Site } from "../lib/caddyfile";
 import { describeStatus, deployTrouble, type SiteStatus } from "../lib/siteDisplay";
@@ -85,7 +85,7 @@ export function attentionCounts(
   };
 }
 
-// Class strings shared by both rail renderers (server rail.ts, client Rail.tsx).
+// The rail's class strings: the retired server rail's exactly, which the frozen rail fixtures pin.
 // The current-item treatment is the old header's: Chalk on Hairline with a 2px Ember Edge rule.
 const RAIL_CURRENT =
   `aria-[current=page]:text-stone-50 aria-[current=page]:bg-stone-700 ` +

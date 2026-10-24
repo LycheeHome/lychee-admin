@@ -11,3 +11,23 @@ export interface RailPayload {
   hostAvailable: boolean;
   domain: string;
 }
+
+/**
+ * Which rail item is current: a page's own link, a site's row, or nothing
+ * (the add-site page, whose breadcrumb carries its location; the not-found
+ * page; and any URL no route owns).
+ */
+export type RailCurrent =
+  | { page: "sites" | "services" | "reconciler" | "infrastructure" }
+  | { site: string }
+  | null;
+
+/** What the rail renders: its rows from GET /api/rail, and the item to mark current. */
+export interface RailData {
+  /** Managed sites in Caddyfile order, `hint` being `static` or `:<port>`; null when the Caddyfile is unreadable. */
+  sites: Array<{ hostname: string; hint: string }> | null;
+  /** Whether the inventory could be read. Without it the host links carry no counts. */
+  hostAvailable: boolean;
+  current: RailCurrent;
+  domain: string;
+}
