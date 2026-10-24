@@ -5,6 +5,7 @@ import { sameOrigin } from "./middleware/sameOrigin";
 import { createSitesRouter } from "./routes/sites";
 import { createServicesRouter } from "./routes/services";
 import { createHealthRouter } from "./routes/health";
+import { createRailRouter } from "./routes/rail";
 import type { Deps } from "./deps";
 
 export function createApp(deps: Deps): express.Express {
@@ -17,6 +18,7 @@ export function createApp(deps: Deps): express.Express {
   app.use(createSitesRouter(deps));
   app.use(createServicesRouter(deps));
   app.use(createHealthRouter(deps));
+  app.use(createRailRouter(deps));
 
   return app;
 }
