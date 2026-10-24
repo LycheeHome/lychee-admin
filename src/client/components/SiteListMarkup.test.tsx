@@ -295,8 +295,8 @@ describe("the site list's error banner", () => {
     assert.match(html, /caddy validate failed/);
   });
 
-  // renderErrorPage's box is pinned to ERROR_BOX in html.test.ts; together
-  // the two keep the list's error and the site routes' 500 page one box.
+  // CaddyfileError's box is pinned to ERROR_BOX in SiteDetailRules.test.tsx;
+  // together the two keep the list's error and the unreadable-Caddyfile body one box.
   test("uses the shared error box, as the site routes' error page does", () => {
     const box = listMarkup([], {}, "lychee.land", "boom").match(/<p class="([^"]*bg-red-950[^"]*)"/)?.[1];
     assert.equal(box, ERROR_BOX);
@@ -412,7 +412,8 @@ describe("Smoke sentences hold a readable measure", () => {
    * Every Smoke paragraph (Body classes, not mono) that lacks the 25rem cap.
    * The one sanctioned narrower measure is the Empty State component's
    * `max-w-[46ch]` (about 62 letters), which DESIGN.md's Body entry names.
-   * The site pages' cases stay in html.test.ts.
+   * The other pages' cases are beside their own markup rules; the measure's
+   * value is in src/views/shared.test.ts.
    */
   function uncappedSmoke(html: string): string[] {
     return (html.match(/<p\b[^>]*>/g) ?? []).filter((tag) => {

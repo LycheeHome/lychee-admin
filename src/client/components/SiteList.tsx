@@ -132,10 +132,10 @@ function EmptyState({ domain }: { domain: string }) {
         <code className={EMPTY_STATE_CODE}>{domainPattern(domain)}</code>
         {EMPTY_STATE_TAIL}
       </p>
-      <a id="empty-state-cta" href="/sites/new" className={ADD_SITE_BUTTON}>
+      <RailLink id="empty-state-cta" href="/sites/new" className={ADD_SITE_BUTTON}>
         <PlusIcon />
         {EMPTY_STATE_CTA_TEXT}
-      </a>
+      </RailLink>
     </div>
   );
 }
@@ -168,10 +168,10 @@ export function SiteList({
             {SITES_HEADING_TEXT}
           </h2>
           {sites.length === 0 ? null : (
-            <a href="/sites/new" className={ADD_SITE_BUTTON}>
+            <RailLink href="/sites/new" className={ADD_SITE_BUTTON}>
               <PlusIcon />
               {ADD_SITE_TEXT}
-            </a>
+            </RailLink>
           )}
         </div>
         {problems.length === 0 ? null : (

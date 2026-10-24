@@ -5,7 +5,7 @@ import { BODY, CODE_LINE, COPY_BUTTON, COPY_IN_LINE, ICON_CLASS, MONO_FACT, SERV
  * The pieces the services board and the site page share, each element for
  * element what the retired server renderers in html.ts wrote (the html.ts
  * names below are theirs): the icon set they use, the copy button
- * public/app.js binds by [data-copy-target], a single-line command box, and
+ * sharedBindings.ts binds by [data-copy-target], a single-line command box, and
  * a failed deploy's line. Every phrase the server writes as one text node is
  * one template string here.
  */
@@ -59,8 +59,9 @@ export function Icon({ name }: { name: IconName }) {
 }
 
 /**
- * html.ts's copyButton: app.js reads the target element's textContent, and
- * falls back to selecting it where navigator.clipboard is unavailable.
+ * The retired server renderers' copyButton: sharedBindings.ts reads the
+ * target element's textContent, and falls back to selecting it where
+ * navigator.clipboard is unavailable.
  */
 export function CopyButton({ target, label, extraClass = "" }: { target: string; label: string; extraClass?: string }) {
   return (

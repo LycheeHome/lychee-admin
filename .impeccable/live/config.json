@@ -1,5 +1,5 @@
 {
-  "files": ["src/views/html.ts"],
+  "files": ["src/views/shell.ts"],
   "insertBefore": "</body>",
   "commentSyntax": "html",
   "cspChecked": true

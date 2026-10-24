@@ -19,17 +19,17 @@ import {
   type SiteEnv,
 } from "../lib/siteValidation";
 import { buildSitePreview } from "../lib/sitePreview";
-import { renderAddSite, renderErrorPage } from "../views/html";
 import { addedNotice, type SiteResourceView } from "../views/siteDetailModel";
 import { loadShell } from "./loadShell";
 import { renderClientPage } from "../views/clientShell";
-import { SITES_HEADING_TEXT as SITES_TITLE } from "../views/siteListModel";
+import { ADD_SITE_TITLE, SITES_HEADING_TEXT as SITES_TITLE } from "../views/siteListModel";
 import { clearBoardCache } from "./services";
 import { cachedRead, evictRead } from "./readCache";
 import { hostProblems, hostProblemUnits, undeployedStatus, type SiteStatus } from "../lib/siteDisplay";
 import type { UnitState } from "../lib/unitState";
 import type { ApiError, ApiOk } from "../shared/board";
 import type { SitesPayload } from "../shared/sites";
+import type { AddSitePayload } from "../shared/addSite";
 import type { SiteDetailFacts, SiteDetailPayload } from "../shared/siteDetail";
 import type { Site } from "../lib/caddyfile";
 import type { Deps } from "../deps";
@@ -57,7 +57,7 @@ const PLACEHOLDER_INDEX_HTML = (hostname: string) =>
 // finished sentence the validator would return (portConflictMessage), so the
 // field and the preview panel show the same words; the client adds none.
 // Declared claims are left to the preview: only the server reads the clone.
-function computePortOwners(sites: Site[]): Record<string, string> {
+export function computePortOwners(sites: Site[]): Record<string, string> {
   const portOwners: Record<string, string> = {};
   for (const [port, who] of SITE_ENV.reservedPorts) {
     portOwners[String(port)] = portConflictMessage(port, { kind: "reserved", who });
@@ -368,6 +368,33 @@ export function createSitesRouter(deps: Deps): Router {
     }
   });
 
+  // The add page's facts for the client. Registered above /api/sites/:hostname
+  // so "new" is never taken for a hostname. Always 200: an unreadable
+  // Caddyfile is a field. ?refresh=1, sent by the route loader on every
+  // arrival, pulls the clone first.
+  sitesRouter.get("/api/sites/new", async (req, res) => {
+    const paths = { caddyfilePath: config.caddyfilePath, tunnelConfigPath: config.tunnelConfigPath };
+    const steps = ADD_STEPS.map(({ id, label }) => ({ id, label }));
+    try {
+      if (req.query.refresh === "1") await refreshClone(deps);
+      const sites = caddyfile
+        .parseSites(deps.fs.readFile(config.caddyfilePath))
+        .filter((site) => isManagedHostname(site.hostname, config.domain));
+      const payload: AddSitePayload = {
+        domain: config.domain,
+        portOwners: computePortOwners(sites),
+        paths,
+        steps,
+        caddyfileError: null,
+      };
+      res.json({ ok: true, ...payload } satisfies ApiOk<AddSitePayload>);
+    } catch (error) {
+      const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
+      const payload: AddSitePayload = { domain: config.domain, portOwners: {}, paths, steps, caddyfileError: message };
+      res.json({ ok: true, ...payload } satisfies ApiOk<AddSitePayload>);
+    }
+  });
+
   // One site's detail for the client. 404 for an unknown site; an unreadable
   // Caddyfile is the error variant of a 200, as /api/sites does it.
   // ?refresh=1 pulls the clone (Next.js sites only) and evicts the cached read.
@@ -404,30 +431,21 @@ export function createSitesRouter(deps: Deps): Router {
     }
   });
 
+  // The add page is the client's: the shared shell around its mount point,
+  // titled as the client titles it, with the data from /api/sites/new (whose
+  // ?refresh=1 arrival read, sent by the route loader, does the clone pull
+  // this GET used to). No rail row is marked: the page's breadcrumb carries
+  // its location. An unreadable Caddyfile is the page's to show, from the
+  // API's caddyfileError, so this answers 200 whatever the Caddyfile says.
+  //
   // Registered above /sites/:hostname deliberately: Express matches in
   // registration order, so if this were below, "new" would be captured as
-  // :hostname, fail isManagedHostname, and 404 instead of rendering the form.
-  sitesRouter.get("/sites/new", async (req, res) => {
-    // Async handler: an unguarded throw hangs the request and crashes the
-    // process under Express 4, so a read failure becomes an ordinary 500.
-    try {
-      // For the preview and submit this page sends: neither refreshes, so the
-      // port claims they check are as fresh as this page load.
-      await refreshClone(deps);
-      const content = deps.fs.readFile(config.caddyfilePath);
-      const sites = caddyfile.parseSites(content).filter((site) => isManagedHostname(site.hostname, config.domain));
-      res.send(
-        renderAddSite(sites, config.domain, computePortOwners(sites), {
-          caddyfilePath: config.caddyfilePath,
-          tunnelConfigPath: config.tunnelConfigPath,
-        }, loadShell(deps, null)),
-      );
-    } catch (error) {
-      const message = error instanceof CommandError ? `${error.message}\n${error.stderr}` : String(error);
-      // The URL is /sites/new, not / — same reasoning as the detail page's
-      // fallback: no rail item is marked current.
-      res.status(500).send(renderErrorPage("Can't read the Caddyfile", message, loadShell(deps, null)));
-    }
+  // :hostname and answer the not-found page.
+  sitesRouter.get("/sites/new", (_req, res) => {
+    // One read of the bundle, checked here and emitted by layout() from the same shell.
+    const shell = loadShell(deps, null);
+    if (!shell.assets) return res.status(500).type("text/plain").send("client bundle missing; run npm run build");
+    return res.type("html").send(renderClientPage(ADD_SITE_TITLE, "add-site", shell));
   });
 
   // A site's page is the client's: the shared shell around its mount point,

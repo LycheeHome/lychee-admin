@@ -1,0 +1,420 @@
+{
+  "POST /sites/preview hostname=&type=static&port=&framework=none&healthcheckPath=": {
+    "status": 200,
+    "body": {
+      "ready": false
+    }
+  },
+  "POST /sites/preview hostname=blog.lychee.land&type=static&port=&framework=none&healthcheckPath=": {
+    "status": 200,
+    "body": {
+      "ready": false,
+      "error": "blog.lychee.land already exists in the Caddyfile"
+    }
+  },
+  "POST /sites/preview hostname=shop.lychee.land&type=static&port=&framework=none&healthcheckPath=": {
+    "status": 200,
+    "body": {
+      "ready": true,
+      "preview": {
+        "hostname": "shop.lychee.land",
+        "caddy": {
+          "path": "/etc/caddy/Caddyfile",
+          "added": [
+            "http://shop.lychee.land {",
+            "\troot * /var/www/shop.lychee.land",
+            "\tfile_server",
+            "}"
+          ]
+        },
+        "tunnel": {
+          "path": "/etc/cloudflared/sites-config.yml",
+          "added": [
+            "  - hostname: shop.lychee.land",
+            "    service: http://localhost:80"
+          ],
+          "contextAfter": "  - service: http_status:404"
+        },
+        "files": {
+          "path": "/var/www/shop.lychee.land",
+          "creates": [
+            "index.html"
+          ]
+        },
+        "steps": [
+          {
+            "id": "backup",
+            "label": "Configs backed up",
+            "willRun": true
+          },
+          {
+            "id": "caddyfile",
+            "label": "Caddyfile block appended",
+            "willRun": true
+          },
+          {
+            "id": "files",
+            "label": "Site directory created",
+            "willRun": true
+          },
+          {
+            "id": "tunnel",
+            "label": "Tunnel route added",
+            "willRun": true
+          },
+          {
+            "id": "caddy",
+            "label": "Caddy validated and reloaded",
+            "willRun": true
+          },
+          {
+            "id": "cloudflared",
+            "label": "cloudflared-sites restarted",
+            "willRun": true
+          }
+        ]
+      }
+    }
+  },
+  "POST /sites/preview hostname=shop.lychee.land&type=reverse-proxy&port=&framework=none&healthcheckPath=": {
+    "status": 200,
+    "body": {
+      "ready": false,
+      "error": "A valid local port is required for a reverse proxy site"
+    }
+  },
+  "POST /sites/preview hostname=shop.lychee.land&type=reverse-proxy&port=3500&framework=none&healthcheckPath=": {
+    "status": 200,
+    "body": {
+      "ready": true,
+      "preview": {
+        "hostname": "shop.lychee.land",
+        "caddy": {
+          "path": "/etc/caddy/Caddyfile",
+          "added": [
+            "http://shop.lychee.land {",
+            "\treverse_proxy localhost:3500",
+            "}"
+          ]
+        },
+        "tunnel": {
+          "path": "/etc/cloudflared/sites-config.yml",
+          "added": [
+            "  - hostname: shop.lychee.land",
+            "    service: http://localhost:80"
+          ],
+          "contextAfter": "  - service: http_status:404"
+        },
+        "files": null,
+        "steps": [
+          {
+            "id": "backup",
+            "label": "Configs backed up",
+            "willRun": true
+          },
+          {
+            "id": "caddyfile",
+            "label": "Caddyfile block appended",
+            "willRun": true
+          },
+          {
+            "id": "files",
+            "label": "Site directory created",
+            "willRun": false
+          },
+          {
+            "id": "tunnel",
+            "label": "Tunnel route added",
+            "willRun": true
+          },
+          {
+            "id": "caddy",
+            "label": "Caddy validated and reloaded",
+            "willRun": true
+          },
+          {
+            "id": "cloudflared",
+            "label": "cloudflared-sites restarted",
+            "willRun": true
+          }
+        ]
+      }
+    }
+  },
+  "POST /sites/preview hostname=shop.lychee.land&type=reverse-proxy&port=4000&framework=none&healthcheckPath=": {
+    "status": 200,
+    "body": {
+      "ready": false,
+      "error": "Port 4000 is already used by api.lychee.land."
+    }
+  },
+  "POST /sites/preview hostname=shop.lychee.land&type=reverse-proxy&port=4000&framework=nextjs&healthcheckPath=": {
+    "status": 200,
+    "body": {
+      "ready": false,
+      "error": "Port 4000 is already used by api.lychee.land."
+    }
+  },
+  "POST /sites/preview hostname=shop.lychee.land&type=reverse-proxy&port=4000&framework=nextjs&healthcheckPath=%2Fhealthz": {
+    "status": 200,
+    "body": {
+      "ready": false,
+      "error": "Port 4000 is already used by api.lychee.land."
+    }
+  },
+  "POST /sites/preview hostname=shop.lychee.land&type=reverse-proxy&port=3500&framework=nextjs&healthcheckPath=%2Fhealthz": {
+    "status": 200,
+    "body": {
+      "ready": true,
+      "preview": {
+        "hostname": "shop.lychee.land",
+        "caddy": {
+          "path": "/etc/caddy/Caddyfile",
+          "added": [
+            "http://shop.lychee.land {",
+            "\t# lychee-admin-framework: nextjs",
+            "\t# lychee-admin-healthcheck: /healthz",
+            "\treverse_proxy localhost:3500",
+            "}"
+          ]
+        },
+        "tunnel": {
+          "path": "/etc/cloudflared/sites-config.yml",
+          "added": [
+            "  - hostname: shop.lychee.land",
+            "    service: http://localhost:80"
+          ],
+          "contextAfter": "  - service: http_status:404"
+        },
+        "files": {
+          "path": "Copy into your site's repository",
+          "creates": [
+            "Dockerfile",
+            ".dockerignore",
+            ".github/workflows/release.yml"
+          ],
+          "destination": "repository"
+        },
+        "steps": [
+          {
+            "id": "backup",
+            "label": "Configs backed up",
+            "willRun": true
+          },
+          {
+            "id": "caddyfile",
+            "label": "Caddyfile block appended",
+            "willRun": true
+          },
+          {
+            "id": "files",
+            "label": "Site directory created",
+            "willRun": false
+          },
+          {
+            "id": "tunnel",
+            "label": "Tunnel route added",
+            "willRun": true
+          },
+          {
+            "id": "caddy",
+            "label": "Caddy validated and reloaded",
+            "willRun": true
+          },
+          {
+            "id": "cloudflared",
+            "label": "cloudflared-sites restarted",
+            "willRun": true
+          }
+        ]
+      }
+    }
+  },
+  "POST /sites/preview hostname=blog.lychee.land&type=reverse-proxy&port=3500&framework=nextjs&healthcheckPath=%2Fhealthz": {
+    "status": 200,
+    "body": {
+      "ready": false,
+      "error": "blog.lychee.land already exists in the Caddyfile"
+    }
+  },
+  "POST /sites/preview hostname=&type=reverse-proxy&port=3500&framework=nextjs&healthcheckPath=%2Fhealthz": {
+    "status": 200,
+    "body": {
+      "ready": false
+    }
+  },
+  "POST /sites hostname=shop.lychee.land&type=reverse-proxy&port=3500&framework=nextjs&healthcheckPath=%2Fhealthz": {
+    "status": 500,
+    "body": {
+      "error": "Command failed: sudo /usr/bin/caddy validate --config /etc/caddy/Caddyfile\n[mock] recorded failure: Error: adapting config using caddyfile: Caddyfile:52 - Error during parsing\n\nBacked-up copies of the Caddyfile and tunnel config were saved to /etc/lychee-admin/backups before this attempt — review and restore manually if the configs were left in a bad state.",
+      "steps": [
+        {
+          "id": "backup",
+          "label": "Configs backed up",
+          "status": "ok"
+        },
+        {
+          "id": "caddyfile",
+          "label": "Caddyfile block appended",
+          "status": "ok"
+        },
+        {
+          "id": "files",
+          "label": "Site directory created",
+          "status": "skipped"
+        },
+        {
+          "id": "tunnel",
+          "label": "Tunnel route added",
+          "status": "ok"
+        },
+        {
+          "id": "caddy",
+          "label": "Caddy validated and reloaded",
+          "status": "failed"
+        },
+        {
+          "id": "cloudflared",
+          "label": "cloudflared-sites restarted",
+          "status": "not-run"
+        }
+      ]
+    }
+  },
+  "POST /sites/preview hostname=shop.lychee.land&type=reverse-proxy&port=3600&framework=nextjs&healthcheckPath=%2Fhealthz": {
+    "status": 200,
+    "body": {
+      "ready": true,
+      "preview": {
+        "hostname": "shop.lychee.land",
+        "caddy": {
+          "path": "/etc/caddy/Caddyfile",
+          "added": [
+            "http://shop.lychee.land {",
+            "\t# lychee-admin-framework: nextjs",
+            "\t# lychee-admin-healthcheck: /healthz",
+            "\treverse_proxy localhost:3600",
+            "}"
+          ]
+        },
+        "tunnel": {
+          "path": "/etc/cloudflared/sites-config.yml",
+          "added": [
+            "  - hostname: shop.lychee.land",
+            "    service: http://localhost:80"
+          ],
+          "contextAfter": "  - service: http_status:404"
+        },
+        "files": {
+          "path": "Copy into your site's repository",
+          "creates": [
+            "Dockerfile",
+            ".dockerignore",
+            ".github/workflows/release.yml"
+          ],
+          "destination": "repository"
+        },
+        "steps": [
+          {
+            "id": "backup",
+            "label": "Configs backed up",
+            "willRun": true
+          },
+          {
+            "id": "caddyfile",
+            "label": "Caddyfile block appended",
+            "willRun": true
+          },
+          {
+            "id": "files",
+            "label": "Site directory created",
+            "willRun": false
+          },
+          {
+            "id": "tunnel",
+            "label": "Tunnel route added",
+            "willRun": true
+          },
+          {
+            "id": "caddy",
+            "label": "Caddy validated and reloaded",
+            "willRun": true
+          },
+          {
+            "id": "cloudflared",
+            "label": "cloudflared-sites restarted",
+            "willRun": true
+          }
+        ]
+      }
+    }
+  },
+  "POST /sites/preview hostname=shop.lychee.land&type=reverse-proxy&port=3700&framework=nextjs&healthcheckPath=%2Fhealthz": {
+    "status": 200,
+    "body": {
+      "ready": true,
+      "preview": {
+        "hostname": "shop.lychee.land",
+        "caddy": {
+          "path": "/etc/caddy/Caddyfile",
+          "added": [
+            "http://shop.lychee.land {",
+            "\t# lychee-admin-framework: nextjs",
+            "\t# lychee-admin-healthcheck: /healthz",
+            "\treverse_proxy localhost:3700",
+            "}"
+          ]
+        },
+        "tunnel": {
+          "path": "/etc/cloudflared/sites-config.yml",
+          "added": [
+            "  - hostname: shop.lychee.land",
+            "    service: http://localhost:80"
+          ],
+          "contextAfter": "  - service: http_status:404"
+        },
+        "files": {
+          "path": "Copy into your site's repository",
+          "creates": [
+            "Dockerfile",
+            ".dockerignore",
+            ".github/workflows/release.yml"
+          ],
+          "destination": "repository"
+        },
+        "steps": [
+          {
+            "id": "backup",
+            "label": "Configs backed up",
+            "willRun": true
+          },
+          {
+            "id": "caddyfile",
+            "label": "Caddyfile block appended",
+            "willRun": true
+          },
+          {
+            "id": "files",
+            "label": "Site directory created",
+            "willRun": false
+          },
+          {
+            "id": "tunnel",
+            "label": "Tunnel route added",
+            "willRun": true
+          },
+          {
+            "id": "caddy",
+            "label": "Caddy validated and reloaded",
+            "willRun": true
+          },
+          {
+            "id": "cloudflared",
+            "label": "cloudflared-sites restarted",
+            "willRun": true
+          }
+        ]
+      }
+    }
+  }
+}

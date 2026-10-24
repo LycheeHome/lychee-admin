@@ -74,6 +74,8 @@ export const SITES_HEADING_TEXT = "Sites";
 /** The heading's Add site, and the empty state's: the page's one Ember action. */
 export const ADD_SITE_BUTTON = `${BUTTON_PRIMARY} no-underline`;
 export const ADD_SITE_TEXT = "Add site";
+/** The page Add site opens: its title, which the server's shell and the client's in-app arrival both set. */
+export const ADD_SITE_TITLE = "Add a site";
 
 // The host-trouble block. Consequence first, in plain sans: it is what the
 // operator needs to know, and only the machine fact (the unit and its state)

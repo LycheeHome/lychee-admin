@@ -8,8 +8,8 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   root: __dirname,
   base: "/client/",
-  // Vite's default publicDir is ./public, which would copy app.js and
-  // style.css into public/client/. Express already serves public/ itself.
+  // Vite's default publicDir is ./public, which would copy style.css into
+  // public/client/. Express already serves public/ itself.
   publicDir: false,
   plugins: [react(), tailwindcss()],
   build: {

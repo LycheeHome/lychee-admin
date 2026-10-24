@@ -28,7 +28,7 @@ export function readClientManifest(publicDir: string): ClientAssets | null {
 }
 
 /** The pages the client renders, by the name their mount point carries. */
-export type ClientPage = "sites" | "services" | "reconciler" | "infrastructure" | "site";
+export type ClientPage = "sites" | "services" | "reconciler" | "infrastructure" | "site" | "add-site";
 
 /**
  * The shared shell around an empty mount point the client renders into. The

@@ -3,6 +3,7 @@ import type { RailData, ShellData } from "../views/shell";
 import type { ClientAssets } from "../views/clientShell";
 import type { Site } from "../lib/caddyfile";
 import type { SiteDetailFacts, SiteDetailPayload } from "../shared/siteDetail";
+import type { AddSitePayload } from "../shared/addSite";
 
 /**
  * Helpers shared by the `*.test.ts` files. This lives in `src/dev/` because
@@ -139,4 +140,28 @@ export function mainRegion(page: string): string {
   const end = page.indexOf("</main>");
   assert.ok(start !== -1 && end > start, "no content region in the page — anchor is stale");
   return page.slice(start + COPY_STATUS.length, end);
+}
+
+/**
+ * `GET /api/sites/new`'s answer for the seed, built as the route builds it:
+ * the managed sites of `src/dev/seed.ts`'s Caddyfile, their port owners from
+ * the route's own `computePortOwners`, the configured paths and `ADD_STEPS`.
+ * Lazy imports, for the reason `seedSiteDetailFacts` gives.
+ */
+export async function seedAddSitePayload(): Promise<AddSitePayload> {
+  await import("./env");
+  const { SEED_CADDYFILE } = await import("./seed");
+  const { parseSites } = await import("../lib/caddyfile");
+  const { isManagedHostname } = await import("../lib/siteValidation");
+  const { ADD_STEPS } = await import("../lib/stepReport");
+  const { config } = await import("../config");
+  const { computePortOwners } = await import("../routes/sites");
+  const sites = parseSites(SEED_CADDYFILE).filter((site) => isManagedHostname(site.hostname, config.domain));
+  return {
+    domain: config.domain,
+    portOwners: computePortOwners(sites),
+    paths: { caddyfilePath: config.caddyfilePath, tunnelConfigPath: config.tunnelConfigPath },
+    steps: ADD_STEPS.map(({ id, label }) => ({ id, label })),
+    caddyfileError: null,
+  };
 }

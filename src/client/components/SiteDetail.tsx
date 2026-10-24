@@ -54,8 +54,9 @@ import { RepositoryCard, type SiteWrites } from "./RepositoryCard";
  * check included), Manual steps and the Danger card with its closed dialog,
  * plus the not-found and Caddyfile-error bodies. Every decision is
  * siteDetailModel's; SiteDetailParity.test.tsx compares this with the
- * retired renderer's output, frozen in src/dev/fixtures/detail/, and the
- * Caddyfile error with the live renderErrorPage.
+ * retired renderer's output, frozen in src/dev/fixtures/detail/, the
+ * Caddyfile error included (the retired server error page's, frozen the same
+ * way).
  *
  * Every phrase the server writes as one text node is one template string
  * here, never adjacent JSX expressions: React would make those separate text
@@ -510,7 +511,10 @@ export function SiteNotFound({ hostname }: { hostname: string }) {
   );
 }
 
-/** renderErrorPage's body: the exact message and a way back. */
+/**
+ * The body for an unreadable Caddyfile, on a site's page and on the add page:
+ * the exact message and a way back. It was the retired server error page's.
+ */
 export function CaddyfileError({ message }: { message: string }) {
   return (
     <div className={`${FRAME_WIDTH} flex flex-col gap-4`}>

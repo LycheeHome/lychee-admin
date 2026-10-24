@@ -13,12 +13,14 @@ import {
   type RouteObject,
 } from "react-router";
 import { RouterProvider } from "react-router/dom";
-import { BOARD_ROUTES, ClientNavContext, SITE_ROUTE, SITES_ROUTE, isClientRoute, type ClientNav } from "./clientNav";
+import { ADD_SITE_ROUTE, BOARD_ROUTES, ClientNavContext, SITE_ROUTE, SITES_ROUTE, isClientRoute, type ClientNav } from "./clientNav";
 import { RailPortal } from "./RailIsland";
-import { fetchSiteDetail, siteDetailQueryKey } from "./api";
+import { addSiteQueryKey, fetchAddSite, fetchSiteDetail, siteDetailQueryKey } from "./api";
+import { AddSitePage } from "./pages/AddSitePage";
 import { BoardPage, boardQuery } from "./pages/BoardPage";
 import { SiteDetailRoute } from "./pages/SiteDetailPage";
 import { SitesPage, sitesQuery } from "./pages/SitesPage";
+import { installSharedBindings } from "./sharedBindings";
 
 export { BOARD_ROUTES, isClientRoute } from "./clientNav";
 
@@ -26,10 +28,10 @@ export { BOARD_ROUTES, isClientRoute } from "./clientNav";
  * The client's one React root and its router. Every page mounts it on the
  * empty `#react-root` the shell emits; it renders the rail into the server's
  * aside through a portal on every page, and the page content into
- * `#app-root` where the server put one, which it does only on the sites list,
- * the three board pages and a site's page. On any other URL (today only
- * `/sites/new`) the route renders nothing and the rail's links
- * stay plain anchors, so the server page beneath is never replaced.
+ * `#app-root` where the server put one: the sites list, the three board
+ * pages, the add page and a site's page, which is every page the server
+ * serves. On any other URL the route renders nothing and the rail's links
+ * stay plain anchors, so a server page beneath would never be replaced.
  */
 
 const Nothing = () => null;
@@ -90,7 +92,7 @@ function documentScrollKey(): (location: Location) => string {
 
 /**
  * The routes: one layout, the three board pages, the sites list, a site's
- * page, and the add page and a catch-all rendering nothing. Each board
+ * page, the add page, and a catch-all rendering nothing. Each board
  * route's loader primes its group's board, so a move between pages shows the
  * cached board at once (then refreshes it), and the rows exist by the time the
  * router scrolls to a `#service-` hash. A failed read is not the loader's to
@@ -128,9 +130,22 @@ export function appRoutes(client: QueryClient): RouteObject[] {
           HydrateFallback: Nothing,
           element: <SitesPage />,
         },
-        // The add page is a server page: matched here first, so the site
-        // route can never capture "new" as a hostname.
-        { path: "/sites/new", Component: Nothing },
+        {
+          // Matched here, before the site route, so "new" is never captured
+          // as a hostname. Every arrival reads with ?refresh=1, which pulls
+          // the lychee-resources clone first, so the port claims the page's
+          // preview and submit check are as fresh as the arrival. Always
+          // fetched, never taken from cache; a failure is the page's to show.
+          path: ADD_SITE_ROUTE,
+          loader: async () => {
+            await client
+              .fetchQuery({ queryKey: addSiteQueryKey(), queryFn: () => fetchAddSite(true) })
+              .catch(() => undefined);
+            return null;
+          },
+          HydrateFallback: Nothing,
+          element: <AddSitePage />,
+        },
         {
           path: SITE_ROUTE,
           // Every arrival, a document load included, reads with ?refresh=1,
@@ -187,6 +202,7 @@ export function mountApp(client: QueryClient, doc: Document = document): { route
   if (!el) return null;
   // Before the router reads the URL, so it starts on the clean one.
   stripNoticeParams(doc.defaultView ?? window);
+  const uninstallBindings = installSharedBindings(doc);
   const router = createAppRouter(client);
   const root = createRoot(el);
   root.render(
@@ -201,6 +217,7 @@ export function mountApp(client: QueryClient, doc: Document = document): { route
     unmount: () => {
       root.unmount();
       router.dispose();
+      uninstallBindings();
     },
   };
 }

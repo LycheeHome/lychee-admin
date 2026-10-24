@@ -1,17 +1,16 @@
 import "./test/setup";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { afterEach, before, describe, test } from "node:test";
+import { after, afterEach, before, describe, test } from "node:test";
 import { act, cleanup, render } from "@testing-library/react";
 import { Board } from "./components/BoardRows";
+import { installSharedBindings } from "./sharedBindings";
 
-// public/app.js is a classic browser script with no exports. It is evaluated
-// once, globally, against a bare shell (just #copy-status), and the copy
-// button is rendered by React AFTER that, so the only way it can copy is the
-// document-level delegated listener.
+// The bindings are installed once against a bare shell (just #copy-status),
+// and the copy button is rendered by React AFTER that, so the only way it can
+// copy is the document-level delegated listener.
 
 afterEach(cleanup);
+let uninstall: () => void = () => {};
 
 const NOW = new Date("2026-10-02T05:00:00Z");
 let writes: string[] = [];
@@ -28,10 +27,10 @@ before(() => {
       },
     },
   });
-  const source = readFileSync(path.join(__dirname, "../../public/app.js"), "utf8");
-  // Indirect eval: global scope, as a <script> would run it.
-  (0, eval)(source);
+  uninstall = installSharedBindings(document);
 });
+
+after(() => uninstall());
 
 /** A failed row renders the failure line's journal command and its copy button. */
 function renderFailedRow() {
@@ -74,7 +73,7 @@ async function clickAndSettle(el: Element): Promise<void> {
   });
 }
 
-describe("copy buttons rendered after app.js loaded", () => {
+describe("copy buttons rendered after the bindings were installed", () => {
   test("copy the command, swap the icon and announce it", async () => {
     writes = [];
     clipboardFails = false;

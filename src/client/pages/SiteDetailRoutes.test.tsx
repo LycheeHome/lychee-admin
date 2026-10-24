@@ -12,6 +12,7 @@ import { layout } from "../../views/shell";
 import { RAIL_DOT } from "../../views/railModel";
 import { seedHealth } from "../test/healthFixture";
 import { siteDetailQueryKey } from "../api";
+import { siteOf } from "../clientNav";
 import { isClientRoute, mountApp } from "../router";
 
 /*
@@ -111,7 +112,7 @@ function stubFetch(): void {
   }) as typeof fetch;
 }
 
-const PAGE: Record<string, Exclude<ClientPage, "site">> = { "/": "sites", "/services": "services" };
+const PAGE: Record<string, Exclude<ClientPage, "site" | "add-site">> = { "/": "sites", "/services": "services" };
 const TITLE: Record<string, string> = { "/": "Sites", "/services": "Services" };
 
 /**
@@ -126,12 +127,12 @@ function load(url: string, banner?: string): void {
   const path = url.split(/[?#]/)[0] ?? url;
   const notice = banner === undefined ? undefined : { message: banner };
   const shell = testShell({ current: PAGE[path] ? { page: PAGE[path] } : null });
-  const isSite = path.startsWith("/sites/") && path !== "/sites/new";
+  const isSite = siteOf(path) !== null;
   const html = PAGE[path]
     ? renderClientPage(TITLE[path], PAGE[path], shell, notice)
     : isSite
       ? renderClientPage(path.slice(7), "site", shell, notice)
-      : layout("Add site", '<p id="server-body">a server page</p>', { shell, banner: notice });
+      : layout("A server page", '<p id="server-body">a server page</p>', { shell, banner: notice });
   document.title = html.match(/<title>([^<]*)<\/title>/)?.[1] ?? "";
   document.body.innerHTML = html
     .replace(/^[\s\S]*<body[^>]*>/, "")
@@ -178,13 +179,14 @@ function clickCancelled(link: Element): boolean {
 }
 
 describe("isClientRoute", () => {
-  test("includes a site's page, but never /sites/new or a deeper path", () => {
+  test("includes a site's page, but never a deeper path; /sites/new is the add page, never a site", () => {
     for (const path of ["/sites/app.lychee.land", "/sites/App.Lychee.Land", "/sites/app%2Elychee.land?created=1#hop"]) {
       assert.equal(isClientRoute(path), true, path);
     }
-    for (const path of ["/sites/new", "/sites/new?x=1", "/sites/", "/sites/a/b", "/sites/app.lychee.land/delete"]) {
+    for (const path of ["/sites/", "/sites/a/b", "/sites/app.lychee.land/delete"]) {
       assert.equal(isClientRoute(path), false, path);
     }
+    for (const path of ["/sites/new", "/sites/new?x=1"]) assert.equal(siteOf(path), null, path);
   });
 });
 
@@ -272,18 +274,13 @@ describe("the site page route", () => {
     assert.deepEqual(assigned, []);
   });
 
-  test("/sites/new stays a document load", async () => {
-    load("/");
+  // No server page is left (the add page is a client route since
+  // AddSiteRoutes.test.tsx); a URL no route matches stands in for one, since
+  // the rule that keeps a server page's body on screen is still the router's.
+  test("from a server page a site is a document load", async () => {
+    load("/elsewhere");
     await railLive();
-    const add = await waitFor(() => document.querySelector('#app-root a[href="/sites/new"]') ?? assert.fail("no Add site"), TIMEOUT);
-    assert.equal(clickCancelled(add), false, "a router took Add site");
-    // A second document: the first one's root goes, as on a real load.
-    act(() => app?.unmount());
-    client?.clear();
-
-    load("/sites/new");
-    await railLive();
-    assert.ok(document.getElementById("server-body"), "the add page's body was replaced");
+    assert.ok(document.getElementById("server-body"), "the server page's body was replaced");
     assert.ok(!fetched.some((u) => u.startsWith("/api/sites/")));
     assert.equal(clickCancelled(railLink("/sites/app.lychee.land") as HTMLAnchorElement), false);
   });

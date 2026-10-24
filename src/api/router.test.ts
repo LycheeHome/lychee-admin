@@ -109,7 +109,6 @@ describe("the routers are kept apart", () => {
       ["GET", "/services"],
       ["GET", "/sites/new"],
       ["GET", "/style.css"],
-      ["GET", "/app.js"],
       ["POST", "/sites"],
       ["POST", "/sites/blog.lychee.land/delete"],
       ["POST", "/services/swee/deploy"],

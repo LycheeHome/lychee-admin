@@ -283,26 +283,13 @@ describe("the rail on each page", () => {
     assert.doesNotMatch(rail, /lychee\.local/);
   });
 
-  test("an unreadable Caddyfile says so in the rail, and the 500 fallbacks mark nothing they are not", async () => {
+  test("an unreadable Caddyfile says so in the rail, and the pages it cannot place mark nothing they are not", async () => {
     fakeFs.rmRecursive(CADDYFILE);
     const list = await (await request("/")).text();
     assert.match(railOf(list), /Can't read the Caddyfile/);
     assert.deepEqual(currentHrefs(list), ["/"]);
     assert.deepEqual(currentHrefs(await (await request("/sites/new")).text()), []);
     assert.deepEqual(currentHrefs(await (await request("/sites/api.lychee.land")).text()), []);
-  });
-
-  // A site's page is the client's, which shows /api/sites/:hostname's
-  // caddyfileError itself (GET /sites/:hostname: the client shell, below).
-  test("the add page's 500 is a dedicated error page with the message and a way back", async () => {
-    fakeFs.rmRecursive(CADDYFILE);
-    const response = await request("/sites/new");
-    assert.equal(response.status, 500);
-    const html = await response.text();
-    assert.match(html, /ENOENT/);
-    assert.match(html, /<a href="\/"[^>]*>\u2190 sites<\/a>/);
-    assert.deepEqual(currentHrefs(html), []);
-    assert.doesNotMatch(withoutShell(html), /id="empty-state"/);
   });
 
   test("no page carries the header band or the hostname dropdown", async () => {
@@ -429,37 +416,46 @@ describe("GET /sites/:hostname: the client shell", () => {
   });
 });
 
-describe("GET /sites/new", () => {
-  // GET /sites/new is async (it awaits a clone refresh). An unguarded throw
-  // there hangs the request and crashes the process under Express 4. The
-  // timeout turns a hang into a failure rather than a stuck test run.
-  test("returns 500 with the error text when the Caddyfile can't be read, rather than hanging", async () => {
-    fakeFs.rmRecursive(CADDYFILE);
+describe("GET /sites/new: the client shell", () => {
+  // The page itself is the client's, read from /api/sites/new
+  // (apiAddSite.test.ts) and held to the retired server page by
+  // AddSiteParity.test.tsx. The server sends the shell and its mount point.
+  const MOUNT = '<div id="app-root" class="contents" data-page="add-site"></div>';
 
-    const response = await request("/sites/new", { signal: AbortSignal.timeout(3000) });
-
-    assert.equal(response.status, 500);
-    assert.match(await response.text(), /ENOENT/);
-  });
-
-  test("serves the add-site form with port-conflict data", async () => {
+  test("serves the shell titled Add a site, with the add page's mount point and the bundle", async () => {
     const response = await request("/sites/new");
     assert.equal(response.status, 200);
-    const body = await response.text();
-    assert.match(body, /id="add-site-form"/);
-    assert.match(body, /id="port-owners-data"/);
-    // Stripped of the header: its "sites"/"add site" links carry no
-    // hostnames, so this doesn't change what the assertion below proves, but
-    // it keeps this test consistent with the others that strip it.
-    const page = withoutShell(body);
-    // 4000 is api.lychee.land in the fixture; 8787 is lychee-admin's own PORT.
-    assert.match(page, /api\.lychee\.land/);
-    assert.match(page, /8787/);
+    const html = await response.text();
+    assert.ok(html.includes(MOUNT));
+    assert.ok(html.includes("<title>Add a site</title>"));
+    assert.ok(html.includes(`src="/client/${ASSETS.script}"`));
+    // The form is the client's now: nothing of it is in the document.
+    assert.doesNotMatch(html, /id="add-site-form"/);
+    assert.doesNotMatch(html, /id="port-owners-data"/);
+  });
+
+  // The page shows /api/sites/new's caddyfileError itself, as / and a site's page do.
+  test("an unreadable Caddyfile still serves the shell, with 200", async () => {
+    fakeFs.rmRecursive(CADDYFILE);
+    const response = await request("/sites/new", { signal: AbortSignal.timeout(3000) });
+    assert.equal(response.status, 200);
+    assert.ok((await response.text()).includes(MOUNT));
+  });
+
+  test("answers 500 when the bundle is missing", async () => {
+    clientAssets = null;
+    const response = await request("/sites/new");
+    assert.equal(response.status, 500);
+    assert.equal(await response.text(), "client bundle missing; run npm run build");
   });
 
   test("is not mistaken for a hostname by the detail route", async () => {
-    const body = await (await request("/sites/new")).text();
-    assert.doesNotMatch(body, /No managed site found/);
+    const response = await request("/sites/new");
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.ok(!html.includes('data-page="site"'));
+    assert.ok(!html.includes("<title>Site not found</title>"));
+    assert.ok(!html.includes("<title>new</title>"));
   });
 });
 
@@ -488,8 +484,12 @@ http://test.lychee.land {
     fakeCommands.refreshDeclarations = saved;
   });
 
-  test("the add page refreshes the clone, so its preview and submit read a fresh one", async () => {
+  // The route loader's arrival read sends ?refresh=1, so the preview and
+  // submit the page sends read a fresh clone; the shell reads nothing.
+  test("the add page's arrival read refreshes the clone; its shell does not", async () => {
     assert.equal((await request("/sites/new")).status, 200);
+    assert.equal(refreshes, 0);
+    assert.equal((await request("/api/sites/new?refresh=1")).status, 200);
     assert.equal(refreshes, 1);
   });
 
@@ -511,7 +511,7 @@ http://test.lychee.land {
   // The real refresh never rejects; this is the contract failing anyway.
   test("a refresh that fails still renders both pages", async () => {
     fakeCommands.refreshDeclarations = () => Promise.reject(new Error("network down"));
-    assert.equal((await request("/sites/new")).status, 200);
+    assert.equal((await request("/api/sites/new?refresh=1")).status, 200);
     assert.match(await sitePage("test.lychee.land"), /From a repository/);
   });
 });
@@ -675,12 +675,11 @@ describe("POST /sites — reverse proxy", () => {
     assert.equal((await json<{ error: string }>(response)).error, "Port 2019 is reserved for Caddy's admin API.");
   });
 
-  /** The add-site page's field map: port → the finished sentence the field shows. */
+  /** The add-site page's field map, as /api/sites/new answers it: port → the finished sentence the field shows. */
   async function portOwners(): Promise<Record<string, string>> {
-    const body = await (await request("/sites/new")).text();
-    const raw = body.match(/<script type="application\/json" id="port-owners-data">([^<]*)<\/script>/)?.[1];
-    assert.ok(raw, "expected the port-owners-data script");
-    return JSON.parse(raw);
+    const response = await request("/api/sites/new");
+    assert.equal(response.status, 200);
+    return (await json<{ portOwners: Record<string, string> }>(response)).portOwners;
   }
 
   test("the preview and the field show the identical sentence for 2019", async () => {

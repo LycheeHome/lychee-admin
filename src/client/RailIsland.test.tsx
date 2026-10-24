@@ -25,7 +25,7 @@ const ROOT = '<div id="react-root"></div>';
 // A server page's URL: the router matches it to `*`. Not `/`, which is the
 // sites list's client route and would load the list beside the rail.
 beforeEach(() => {
-  (globalThis as unknown as { happyDOM: { setURL(url: string): void } }).happyDOM.setURL("http://localhost/sites/new");
+  (globalThis as unknown as { happyDOM: { setURL(url: string): void } }).happyDOM.setURL("http://localhost/elsewhere");
 });
 
 afterEach(() => {
