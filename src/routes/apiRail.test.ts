@@ -91,9 +91,28 @@ describe("GET /api/rail", () => {
     assert.equal(body.hostAvailable, false);
   });
 
-  test("runs no status check", async () => {
-    await get(await start());
+  test("the wrapped command counters stay at zero on /api/rail, and the same counters rise on /api/health", async () => {
+    const base = await start();
+    await get(base);
     assert.deepEqual(calls, { units: 0, resource: 0 });
+    // Positive control: the counters are wired, so their zero above means something.
+    const health = await fetch(`${base}/api/health`, { headers: { Authorization: AUTH } });
+    assert.equal(health.status, 200);
+    assert.ok(calls.units > 0);
+  });
+
+  test("readRail's modules import no status machinery (TCP port check, cached statuses, container reads)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const banned = /portStatus|cachedStatuses|computeStatuses|readResourceStatus|checkResourceContainerStatus/;
+    for (const file of ["rail.ts", "loadShell.ts"]) {
+      const source = readFileSync(join(__dirname, file), "utf8");
+      const imports = source.split("\n").filter((line) => /^\s*(import\b|\}\s*from\b)/.test(line));
+      assert.ok(imports.length > 0, `${file} has import lines`);
+      for (const line of imports) assert.ok(!banned.test(line), `${file}: ${line}`);
+    }
+    const body = readFileSync(join(__dirname, "rail.ts"), "utf8");
+    assert.ok(!/checkPortOpen|cachedStatuses|computeStatuses/.test(body));
   });
 
   test("401 without credentials", async () => {
