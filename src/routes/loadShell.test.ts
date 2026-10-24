@@ -42,18 +42,4 @@ describe("loadShell", () => {
     const { loadShell } = await import("./loadShell");
     assert.equal(loadShell(await deps({ inventory: false }), null).rail.hostAvailable, false);
   });
-
-  test("reads the client bundle per call, so the dev server's getter keeps working", async () => {
-    const { loadShell } = await import("./loadShell");
-    const d = await deps();
-    let reads = 0;
-    Object.defineProperty(d, "clientAssets", {
-      get: () => {
-        reads += 1;
-        return { script: `assets/main-${reads}.js`, styles: [] };
-      },
-    });
-    assert.equal(loadShell(d, null).assets?.script, "assets/main-1.js");
-    assert.equal(loadShell(d, null).assets?.script, "assets/main-2.js");
-  });
 });

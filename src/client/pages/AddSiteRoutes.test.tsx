@@ -6,16 +6,16 @@ import { showToast } from "../toast";
 import { QueryClient } from "@tanstack/react-query";
 import type { AddSitePayload } from "../../shared/addSite";
 import type { SitesPayload } from "../../shared/sites";
-import { seedAddSitePayload, testShell } from "../../dev/testHelpers";
-import { renderClientPage } from "../../views/clientShell";
+import { SEEDED_RAIL_SITES, seedAddSitePayload } from "../../dev/testHelpers";
 import { RAIL_DOT } from "../../views/railModel";
 import { seedHealth } from "../test/healthFixture";
+import { loadStaticDocument, railPayload } from "../test/staticDocument";
 import { siteOf } from "../clientNav";
 import { isClientRoute, mountApp } from "../router";
 
 /*
  * /sites/new as a client route, on SiteDetailRoutes.test.tsx's harness: the
- * server's shell for a URL, then the one root mounted over it, with fetch
+ * static document at a URL, then the one root mounted on it, with fetch
  * answering the APIs. POST /sites can be held, so a test can leave the page
  * while the add is in flight and answer it afterwards.
  */
@@ -91,6 +91,7 @@ function stubFetch(): void {
     const method = init?.method ?? "GET";
     fetched.push(`${method} ${url}`);
     if (url === "/api/health") return json(200, { ok: true, ...seedHealth() });
+    if (url === "/api/rail") return json(200, { ok: true, ...railPayload(SEEDED_RAIL_SITES.map((s) => ({ ...s }))) });
     if (url === "/api/sites") return json(200, { ok: true, ...sites });
     if (url.startsWith("/api/sites/new")) return json(200, { ok: true, ...payload });
     if (url === "/sites/preview") return json(200, { ready: false });
@@ -103,22 +104,14 @@ function stubFetch(): void {
   }) as typeof fetch;
 }
 
-/** The document the server sends for `path`, then the root mounted over it. */
+/** The static document at `path`, then the root mounted on it. */
 function load(path: string, list: SitesPayload = SITES): void {
   sites = list;
   stubFetch();
   assigned = [];
   Object.defineProperty(window.location, "assign", { configurable: true, value: (href: string) => void assigned.push(href) });
   happyDOM.setURL(`http://localhost${path}`);
-  const html =
-    path === "/sites/new"
-      ? renderClientPage("Add a site", "add-site", testShell({ current: null }))
-      : renderClientPage("Sites", "sites", testShell({ current: { page: "sites" } }));
-  document.title = html.match(/<title>([^<]*)<\/title>/)?.[1] ?? "";
-  document.body.innerHTML = html
-    .replace(/^[\s\S]*<body[^>]*>/, "")
-    .replace(/<\/body>[\s\S]*$/, "")
-    .replace(/<script\b[^>]*\bsrc=[^>]*><\/script>/g, "");
+  loadStaticDocument();
   client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { gcTime: 0 } } });
   act(() => {
     app = mountApp(client as QueryClient);
@@ -128,7 +121,7 @@ function load(path: string, list: SitesPayload = SITES): void {
 
 const form = () => document.getElementById("add-site-form") as HTMLFormElement | null;
 const headline = () => document.getElementById("composed-hostname")?.closest("h2") ?? null;
-const listHeading = () => document.querySelector<HTMLHeadingElement>("#app-root section h2");
+const listHeading = () => document.querySelector<HTMLHeadingElement>("main section h2");
 const marked = () => Array.from(document.querySelectorAll('#rail a[aria-current="page"]')).map((a) => a.getAttribute("href"));
 const reads = () => fetched.filter((f) => f.startsWith("GET /api/sites/new"));
 const previews = () => fetched.filter((f) => f === "POST /sites/preview").length;
@@ -141,7 +134,7 @@ function assertFocus(el: Element | null | undefined) {
 const railLive = () =>
   waitFor(() => assert.equal(document.querySelector('#rail [data-site="api.lychee.land"] [data-dot]')?.getAttribute("class"), RAIL_DOT.bad), TIMEOUT);
 const showingForm = () => waitFor(() => assert.ok(form(), "no add form"), TIMEOUT);
-const showingList = () => waitFor(() => assert.ok(document.querySelector('#app-root a[href="/sites/blog.lychee.land"]'), "no list"), TIMEOUT);
+const showingList = () => waitFor(() => assert.ok(document.querySelector('main a[href="/sites/blog.lychee.land"]'), "no list"), TIMEOUT);
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Clicks `link` and says whether the router cancelled it; cancels it after, so happy-dom stays put. */
@@ -167,7 +160,7 @@ async function arriveFromList(): Promise<void> {
   load("/");
   await railLive();
   await showingList();
-  const add = document.querySelector('#app-root a[href="/sites/new"]');
+  const add = document.querySelector('main a[href="/sites/new"]');
   assert.ok(add, "no Add site");
   assert.equal(clickCancelled(add), true, "the click was left to the browser");
   await showingForm();
@@ -232,7 +225,7 @@ describe("the add page route", () => {
     await showingList();
     const find = document.querySelector<HTMLInputElement>("#find") as HTMLInputElement;
     act(() => find.focus());
-    const add = document.querySelector('#app-root a[href="/sites/new"]') as HTMLAnchorElement;
+    const add = document.querySelector('main a[href="/sites/new"]') as HTMLAnchorElement;
     assert.equal(clickCancelled(add), true);
     await showingForm();
     await act(async () => {});
@@ -243,7 +236,7 @@ describe("the add page route", () => {
     await arriveFromList();
     assert.equal(clickCancelled(cancelLink() as HTMLAnchorElement), true);
     await showingList();
-    const add = document.querySelector('#app-root a[href="/sites/new"]') as HTMLAnchorElement;
+    const add = document.querySelector('main a[href="/sites/new"]') as HTMLAnchorElement;
     assert.equal(clickCancelled(add), true);
     await showingForm();
     await waitFor(() => assertFocus(headline()), TIMEOUT);
@@ -252,7 +245,7 @@ describe("the add page route", () => {
 
   for (const [name, find] of [
     ["Cancel", () => cancelLink()],
-    ["the breadcrumb's sites link", () => document.querySelector('#app-root nav[aria-label="Breadcrumb"] a[href="/"]')],
+    ["the breadcrumb's sites link", () => document.querySelector('main nav[aria-label="Breadcrumb"] a[href="/"]')],
   ] as const) {
     test(`${name} returns to the list in-app`, async () => {
       load("/sites/new");
@@ -355,7 +348,7 @@ describe("RF3: leaving mid-preview and mid-submit", () => {
           assert.ok(!document.getElementById("flash-banner-close")?.classList.contains("hidden"), "no close button");
         }
         assert.equal(window.location.pathname, "/");
-        assert.ok(document.querySelector('#app-root a[href="/sites/blog.lychee.land"]'), "the list went");
+        assert.ok(document.querySelector('main a[href="/sites/blog.lychee.land"]'), "the list went");
         assert.deepEqual(failures, []);
       } finally {
         process.off("unhandledRejection", record);

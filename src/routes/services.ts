@@ -10,9 +10,7 @@ import { readInventory } from "../lib/serviceInventory";
 import { buildBoard, findTimerUnit } from "../lib/serviceBoard";
 import type { ServiceBoard } from "../lib/serviceBoard";
 import type { ApiError, ApiOk, BoardPayload } from "../shared/board";
-import { GROUP_LABELS } from "../views/boardRowModel";
-import { renderClientPage } from "../views/clientShell";
-import { loadShell } from "./loadShell";
+import { sendClientDocument } from "./clientDocument";
 import { cachedRead, clearReadCaches } from "./readCache";
 import type { ServiceGroup } from "../lib/serviceInventory";
 import type { ServiceStatus, TimerSchedule } from "../lib/unitState";
@@ -26,18 +24,7 @@ const CONFIRM_DOWN_REASON = "the container hasn't been confirmed down yet; try a
  * The board's three pages, one group each, all rendered by the client. Every
  * row's POSTs stay under /services.
  */
-const CLIENT_PAGES: ReadonlyArray<[path: string, group: ServiceGroup]> = [
-  ["/services", "service"],
-  ["/reconciler", "reconciler"],
-  ["/infrastructure", "infrastructure"],
-];
-
-/** Each board page's rail link, by the group it holds. */
-const GROUP_PAGES: Record<ServiceGroup, "services" | "reconciler" | "infrastructure"> = {
-  reconciler: "reconciler",
-  service: "services",
-  infrastructure: "infrastructure",
-};
+const CLIENT_PAGES: readonly string[] = ["/services", "/reconciler", "/infrastructure"];
 
 const GROUPS: readonly ServiceGroup[] = ["reconciler", "service", "infrastructure"];
 const isServiceGroup = (value: string): value is ServiceGroup => (GROUPS as readonly string[]).includes(value);
@@ -128,16 +115,11 @@ async function readBoardPage(deps: Deps): Promise<BoardPageData> {
 export function createServicesRouter(deps: Deps): express.Router {
   const router = express.Router();
 
-  // The three board pages are the client's: the shared shell around a React
-  // mount point, titled as the client titles them after an in-app navigation.
+  // The three board pages are the client's: the static document, always 200.
   // The data comes from /api/services, so nothing here reads the board.
-  for (const [path, group] of CLIENT_PAGES) {
+  for (const path of CLIENT_PAGES) {
     router.get(path, (_req, res) => {
-      // One read of the bundle (the dev server's getter re-reads the manifest),
-      // checked here and then emitted by layout() from the same shell.
-      const shell = loadShell(deps, { page: GROUP_PAGES[group] });
-      if (!shell.assets) return res.status(500).type("text/plain").send("client bundle missing; run npm run build");
-      return res.type("html").send(renderClientPage(GROUP_LABELS[group], GROUP_PAGES[group], shell));
+      sendClientDocument(res, deps);
     });
   }
 

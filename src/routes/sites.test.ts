@@ -5,7 +5,6 @@ import { once } from "node:events";
 import type { Server } from "node:http";
 import bcrypt from "bcrypt";
 import type { createInMemoryFileSystem } from "../dev/fakes";
-import { RETIRED_SWITCHER, withoutShell } from "../dev/testHelpers";
 import type { SiteDetailPayload } from "../shared/siteDetail";
 
 // --- Fixture layout -------------------------------------------------------
@@ -71,8 +70,8 @@ function writeFixtures(caddyfile = SEED_CADDYFILE, tunnel = SEED_TUNNEL): void {
 let server: Server;
 let baseUrl: string;
 
-const ASSETS = { script: "assets/main-abc.js", styles: ["assets/main-def.css"] };
-let clientAssets: typeof ASSETS | null = ASSETS;
+const DOCUMENT = "<!doctype html><!-- the static document -->";
+let clientDocument: string | null = DOCUMENT;
 
 const AUTH = `Basic ${Buffer.from(`tester:${PASSWORD}`).toString("base64")}`;
 
@@ -156,8 +155,8 @@ before(async () => {
     logger: createLogger(fakes.fs),
   };
   // Read per request, as the dev server's getter is, so a test can take the
-  // bundle away.
-  Object.defineProperty(deps, "clientAssets", { get: () => clientAssets });
+  // document away.
+  Object.defineProperty(deps, "clientDocument", { get: () => clientDocument });
   const app = createApp(deps);
 
   server = app.listen(0, "127.0.0.1");
@@ -174,7 +173,7 @@ after(async () => {
 
 beforeEach(() => {
   createSiteDirectoryCalls.length = 0;
-  clientAssets = ASSETS;
+  clientDocument = DOCUMENT;
   writeFixtures();
 });
 
@@ -193,269 +192,38 @@ describe("authentication", () => {
   });
 });
 
-describe("GET /: the client shell", () => {
-  // The list itself is the client's, read from /api/sites (apiSites.test.ts)
-  // and compared with the server's markup in SiteListParity.test.tsx. The
-  // server sends the shell, its mount point, and the ?removed notice.
-  const NOTICE = "Removed blog.lychee.land. Remember to remove the DNS record in Cloudflare manually.";
-  const marked = (html: string): string[] =>
-    [...html.matchAll(/<a\b[^>]*\baria-current="page"[^>]*>/g)].map((m) => m[0].match(/href="([^"]+)"/)?.[1] ?? "");
-
-  test("serves the shell with the sites mount point, title Sites, the rail's sites heading current and the bundle", async () => {
-    const response = await request("/");
-    assert.equal(response.status, 200);
-    const html = await response.text();
-    assert.ok(html.includes('<div id="app-root" class="contents" data-page="sites"></div>'));
-    assert.ok(html.includes("<title>Sites</title>"));
-    assert.deepEqual(marked(html), ["/"]);
-    assert.ok(html.includes('<script type="module" src="/client/assets/main-abc.js">'));
-    // No list on the server: no rows, no empty state.
-    assert.doesNotMatch(withoutShell(html), /data-hostname|id="empty-state"/);
-  });
-
-  test("answers 500 when the bundle is missing", async () => {
-    clientAssets = null;
-    const response = await request("/");
-    assert.equal(response.status, 500);
-    assert.equal(await response.text(), "client bundle missing; run npm run build");
-  });
-
-  test("?removed renders today's #page-notice, outside the mount point", async () => {
-    const html = await (await request("/?removed=blog.lychee.land")).text();
-    assert.ok(html.includes(`<span id="page-notice-message">${NOTICE}</span>`));
-    assert.ok(html.includes('<button type="button" id="page-notice-close"'));
-    assert.ok(html.indexOf('id="page-notice"') < html.indexOf('<div id="app-root"'));
-    assert.equal(html.split('id="page-notice"').length - 1, 1);
-  });
-
-  test("says nothing about DNS without a ?removed query", async () => {
-    const html = await (await request("/")).text();
-    assert.doesNotMatch(html, /id="page-notice"/);
-  });
-
-  test("requires authentication", async () => {
-    assert.equal((await fetch(`${baseUrl}/?removed=blog.lychee.land`)).status, 401);
-  });
-
-  // The notice is a fact about a removal that already completed, not about
-  // whether the Caddyfile is readable on this request. The list's own error
-  // is /api/sites' caddyfileError, so the shell still answers 200.
-  test("an unreadable Caddyfile still serves the shell, with the notice", async () => {
-    fakeFs.rmRecursive(CADDYFILE);
-    const response = await request("/?removed=blog.lychee.land");
-    assert.equal(response.status, 200);
-    const html = await response.text();
-    assert.ok(html.includes('<div id="app-root" class="contents" data-page="sites"></div>'));
-    assert.ok(html.includes(`<span id="page-notice-message">${NOTICE}</span>`));
-  });
-});
-
-describe("the rail on each page", () => {
-  /** The hrefs of every link the page marks current. */
-  const currentHrefs = (html: string): string[] =>
-    [...html.matchAll(/<a\b[^>]*\baria-current="page"[^>]*>/g)].map((m) => m[0].match(/href="([^"]+)"/)?.[1] ?? "");
-  const railOf = (html: string): string => html.match(/<aside id="rail"[\s\S]*?<\/aside>/)?.[0] ?? "";
-
-  test("the list marks the sites heading", async () => {
-    assert.deepEqual(currentHrefs(await (await request("/")).text()), ["/"]);
-  });
-
-  test("the add-site page marks nothing: the rail has no Add site", async () => {
-    const html = await (await request("/sites/new")).text();
-    assert.deepEqual(currentHrefs(html), []);
-    assert.doesNotMatch(railOf(html), /href="\/sites\/new"/);
-  });
-
-  test("a site page marks its own row", async () => {
-    assert.deepEqual(currentHrefs(await (await request("/sites/api.lychee.land")).text()), ["/sites/api.lychee.land"]);
-    assert.deepEqual(currentHrefs(await (await request("/sites/blog.lychee.land")).text()), ["/sites/blog.lychee.land"]);
-  });
-
-  test("the not-found page marks nothing", async () => {
-    const response = await request("/sites/nope.lychee.land");
-    assert.equal(response.status, 404);
-    assert.deepEqual(currentHrefs(await response.text()), []);
-  });
-
-  test("lists the managed sites in Caddyfile order, and nothing unmanaged", async () => {
-    const rail = railOf(await (await request("/sites/api.lychee.land")).text());
-    assert.deepEqual([...rail.matchAll(/data-site="([^"]+)"/g)].map((m) => m[1]), ["blog.lychee.land", "api.lychee.land"]);
-    assert.doesNotMatch(rail, /lychee\.local/);
-  });
-
-  test("an unreadable Caddyfile says so in the rail, and the pages it cannot place mark nothing they are not", async () => {
-    fakeFs.rmRecursive(CADDYFILE);
-    const list = await (await request("/")).text();
-    assert.match(railOf(list), /Can't read the Caddyfile/);
-    assert.deepEqual(currentHrefs(list), ["/"]);
-    assert.deepEqual(currentHrefs(await (await request("/sites/new")).text()), []);
-    assert.deepEqual(currentHrefs(await (await request("/sites/api.lychee.land")).text()), []);
-  });
-
-  test("no page carries the header band or the hostname dropdown", async () => {
-    for (const path of ["/", "/sites/new", "/sites/api.lychee.land", "/sites/nope.lychee.land"]) {
-      const html = await (await request(path)).text();
-      assert.doesNotMatch(html, /id="site-header"/, path);
-      assert.doesNotMatch(html, RETIRED_SWITCHER, path);
-    }
-  });
-});
-
-describe("GET /sites/:hostname: the client shell", () => {
-  // The page itself is the client's, read from /api/sites/:hostname
-  // (apiSiteDetail.test.ts) and compared with the server renderer's markup in
-  // SiteDetailParity.test.tsx. The server sends the shell, its mount point,
-  // and the ?created=1 notice.
-  const marked = (html: string): string[] =>
-    [...html.matchAll(/<a\b[^>]*\baria-current="page"[^>]*>/g)].map((m) => m[0].match(/href="([^"]+)"/)?.[1] ?? "");
-  const MOUNT = '<div id="app-root" class="contents" data-page="site"></div>';
-
-  test("a known site: 200, the site mount point, titled the hostname, its rail row current, the bundle", async () => {
-    const response = await request("/sites/blog.lychee.land");
-    assert.equal(response.status, 200);
-    const html = await response.text();
-    assert.ok(html.includes(MOUNT));
-    assert.ok(html.includes("<title>blog.lychee.land</title>"));
-    assert.deepEqual(marked(html), ["/sites/blog.lychee.land"]);
-    assert.ok(html.includes('<script type="module" src="/client/assets/main-abc.js">'));
-    // No page on the server: no hostname heading, no dialog.
-    assert.doesNotMatch(withoutShell(html), /id="site-hostname"|<dialog/);
-    assert.doesNotMatch(html, /id="page-notice"/);
-  });
-
-  test("the hostname is matched case-insensitively and titled lowercased", async () => {
-    const response = await request("/sites/BLOG.lychee.land");
-    assert.equal(response.status, 200);
-    const html = await response.text();
-    assert.ok(html.includes("<title>blog.lychee.land</title>"));
-    assert.deepEqual(marked(html), ["/sites/blog.lychee.land"]);
-  });
-
-  test("an unknown site: 404, the same mount point, titled Site not found, no row current", async () => {
-    const response = await request("/sites/nope.lychee.land");
-    assert.equal(response.status, 404);
-    const html = await response.text();
-    assert.ok(html.includes(MOUNT));
-    assert.ok(html.includes("<title>Site not found</title>"));
-    assert.deepEqual(marked(html), []);
-  });
-
-  test("an unreadable Caddyfile: 200, no row current, no notice", async () => {
-    fakeFs.rmRecursive(CADDYFILE);
-    const response = await request("/sites/blog.lychee.land?created=1");
-    assert.equal(response.status, 200);
-    const html = await response.text();
-    assert.ok(html.includes(MOUNT));
-    assert.ok(html.includes("<title>blog.lychee.land</title>"));
-    assert.deepEqual(marked(html), []);
-    assert.doesNotMatch(html, /id="page-notice"/);
-  });
-
-  test("?created=1 renders addedNotice's #page-notice, outside the mount point", async () => {
-    const { addedNotice } = await import("../views/siteDetailModel");
-    const { parseSites } = await import("../lib/caddyfile");
-    const site = parseSites(SEED_CADDYFILE).find((s) => s.hostname === "blog.lychee.land");
-    assert.ok(site);
-    const html = await (await request("/sites/blog.lychee.land?created=1")).text();
-    const { escapeHtml } = await import("../views/shared");
-    assert.ok(html.includes(`<span id="page-notice-message">${escapeHtml(addedNotice(site))}</span>`));
-    assert.ok(html.indexOf('id="page-notice"') < html.indexOf('<div id="app-root"'));
-    assert.equal(html.split('id="page-notice"').length - 1, 1);
-  });
-
-  test("an unknown site gets no ?created=1 notice", async () => {
-    const html = await (await request("/sites/nope.lychee.land?created=1")).text();
-    assert.doesNotMatch(html, /id="page-notice"/);
-  });
-
-  // The next three were html.test.ts's "the ?created=1 notice" tests of the
-  // server site page; the notice is still the server's, so they hold the page
-  // GET /sites/:hostname serves. Their sentences are addedNotice's tests in
-  // siteDetailModel.test.ts.
-  /** The notice element alone: it holds a span and a button but no nested div. */
-  const noticeOf = (html: string): string => {
-    const match = /<div id="page-notice"[\s\S]*?<\/div>/.exec(html);
-    assert.ok(match, "expected a page-notice element");
-    return match[0];
-  };
-
-  test("it is dismissible when created, and absent otherwise", async () => {
-    const created = await (await request("/sites/api.lychee.land?created=1")).text();
-    assert.match(noticeOf(created), /id="page-notice-close"/);
-    assert.doesNotMatch(await (await request("/sites/api.lychee.land")).text(), /id="page-notice"/);
-  });
-
-  test("it takes layout space above the page instead of covering it", async () => {
-    const created = await (await request("/sites/api.lychee.land?created=1")).text();
-    // The regression this split exists to prevent: as a fixed element centred
-    // on the viewport, this three-line message landed on top of the breadcrumb
-    // and the hostname. In flow and ahead of the page's mount point (which the
-    // client fills with them), it can't.
-    assert.doesNotMatch(noticeOf(created), /\bfixed\b/);
-    assert.doesNotMatch(noticeOf(created), /\babsolute\b/);
-    assert.match(created, /id="page-notice"[\s\S]*<div id="app-root"/);
-  });
-
-  test("the client toast stays a separate, empty, hidden element either way", async () => {
-    for (const path of ["/sites/api.lychee.land?created=1", "/sites/api.lychee.land"]) {
-      const html = await (await request(path)).text();
-      const toast = /<div id="flash-banner"[\s\S]*?<\/div>/.exec(html)?.[0];
-      assert.ok(toast, `expected a flash-banner element: ${path}`);
-      assert.match(toast, /id="flash-banner" class="hidden/);
-      assert.match(toast, /id="flash-banner-message"><\/span>/);
+// The HTML GETs (/, /sites/new, /sites/:hostname) send one static document,
+// and their statuses are staticShell.test.ts's. What used to be asserted of
+// the server's shell here (titles, the rail's rows and current item, the
+// ?removed and ?created=1 notices) is React's now: AppFrame.test.tsx,
+// AppFrameParity.test.tsx and the router tests hold it.
+describe("the client routes with this file's fixtures", () => {
+  test("a known site is 200, an unknown one 404, both the document", async () => {
+    for (const [path, status] of [["/", 200], ["/sites/new", 200], ["/sites/blog.lychee.land", 200], ["/sites/BLOG.lychee.land", 200], ["/sites/nope.lychee.land", 404], ["/sites/lychee.local", 404]] as const) {
+      const response = await request(path);
+      assert.equal(response.status, status, path);
+      assert.equal(await response.text(), DOCUMENT, path);
     }
   });
 
-  test("answers 500 when the bundle is missing", async () => {
-    clientAssets = null;
-    for (const path of ["/sites/blog.lychee.land", "/sites/nope.lychee.land"]) {
+  test("an unreadable Caddyfile answers 200, even for a site it cannot place", async () => {
+    fakeFs.rmRecursive(CADDYFILE);
+    for (const path of ["/", "/sites/new", "/sites/blog.lychee.land?created=1", "/sites/nope.lychee.land"]) {
+      assert.equal((await request(path, { signal: AbortSignal.timeout(3000) })).status, 200, path);
+    }
+  });
+
+  test("answers 500 when the document is missing", async () => {
+    clientDocument = null;
+    for (const path of ["/", "/sites/new", "/sites/blog.lychee.land", "/sites/nope.lychee.land"]) {
       const response = await request(path);
       assert.equal(response.status, 500, path);
       assert.equal(await response.text(), "client bundle missing; run npm run build", path);
     }
   });
-});
 
-describe("GET /sites/new: the client shell", () => {
-  // The page itself is the client's, read from /api/sites/new
-  // (apiAddSite.test.ts) and held to the retired server page by
-  // AddSiteParity.test.tsx. The server sends the shell and its mount point.
-  const MOUNT = '<div id="app-root" class="contents" data-page="add-site"></div>';
-
-  test("serves the shell titled Add a site, with the add page's mount point and the bundle", async () => {
-    const response = await request("/sites/new");
-    assert.equal(response.status, 200);
-    const html = await response.text();
-    assert.ok(html.includes(MOUNT));
-    assert.ok(html.includes("<title>Add a site</title>"));
-    assert.ok(html.includes(`src="/client/${ASSETS.script}"`));
-    // The form is the client's now: nothing of it is in the document.
-    assert.doesNotMatch(html, /id="add-site-form"/);
-    assert.doesNotMatch(html, /id="port-owners-data"/);
-  });
-
-  // The page shows /api/sites/new's caddyfileError itself, as / and a site's page do.
-  test("an unreadable Caddyfile still serves the shell, with 200", async () => {
-    fakeFs.rmRecursive(CADDYFILE);
-    const response = await request("/sites/new", { signal: AbortSignal.timeout(3000) });
-    assert.equal(response.status, 200);
-    assert.ok((await response.text()).includes(MOUNT));
-  });
-
-  test("answers 500 when the bundle is missing", async () => {
-    clientAssets = null;
-    const response = await request("/sites/new");
-    assert.equal(response.status, 500);
-    assert.equal(await response.text(), "client bundle missing; run npm run build");
-  });
-
-  test("is not mistaken for a hostname by the detail route", async () => {
-    const response = await request("/sites/new");
-    assert.equal(response.status, 200);
-    const html = await response.text();
-    assert.ok(!html.includes('data-page="site"'));
-    assert.ok(!html.includes("<title>Site not found</title>"));
-    assert.ok(!html.includes("<title>new</title>"));
+  test("requires authentication", async () => {
+    assert.equal((await fetch(`${baseUrl}/?removed=blog.lychee.land`)).status, 401);
   });
 });
 

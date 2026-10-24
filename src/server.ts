@@ -1,6 +1,6 @@
 import path from "node:path";
 import { config } from "./config";
-import { readClientManifest } from "./views/clientShell";
+import { readClientDocument } from "./routes/clientDocument";
 import { createApp } from "./app";
 import type { Deps } from "./deps";
 import { createBackup } from "./lib/backup";
@@ -16,7 +16,8 @@ const deps: Deps = {
   backup: createBackup(realFileSystem),
   logger: createLogger(realFileSystem),
   // The same public directory app.ts serves, for dist/ and tsx-run src alike.
-  clientAssets: readClientManifest(path.join(__dirname, "..", "public")),
+  // Read once: a release never changes.
+  clientDocument: readClientDocument(path.join(__dirname, "..", "public")),
 };
 
 createApp(deps).listen(config.port, config.host, () => {

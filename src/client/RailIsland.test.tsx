@@ -2,7 +2,8 @@ import "./test/setup";
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import { act, waitFor } from "@testing-library/react";
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createRoot } from "react-dom/client";
 import { renderRail, renderRailData } from "../views/rail";
 import { RAIL_DOT } from "../views/railModel";
 import { testShell } from "../dev/testHelpers";
@@ -10,14 +11,28 @@ import { layout } from "../views/shell";
 import { seedHealth } from "./test/healthFixture";
 import { displayedAt } from "./test/visibility";
 import { HEALTH_QUERY, fetchHealth } from "./health";
+import { RailPortal } from "./RailIsland";
 import { mountApp } from "./router";
 
-// The rail as the app's one root renders it: a portal into the server's
-// aside, on a server page (the `*` route), so nothing but the rail is mounted.
+// RailPortal over server markup. mountApp no longer mounts it (the root
+// renders AppFrame on the static document); it is rendered here on its own,
+// in a root of its own, until it is deleted with the server rail.
 
 const originalFetch = globalThis.fetch;
-let app: ReturnType<typeof mountApp> = null;
+let app: { unmount: () => void } | null = null;
 let client: QueryClient | null = null;
+
+/** RailPortal in a root on `#react-root` (or a fresh div), as mountApp used to mount it. */
+function mountPortal(c: QueryClient): { unmount: () => void } {
+  const el = document.getElementById("react-root") ?? document.body.appendChild(document.createElement("div"));
+  const root = createRoot(el);
+  root.render(
+    <QueryClientProvider client={c}>
+      <RailPortal />
+    </QueryClientProvider>,
+  );
+  return { unmount: () => root.unmount() };
+}
 
 /** The root's own mount point, which layout() emits on every page. */
 const ROOT = '<div id="react-root"></div>';
@@ -58,7 +73,7 @@ function mount(): void {
   document.body.innerHTML = renderRail(rail) + renderRailData(rail) + ROOT;
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   act(() => {
-    app = mountApp(client as QueryClient);
+    app = mountPortal(client as QueryClient);
   });
   assert.ok(app, "the root did not mount");
 }
@@ -172,7 +187,7 @@ describe("the rail island", () => {
     server.focus();
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     act(() => {
-      app = mountApp(client as QueryClient);
+      app = mountPortal(client as QueryClient);
     });
     const input = document.querySelector<HTMLInputElement>("#rail #find");
     assert.ok(input);
@@ -191,7 +206,7 @@ describe("the rail island", () => {
     server.value = "api";
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     act(() => {
-      app = mountApp(client as QueryClient);
+      app = mountPortal(client as QueryClient);
     });
     const input = document.querySelector<HTMLInputElement>("#rail #find");
     assert.equal(input?.value, "api");
@@ -240,7 +255,7 @@ describe("the rail island", () => {
     check("server");
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     act(() => {
-      app = mountApp(client as QueryClient);
+      app = mountPortal(client as QueryClient);
     });
     await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), { timeout: 5000 });
     check("island");
@@ -256,7 +271,7 @@ describe("the rail island", () => {
     document.body.innerHTML = `<aside id="rail" data-rail><a href="/services">services</a></aside>${ROOT}`;
     client = new QueryClient();
     act(() => {
-      app = mountApp(client as QueryClient);
+      app = mountPortal(client as QueryClient);
     });
     assert.equal(document.querySelector("#rail")?.innerHTML, '<a href="/services">services</a>');
     assert.ok(!document.querySelector("#find"));

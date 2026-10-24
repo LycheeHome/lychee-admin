@@ -9,9 +9,9 @@ import { readRail } from "./rail";
  * It lives beside the routes rather than in src/views/shell.ts because
  * `readRail` reads `config`, which demands the environment at import.
  *
- * `assets` is read from `deps.clientAssets` on every call, never cached: the
- * dev server defines it as a getter that re-reads Vite's manifest.
+ * No route calls it since every client route sends the static document; it
+ * goes with layout(). `assets` is always null now.
  */
 export function loadShell(deps: Deps, current: RailCurrent): ShellData {
-  return { rail: { ...readRail(deps), current }, assets: deps.clientAssets ?? null };
+  return { rail: { ...readRail(deps), current }, assets: null };
 }
