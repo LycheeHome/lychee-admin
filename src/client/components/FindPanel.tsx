@@ -132,7 +132,7 @@ export function FindPanel({
   onNarrowShortcut,
 }: FindPanelProps) {
   // A row in another board group (`/reconciler#service-…`) opens in-app from
-  // a board page; a site's page, or any move from a server page, loads a document.
+  // any client route, a site's page included; only a URL no route matches loads a document.
   const openHref = useOpen();
   const navigate = navigateProp ?? openHref;
   const inputRef = useRef<HTMLInputElement>(null);

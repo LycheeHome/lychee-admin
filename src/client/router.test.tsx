@@ -548,7 +548,7 @@ describe("scroll restoration", () => {
     assert.equal(window.scrollY, 0);
   });
 
-  test("a server page neither restores the shared position nor takes scrolling over from the browser", async () => {
+  test("a URL no route matches neither restores the shared position nor takes scrolling over from the browser", async () => {
     stale();
     const ys = recordScrolls();
     load(SERVER_PAGE);

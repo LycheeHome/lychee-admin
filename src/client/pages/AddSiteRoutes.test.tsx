@@ -335,18 +335,22 @@ describe("RF3: leaving mid-preview and mid-submit", () => {
         assert.ok(!form());
         await act(async () => {
           heldAdd?.(json(status, body));
-          await sleep(50);
         });
-        assert.deepEqual(assigned, []);
         // The Adding… toast was this add's own, so it settles it: gone on success, the error on failure.
-        const message = document.getElementById("flash-banner-message")?.textContent;
         if (status === 200) {
-          assert.ok(toast()?.classList.contains("hidden"), "the Adding… toast outlived a successful add");
+          await waitFor(
+            () => assert.ok(toast()?.classList.contains("hidden"), "the Adding… toast outlived a successful add"),
+            { timeout: 5000 },
+          );
         } else {
+          await waitFor(
+            () => assert.equal(document.getElementById("flash-banner-message")?.textContent, "boom"),
+            { timeout: 5000 },
+          );
           assert.ok(!toast()?.classList.contains("hidden"), "the failure was not shown");
-          assert.equal(message, "boom");
           assert.ok(!document.getElementById("flash-banner-close")?.classList.contains("hidden"), "no close button");
         }
+        assert.deepEqual(assigned, []);
         assert.equal(window.location.pathname, "/");
         assert.ok(document.querySelector('main a[href="/sites/blog.lychee.land"]'), "the list went");
         assert.deepEqual(failures, []);

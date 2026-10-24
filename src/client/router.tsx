@@ -63,7 +63,7 @@ function AppLayout({ scrollKey, notice }: { scrollKey: (location: Location) => s
  * Scroll restoration is for the entries the router pushes between client
  * routes, and nothing else.
  *
- * - On a server page it is not rendered at all: rendered, it would switch the
+ * - On a URL no route matches it is not rendered at all: rendered, it would switch the
  *   browser's own per-entry restoration off (`history.scrollRestoration =
  *   "manual"`) and save every unload under one shared key.
  * - Every entry the router did not push (a fresh document load, a reload of
