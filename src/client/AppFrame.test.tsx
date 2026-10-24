@@ -354,6 +354,24 @@ describe("the page notice", () => {
     assert.equal(document.querySelectorAll("#page-notice").length, 1);
   });
 
+  // Express drew no notice for a site it could not find or a Caddyfile it
+  // could not read; the frame must not either, once the page's read says so.
+  test("?created=1 on an unknown site renders no notice", async () => {
+    mount("/sites/nope.lychee.land?created=1");
+    await waitFor(() => assert.equal(document.querySelector("main h2")?.textContent, "Site not found"), TIMEOUT);
+    await act(async () => {});
+    assert.ok(!document.getElementById("page-notice"), "a notice for a site that does not exist");
+  });
+
+  test("?created=1 with an unreadable Caddyfile renders no notice", async () => {
+    const s = stubFetch();
+    s.site = async () => json(200, { ok: true, caddyfileError: "cannot read\ndenied", domain: "lychee.land" });
+    mount("/sites/app.lychee.land?created=1", s);
+    await waitFor(() => assert.match(document.querySelector("main")?.textContent ?? "", /cannot read/), TIMEOUT);
+    await act(async () => {});
+    assert.ok(!document.getElementById("page-notice"), "a notice beside the Caddyfile error");
+  });
+
   test("its close removes it", async () => {
     mount("/?removed=x.lychee.land");
     const close = document.getElementById("page-notice-close");

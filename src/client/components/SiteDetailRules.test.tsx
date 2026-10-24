@@ -25,9 +25,10 @@ import { PruneLine, RequestedLine } from "./DeployLines";
  * assertions. Only the renderer behind `renderSiteDetail` below changed.
  *
  * What did not come here, and where it went:
- * - the ?created=1 notice: the server still renders it, around the client's
- *   mount point, so its rules are route tests in src/routes/sites.test.ts and
- *   its sentences model tests of addedNotice in siteDetailModel.test.ts;
+ * - the ?created=1 notice: AppFrame renders it, above the page, so its rules
+ *   (when it shows, and that an unknown site or an unreadable Caddyfile gets
+ *   none) are in src/client/AppFrame.test.tsx's page-notice tests, and its
+ *   sentences model tests of addedNotice in siteDetailModel.test.ts;
  * - the copy-status live region and the rail's current row: the shell's, in
  *   src/views/shell.test.ts against the page GET /sites/:hostname serves;
  * - offeredTag's rules: src/views/boardFacts.test.ts, beside the function;
@@ -228,9 +229,9 @@ describe("renderSiteDetail header", () => {
     assert.doesNotMatch(html, /<div class="flex items-center gap-2 mt-3/);
   });
 
-  // Its notice half ("a created static site's notice still renders") is the
-  // server shell's now: GET /sites/:hostname?created=1 in sites.test.ts. The
-  // payload never carries `created`, so the page is the same either way.
+  // Its notice half ("a created static site's notice still renders") is
+  // AppFrame's now: the ?created=1 tests in AppFrame.test.tsx. The payload
+  // never carries `created`, so the page is the same either way.
   test("a created static site's notice still renders with no pill row", () => {
     const html = renderSiteDetail(STATIC_SITE, { ...OPTS, created: true });
     assert.equal(html, renderSiteDetail(STATIC_SITE, OPTS));
