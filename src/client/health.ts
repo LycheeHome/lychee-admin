@@ -37,3 +37,28 @@ export const HEALTH_QUERY = {
 export function useHealth(): UseQueryResult<HealthPayload> {
   return useQuery(HEALTH_QUERY);
 }
+
+/** `⌘K` on Apple platforms, `Ctrl K` everywhere else. */
+export function findHintFor(platform: string): string {
+  return /Mac|iPhone|iPad|iPod/i.test(platform) ? "⌘K" : "Ctrl K";
+}
+
+/** The rail's live props besides its rows: the health poll's reading, and the find box's printed shortcut. */
+export interface RailHealth {
+  health: HealthPayload | null;
+  healthError: boolean;
+  lastRead: string | null;
+  findHint: string;
+}
+
+/** The health poll, read as the rail shows it (AppFrame hands it to Navigation). */
+export function useRailHealth(): RailHealth {
+  const query = useHealth();
+  const lastRead = query.dataUpdatedAt > 0 ? new Date(query.dataUpdatedAt).toISOString() : null;
+  const platform = typeof navigator === "undefined" ? "" : navigator.platform;
+  // "The latest poll errored", by timestamps rather than `isError`: TanStack
+  // puts a data-less errored query back to pending while it refetches, which
+  // would blink the unavailable line off for the length of every retry.
+  const latestErrored = query.isError || query.errorUpdatedAt > query.dataUpdatedAt;
+  return { health: query.data ?? null, healthError: latestErrored, lastRead, findHint: findHintFor(platform) };
+}

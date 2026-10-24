@@ -6,8 +6,8 @@ import type { ServiceGroup } from "../shared/board";
  * Which URLs the client renders, and the one rule every in-app link and
  * navigation follows: the router handles a move only when both the page the
  * operator is on and the target are client routes. Anything else is a plain
- * document load, so a server page's body can never be left on screen under a
- * route the client cannot render (Review Focus 3).
+ * document load, so a URL no route matches is answered by the server afresh
+ * rather than left under a page the client cannot render (Review Focus 3).
  *
  * This module is the router's leaf: the rail and find import it, and the
  * router (router.tsx) provides the context, so neither imports the other.

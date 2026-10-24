@@ -12,8 +12,8 @@ import { SiteList } from "./SiteList";
  * when that renderer was retired: same names, same fixtures, same assertions.
  * Only the renderer behind `listMarkup` below changed (it took the retired
  * renderer's arguments, less the notice and the shell). The page around
- * the list (the shell, #page-notice) is the server's and stays in its tests:
- * src/views/shell.test.ts and GET / in src/routes/sites.test.ts.
+ * the list (the frame, #page-notice) is AppFrame's: src/client/AppFrame.test.tsx
+ * and src/client/AppFrameParity.test.tsx.
  */
 
 /**

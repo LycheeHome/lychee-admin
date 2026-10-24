@@ -1,13 +1,14 @@
 import "../test/setup";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { afterEach, describe, test } from "node:test";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { renderRail, renderTopBar } from "../../views/rail";
 import { RAIL_COUNT_BAD, RAIL_COUNT_ZERO, RAIL_DOT, attentionCounts } from "../../views/railModel";
-import type { RailData } from "../../views/shell";
+import type { RailData } from "../../shared/rail";
 import type { HealthPayload } from "../../shared/health";
-import { testShell } from "../../dev/testHelpers";
+import { SEEDED_RAIL_SITES } from "../../dev/testHelpers";
 import { canonical } from "../test/canonical";
 import { seedHealth } from "../test/healthFixture";
 import { Navigation, Rail, TopBar } from "./Rail";
@@ -22,20 +23,37 @@ afterEach(() => {
   setViewport(1024);
 });
 
-const railData = (overrides: Partial<RailData> = {}): RailData => testShell(overrides).rail;
+/** The seeded sites, a readable inventory and no current item, each overridable. */
+const railData = (overrides: Partial<RailData> = {}): RailData => ({
+  sites: SEEDED_RAIL_SITES.map((s) => ({ ...s })),
+  hostAvailable: true,
+  current: null,
+  domain: "lychee.land",
+  ...overrides,
+});
 
-/** The server aside's inner markup: the island renders the aside's children, never the aside itself. */
-function serverInner(rail: RailData): string {
+/*
+ * The retired server rail's output, frozen in src/dev/fixtures/rail/ (the
+ * whole aside per case, and the top bar); AppFrameParity.test.tsx reads every
+ * one of them and checks none goes unread. Rail renders the aside's children
+ * and TopBar the header's, so each is compared with the fixture's inner markup.
+ */
+const RAIL_FIXTURES = path.join(__dirname, "..", "..", "dev", "fixtures", "rail");
+
+function fixtureInner(name: string, selector: string): string {
   const template = document.createElement("template");
-  template.innerHTML = renderRail(rail);
-  const aside = template.content.querySelector("aside#rail");
-  assert.ok(aside, "renderRail emitted no aside#rail");
-  return aside.innerHTML;
+  template.innerHTML = readFileSync(path.join(RAIL_FIXTURES, `${name}.html`), "utf8");
+  const root = template.content.querySelector(selector);
+  assert.ok(root, `${name}.html has no ${selector}`);
+  return root.innerHTML;
 }
 
-function assertParity(rail: RailData): void {
+/** The server aside's inner markup for a rail fixture. */
+const serverInner = (name: string): string => fixtureInner(name, "aside#rail");
+
+function assertParity(rail: RailData, name: string): void {
   const client = renderToStaticMarkup(<Rail rail={rail} health={null} healthError={false} lastRead={null} />);
-  assert.equal(canonical(client), canonical(serverInner(rail)));
+  assert.equal(canonical(client), canonical(serverInner(name)), name);
 }
 
 const dotClass = (container: HTMLElement, hostname: string): string => {
@@ -46,37 +64,39 @@ const dotClass = (container: HTMLElement, hostname: string): string => {
 
 const count = (container: HTMLElement, name: string): Element | null => container.querySelector(`[data-count="${name}"]`);
 
-describe("Rail parity with renderRail", () => {
+describe("Rail parity with the frozen server rail", () => {
   test("the seeded sites", () => {
-    assertParity(railData());
+    assertParity(railData(), "seeded-sites");
   });
 
   test("an unreadable Caddyfile", () => {
-    assertParity(railData({ sites: null }));
+    assertParity(railData({ sites: null }), "unreadable-caddyfile");
   });
 
   test("a missing inventory", () => {
-    assertParity(railData({ hostAvailable: false }));
+    assertParity(railData({ hostAvailable: false }), "missing-inventory");
   });
 
   test("every current marker", () => {
-    for (const current of [
-      { page: "sites" },
-      { page: "services" },
-      { page: "reconciler" },
-      { page: "infrastructure" },
-      { site: "api.lychee.land" },
-    ] as RailData["current"][]) {
-      assertParity(railData({ current }));
+    for (const [current, name] of [
+      [{ page: "sites" }, "current-page-sites"],
+      [{ page: "services" }, "current-page-services"],
+      [{ page: "reconciler" }, "current-page-reconciler"],
+      [{ page: "infrastructure" }, "current-page-infrastructure"],
+      [{ site: "api.lychee.land" }, "current-site-api"],
+      [{ site: "broken.lychee.land" }, "current-site-broken"],
+      [null, "no-current"],
+    ] as Array<[RailData["current"], string]>) {
+      assertParity(railData({ current }), name);
     }
   });
 
-  test("the find box is a closed combobox in both renderers", () => {
+  test("the find box is a closed combobox, in React and in the frozen rail", () => {
     const rail = railData();
     const client = document.createElement("div");
     client.innerHTML = renderToStaticMarkup(<Rail rail={rail} health={null} healthError={false} lastRead={null} />);
     const server = document.createElement("div");
-    server.innerHTML = serverInner(rail);
+    server.innerHTML = serverInner("seeded-sites");
     for (const [side, root] of [
       ["client", client],
       ["server", server],
@@ -95,7 +115,35 @@ describe("Rail parity with renderRail", () => {
     const client = renderToStaticMarkup(
       <Rail rail={railData({ current: { site: "api.lychee.land" } })} health={null} healthError={false} lastRead={null} />,
     );
-    assert.notEqual(canonical(client), canonical(serverInner(railData())));
+    assert.notEqual(canonical(client), canonical(serverInner("seeded-sites")));
+  });
+
+  // Moved from the retired src/views/shell.test.ts ("the rail's current row
+  // states its port at readable contrast"), carried over from the breadcrumb
+  // dropdown the rail replaced: stone-400 on the highlighted (stone-700) row
+  // measured 3.98:1; stone-300 clears 4.5:1. Anchored to the current row
+  // itself, since every row uses the same hint span.
+  test("the current row states its port at readable contrast", () => {
+    const { container } = render(
+      <Rail rail={railData({ current: { site: "app.lychee.land" } })} health={null} healthError={false} lastRead={null} />,
+    );
+    const rows = container.querySelectorAll('a[aria-current="page"]');
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.getAttribute("data-site"), "app.lychee.land");
+    const hint = Array.from(rows[0]?.querySelectorAll("span") ?? []).find((s) => s.textContent === ":3200");
+    assert.equal(hint?.getAttribute("class"), "ml-auto shrink-0 text-[0.72rem] text-stone-300");
+  });
+
+  // Moved from the retired src/views/rail.test.ts, which held it of the
+  // server rail; carried over from the breadcrumb dropdown the rail replaced.
+  // (Tailwind scans src/, tests included, so this file's /truncate/ is also
+  // what keeps `.truncate` in public/style.css, as rail.test.ts's did.)
+  test("never truncates a hostname, and never dims a row below Smoke", () => {
+    const html = renderToStaticMarkup(<Rail rail={railData()} health={seedHealth()} healthError={false} lastRead={null} />);
+    const rows = html.match(/<ul[\s\S]*?<\/ul>/)?.[0] ?? "";
+    assert.ok(rows.includes("data-site="), "no site rows");
+    assert.doesNotMatch(rows, /truncate/);
+    assert.doesNotMatch(rows, /text-stone-500/);
   });
 });
 
@@ -185,16 +233,10 @@ describe("Rail with health", () => {
   });
 });
 
-/** The server top bar's inner markup: the island renders the header's children, never the header itself. */
-function serverTopBarInner(): string {
-  const template = document.createElement("template");
-  template.innerHTML = renderTopBar();
-  const header = template.content.querySelector("header#top-bar");
-  assert.ok(header, "renderTopBar emitted no header#top-bar");
-  return header.innerHTML;
-}
+/** The frozen server top bar's inner markup: TopBar renders the header's children. */
+const serverTopBarInner = (): string => fixtureInner("top-bar", "header#top-bar");
 
-describe("TopBar parity with renderTopBar", () => {
+describe("TopBar parity with the frozen server top bar", () => {
   test("before any health, React's top bar is the server's", () => {
     const client = renderToStaticMarkup(<TopBar health={null} healthError={false} hostnames={[]} onOpen={() => {}} />);
     assert.equal(canonical(client), canonical(serverTopBarInner()));
@@ -207,28 +249,19 @@ describe("TopBar parity with renderTopBar", () => {
 });
 
 /**
- * Server markup as layout() emits it (top bar, then the rail), with the
- * navigation mounted the way the island mounts it: onto the aside, with the
- * top bar taken over through a portal.
+ * The navigation as AppFrame renders it (its own top bar, then its own
+ * aside), beside a textarea elsewhere on the page to take focus from.
  */
 function mountNavigation(health: HealthPayload | null = seedHealth(), healthError = false) {
   const rail = railData({ current: { page: "sites" } });
-  document.body.innerHTML = `<textarea id="elsewhere"></textarea>${renderTopBar()}${renderRail(rail)}`;
+  document.body.innerHTML = `<textarea id="elsewhere"></textarea>`;
+  const visits: string[] = [];
+  render(
+    <Navigation rail={rail} health={health} healthError={healthError} lastRead={null} navigate={(href) => visits.push(href)} />,
+  );
   const aside = document.querySelector<HTMLElement>("aside#rail");
   const header = document.querySelector<HTMLElement>("header#top-bar");
   assert.ok(aside && header);
-  const visits: string[] = [];
-  render(
-    <Navigation
-      rail={rail}
-      health={health}
-      healthError={healthError}
-      lastRead={null}
-      topBar={header}
-      navigate={(href) => visits.push(href)}
-    />,
-    { container: aside },
-  );
   return { aside, header, visits };
 }
 
@@ -255,8 +288,10 @@ function stubDrawerBox(dialog: HTMLDialogElement): void {
 }
 
 describe("the top bar and its drawer", () => {
-  test("the island's top bar replaces the server's: one wordmark, one menu button", () => {
+  test("the top bar comes once: one header, one wordmark, one menu button", () => {
     const { header } = mountNavigation(null);
+    assert.equal(document.querySelectorAll("header#top-bar").length, 1);
+    assert.equal(document.querySelectorAll("aside#rail").length, 1);
     assert.equal(header.querySelectorAll("h1").length, 1);
     assert.equal(header.querySelectorAll("#rail-menu").length, 1);
     assert.equal(header.querySelectorAll("#rail-find").length, 1);

@@ -4,10 +4,8 @@ import { once } from "node:events";
 import type { Server } from "node:http";
 import bcrypt from "bcrypt";
 import type { Deps } from "../deps";
-import type { ClientAssets } from "../views/clientShell";
 import type { SystemCommands } from "../lib/systemCommands";
 import type { ServiceGroup } from "../lib/serviceInventory";
-import { RETIRED_SWITCHER } from "../dev/testHelpers";
 
 const PASSWORD = "test-password";
 process.env.ADMIN_USERNAME = "tester";
@@ -34,7 +32,7 @@ async function serve(
   inventoryJson: string | null,
   overrides: Partial<SystemCommands>,
   seed: { opRun?: { delayMs?: number } } = {},
-  clientAssets?: ClientAssets | null | (() => ClientAssets | null),
+  clientDocument?: string | null,
 ): Promise<{ base: string; fs: Deps["fs"]; get: (p: string) => Promise<Response>; api: (group: ServiceGroup) => Promise<Response>; actions: () => string[]; audit: () => Record<string, unknown>[]; close: () => Promise<void> }> {
   const { createApp } = await import("../app");
   const { createBackup } = await import("../lib/backup");
@@ -48,10 +46,7 @@ async function serve(
     backup: createBackup(fakes.fs),
     logger: createLogger(fakes.fs),
   };
-  // A function stands in for the dev server's getter, which re-reads the
-  // manifest on every use.
-  if (typeof clientAssets === "function") Object.defineProperty(deps, "clientAssets", { get: clientAssets });
-  else deps.clientAssets = clientAssets;
+  deps.clientDocument = clientDocument;
   const server: Server = createApp(deps).listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address();
@@ -176,19 +171,10 @@ describe("the three board pages", () => {
     return current;
   }
 
-  const currentItems = (html: string): string[] =>
-    [...html.matchAll(/<a href="([^"]+)"[^>]*aria-current="page"/g)].map((m) => m[1]);
-
+  // Which rail item is current is React's now (the router tests).
   const PAGES: BoardPath[] = ["/services", "/reconciler"];
 
   for (const path of PAGES) {
-    test(`${path} marks exactly its own header item current`, async () => {
-      const { SEEDED_INVENTORY } = await import("../dev/seed");
-      // The real route, with the bundle: the shell's rail marks the page.
-      const s = await start(SEEDED_INVENTORY, {}, {}, { script: "assets/main-abc.js", styles: [] });
-      assert.deepEqual(currentItems(await (await s.get(path)).text()), [path]);
-    });
-
     test(`${path} requires authentication`, async () => {
       const s = await start(null, {});
       assert.equal((await fetch(`${s.base}${path}`)).status, 401);
@@ -206,99 +192,42 @@ describe("the three board pages", () => {
   });
 });
 
-describe("GET /services, /reconciler and /infrastructure: the React mount", () => {
+// The board pages send the static document; staticShell.test.ts holds every
+// client route's statuses, and the rail and titles are React's now
+// (AppFrame.test.tsx, AppFrameParity.test.tsx, the router tests).
+describe("GET /services, /reconciler and /infrastructure: the static document", () => {
   let current: Awaited<ReturnType<typeof serve>> | undefined;
   after(async () => {
     await current?.close();
   });
-  const ASSETS: ClientAssets = { script: "assets/main-abc.js", styles: ["assets/main-def.css"] };
-  const MOUNTS = [
-    { path: "/services", page: "services", title: "Services" },
-    { path: "/reconciler", page: "reconciler", title: "Reconciler" },
-    { path: "/infrastructure", page: "infrastructure", title: "Infrastructure" },
-  ] as const;
+  const DOCUMENT = "<!doctype html><!-- the static document -->";
 
-  for (const { path, page, title } of MOUNTS) {
-    test(`${path} serves the shell with its mount point, its title, its rail mark and the bundle`, async () => {
-      await current?.close();
-      current = await serve(null, {}, {}, ASSETS);
-      const res = await current.get(path);
-      assert.equal(res.status, 200);
-      const html = await res.text();
-      assert.ok(html.includes(`<div id="app-root" class="contents" data-page="${page}"></div>`), path);
-      assert.ok(html.includes(`<title>${title}</title>`), path);
-      assert.ok(html.includes('<script type="module" src="/client/assets/main-abc.js">'));
-      const marked = [...html.matchAll(/<a\b[^>]*\baria-current="page"[^>]*>/g)].map((m) => m[0].match(/href="([^"]+)"/)?.[1]);
-      assert.deepEqual(marked, [path]);
-      // The server renders no board: the client reads it from /api/services.
-      assert.ok(!html.includes("data-service="), path);
-      // The one root mounts here, ahead of the bundle.
-      assert.ok(html.includes('<div id="react-root"></div>'), path);
-      assert.ok(html.indexOf('<div id="react-root"></div>') < html.indexOf('<script type="module"'), path);
-      // layout() is the bundle's only emitter, so each tag appears once.
-      assert.equal(html.split("/client/assets/main-abc.js").length - 1, 1);
-      assert.equal(html.split("/client/assets/main-def.css").length - 1, 1);
-    });
-
-    test(`${path} answers 500 when the bundle is missing`, async () => {
-      await current?.close();
-      current = await serve(null, {}, {}, null);
-      const res = await current.get(path);
-      assert.equal(res.status, 500);
-      assert.equal(await res.text(), "client bundle missing; run npm run build");
-    });
-
-    test(`${path} requires authentication`, async () => {
-      await current?.close();
-      current = await serve(null, {}, {}, ASSETS);
-      assert.equal((await fetch(`${current.base}${path}`)).status, 401);
-    });
-  }
-
-  // No page is server-rendered any more: the add page, the last to move,
-  // carries the one root's mount point and the bundle once each, as every
-  // client page does.
-  test("the add page carries the root's mount point and the bundle once each", async () => {
+  test("each board page answers 200 with the document, a missing inventory included", async () => {
     await current?.close();
-    current = await serve(null, {}, {}, ASSETS);
-    const html = await (await current.get("/sites/new")).text();
-    assert.equal(html.split('<div id="react-root"></div>').length - 1, 1);
-    assert.equal(html.split('id="app-root"').length - 1, 1);
-    assert.ok(html.includes('data-page="add-site"'));
-    assert.equal(html.split('<script type="module" src="/client/assets/main-abc.js"></script>').length - 1, 1);
+    current = await serve(null, {}, {}, DOCUMENT);
+    for (const path of ["/services", "/reconciler", "/infrastructure"]) {
+      const res = await current.get(path);
+      assert.equal(res.status, 200, path);
+      assert.equal(await res.text(), DOCUMENT, path);
+    }
   });
 
-  test("each board page marks its own rail link, and a missing inventory says so in the rail", async () => {
+  test("each answers 500 when the document is missing", async () => {
     await current?.close();
-    current = await serve(null, {}, {}, ASSETS);
-    for (const [path, href] of [["/services", "/services"], ["/reconciler", "/reconciler"], ["/infrastructure", "/infrastructure"]]) {
-      const html = await (await current.get(path)).text();
-      const marked = [...html.matchAll(/<a\b[^>]*\baria-current="page"[^>]*>/g)].map((m) => m[0].match(/href="([^"]+)"/)?.[1]);
-      assert.deepEqual(marked, [href], path);
-      assert.match(html, /Inventory unavailable/, path);
-      assert.doesNotMatch(html, /id="site-header"/, path);
-      assert.doesNotMatch(html, RETIRED_SWITCHER, path);
+    current = await serve(null, {}, {}, null);
+    for (const path of ["/services", "/reconciler", "/infrastructure"]) {
+      const res = await current.get(path);
+      assert.equal(res.status, 500, path);
+      assert.equal(await res.text(), "client bundle missing; run npm run build", path);
     }
-    await current.close();
   });
 
   test("the bundle's own files require authentication too", async () => {
-    current = await serve(null, {}, {}, ASSETS);
-    for (const path of ["/client/.vite/manifest.json", "/client/assets/main-abc.js", "/client/assets/main-def.css"]) {
+    await current?.close();
+    current = await serve(null, {}, {}, DOCUMENT);
+    for (const path of ["/client/index.html", "/client/.vite/manifest.json", "/client/assets/main-abc.js", "/client/assets/main-def.css"]) {
       assert.equal((await fetch(`${current.base}${path}`)).status, 401, path);
     }
-    await current.close();
-  });
-
-  test("reads the bundle on every request, so the dev server's rebuilds are picked up", async () => {
-    let assets: ClientAssets | null = null;
-    current = await serve(null, {}, {}, () => assets);
-    assert.equal((await current.get("/infrastructure")).status, 500);
-    assets = ASSETS;
-    assert.ok((await (await current.get("/infrastructure")).text()).includes('src="/client/assets/main-abc.js"'));
-    assets = { script: "assets/main-new.js", styles: [] };
-    assert.ok((await (await current.get("/infrastructure")).text()).includes('src="/client/assets/main-new.js"'));
-    await current.close();
   });
 });
 

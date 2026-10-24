@@ -9,10 +9,10 @@ import { createRoot } from "react-dom/client";
 import { act, fireEvent } from "@testing-library/react";
 // Imported before anything loads config: it pins the settings the recorded answers depend on.
 import { requestKey } from "../../dev/addSiteAnswers";
-import { seedAddSitePayload, testShell } from "../../dev/testHelpers";
+import { seedAddSitePayload } from "../../dev/testHelpers";
 import type { AddSitePayload } from "../../shared/addSite";
-import { renderClientPage } from "../../views/clientShell";
 import { canonical } from "../test/canonical";
+import { STATIC_BODY_CLASS } from "../test/staticDocument";
 import recorded from "../test/addSiteAnswers.json";
 import { ADD_SITE_STEPS, candidateRun, type Snapshot, type StubAnswers } from "../test/addSiteDualRun";
 import { AddSiteBody } from "./AddSitePage";
@@ -72,21 +72,22 @@ function matchesReference(run: Snapshot[]): boolean {
 }
 
 /**
- * Writes the real shell (layout() through renderClientPage, the seed's rail)
- * into the document, without its script tags, as the reference does.
+ * Writes the shell around the add page into the document, as the reference
+ * had it: the retired server shell's body for /sites/new, frozen in
+ * src/dev/fixtures/shell/add-site.html (which AppFrameParity.test.tsx holds
+ * AppFrame to), without its rail-data script, under the static document's
+ * body classes. The page mounts into its #app-root.
  */
 function writeShell(): HTMLElement {
-  const page = renderClientPage("Add a site", "sites", testShell());
-  const match = /<body class="([^"]*)">([\s\S]*)<\/body>/.exec(page);
-  if (!match) throw new Error("renderClientPage's page has no <body> — the anchor is stale");
-  document.body.className = match[1];
-  document.body.innerHTML = match[2].replace(/<script src="[^"]*"><\/script>/g, "");
+  const shell = readFileSync(path.join(__dirname, "../../dev/fixtures/shell/add-site.html"), "utf8");
+  document.body.className = STATIC_BODY_CLASS;
+  document.body.innerHTML = shell.replace(/<script type="application\/json" id="rail-data">[\s\S]*?<\/script>/, "");
   const root = document.getElementById("app-root");
-  if (!root) throw new Error("no #app-root in the shell");
+  if (!root) throw new Error("no #app-root in the shell fixture");
   return root;
 }
 
-/** The candidate: AddSiteBody mounted into the real shell's #app-root. Returns its teardown. */
+/** The candidate: AddSiteBody mounted into the frozen shell's #app-root. Returns its teardown. */
 function mountCandidate(p: AddSitePayload, go: (href: string) => void = () => {}): () => void {
   const root = createRoot(writeShell());
   act(() => root.render(<AddSiteBody payload={p} headingRef={createRef<HTMLHeadingElement>()} go={go} />));
