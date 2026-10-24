@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { splitHostnameForDisplay } from "../../lib/siteDisplay";
 import type { HealthPayload, Tone } from "../../shared/health";
 import {
+  RAIL_ASIDE,
   RAIL_COUNT_BAD,
   RAIL_COUNT_ZERO,
   RAIL_DOT,
@@ -15,6 +16,7 @@ import {
   RAIL_NOTE,
   RAIL_ROW,
   RAIL_WIDE_QUERY,
+  TOP_BAR,
   attentionCounts,
 } from "../../views/railModel";
 import { FOCUS_RING, ICONS, formatAge } from "../../views/shared";
@@ -365,6 +367,12 @@ function Drawer({
 export interface NavigationProps extends RailProps {
   /** The server's `<header id="top-bar">`, whose children this takes over; null where there is none. */
   topBar: Element | null;
+  /**
+   * Render the `<header id="top-bar">` and `<aside id="rail">` as this
+   * component's own elements, with layout()'s attributes, instead of into the
+   * server's (AppFrame, which owns the whole body). `topBar` is then null.
+   */
+  owned?: boolean;
 }
 
 interface DrawerState {
@@ -384,7 +392,7 @@ interface DrawerState {
  * the dialog and not in the aside, so there is only ever one rail, one `#find`
  * and one ⌘K listener in the document.
  */
-export function Navigation({ topBar, ...props }: NavigationProps) {
+export function Navigation({ topBar, owned = false, ...props }: NavigationProps) {
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   // What the server's find box held applies once, to the aside's first render.
   const [findInitial, setFindInitial] = useState(props.findInitial);
@@ -455,26 +463,38 @@ export function Navigation({ topBar, ...props }: NavigationProps) {
     <Rail
       {...props}
       findInitial={findInitial}
-      onNarrowShortcut={topBar ? (previous) => open(previous, true) : undefined}
+      onNarrowShortcut={topBar || owned ? (previous) => open(previous, true) : undefined}
     />
   );
+
+  const topBarChildren = (
+    <>
+      <TopBar health={props.health} hostnames={(props.rail.sites ?? []).map((s) => s.hostname)} healthError={props.healthError} onOpen={open} />
+      {drawer ? (
+        <Drawer onClose={close} dialogRef={dialogRef}>
+          {rail}
+        </Drawer>
+      ) : null}
+    </>
+  );
+
+  if (owned) {
+    return (
+      <>
+        <header id="top-bar" className={TOP_BAR}>
+          {topBarChildren}
+        </header>
+        <aside id="rail" data-rail="" aria-label="Navigation" className={RAIL_ASIDE}>
+          {drawer ? null : rail}
+        </aside>
+      </>
+    );
+  }
 
   return (
     <>
       {drawer ? null : rail}
-      {topBar
-        ? createPortal(
-            <>
-              <TopBar health={props.health} hostnames={(props.rail.sites ?? []).map((s) => s.hostname)} healthError={props.healthError} onOpen={open} />
-              {drawer ? (
-                <Drawer onClose={close} dialogRef={dialogRef}>
-                  {rail}
-                </Drawer>
-              ) : null}
-            </>,
-            topBar,
-          )
-        : null}
+      {topBar ? createPortal(topBarChildren, topBar) : null}
     </>
   );
 }

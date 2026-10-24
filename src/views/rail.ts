@@ -6,6 +6,7 @@ import { splitHostnameForDisplay } from "../lib/siteDisplay";
 import type { RailCurrent, RailData } from "./shell";
 import { FOCUS_RING, escapeHtml, icon } from "./shared";
 import {
+  RAIL_ASIDE,
   RAIL_DOT,
   RAIL_FIND,
   RAIL_FIND_HINT,
@@ -16,6 +17,7 @@ import {
   RAIL_MENU,
   RAIL_NOTE,
   RAIL_ROW,
+  TOP_BAR,
 } from "./railModel";
 
 type RailPage = Extract<RailCurrent, { page: string }>["page"];
@@ -80,7 +82,7 @@ export function renderRail(rail: RailData): string {
       }</a>`,
   ).join("");
 
-  return `<aside id="rail" data-rail aria-label="Navigation" class="hidden min-[900px]:flex flex-col sticky top-0 self-start h-screen border-r border-stone-700 bg-stone-900">
+  return `<aside id="rail" data-rail aria-label="Navigation" class="${RAIL_ASIDE}">
     <div class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-5 px-3 py-5">
       <h1 class="m-0 px-2 text-base font-normal leading-none">${renderWordmark()}</h1>
       <div class="relative">
@@ -121,7 +123,7 @@ export function renderRailData(rail: RailData): string {
  * buttons do nothing and the bar is a link home: a known limit.
  */
 export function renderTopBar(): string {
-  return `<header id="top-bar" class="min-[900px]:hidden flex items-center justify-between gap-4 px-4 py-3 border-b border-stone-700">
+  return `<header id="top-bar" class="${TOP_BAR}">
     <h1 class="m-0 text-base font-normal leading-none">${renderWordmark()}</h1>
     <div class="flex items-center gap-2">
       <span data-count="all"></span>

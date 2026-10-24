@@ -1,4 +1,4 @@
-import { escapeHtml, BUTTON_OFFER, DETAIL_WIDTH, FOCUS_RING } from "./shared";
+import { escapeHtml, BUTTON_OFFER, DISMISS_BUTTON, FLASH_BANNER, PAGE_NOTICE, SHELL_COLUMN, SHELL_MAIN } from "./shared";
 import type { ClientAssets } from "./clientShell";
 import { renderRail, renderRailData, renderTopBar } from "./rail";
 
@@ -56,8 +56,6 @@ function bundleScript(assets: ClientAssets | null): string {
   return assets ? `\n  <script type="module" src="/client/${escapeHtml(assets.script)}"></script>` : "";
 }
 
-const DISMISS_BUTTON =
-  `shrink-0 text-stone-400 hover:text-stone-50 bg-transparent border-none cursor-pointer text-base leading-none ${FOCUS_RING}`;
 
 /**
  * The transient client toast: empty and hidden until showToast() in
@@ -89,10 +87,7 @@ const DISMISS_BUTTON =
  * so an action can never outlive the message it belongs to.
  */
 function renderFlashBanner(): string {
-  const base =
-    "fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[min(480px,calc(100vw-2rem))] font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 border shadow-lg shadow-black/40 flex items-center justify-between gap-3";
-
-  return `<div id="flash-banner" class="hidden ${base}" role="status" aria-live="polite">
+  return `<div id="flash-banner" class="hidden ${FLASH_BANNER}" role="status" aria-live="polite">
         <span class="flex items-center gap-2 min-w-0">
           <span id="flash-banner-progress" class="hidden shrink-0 h-1.5 w-1.5 rounded-full bg-stone-50 motion-safe:animate-pulse" aria-hidden="true"></span>
           <span id="flash-banner-message"></span>
@@ -118,7 +113,7 @@ function renderFlashBanner(): string {
 function renderPageNotice(banner?: Banner): string {
   if (!banner) return "";
 
-  return `<div id="page-notice" class="${DETAIL_WIDTH} bg-rose-950/60 border border-rose-400/70 font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 flex items-start justify-between gap-3" role="status">
+  return `<div id="page-notice" class="${PAGE_NOTICE}" role="status">
         <span id="page-notice-message">${escapeHtml(banner.message)}</span>
         <button type="button" id="page-notice-close" class="${DISMISS_BUTTON}" aria-label="Dismiss">&times;</button>
       </div>`;
@@ -143,8 +138,8 @@ export function layout(title: string, body: string, opts: LayoutOptions): string
   ${renderTopBar()}
   ${renderRail(opts.shell.rail)}
   ${renderRailData(opts.shell.rail)}
-  <div class="min-w-0 px-6 pb-16">
-  <main class="max-w-[1080px] mx-auto py-8 pb-8 flex flex-col gap-6">
+  <div class="${SHELL_COLUMN}">
+  <main class="${SHELL_MAIN}">
     ${renderFlashBanner()}
     <!--
       Copying is confirmed visually by the icon swapping to a check, which

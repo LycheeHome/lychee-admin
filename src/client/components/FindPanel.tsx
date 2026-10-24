@@ -296,6 +296,8 @@ export function FindPanel({
         }}
         onKeyDown={onKeyDown}
       />
+      {/* The server's rail wrote a space here; kept so the markup is the same (the hint is absolutely placed, so it renders nothing). */}
+      {" "}
       <kbd data-find-hint="" className={RAIL_FIND_HINT}>
         {findHint}
       </kbd>

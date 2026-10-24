@@ -58,6 +58,24 @@ export const STATUS_PILL_BASE =
 export const FOCUS_RING =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
 export const DETAIL_WIDTH = "max-w-[760px] mx-auto w-full";
+
+// The page frame's class strings, shared by the server shell (shell.ts) and
+// React's (AppFrame.tsx) so the two cannot drift while both exist.
+
+/** The content column beside the rail, and the 1080px <main> inside it. */
+export const SHELL_COLUMN = "min-w-0 px-6 pb-16";
+export const SHELL_MAIN = "max-w-[1080px] mx-auto py-8 pb-8 flex flex-col gap-6";
+
+/** The × that dismisses the toast or the page notice. */
+export const DISMISS_BUTTON =
+  `shrink-0 text-stone-400 hover:text-stone-50 bg-transparent border-none cursor-pointer text-base leading-none ${FOCUS_RING}`;
+
+/** The flash toast's box, without its tone (showToast() supplies that) or its initial `hidden`. */
+export const FLASH_BANNER =
+  "fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[min(480px,calc(100vw-2rem))] font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 border shadow-lg shadow-black/40 flex items-center justify-between gap-3";
+
+/** The in-flow page notice (`?created=1`, `?removed=`), lined up with the cards beneath it. */
+export const PAGE_NOTICE = `${DETAIL_WIDTH} bg-rose-950/60 border border-rose-400/70 font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 flex items-start justify-between gap-3`;
 /**
  * The page frame — the same 1080px the shell's <main> already uses, in the
  * content column beside the rail. A page takes this when it has two kinds of content that belong

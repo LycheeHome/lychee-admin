@@ -1,5 +1,6 @@
 import { useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import type { HealthPayload } from "../shared/health";
 import type { RailData } from "../views/shell";
 import { Navigation } from "./components/Rail";
 import { useHealth } from "./health";
@@ -25,6 +26,19 @@ export function RailIsland({
   /** The server's narrow-screen top bar, taken over with the rail; null where there is none. */
   topBar?: Element | null;
 }) {
+  return <Navigation rail={rail} {...useRailHealth()} findInitial={findInitial} topBar={topBar} />;
+}
+
+/** The rail's live props besides its rows: the health poll's reading, and the find box's printed shortcut. */
+export interface RailHealth {
+  health: HealthPayload | null;
+  healthError: boolean;
+  lastRead: string | null;
+  findHint: string;
+}
+
+/** The health poll, read as the rail shows it; shared by the island and AppFrame. */
+export function useRailHealth(): RailHealth {
   const query = useHealth();
   const lastRead = query.dataUpdatedAt > 0 ? new Date(query.dataUpdatedAt).toISOString() : null;
   const platform = typeof navigator === "undefined" ? "" : navigator.platform;
@@ -32,17 +46,7 @@ export function RailIsland({
   // puts a data-less errored query back to pending while it refetches, which
   // would blink the unavailable line off for the length of every retry.
   const latestErrored = query.isError || query.errorUpdatedAt > query.dataUpdatedAt;
-  return (
-    <Navigation
-      rail={rail}
-      health={query.data ?? null}
-      healthError={latestErrored}
-      lastRead={lastRead}
-      findHint={findHintFor(platform)}
-      findInitial={findInitial}
-      topBar={topBar}
-    />
-  );
+  return { health: query.data ?? null, healthError: latestErrored, lastRead, findHint: findHintFor(platform) };
 }
 
 interface ServerRail {

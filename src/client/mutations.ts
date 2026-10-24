@@ -2,7 +2,7 @@ import { useMutation, useMutationState, useQueryClient, type QueryClient } from 
 import { useState } from "react";
 import type { ActionState, BoardPayload } from "../shared/board";
 import type { HostAction } from "../lib/platform";
-import { BOARD_QUERY_ROOT, SITE_DETAIL_ROOT, type SiteDetailResult } from "./api";
+import { BOARD_QUERY_ROOT, RAIL_QUERY_KEY, SITE_DETAIL_ROOT, type SiteDetailResult } from "./api";
 import { HEALTH_QUERY } from "./health";
 import { hideToast, showToast } from "./toast";
 
@@ -42,7 +42,7 @@ export async function post(
 }
 
 /**
- * After a write: re-read every board, the rail's health and every site page,
+ * After a write: re-read every board, the rail's rows and health and every site page,
  * resolving once the active ones have landed. A write on either page can
  * change what the other shows.
  */
@@ -51,6 +51,8 @@ export function refresh(client: QueryClient): Promise<unknown> {
     client.invalidateQueries({ queryKey: BOARD_QUERY_ROOT }),
     client.invalidateQueries({ queryKey: HEALTH_QUERY.queryKey }),
     client.invalidateQueries({ queryKey: SITE_DETAIL_ROOT }),
+    // The rail's rows: a write can add, retire or remove what it lists.
+    client.invalidateQueries({ queryKey: RAIL_QUERY_KEY }),
   ]);
 }
 
