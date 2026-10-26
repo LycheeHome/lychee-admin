@@ -136,8 +136,6 @@ describe("Rail parity with the frozen server rail", () => {
 
   // Moved from the retired src/views/rail.test.ts, which held it of the
   // server rail; carried over from the breadcrumb dropdown the rail replaced.
-  // (Tailwind scans src/, tests included, so this file's /truncate/ is also
-  // what keeps `.truncate` in public/style.css, as rail.test.ts's did.)
   test("never truncates a hostname, and never dims a row below Smoke", () => {
     const html = renderToStaticMarkup(<Rail rail={railData()} health={seedHealth()} healthError={false} lastRead={null} />);
     const rows = html.match(/<ul[\s\S]*?<\/ul>/)?.[0] ?? "";
