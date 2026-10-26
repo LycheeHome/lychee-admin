@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useParams } from "react-router";
-import { queryOptions, useQuery } from "@tanstack/react-query";
+import { focusManager, queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useClientNav } from "../clientNav";
 import { fetchSiteDetail, siteDetailQueryKey, type SiteDetailResult } from "../api";
 import { BOARD_ALERT } from "../components/BoardRows";
@@ -40,11 +40,34 @@ export function siteDetailQuery(hostname: string, pause: SiteDetailPause = { wri
     queryFn: () => fetchSiteDetail(hostname, false),
     refetchInterval: (query) => siteDetailInterval(query.state.data, pause),
     refetchIntervalInBackground: false,
-    // A focus or reconnect re-read ignores refetchInterval, so the pause has to reach both.
-    refetchOnWindowFocus: !(pause.writing || pause.dialogOpen),
+    // The focus re-read is the page's own (useFocusPull): it pulls the clone,
+    // which a re-read TanStack starts cannot ask for.
+    refetchOnWindowFocus: false,
+    // A reconnect re-read ignores refetchInterval, so the pause has to reach it.
     refetchOnReconnect: !(pause.writing || pause.dialogOpen),
     staleTime: 2_000,
   });
+}
+
+/**
+ * The page's focus re-read, with `?refresh=1`: a declaration changed by hand
+ * on GitHub (a retired one pruned there, say) comes with a tab switch, so
+ * returning to the tab is when to pull the clone. The timed polls never pull.
+ * It keeps the query's `staleTime` and its pause, as TanStack's own focus
+ * re-read did, and the server pulls only for a Next.js site.
+ */
+function useFocusPull(hostname: string, pause: SiteDetailPause): void {
+  const client = useQueryClient();
+  const paused = pause.writing || pause.dialogOpen;
+  useEffect(() => {
+    if (paused) return;
+    return focusManager.subscribe((focused) => {
+      if (!focused) return;
+      const { queryKey, staleTime } = siteDetailQuery(hostname);
+      // A failure lands in the query's error state, where the page's alert reads it.
+      client.fetchQuery({ queryKey, staleTime, queryFn: () => fetchSiteDetail(hostname, true) }).catch(() => {});
+    });
+  }, [client, hostname, paused]);
 }
 
 const NOT_FOUND_TITLE = "Site not found";
@@ -83,6 +106,7 @@ export function SiteDetailPage({ hostname }: { hostname: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const writing = useSiteWriteInFlight(hostname);
   const query = useQuery(siteDetailQuery(hostname, { writing, dialogOpen }));
+  useFocusPull(hostname, { writing, dialogOpen });
   const heading = useRef<HTMLHeadingElement>(null);
   // Stable for the page's life: the writes read it when they settle.
   const cardHeading = useRef<HTMLHeadingElement>(null);
