@@ -827,7 +827,14 @@ the hollow dot is also every site's dot before the first health read. Each of
 count** at its right edge: above zero it is a 0.75rem mono chip in Scorch on
 Scorch Deep, and zero is quiet Smoke text with no chip, so a healthy rail carries
 no colour but its green dots. A site counts when its tone is bad; a unit when its
-tone is bad or its last deploy was blocked or failed. When the latest health
+tone is bad or its last deploy was blocked or failed. A site or unit whose state
+could not be read (`unknown`) counts too, because a printed 0 is a claim of
+health the rail cannot make about something it couldn't see: the number is bad
+plus unknown, the chip stays Scorch when anything counted is bad, and becomes
+the neutral pill's Smoke on Hairline, with an inset Hairline Strong ring so it keeps an edge on the current row's identical ground, when everything counted is only unknown.
+A screen reader hears the split (`3 need attention, 1 unknown`), since the one
+number merges what a colour alone can't separate. The top bar's overall count
+follows the same rule. When the latest health
 read failed, every polled dot goes `neutral`, the counts disappear and one Smoke
 line reads `health unavailable · last read <age>` — never a remembered green.
 

@@ -3,8 +3,6 @@ import { splitHostnameForDisplay } from "../../lib/siteDisplay";
 import type { HealthPayload, Tone } from "../../shared/health";
 import {
   RAIL_ASIDE,
-  RAIL_COUNT_BAD,
-  RAIL_COUNT_ZERO,
   RAIL_DOT,
   RAIL_HEADING,
   RAIL_HEADING_LINK,
@@ -17,6 +15,9 @@ import {
   RAIL_WIDE_QUERY,
   TOP_BAR,
   attentionCounts,
+  countClass,
+  countTotal,
+  type GroupCount,
 } from "../../views/railModel";
 import { FOCUS_RING, ICONS, formatAge } from "../../views/shared";
 import type { RailCurrent, RailData } from "../../shared/rail";
@@ -97,11 +98,13 @@ function Icon({ name }: { name: keyof typeof ICONS }) {
  * A count slot. Null renders the server's empty slot (no reading, or a
  * failed one); zero is quiet Smoke Deep; above zero is Scorch on its chip.
  */
-function Count({ name, value }: { name: string; value: number | null }) {
+function Count({ name, value }: { name: string; value: GroupCount | null }) {
   if (value === null) return <span data-count={name} />;
   return (
-    <span data-count={name} className={value > 0 ? RAIL_COUNT_BAD : RAIL_COUNT_ZERO}>
-      {value}
+    <span data-count={name} className={countClass(value)}>
+      {countTotal(value)}
+      {/* The number merges two things a colour alone can't separate for a listener. */}
+      {value.unknown > 0 ? <span className="sr-only">{` (${value.bad} need attention, ${value.unknown} unknown)`}</span> : null}
     </span>
   );
 }
@@ -265,8 +268,11 @@ export interface TopBarProps {
  */
 export function TopBar({ health, hostnames, healthError, onOpen }: TopBarProps) {
   const counts = !healthError && health ? attentionCounts(health, hostnames) : null;
-  const total = counts
-    ? counts.sites + (counts.service ?? 0) + (counts.reconciler ?? 0) + (counts.infrastructure ?? 0)
+  const total: GroupCount | null = counts
+    ? [counts.sites, counts.service, counts.reconciler, counts.infrastructure].reduce<GroupCount>(
+        (sum, c) => (c ? { bad: sum.bad + c.bad, unknown: sum.unknown + c.unknown } : sum),
+        { bad: 0, unknown: 0 },
+      )
     : null;
   return (
     <>
@@ -277,9 +283,11 @@ export function TopBar({ health, hostnames, healthError, onOpen }: TopBarProps) 
         {total === null ? (
           <span data-count="all" />
         ) : (
-          <span data-count="all" className={total > 0 ? RAIL_COUNT_BAD : RAIL_COUNT_ZERO}>
-            {total}
-            <span className="sr-only"> need attention</span>
+          <span data-count="all" className={countClass(total)}>
+            {countTotal(total)}
+            <span className="sr-only">
+              {total.unknown > 0 ? ` need attention (${total.bad} bad, ${total.unknown} unknown)` : " need attention"}
+            </span>
           </span>
         )}
         <button
