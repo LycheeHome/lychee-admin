@@ -76,7 +76,7 @@ export const REDESIGNS: Redesign[] = [
     // then the panel's line: the three are one rejection, in document order.
     // `hidden` is appended, as the page's class toggle appends it.
     from: /(aria-describedby=")preview-error("[\s\S]*?id="preview-error" role="status" tabindex="-1" class="(?:font-mono )?text-\[0\.8rem\] text-red-300[^"]*)("[^>]*>Port \d+[^<]*<\/p>[\s\S]*?)Fix the problem above/g,
-    to: "$1port-error$2 hidden$3Fix the port above",
+    to: "$1port-error$2 hidden$3Fix the port in the form",
     anchor: 'm-0">Port ',
   },
   // By id: the two add-page boxes (2026-10-26), then the repository card's

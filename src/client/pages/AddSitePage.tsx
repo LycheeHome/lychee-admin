@@ -230,7 +230,8 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
         setPreviewErrorText(result.error);
         setPanel({
           kind: "message",
-          text: fieldSays ? "Fix the port above and the block appears here." : "Fix the problem above and the block appears here.",
+          // "In the form", not "above": at desktop width the form is beside the panel.
+          text: fieldSays ? "Fix the port in the form and the block appears here." : "Fix the problem above and the block appears here.",
         });
         setMarks({});
         return;

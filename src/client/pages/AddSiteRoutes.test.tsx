@@ -208,7 +208,7 @@ describe("a rejection said once", () => {
     await waitFor(() => assert.equal(submit().getAttribute("aria-disabled"), "true"), TIMEOUT);
     assert.equal(document.getElementById("port-error")?.textContent, PORT_TAKEN);
     assert.ok(document.getElementById("preview-error")?.classList.contains("hidden"), "the panel repeats the field");
-    assert.equal(panelLine(), "Fix the port above and the block appears here.");
+    assert.equal(panelLine(), "Fix the port in the form and the block appears here.");
     assert.equal(submit().getAttribute("aria-describedby"), "port-error");
     act(() => {
       fireEvent.submit(form() as HTMLFormElement);
