@@ -48,7 +48,7 @@ import { CommandBlock, CopyButton, FailureLine, Icon } from "./CommandBlock";
 import { RemoveDialog, type RemoveDialogHandle } from "./RemoveDialog";
 import { RepositoryCard, type SiteWrites } from "./RepositoryCard";
 import { RetiredNotice } from "./RetiredNotice";
-import { resourceNameFor } from "../../lib/siteResource";
+import { resourceNameFor } from "../../lib/siteNames";
 
 /*
  * The site page's markup in JSX, element for element what the retired

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState, type FormEvent, type ReactNode, type Ref } from "react";
 import { troubleGate } from "../../lib/siteDisplay";
 import { IMAGE_PREFIX } from "../../lib/platform";
-import { resourceNameFor } from "../../lib/siteResource";
+import { resourceNameFor } from "../../lib/siteNames";
 import type { SiteDetailPayload } from "../../shared/siteDetail";
 import {
   canChangeRepository,

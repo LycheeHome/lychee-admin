@@ -7,8 +7,7 @@
 import type { HostAction } from "../lib/platform";
 import type { ActionState } from "../lib/hostOperations";
 import type { StatusLabels, StatusTone } from "../lib/siteDisplay";
-import { hostnameForResource } from "../lib/siteResource";
-import { isSiteName } from "../lib/siteValidation";
+import { hostnameForResource, isSiteName } from "../lib/siteNames";
 import type { BoardRow, ServiceBoard } from "../lib/serviceBoard";
 import type { ServiceGroup } from "../lib/serviceInventory";
 import { offeredTag } from "./boardFacts";

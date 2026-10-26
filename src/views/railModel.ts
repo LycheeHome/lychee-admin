@@ -3,7 +3,7 @@
 // Vite bundles this file into the client.
 import type { Site } from "../lib/caddyfile";
 import { describeStatus, deployTrouble, type SiteStatus } from "../lib/siteDisplay";
-import { hostnameForResource } from "../lib/siteResource";
+import { hostnameForResource } from "../lib/siteNames";
 import type { BoardRow, ServiceBoard, ServiceGroup } from "../shared/board";
 import type { HealthPayload, SiteHealth, Tone, UnitHealth } from "../shared/health";
 import { rowLabels } from "./boardFacts";

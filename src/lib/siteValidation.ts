@@ -1,4 +1,5 @@
-import { MAX_RESOURCE_NAME_LENGTH, SITE_MIN_PORT, escapeRegex } from "./platform";
+import { MAX_RESOURCE_NAME_LENGTH, SITE_MIN_PORT } from "./platform";
+import { isValidHostname, maxSiteLabelLength, siteSuffixFor } from "./siteNames";
 import { hostnameExists, parseSites, type SiteType } from "./caddyfile";
 
 /**
@@ -53,46 +54,16 @@ export function portConflictMessage(port: number, owner: PortOwner): string {
 
 const HEALTHCHECK_PATH_PATTERN = /^\/[A-Za-z0-9._~\-/]{0,199}$/;
 
-/** Appended to a site's label to form its container-resource name:
- *  `lychee.land` -> `-lychee-land`. */
-export function siteSuffixFor(domain: string): string {
-  return "-" + domain.replace(/\./g, "-");
-}
-
-/** A site's resource name in full: a DNS-label-shaped label plus the suffix. */
-export function siteNamePatternFor(domain: string): RegExp {
-  return new RegExp(`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?${escapeRegex(siteSuffixFor(domain))}$`);
-}
-
-// A site's resource name: a DNS-label-shaped site label plus the domain's
-// suffix (siteNamePatternFor), capped at MAX_RESOURCE_NAME_LENGTH like every
-// resource name. Narrower than the declaration writer's NAME_RE on purpose:
-// creating and retiring are reachable only for sites, never for a declaration
-// such as palsave-api that this app did not write. Here rather than in the
-// writer because the client's services board reads it too, and the writer
-// imports node modules.
-export function isSiteName(name: string, domain: string): boolean {
-  return name.length <= MAX_RESOURCE_NAME_LENGTH && siteNamePatternFor(domain).test(name);
-}
-
-export function maxSiteLabelLength(domain: string): number {
-  return MAX_RESOURCE_NAME_LENGTH - siteSuffixFor(domain).length;
-}
-
-export function isValidHostname(hostname: string, domain: string): boolean {
-  const pattern = new RegExp(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?\\.${escapeRegex(domain)}$`, "i");
-  return pattern.test(hostname);
-}
-
-/**
- * Caddyfile blocks lychee-admin doesn't own (e.g. a manually added local-LAN
- * block like lychee.local) must never show up as a managed site, since
- * removing them here would still delete their local directory or tunnel
- * ingress rule.
- */
-export function isManagedHostname(hostname: string, domain: string): boolean {
-  return hostname === domain || isValidHostname(hostname, domain);
-}
+// The name and hostname rules live in siteNames.ts, which imports nothing
+// heavy, so the client can read them without bundling the Caddyfile parser.
+export {
+  isManagedHostname,
+  isSiteName,
+  isValidHostname,
+  maxSiteLabelLength,
+  siteNamePatternFor,
+  siteSuffixFor,
+} from "./siteNames";
 
 /**
  * The exact normalization POST /sites has always applied, moved verbatim so

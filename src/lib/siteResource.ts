@@ -1,35 +1,9 @@
 import { load } from "js-yaml";
 import type { ContainerEntry } from "./serviceInventory";
-import { isValidHostname, maxSiteLabelLength, siteSuffixFor } from "./siteValidation";
 
-// Defined beside the validator that refuses an over-long Next.js label, so the
-// refusal at add-site and the null here can never disagree about the limit.
-export { siteSuffixFor, maxSiteLabelLength };
-
-/**
- * `test.lychee.land` -> `test-lychee-land`. Null for anything that is not a
- * single-label hostname under the managed domain, or whose label is too long
- * for the resulting name to fit.
- */
-export function resourceNameFor(hostname: string, domain: string): string | null {
-  if (!isValidHostname(hostname, domain)) return null;
-  const label = hostname.slice(0, hostname.length - domain.length - 1).toLowerCase();
-  if (label.length > maxSiteLabelLength(domain)) return null;
-  return `${label}${siteSuffixFor(domain)}`;
-}
-
-/**
- * `test-lychee-land` -> `test.lychee.land`, the inverse of `resourceNameFor`
- * for a name that is a site's. Null when the suffix is absent or nothing is
- * left of it. Only a suffix strip: whether that hostname is one the app
- * manages is for the caller's managed set to say.
- */
-export function hostnameForResource(name: string, domain: string): string | null {
-  const suffix = siteSuffixFor(domain);
-  if (!name.endsWith(suffix)) return null;
-  const label = name.slice(0, name.length - suffix.length);
-  return label === "" ? null : `${label}.${domain}`;
-}
+// The name helpers live in siteNames.ts so the client can import them without
+// bundling js-yaml; re-exported here for the server code that reads them here.
+export { hostnameForResource, maxSiteLabelLength, resourceNameFor, siteSuffixFor } from "./siteNames";
 
 const REPO_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
 
