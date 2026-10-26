@@ -47,7 +47,7 @@ function renderServicesPage(
     boardEmpty: board.groups.length === 0,
     now: now.toISOString(),
     domain,
-    prunable: [...prunable],
+    prunable: [...prunable], retiring: [],
     managed: [...managed],
     requested: Object.fromEntries(requested),
     lastRuns: { ...lastRuns },
@@ -255,7 +255,7 @@ describe("renderServicesPage", () => {
         ] }],
       },
       boardEmpty: false, now: NOW.toISOString(), domain: "lychee.land",
-      prunable: [], managed: [], requested: {}, lastRuns: {},
+      prunable: [], retiring: [], managed: [], requested: {}, lastRuns: {},
     };
     const host = document.createElement("div");
     document.body.append(host);

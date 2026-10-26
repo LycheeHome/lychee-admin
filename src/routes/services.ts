@@ -4,7 +4,7 @@ import type { Deps } from "../deps";
 import * as caddyfile from "../lib/caddyfile";
 import { isManagedHostname } from "../lib/siteValidation";
 import { isSiteName } from "../lib/declarationWriter";
-import { declaredTag, pendingTag } from "../lib/siteResource";
+import { confirmedDown, declaredTag, pendingTag } from "../lib/siteResource";
 import { isHostAction, readCheckedActionState, readLastRuns, requestAction } from "../lib/hostOperations";
 import { readInventory } from "../lib/serviceInventory";
 import { buildBoard, findTimerUnit } from "../lib/serviceBoard";
@@ -31,7 +31,10 @@ const isServiceGroup = (value: string): value is ServiceGroup => (GROUPS as read
 
 export interface BoardPageData {
   board: ServiceBoard;
+  /** Retired site declarations whose container the reconciler has confirmed down: they offer Prune. */
   prunable: Set<string>;
+  /** Retired site declarations not yet confirmed down: their rows keep the live state, with no Prune. */
+  retiring: Set<string>;
   managed: Set<string>;
   requested: Map<string, string>;
   lastRuns: Awaited<ReturnType<typeof readLastRuns>>;
@@ -94,9 +97,15 @@ async function readBoardPage(deps: Deps): Promise<BoardPageData> {
     readLastRuns(deps, inventory.entries),
   ]);
   const board = buildBoard(inventory, states, schedule, Object.fromEntries(statuses));
-  const prunable = new Set(
-    (declarations ?? []).filter((d) => d.state === "absent" && isSiteName(d.name, config.domain)).map((d) => d.name),
-  );
+  // Retired site declarations, sorted by the prune route's own rule, so the
+  // board offers Prune exactly where the route would accept it.
+  const prunable = new Set<string>();
+  const retiring = new Set<string>();
+  for (const d of declarations ?? []) {
+    if (d.state !== "absent" || !isSiteName(d.name, config.domain)) continue;
+    const entry = inventory.entries.find((e) => e.name === d.name);
+    (confirmedDown(entry?.kind === "container" ? entry : undefined, d) ? prunable : retiring).add(d.name);
+  }
 
   // A Deploy this app committed that the reconciler has not reported yet.
   // An unreadable clone has no declarations, so every row keeps its offer.
@@ -109,7 +118,7 @@ async function readBoardPage(deps: Deps): Promise<BoardPageData> {
     }
   }
 
-  return { board, prunable, managed, requested, lastRuns, now: new Date() };
+  return { board, prunable, retiring, managed, requested, lastRuns, now: new Date() };
 }
 
 export function createServicesRouter(deps: Deps): express.Router {
@@ -132,7 +141,7 @@ export function createServicesRouter(deps: Deps): express.Router {
       return res.status(400).json({ ok: false, reason } satisfies ApiError);
     }
     try {
-      const { board, now, prunable, managed, requested, lastRuns } = await loadBoardPage(deps);
+      const { board, now, prunable, retiring, managed, requested, lastRuns } = await loadBoardPage(deps);
       const only: ServiceBoard = { ...board, groups: board.groups.filter((g) => g.group === group) };
       // The page's "unavailable" vs "lists no X" choice depends on the whole
       // board, which the narrowing above discards, so it travels separately.
@@ -143,6 +152,7 @@ export function createServicesRouter(deps: Deps): express.Router {
         boardEmpty,
         now: now.toISOString(),
         prunable: [...prunable],
+        retiring: [...retiring],
         managed: [...managed],
         domain: config.domain,
         requested: Object.fromEntries(requested),
@@ -260,8 +270,9 @@ export function createServicesRouter(deps: Deps): express.Router {
         refuse(404, `No declaration named ${name}.`);
         return;
       }
-      const entry = readInventory(deps.fs).entries.find((e) => e.name === name);
-      if (!entry || entry.version || !entry.result || !["deployed", "awaiting-image"].includes(entry.result)) {
+      const found = readInventory(deps.fs).entries.find((e) => e.name === name);
+      const entry = found?.kind === "container" ? found : undefined;
+      if (!entry || !confirmedDown(entry, declarations.find((d) => d.name === name))) {
         refuse(409, CONFIRM_DOWN_REASON);
         return;
       }

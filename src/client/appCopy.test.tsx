@@ -59,7 +59,7 @@ function renderFailedRow() {
   };
   return render(
     <Board
-      payload={{ board, boardEmpty: false, now: NOW.toISOString(), domain: "lychee.land", prunable: [], managed: [], requested: {}, lastRuns: {} }}
+      payload={{ board, boardEmpty: false, now: NOW.toISOString(), domain: "lychee.land", prunable: [], retiring: [], managed: [], requested: {}, lastRuns: {} }}
       group="infrastructure"
     />,
   );

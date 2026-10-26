@@ -1,4 +1,5 @@
 import { load } from "js-yaml";
+import type { ContainerEntry } from "./serviceInventory";
 import { isValidHostname, maxSiteLabelLength, siteSuffixFor } from "./siteValidation";
 
 // Defined beside the validator that refuses an over-long Next.js label, so the
@@ -77,12 +78,39 @@ export function parseDeclaration(name: string, content: string): DeclarationSumm
  * never mistaken for a tag.
  */
 export function declaredTag(decl: DeclarationSummary | undefined): string | null {
-  if (!decl || decl.state === "absent" || decl.image.includes("@")) return null;
-  const segment = decl.image.slice(decl.image.lastIndexOf("/") + 1);
+  if (!decl || decl.state === "absent") return null;
+  return imageTag(decl.image);
+}
+
+/**
+ * The tag an image reference names, or null: declaredTag's reading without
+ * the declaration's state, for the one question it cannot answer, whether a
+ * retired (`state: absent`) declaration is tagged. The image is the parsed
+ * YAML value, so an escape that hides a colon from a regex still reads.
+ */
+export function imageTag(image: string): string | null {
+  if (image.includes("@")) return null;
+  const segment = image.slice(image.lastIndexOf("/") + 1);
   const colon = segment.lastIndexOf(":");
   if (colon < 0) return null;
   const tag = segment.slice(colon + 1);
   return tag === "" ? null : tag;
+}
+
+/**
+ * Whether the reconciler has confirmed a retired site's container down: its
+ * inventory entry shows nothing installed and a last result of `deployed` (a
+ * completed down) or `awaiting-image` (never installed). `awaiting-image`
+ * alone is not proof, since a site Deploy just tagged still publishes the
+ * previous tick's entry while it comes up; it counts only for a declaration
+ * with no tag, which can never have been brought up. The one rule the prune
+ * route and the services board both use, so the board never offers a Prune
+ * the route refuses for this reason, nor hides one it would accept.
+ */
+export function confirmedDown(entry: ContainerEntry | undefined, declaration: DeclarationSummary | undefined): boolean {
+  if (!entry || entry.version) return false;
+  if (entry.result === "deployed") return true;
+  return entry.result === "awaiting-image" && declaration !== undefined && imageTag(declaration.image) === null;
 }
 
 /**

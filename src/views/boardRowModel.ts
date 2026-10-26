@@ -95,13 +95,26 @@ export function siteLinkHost(name: string, domain: string, managed: ReadonlySet<
   return host && managed.has(host) ? host : null;
 }
 
+/** The retiring line's reason: what Prune waits for, true whether or not the down succeeds. */
+export const RETIRING_REASON = "Prune follows once the reconciler confirms the container down";
+
 /**
- * Whether a row carries Prune: a retired site's declaration, still in
- * lychee-resources. Site names only: a hand-declared resource (palsave-api) is
- * never pruned from here, whatever the caller passed.
+ * A retired site row's treatment. `down`: confirmed down (the server's
+ * `prunable`), so the pill reads `retired` and Prune follows. `retiring`:
+ * retired but not yet confirmed down, so the pill keeps the live state and a
+ * retiring line says why there is no Prune yet. Null for every other row, and
+ * for a non-site name whatever the caller passed: a hand-declared resource
+ * (palsave-api) is never pruned from here.
  */
-export function showsPrune(name: string, prunable: ReadonlySet<string>, domain: string): boolean {
-  return prunable.has(name) && isSiteName(name, domain);
+export function retiredRow(
+  name: string,
+  prunable: ReadonlySet<string>,
+  retiring: ReadonlySet<string>,
+  domain: string,
+): "down" | "retiring" | null {
+  if (!isSiteName(name, domain)) return null;
+  if (prunable.has(name)) return "down";
+  return retiring.has(name) ? "retiring" : null;
 }
 
 /**

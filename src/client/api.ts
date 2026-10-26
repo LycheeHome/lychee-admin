@@ -65,6 +65,7 @@ export async function fetchBoard(group: ServiceGroup): Promise<BoardPayload> {
     boardEmpty: body.boardEmpty,
     now: body.now,
     prunable: body.prunable,
+    retiring: body.retiring,
     managed: body.managed,
     domain: body.domain,
     requested: body.requested,

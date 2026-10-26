@@ -50,7 +50,7 @@ function payload(group: ServiceGroup, rows: BoardRow[], extra: Partial<BoardPayl
     boardEmpty: false,
     now: NOW.toISOString(),
     domain: DOMAIN,
-    prunable: [],
+    prunable: [], retiring: [],
     managed: [],
     requested: {},
     lastRuns: {},
@@ -171,25 +171,12 @@ for (const group of GROUPS) {
       );
     });
 
-    test("a prunable site row, and site names linked only when managed", () => {
-      const server = assertParity(
-        `${group}-prunable-and-links`,
-        payload(
-          group,
-          [
-            container("gone-lychee-land", group, { status: "exited", result: "deployed" }),
-            container("app-lychee-land", group, { version: "0.1.0" }),
-            container("other-lychee-land", group, { version: "0.1.0" }),
-            container("palsave-api", group, { version: "v1" }),
-          ],
-          { prunable: ["gone-lychee-land", "palsave-api"], managed: ["app.lychee.land"] },
-        ),
-        group,
-        ["data-prune-line", 'href="/sites/app.lychee.land"'],
-      );
-      assert.ok(!server.includes('data-prune="palsave-api"'), "a hand-declared resource is never pruned");
-      assert.ok(!server.includes('href="/sites/other.lychee.land"'), "an unmanaged hostname is not linked");
-    });
+    // "a prunable site row, and site names linked only when managed" compared
+    // <group>-prunable-and-links.html, whose gone-lychee-land row read
+    // `not deployed` beside its Prune. Those fixtures were retired on
+    // 2026-10-26, when `retired` on the board redesigned exactly that row;
+    // BoardRetired.test.tsx holds the new markup, the site-name links and the
+    // palsave-api guard included.
 
     test("a host-action strip at rest, up and down", () => {
       assertParity(
