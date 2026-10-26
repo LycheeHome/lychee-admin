@@ -23,20 +23,25 @@
  * when app.js was retired. Do not add it back: a class that exists only in
  * public/ is one the build is compiling out of its own output.
  *
- * The frozen parity fixtures are excluded, all of src/dev/fixtures/ at once:
- * board/ (what the retired server board rendered), sites/ (what the retired
- * server sites list rendered), detail/ (what the retired server site page
- * and error page rendered), add-site/ (what the retired server add page
- * showed after each step, app.js driving it), and shell/ and rail/ (what
- * the retired server shell and rail rendered around every page). They are
- * test data, and once the live pages move on they would keep the old
- * classes in the bundle.
+ * Nothing that only tests or the dev server read is a source, because a
+ * class named only there is a class no shipped page renders:
+ * - every test file, *.test.ts and *.test.tsx. A test's own spelling once
+ *   kept `.truncate` in the bundle: a rail test asserts no row truncates, so
+ *   the word appeared in exactly one place, the assertion against it;
+ * - src/client/test/, the harnesses and canonical() the tests share;
+ * - src/dev/, the dev server, its fakes and seed, the test helpers, and the
+ *   frozen parity fixtures: board/, sites/, detail/, add-site/, shell/ and
+ *   rail/, what each retired server renderer last produced. Once the live
+ *   pages move on, those would keep the old classes in the bundle.
  */
 @import "tailwindcss" source(none);
 
 @source "../../index.html";
 @source "../../src";
-@source not "../../src/dev/fixtures";
+@source not "../../src/**/*.test.ts";
+@source not "../../src/**/*.test.tsx";
+@source not "../../src/client/test";
+@source not "../../src/dev";
 
 @theme {
   --font-display: "Poetsen One", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;

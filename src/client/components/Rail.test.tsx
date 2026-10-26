@@ -6,6 +6,7 @@ import { afterEach, describe, test } from "node:test";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { RAIL_COUNT_BAD, RAIL_COUNT_ZERO, RAIL_DOT, attentionCounts } from "../../views/railModel";
+import { BUTTON_PRIMARY, FOCUS_RING } from "../../views/shared";
 import type { RailData } from "../../shared/rail";
 import type { HealthPayload } from "../../shared/health";
 import { SEEDED_RAIL_SITES } from "../../dev/testHelpers";
@@ -136,8 +137,6 @@ describe("Rail parity with the frozen server rail", () => {
 
   // Moved from the retired src/views/rail.test.ts, which held it of the
   // server rail; carried over from the breadcrumb dropdown the rail replaced.
-  // (Tailwind scans src/, tests included, so this file's /truncate/ is also
-  // what keeps `.truncate` in public/style.css, as rail.test.ts's did.)
   test("never truncates a hostname, and never dims a row below Smoke", () => {
     const html = renderToStaticMarkup(<Rail rail={railData()} health={seedHealth()} healthError={false} lastRead={null} />);
     const rows = html.match(/<ul[\s\S]*?<\/ul>/)?.[0] ?? "";
@@ -444,5 +443,106 @@ describe("the top bar and its drawer", () => {
       document.addEventListener = add;
       document.removeEventListener = remove;
     }
+  });
+});
+
+/*
+ * DESIGN.md's rules for the rail, asserted by name. The frozen fixtures pin
+ * them only for a health-free rail with nothing open; these hold them in the
+ * states the fixtures cannot express, and say what each rule is, so a
+ * deliberate redesign that replaces the fixtures keeps them.
+ */
+describe("the rail's design rules, in states the fixtures cannot hold", () => {
+  const RING = FOCUS_RING.split(" ");
+
+  function assertRules(root: Element, state: string): void {
+    const links = root.querySelectorAll("a[href]");
+    assert.ok(links.length > 0, `${state}: no links`);
+    for (const el of Array.from(root.querySelectorAll("a[href], button"))) {
+      const cls = (el.getAttribute("class") ?? "").split(/\s+/);
+      for (const token of RING) {
+        assert.ok(cls.includes(token), `${state}: ${el.outerHTML.slice(0, 80)} lacks ${token}`);
+      }
+    }
+    const html = root.innerHTML;
+    assert.ok(!html.includes(BUTTON_PRIMARY), `${state}: a primary button in the rail`);
+    assert.doesNotMatch(html, /\bbg-rose-400\b/, `${state}: Ember in the rail`);
+    assert.doesNotMatch(root.textContent ?? "", /Add site/, `${state}: Add site in the rail`);
+    assert.ok(!root.querySelector('a[href="/sites/new"]'), `${state}: a link to /sites/new in the rail`);
+    assert.doesNotMatch(html, /\bbg-rose-950\b/, `${state}: an Ember-tinted row`);
+    assert.doesNotMatch(html, /\btruncate\b/, `${state}: a truncated row`);
+    const current = root.querySelectorAll('a[aria-current="page"]');
+    assert.equal(current.length, 1, `${state}: ${current.length} current rows`);
+    const cls = current[0]?.getAttribute("class") ?? "";
+    assert.ok(cls.includes("aria-[current=page]:bg-stone-700"), `${state}: the current row is not on Hairline`);
+    assert.ok(cls.includes("aria-[current=page]:border-l-rose-800"), `${state}: the current row has no Ember Edge`);
+  }
+
+  test("with health filled in, trouble on a site and a unit, a site current", () => {
+    const { container } = render(
+      <Rail rail={railData({ current: { site: "broken.lychee.land" } })} health={seedHealth()} healthError={false} lastRead={null} />,
+    );
+    assert.equal(count(container, "sites")?.textContent, "2", "the state has no site trouble");
+    assertRules(container, "health");
+  });
+
+  test("with find open and showing results", () => {
+    const { container } = render(
+      <Rail
+        rail={railData({ current: { page: "services" } })}
+        health={seedHealth()}
+        healthError={false}
+        lastRead={null}
+        findInitial={{ query: "lychee", focused: true }}
+      />,
+    );
+    assert.ok(container.querySelectorAll('[role="option"]').length > 0, "find shows no results");
+    assertRules(container, "find open");
+  });
+
+  test("each rule fails when it is broken", () => {
+    // A detached copy, never React's own DOM, which the breaks would corrupt.
+    const clean = renderToStaticMarkup(
+      <Rail rail={railData({ current: { site: "broken.lychee.land" } })} health={seedHealth()} healthError={false} lastRead={null} />,
+    );
+    const container = document.createElement("div");
+    container.innerHTML = clean;
+    assertRules(container, "the unbroken copy");
+    const broken: Array<[string, (root: Element) => void]> = [
+      ["Add site", (root) => root.querySelector("ul")?.insertAdjacentHTML("beforeend", `<li>Add site</li>`)],
+      ["/sites/new", (root) => root.querySelector("ul")?.insertAdjacentHTML("beforeend", `<li><a class="${FOCUS_RING}" href="/sites/new">x</a></li>`)],
+      ["Ember", (root) => root.querySelector("ul")?.setAttribute("class", "bg-rose-400")],
+      ["tinted row", (root) => root.querySelector("ul")?.setAttribute("class", "bg-rose-950")],
+      ["primary button", (root) => root.querySelector("ul")?.insertAdjacentHTML("beforeend", `<li><span class="${BUTTON_PRIMARY}"></span></li>`)],
+      ["no current row", (root) => root.querySelector('a[aria-current="page"]')?.removeAttribute("aria-current")],
+      ["two current rows", (root) => root.querySelector('a[data-site="api.lychee.land"]')?.setAttribute("aria-current", "page")],
+      ["a link without the focus ring", (root) => {
+        const link = root.querySelector("a[data-site]");
+        link?.setAttribute("class", (link.getAttribute("class") ?? "").replace("focus-visible:outline-rose-400", ""));
+      }],
+      ["a truncated row", (root) => root.querySelector("a[data-site] span")?.classList.add("truncate")],
+      ["a current row off Hairline", (root) => {
+        const row = root.querySelector('a[aria-current="page"]');
+        row?.setAttribute("class", (row.getAttribute("class") ?? "").replace("aria-[current=page]:bg-stone-700", ""));
+      }],
+      ["a current row without its Ember Edge", (root) => {
+        const row = root.querySelector('a[aria-current="page"]');
+        row?.setAttribute("class", (row.getAttribute("class") ?? "").replace("aria-[current=page]:border-l-rose-800", ""));
+      }],
+    ];
+    for (const [name, breakIt] of broken) {
+      container.innerHTML = clean;
+      breakIt(container);
+      assert.throws(() => assertRules(container, name), assert.AssertionError, `${name} was not caught`);
+    }
+  });
+
+  test("inside the narrow drawer", () => {
+    setViewport(390);
+    mountNavigation();
+    click(document.querySelector("#rail-menu"));
+    const dialog = drawer();
+    assert.ok(dialog?.open, "the drawer did not open");
+    assertRules(dialog, "drawer");
   });
 });
