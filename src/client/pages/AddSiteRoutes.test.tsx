@@ -84,8 +84,12 @@ afterEach(() => {
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
+/** What POST /sites/preview answers; reset to "not ready" by every stub. */
+let previewAnswer: unknown = { ready: false };
+
 function stubFetch(): void {
   fetched = [];
+  previewAnswer = { ready: false };
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? "GET";
@@ -94,7 +98,7 @@ function stubFetch(): void {
     if (url === "/api/rail") return json(200, { ok: true, ...railPayload(SEEDED_RAIL_SITES.map((s) => ({ ...s }))) });
     if (url === "/api/sites") return json(200, { ok: true, ...sites });
     if (url.startsWith("/api/sites/new")) return json(200, { ok: true, ...payload });
-    if (url === "/sites/preview") return json(200, { ready: false });
+    if (url === "/sites/preview") return json(200, previewAnswer);
     if (url === "/sites" && method === "POST") {
       if (holdAdd) return new Promise<Response>((resolve) => (heldAdd = resolve));
       const hostname = new URLSearchParams(String(init?.body)).get("hostname");
@@ -181,6 +185,47 @@ describe("isClientRoute", () => {
     for (const path of ["/sites/new", "/sites/new?x=1", "/sites/new#h"]) assert.equal(isClientRoute(path), true, path);
     assert.equal(siteOf("/sites/new"), null);
     assert.equal(siteOf("/sites/NEW"), null);
+  });
+});
+
+describe("a rejection said once", () => {
+  const PORT_TAKEN = "Port 4000 is already used by api.lychee.land.";
+  const panelLine = () =>
+    Array.from(document.querySelectorAll("#write-preview p")).find((p) => /appears here\.$/.test(p.textContent ?? ""))?.textContent ?? null;
+  const submit = () => document.getElementById("add-site-submit") as HTMLButtonElement;
+
+  test("a port conflict the field already states: the panel points up, and a blocked submit goes to the port field", async () => {
+    load("/sites/new");
+    await showingForm();
+    previewAnswer = { ready: false, error: PORT_TAKEN };
+    type("shop");
+    act(() => {
+      fireEvent.click(document.querySelector('input[name="type"][value="reverse-proxy"]') as HTMLInputElement);
+    });
+    act(() => {
+      fireEvent.change(document.getElementById("port-field") as HTMLInputElement, { target: { value: "4000" } });
+    });
+    await waitFor(() => assert.equal(submit().getAttribute("aria-disabled"), "true"), TIMEOUT);
+    assert.equal(document.getElementById("port-error")?.textContent, PORT_TAKEN);
+    assert.ok(document.getElementById("preview-error")?.classList.contains("hidden"), "the panel repeats the field");
+    assert.equal(panelLine(), "Fix the port above and the block appears here.");
+    assert.equal(submit().getAttribute("aria-describedby"), "port-error");
+    act(() => {
+      fireEvent.submit(form() as HTMLFormElement);
+    });
+    assert.equal(document.activeElement?.id, "port-field");
+    assert.ok(!fetched.includes("POST /sites"), "a blocked submit posted");
+  });
+
+  test("a rejection no field states keeps the panel's box, and a blocked submit goes there", async () => {
+    load("/sites/new");
+    await showingForm();
+    previewAnswer = { ready: false, error: "blog.lychee.land already exists in the Caddyfile" };
+    type("blog");
+    await waitFor(() => assert.equal(submit().getAttribute("aria-disabled"), "true"), TIMEOUT);
+    assert.ok(!document.getElementById("preview-error")?.classList.contains("hidden"));
+    assert.equal(panelLine(), "Fix the problem above and the block appears here.");
+    assert.equal(submit().getAttribute("aria-describedby"), "preview-error");
   });
 });
 
