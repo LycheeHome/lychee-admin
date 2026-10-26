@@ -1,4 +1,4 @@
-import { useState, type ReactNode, type Ref } from "react";
+import { Fragment, useState, type ReactNode, type Ref } from "react";
 import type { ActionState, BoardPayload, BoardRow, ServiceBoard, ServiceGroup } from "../../shared/board";
 import type { BoardControlsApi } from "../mutations";
 import { HostActions } from "./HostActions";
@@ -23,6 +23,7 @@ import {
 } from "../../views/boardRowModel";
 import {
   BODY,
+  FOCUS_RING,
   FRAME_WIDTH,
   PROSE_MEASURE,
   SERVICE_DETAIL,
@@ -73,20 +74,61 @@ function own<T>(record: Readonly<Record<string, T>>, key: string): T | undefined
   return Object.hasOwn(record, key) ? record[key] : undefined;
 }
 
-export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
-  const { board, now, domain, prunable, retiring, managed } = ctx;
-  const payloadRun = own(ctx.lastRuns, row.name);
-  // A host action this row is following (HostActions sets it from a 202 and
-  // each poll answer) outranks the payload until the run settles and the
-  // board has been re-read: a board read mid-run can still show the last run.
-  const [live, setLive] = useState<ActionState | null>(null);
-  const run = live ?? payloadRun;
+/**
+ * What a row shows: its summary, its retired treatment and its pill labels.
+ * One function, so the attention summary above the rows can never name a row
+ * differently from how the row itself reads.
+ */
+function rowState(row: BoardRow, ctx: RowContext, run: ActionState | undefined) {
+  const { board, now, domain, prunable, retiring } = ctx;
   // The row's words come from the same builders the HTML board uses.
   const summary = summarizeRow(row, board, now);
   const retired = retiredRow(row.name, prunable, retiring, domain);
   // Confirmed down, the row says what its site page says; before that, the
   // pill stays the container's live state, which is the board's job.
   const labels = retired === "down" ? describeStatus({ kind: "retired" }) : rowPill(summary.labels, run);
+  return { summary, retired, labels };
+}
+
+/** A row needs attention when what it shows is bad: a Scorch pill or a Scorch deploy line. */
+function needsAttention(row: BoardRow, ctx: RowContext): boolean {
+  const { summary, labels } = rowState(row, ctx, own(ctx.lastRuns, row.name));
+  return labels.tone === "bad" || summary.trouble?.tone === "bad";
+}
+
+/**
+ * The board leads with trouble (critique 2026-10-26 P1): one line naming the
+ * rows that need attention, each a link to its row, while the rows keep their
+ * inventory order. Absent when nothing does.
+ */
+function AttentionSummary({ names }: { names: string[] }) {
+  if (names.length === 0) return null;
+  return (
+    <p className={`${BODY} max-w-none`} data-attention-summary="">
+      <span className="font-mono text-red-300">{`${names.length} ${names.length === 1 ? "needs" : "need"} attention`}</span>
+      {": "}
+      {names.map((name, i) => (
+        <Fragment key={name}>
+          {i > 0 ? ", " : null}
+          <a href={`#service-${name}`} className={`font-mono text-stone-50 underline decoration-stone-600 underline-offset-2 ${FOCUS_RING}`}>
+            {name}
+          </a>
+        </Fragment>
+      ))}
+      .
+    </p>
+  );
+}
+
+export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
+  const { now, domain, managed } = ctx;
+  const payloadRun = own(ctx.lastRuns, row.name);
+  // A host action this row is following (HostActions sets it from a 202 and
+  // each poll answer) outranks the payload until the run settles and the
+  // board has been re-read: a board read mid-run can still show the last run.
+  const [live, setLive] = useState<ActionState | null>(null);
+  const run = live ?? payloadRun;
+  const { summary, retired, labels } = rowState(row, ctx, run);
   const { trouble, gate, facts } = summary;
   const offer = rowOffer(row, own(ctx.requested, row.name));
   const siteHost = siteLinkHost(row.name, domain, managed);
@@ -246,6 +288,7 @@ export function Board({ payload, group, controls, headingRef, alert }: BoardProp
             {alert}
           </p>
         ) : null}
+        {shown === "rows" ? <AttentionSummary names={rows.filter((r) => needsAttention(r, ctx)).map((r) => r.name)} /> : null}
         {content}
       </div>
       {offers ? (

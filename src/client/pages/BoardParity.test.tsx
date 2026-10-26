@@ -79,9 +79,22 @@ function serverRegion(name: string): string {
 }
 
 /** Asserts parity and returns the server's region, so a test can check its fixture reached the branch it names. */
+/**
+ * The attention summary above the rows is new (critique 2026-10-26, "the board
+ * leads with trouble") and its text depends on each case's rows, so no single
+ * declared redesign can state it for the frozen fixtures. Parity holds the
+ * rows, which it does not touch; BoardSummary.test.tsx holds the summary. At
+ * most one is ever removed, and only that paragraph.
+ */
+const ATTENTION_SUMMARY = /<p[^>]*data-attention-summary[^>]*>[\s\S]*?<\/p>/g;
+function withoutSummary(html: string): string {
+  assert.ok((html.match(ATTENTION_SUMMARY) ?? []).length <= 1, "more than one attention summary");
+  return html.replace(ATTENTION_SUMMARY, "");
+}
+
 function assertParity(name: string, p: BoardPayload, group: ServiceGroup, reaches: string[] = []): string {
   const server = serverRegion(name);
-  const client = renderToStaticMarkup(<Board payload={p} group={group} />);
+  const client = withoutSummary(renderToStaticMarkup(<Board payload={p} group={group} />));
   assert.equal(canonical(client), canonical(server));
   // A space between inline siblings renders; canonical() alone drops it.
   assert.equal(canonical(client, { inlineWhitespace: true }), canonical(server, { inlineWhitespace: true }));
