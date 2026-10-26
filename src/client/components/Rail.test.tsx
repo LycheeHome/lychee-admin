@@ -515,6 +515,20 @@ describe("the rail's design rules, in states the fixtures cannot hold", () => {
       ["tinted row", (root) => root.querySelector("ul")?.setAttribute("class", "bg-rose-950")],
       ["primary button", (root) => root.querySelector("ul")?.insertAdjacentHTML("beforeend", `<li><span class="${BUTTON_PRIMARY}"></span></li>`)],
       ["no current row", (root) => root.querySelector('a[aria-current="page"]')?.removeAttribute("aria-current")],
+      ["two current rows", (root) => root.querySelector('a[data-site="api.lychee.land"]')?.setAttribute("aria-current", "page")],
+      ["a link without the focus ring", (root) => {
+        const link = root.querySelector("a[data-site]");
+        link?.setAttribute("class", (link.getAttribute("class") ?? "").replace("focus-visible:outline-rose-400", ""));
+      }],
+      ["a truncated row", (root) => root.querySelector("a[data-site] span")?.classList.add("truncate")],
+      ["a current row off Hairline", (root) => {
+        const row = root.querySelector('a[aria-current="page"]');
+        row?.setAttribute("class", (row.getAttribute("class") ?? "").replace("aria-[current=page]:bg-stone-700", ""));
+      }],
+      ["a current row without its Ember Edge", (root) => {
+        const row = root.querySelector('a[aria-current="page"]');
+        row?.setAttribute("class", (row.getAttribute("class") ?? "").replace("aria-[current=page]:border-l-rose-800", ""));
+      }],
     ];
     for (const [name, breakIt] of broken) {
       container.innerHTML = clean;

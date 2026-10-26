@@ -7,8 +7,11 @@ import type { RequestHandler } from "express";
  * client's routes are, and the page rendered nothing under the right shell.
  * One redirect here means the client never sees a path it cannot match.
  *
- * Mounted after express.static, which answers `/client/` itself (a redirect
- * to `/client` here would loop with its redirect back), and after basic auth.
+ * Mounted after express.static, which answers `/client/` itself from its
+ * index.html, and after basic auth. express.static runs with
+ * `redirect: false` (app.ts): its add-a-slash redirect for a directory would
+ * otherwise loop with this one on any public/ directory without an index,
+ * /client/assets/ among them.
  * A 308 keeps the method. A path whose stripped form starts with `//` or `/\`
  * is left alone: as a Location it would be protocol-relative, an open
  * redirect to another host.

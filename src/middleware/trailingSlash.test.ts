@@ -101,6 +101,22 @@ describe("trailing-slash URLs", () => {
     assert.notEqual(res.location, "/client");
   });
 
+  test("a public/ directory with no index never loops between this and the static server", async () => {
+    // public/client/assets/ ships without an index.html. Before static's own
+    // add-a-slash redirect was turned off, /client/assets/ went 308 → 301 → …
+    // forever. Follow up to five hops and require it to end.
+    let path = "/client/assets/";
+    const seen: string[] = [];
+    for (let hop = 0; hop < 5; hop++) {
+      const res = await request("GET", path);
+      seen.push(`${res.status} ${path}`);
+      if (res.status < 300 || res.status >= 400 || !res.location) return;
+      assert.ok(!seen.slice(0, -1).some((s) => s.endsWith(` ${res.location}`)), `loop: ${seen.join(" → ")} → ${res.location}`);
+      path = res.location;
+    }
+    assert.fail(`still redirecting after 5 hops: ${seen.join(" → ")}`);
+  });
+
   test("stays behind basic auth", async () => {
     const res = await request("GET", "/services/", false);
     assert.equal(res.status, 401);

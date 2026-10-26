@@ -295,7 +295,8 @@ describe("BoardPage controls", () => {
     const realTimers = { ...pollTimers };
     pollTimers.set = (fn, ms) => {
       assert.equal(ms, ACTION_POLL_MS);
-      const id = nextId++;
+      // Negative, so a held id can never be one a real timer handed out.
+      const id = -nextId++;
       held.set(id, fn);
       return id as unknown as ReturnType<typeof setTimeout>;
     };
