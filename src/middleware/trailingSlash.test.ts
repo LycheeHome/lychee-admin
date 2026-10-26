@@ -94,28 +94,25 @@ describe("trailing-slash URLs", () => {
     }
   });
 
-  test("the client bundle's own directory is left to the static server", async () => {
-    // express.static answers /client/ before this middleware; a redirect to
-    // /client here would loop with its redirect back to /client/.
-    const res = await request("GET", "/client/");
-    assert.notEqual(res.location, "/client");
-  });
-
-  test("a public/ directory with no index never loops between this and the static server", async () => {
-    // public/client/assets/ ships without an index.html. Before static's own
-    // add-a-slash redirect was turned off, /client/assets/ went 308 → 301 → …
-    // forever. Follow up to five hops and require it to end.
-    let path = "/client/assets/";
-    const seen: string[] = [];
-    for (let hop = 0; hop < 5; hop++) {
-      const res = await request("GET", path);
-      seen.push(`${res.status} ${path}`);
-      if (res.status < 300 || res.status >= 400 || !res.location) return;
-      assert.ok(!seen.slice(0, -1).some((s) => s.endsWith(` ${res.location}`)), `loop: ${seen.join(" → ")} → ${res.location}`);
-      path = res.location;
-    }
-    assert.fail(`still redirecting after 5 hops: ${seen.join(" → ")}`);
-  });
+  // public/client/assets/ ships without an index.html. Before static's own
+  // add-a-slash redirect was turned off, /client/assets/ went 308 → 301 → …
+  // forever. Each path is followed up to five hops and must end, whether or
+  // not the bundle is built: CI runs the tests before the build, so
+  // public/client may not exist here at all.
+  for (const start of ["/client/", "/client/assets/"]) {
+    test(`${start} never loops between this and the static server`, async () => {
+      let path = start;
+      const seen: string[] = [];
+      for (let hop = 0; hop < 5; hop++) {
+        const res = await request("GET", path);
+        seen.push(`${res.status} ${path}`);
+        if (res.status < 300 || res.status >= 400 || !res.location) return;
+        assert.ok(!seen.slice(0, -1).some((s) => s.endsWith(` ${res.location}`)), `loop: ${seen.join(" → ")} → ${res.location}`);
+        path = res.location;
+      }
+      assert.fail(`still redirecting after 5 hops: ${seen.join(" → ")}`);
+    });
+  }
 
   test("stays behind basic auth", async () => {
     const res = await request("GET", "/services/", false);
