@@ -12,6 +12,7 @@ import { requestKey } from "../../dev/addSiteAnswers";
 import { seedAddSitePayload } from "../../dev/testHelpers";
 import type { AddSitePayload } from "../../shared/addSite";
 import { canonical } from "../test/canonical";
+import { applyRedesigns } from "../test/redesigns";
 import { STATIC_BODY_CLASS } from "../test/staticDocument";
 import recorded from "../test/addSiteAnswers.json";
 import { ADD_SITE_STEPS, candidateRun, type Snapshot, type StubAnswers } from "../test/addSiteDualRun";
@@ -52,7 +53,7 @@ function frozen(i: number, meta: Record<string, Omit<Snapshot, "main">>): Snapsh
   read.add(`${name}.html`);
   const facts = meta[name];
   assert.ok(facts, `meta.json has no ${name}`);
-  return { main: readFileSync(path.join(FIXTURES, `${name}.html`), "utf8"), ...facts };
+  return { main: applyRedesigns(readFileSync(path.join(FIXTURES, `${name}.html`), "utf8")), ...facts };
 }
 
 /** Whether a run matches the frozen reference by the per-step test's own comparisons, at every step. */

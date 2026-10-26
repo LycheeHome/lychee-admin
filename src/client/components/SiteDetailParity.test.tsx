@@ -9,6 +9,7 @@ import { DETAIL_KEY, type SiteResourceView } from "../../views/siteDetailModel";
 import { seedSiteDetailPayload as seedPayload } from "../../dev/testHelpers";
 import { CaddyfileError, SiteDetail, SiteNotFound } from "./SiteDetail";
 import { canonical } from "../test/canonical";
+import { applyRedesigns } from "../test/redesigns";
 
 /*
  * The React site page against what the server's site page renderer rendered,
@@ -49,7 +50,7 @@ const read = new Set<string>();
  */
 function serverRegion(name: string): string {
   read.add(`${name}.html`);
-  return readFileSync(path.join(FIXTURES, `${name}.html`), "utf8");
+  return applyRedesigns(readFileSync(path.join(FIXTURES, `${name}.html`), "utf8"));
 }
 
 function clientMarkup(payload: Detail): string {

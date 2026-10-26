@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ActionState, BoardPayload, BoardRow, ServiceBoard, ServiceGroup } from "../../shared/board";
 import { Board } from "../components/BoardRows";
 import { canonical } from "../test/canonical";
+import { applyRedesigns } from "../test/redesigns";
 
 /*
  * The React board against what the server's renderServicesPage rendered, for
@@ -74,7 +75,7 @@ const read = new Set<string>();
  */
 function serverRegion(name: string): string {
   read.add(`${name}.html`);
-  return readFileSync(path.join(FIXTURES, `${name}.html`), "utf8");
+  return applyRedesigns(readFileSync(path.join(FIXTURES, `${name}.html`), "utf8"));
 }
 
 /** Asserts parity and returns the server's region, so a test can check its fixture reached the branch it names. */
