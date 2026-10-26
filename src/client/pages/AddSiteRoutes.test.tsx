@@ -292,6 +292,41 @@ describe("RF3: leaving mid-preview and mid-submit", () => {
     assert.equal(window.location.pathname, "/");
   });
 
+  // The page is gone as of the commit that removes it. An answer that lands
+  // between that commit and React's passive effects (a MutationObserver
+  // callback runs in exactly that gap) used to read the page as still
+  // mounted and hide the toast that had replaced its own: CI saw it about
+  // once in twenty loaded runs.
+  test("an add answered in the commit that removes the page settles as gone", async () => {
+    await arriveFromList();
+    holdAdd = true;
+    type("shop");
+    act(() => {
+      fireEvent.submit(form() as HTMLFormElement);
+    });
+    await waitFor(() => assert.ok(heldAdd, "POST /sites was not sent"), TIMEOUT);
+    act(() => showToast("Deploying blog…", "info"));
+    const observer = new MutationObserver(() => {
+      if (form() || !heldAdd) return;
+      observer.disconnect();
+      heldAdd(json(500, { error: "boom" }));
+      heldAdd = null;
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    try {
+      assert.equal(clickCancelled(cancelLink() as HTMLAnchorElement), true);
+      await showingList();
+      await act(async () => {
+        await sleep(50);
+      });
+    } finally {
+      observer.disconnect();
+    }
+    assert.equal(heldAdd, null, "the add was not answered in the commit that removed the page");
+    assert.equal(document.getElementById("flash-banner-message")?.textContent, "Deploying blog…");
+    assert.ok(!document.getElementById("flash-banner")?.classList.contains("hidden"), "the other page's toast was hidden");
+  });
+
   test("an add that settles after another toast replaced its own leaves that toast alone", async () => {
     await arriveFromList();
     holdAdd = true;
