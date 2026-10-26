@@ -24,6 +24,17 @@ describe("describeStatus", () => {
     });
   });
 
+  // Deliberately taken down is not a failure (the Three-Tone rule): a retired
+  // declaration not yet pruned is neutral, but says so, so it never reads like
+  // a site that was simply never attached.
+  test("a retired declaration is neutral, and says retired", () => {
+    assert.deepEqual(describeStatus({ kind: "retired" }), {
+      pill: "retired",
+      hop: "retired · not pruned",
+      tone: "neutral",
+    });
+  });
+
   test("a healthy running container is ok, and says so on both lines", () => {
     assert.deepEqual(describeStatus({ kind: "container", state: "running", health: "healthy" }), {
       pill: "running",

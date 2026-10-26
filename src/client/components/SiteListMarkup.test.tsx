@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { HostProblem, SitesPayload, SiteStatus, SiteSummary } from "../../shared/sites";
-import { BUTTON_PRIMARY, ERROR_BOX } from "../../views/shared";
+import { BUTTON_PRIMARY, ERROR_BOX, TONE_PILL } from "../../views/shared";
 import { SiteList } from "./SiteList";
 
 /*
@@ -123,6 +123,19 @@ describe("the site list heading", () => {
 });
 
 describe("status on the site list", () => {
+  test("a retired site reads retired and a never-attached one not deployed, both in the neutral pill", () => {
+    const gone: SiteSummary = { hostname: "gone.lychee.land", type: "reverse-proxy", target: "3400", framework: "nextjs" };
+    const legacy: SiteSummary = { hostname: "legacy.lychee.land", type: "reverse-proxy", target: "3001", framework: "nextjs" };
+    const html = listMarkup(
+      [gone, legacy],
+      { [gone.hostname]: { kind: "retired" }, [legacy.hostname]: { kind: "container", state: "not-created" } },
+      "lychee.land",
+    );
+    assert.match(rowFor(html, gone.hostname), new RegExp(`class="${TONE_PILL.neutral.replace(/[[\]/.]/g, "\\$&")}"[^>]*>.*&#9679;</span> retired<`));
+    assert.match(rowFor(html, legacy.hostname), /&#9679;<\/span> not deployed</);
+    assert.doesNotMatch(rowFor(html, legacy.hostname), /retired/);
+  });
+
   // Respelled to the server's "&#9679;" by listMarkup above. The dot is
   // wrapped in its own aria-hidden span so it never joins the accessible name.
   test("a proxy site's card carries its canonical status word", () => {

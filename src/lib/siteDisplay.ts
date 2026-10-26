@@ -21,7 +21,10 @@ export type SiteStatus =
   /** The reconciler tried to deploy the first tag and failed; nothing is
    *  installed, so there is still no container to ask. A failed REDEPLOY is not
    *  this: an older version is installed, and the container reports itself. */
-  | { kind: "failed" };
+  | { kind: "failed" }
+  /** Re-added over a declaration that is `state: absent` and not yet pruned:
+   *  nothing runs, and Attach is refused until Prune deletes the file. */
+  | { kind: "retired" };
 
 export type StatusTone = "ok" | "bad" | "neutral";
 
@@ -52,8 +55,15 @@ export interface StatusLabels {
  * is bad: the reconciler attempted that first deploy and could not complete
  * it, which is exactly "tried and failed", and nothing will change until the
  * operator reads why.
+ *
+ * "retired" is neutral too: a declaration deliberately set `state: absent` and
+ * not yet pruned is taken down on purpose, not broken. It gets its own word so
+ * it never reads like a site that was simply never attached.
  */
 export function describeStatus(status: SiteStatus): StatusLabels {
+  if (status.kind === "retired") {
+    return { pill: "retired", hop: "retired · not pruned", tone: "neutral" };
+  }
   if (status.kind === "failed") {
     return { pill: "failed", hop: "deploy failed", tone: "bad" };
   }

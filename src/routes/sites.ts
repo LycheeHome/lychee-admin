@@ -108,6 +108,8 @@ interface NextjsState {
 }
 
 const NOT_DEPLOYED: SiteStatus = { kind: "container", state: "not-created" };
+/** A declaration that is `state: absent`, not yet pruned: its own word, never NOT_DEPLOYED's. */
+const RETIRED: SiteStatus = { kind: "retired" };
 
 /**
  * A Next.js site's state, decided from its declaration and its inventory entry.
@@ -137,7 +139,7 @@ async function resolveNextjsSite(site: Site, sources: ResourceSources, deps: Dep
 
   const declaration = sources.declarations?.find((d) => d.name === name);
   const entry = sources.entries.find((e) => e.kind === "container" && e.name === name);
-  if (declaration?.state === "absent") return { status: NOT_DEPLOYED, detached: true };
+  if (declaration?.state === "absent") return { status: RETIRED, detached: true };
   // An entry stands in for the declaration only when the clone was unreadable.
   if (!declaration && (sources.declarations !== null || !entry)) return { status: NOT_DEPLOYED, detached: false };
 

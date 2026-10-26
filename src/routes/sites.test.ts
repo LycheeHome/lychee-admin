@@ -1027,7 +1027,9 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     writeInventory([siteEntry({ result: "deployed" })]);
     const html = await page();
     assert.doesNotMatch(html, /awaiting image/);
-    assert.match(html, /not deployed/);
+    // Its own word since the retired-state spec (2026-10-26), never "not deployed".
+    assert.match(html, /retired/);
+    assert.doesNotMatch(html, /not deployed/);
     assert.match(html, /prune/i);
     assert.match(html, /data-prune="test-lychee-land"/);
     const button = html.match(/<button[^>]*type="submit"[^>]*>Attach repository/);
