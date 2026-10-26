@@ -30,7 +30,8 @@ type AddAnswer = { hostname?: string; error?: string; steps?: { id: string; stat
 
 const PREVIEW_DEBOUNCE_MS = 250;
 const PREVIEW_ERROR_CLASS =
-  "hidden font-mono text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0";
+  // Sans: its text is a sentence from the server (spec 2026-10-26-mono-sentences).
+  "hidden text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0";
 const PORT_ERROR_CLASS = "port-error hidden text-red-300 text-[0.8rem]";
 const PROXY_DESCRIPTION_CLASS = "text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]";
 const NEXTJS_DESCRIPTION_CLASS = "hidden text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]";

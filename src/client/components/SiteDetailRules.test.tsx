@@ -926,10 +926,15 @@ describe("the Prune control", () => {
     }
   });
 
-  test("the caption joins with a non-breaking space and keeps the separator with what it introduces", () => {
+  // The mono caption once needed a non-breaking space and a nowrap tail to
+  // keep "· once…" off a line of its own; as a sans sentence (spec
+  // 2026-10-26-mono-sentences) it wraps at words like any sentence.
+  test("the caption is one sentence that wraps at words: no non-breaking space, no nowrap tail", () => {
     const html = renderPruneControl("gone-lychee-land");
-    assert.match(html, /lychee-resources&nbsp;<span class="whitespace-nowrap">· once its container is confirmed down<\/span>/);
-    assert.doesNotMatch(html, / · /);
+    assert.match(html, /from <span class="font-mono text-stone-50 whitespace-nowrap">lychee-resources<\/span> once its container is confirmed down\./);
+    assert.doesNotMatch(html, /&nbsp;|\u00a0/);
+    // Only the short fact keeps together; the sentence around it wraps.
+    assert.equal(html.match(/whitespace-nowrap/g)?.length, 1);
   });
 });
 
@@ -1309,7 +1314,7 @@ describe("renderSiteDetail from a repository", () => {
     const c = card(html);
     const offer = c.match(/<p[^>]*data-offer>[\s\S]*?<\/p>/);
     assert.ok(offer, "expected the offer line");
-    assert.match(offer[0], /0\.1\.0 available/);
+    assert.match(offer[0], /0\.1\.0<\/span> available/);
     assert.ok(offer[0].includes(`class="${BUTTON_PRIMARY_COMPACT}" data-deploy="app-lychee-land" data-deploy-tag="0.1.0">Deploy 0.1.0</button>`));
     assert.ok(c.lastIndexOf("data-offer") > c.indexOf("ghcr.io/lycheehome/app-site"), "the offer comes after the attach step");
     // Not in the page header, and the header holds no Ember: the offer has it.
@@ -1507,7 +1512,7 @@ describe("renderSiteDetail from a repository", () => {
     );
     assert.match(c, /the reason is under the request path/);
     assert.doesNotMatch(c, /data-deploy-failed/);
-    assert.match(c, /0\.1\.1 available/);
+    assert.match(c, /0\.1\.1<\/span> available/);
     assert.match(c, /data-deploy="app-lychee-land"/);
     assert.match(c, /data-deploy-tag="0\.1\.1"/);
     assert.doesNotMatch(c, /No tag found/);
@@ -1522,7 +1527,7 @@ describe("renderSiteDetail from a repository", () => {
       }),
     );
     assert.match(c, /data-deploy-failed/);
-    assert.match(c, /0\.2\.1 available/);
+    assert.match(c, /0\.2\.1<\/span> available/);
     assert.match(c, /data-deploy="app-lychee-land"/);
     assert.ok(c.indexOf("data-deploy-failed") < c.indexOf("data-offer"));
   });

@@ -227,6 +227,15 @@ describe("the add page's preview panel", () => {
     assert.match(error, /tabindex="-1"/);
   });
 
+  // Their text is a sentence from the server, so sans (spec 2026-10-26-mono-sentences).
+  test("the error boxes are sans", () => {
+    for (const id of ["preview-error", "add-site-error"]) {
+      const cls = tagById(html, id).match(/class="([^"]*)"/)?.[1] ?? "";
+      assert.ok(cls.includes("text-red-300"), `${id} lost its tone`);
+      assert.ok(!cls.split(" ").includes("font-mono"), `${id} is mono`);
+    }
+  });
+
   test("the panel itself is not a live region — announcing a config block per keystroke is hostile", () => {
     assert.doesNotMatch(tagById(html, "write-preview"), /aria-live/);
   });

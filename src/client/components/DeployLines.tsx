@@ -43,7 +43,10 @@ export function OfferLine({
   const deploy = controls?.deploy;
   return (
     <p className="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-offer="">
-      <span className="font-mono text-[0.8rem] text-rose-300">{`${tag} available`}</span>
+      {/* A value you can only read, so not Ember: the tag a Chalk mono fact, the word sans. */}
+      <span className="text-[0.8rem] text-stone-400">
+        <span className="font-mono text-stone-50">{tag}</span> available
+      </span>
       <button
         type="button"
         className={emphasis === "primary" ? BUTTON_PRIMARY_COMPACT : BUTTON_OFFER}
@@ -86,9 +89,6 @@ export function RequestedLine({ tag, name, controls }: { tag: string; name?: str
   );
 }
 
-/** The server's `&nbsp;`, as a code point: it keeps the note's tail on the filename's line. */
-const NBSP = String.fromCharCode(0xa0);
-
 /**
  * html.ts's renderPruneControl: Secondary on the board, where a row is
  * housekeeping; Primary under a site page's retired warning, where it is the
@@ -115,9 +115,12 @@ export function PruneLine({
       >
         Prune old declaration
       </button>
-      <span className="font-mono text-[0.72rem] text-stone-400 break-all">
-        {`deletes ${name}.yml from lychee-resources${NBSP}`}
-        <span className="whitespace-nowrap">· once its container is confirmed down</span>
+      {/* A sentence, so sans; the file and the repository are facts, so mono. */}
+      <span className="text-[0.75rem] leading-snug text-stone-400">
+        {/* A long hyphenless file name may break anywhere rather than widen the row. */}
+        Deletes <span className="font-mono text-stone-50 [overflow-wrap:anywhere]">{`${name}.yml`}</span> from{" "}
+        {/* Kept together: at 390px it broke at its hyphen and read as two words. */}
+        <span className="font-mono text-stone-50 whitespace-nowrap">lychee-resources</span> once its container is confirmed down.
       </span>
     </p>
   );

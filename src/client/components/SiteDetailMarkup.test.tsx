@@ -2,6 +2,7 @@ import "../test/setup";
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { readdirSync, readFileSync } from "node:fs";
+import { applyRedesigns } from "../test/redesigns";
 import path from "node:path";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
@@ -88,7 +89,7 @@ const read = new Set<string>();
 
 function serverRegion(name: string): string {
   read.add(`${name}.html`);
-  return readFileSync(path.join(FIXTURES, `${name}.html`), "utf8");
+  return applyRedesigns(readFileSync(path.join(FIXTURES, `${name}.html`), "utf8"));
 }
 
 async function detailCase(fixture: string, hostname: string, override: Partial<SiteDetailFacts> = {}) {

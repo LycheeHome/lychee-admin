@@ -457,7 +457,10 @@ says its own name and names a site.
 **The Mono-Carries-Facts Rule.** If a machine produced it or will consume it —
 hostname, port, path, command, service name, status word, framework name — it is
 DM Mono. If a person wrote it as a sentence, it is Nunito. There is no third
-case, and no sentence sets a path in Nunito.
+case, and no sentence sets a path in Nunito: a fact inside a sentence is a mono
+span in Chalk, within the sentence's Nunito. A line that pairs a status word
+with a reason (`● deploy waiting · <reason>`, `● retiring · <reason>`) sets the
+word in mono and the reason in Nunito.
 
 **The Signature-Twice Rule.** Poetsen One appears in exactly two places: the
 wordmark and a list row's hostname. It is never a page heading, never above
@@ -910,7 +913,9 @@ remove flow's report uses for `skipped`.
 The panel is not a live region. It rewrites on every debounced keystroke, and
 announcing a Caddyfile block that often would bury the field being typed into;
 the one actionable thing in it — a rejection the submit would also make — is
-announced by its own `role="status"` error instead.
+announced by its own `role="status"` error instead: a Scorch box whose text is
+the server's sentence, so Nunito, as is the submit's own error box beside the
+form.
 
 ### Routing Hop Chain (signature component)
 
@@ -953,9 +958,10 @@ A deploy that is blocked or failed gets its own line directly under the name,
 `● deploy blocked · <reason>`, because the pill stays the unit's own health and a
 healthy old build must never read as a broken one. Scorch marks trouble the
 operator has to act on and Smoke marks a deploy that is only waiting (`deploy
-waiting`); the colour sits on the `deploy <word>` alone and the reason beside it
-stays Smoke, and is left out when it would only repeat the word or when the
-gate string sits beneath the line and already gives the reason. A blocked
+waiting`); the colour sits on the `deploy <word>` alone, in mono, and the reason
+beside it is a phrase, so Nunito in Smoke, and is left out when it would only
+repeat the word or when the gate string sits beneath the line and already gives
+the reason. A blocked
 deploy is classified by the reconciler's `gate_code`, never by the sentence beside
 it, and a failed one by its `result`; a blocked row with no code, or with a code
 the app does not know, gets no line. A container row with
@@ -988,7 +994,9 @@ nothing breaks when the absence ends.
 
 **The offer line.** When a service's declaration can be moved to a newer
 published version, the row grows one line beneath its facts — the available
-version in Ember, then an Offer button naming that exact version. It is a line
+version as a Chalk mono fact followed by `available` in Nunito Smoke, then an
+Offer button naming that exact version. The version is a value you can only
+read, so it stays out of Ember; the button is the line's one Ember. It is a line
 and not a column: a third grid column would be reserved on all ten rows to serve
 the two that can ever carry an action, and eight of them would hold an empty
 cell on a board whose whole job is a five-second glance. A row with nothing to
@@ -1032,9 +1040,11 @@ say.
 **The prune line.** A site row whose declaration is retired (`state: absent`)
 and still in `lychee-resources` grows one more line, last: a compact secondary
 `Prune old declaration` button (compact primary in a site page's retired
-notice, where it is the page's next step) and a mono caption naming the file it
-deletes and the condition it waits for — `deletes <name>.yml from
-lychee-resources · once its container is confirmed down`. The same markup, from
+notice, where it is the page's next step) and a caption naming the file it
+deletes and the condition it waits for, as one Nunito sentence at 0.75rem with
+its two facts in Chalk mono — "Deletes `<name>.yml` from `lychee-resources`
+once its container is confirmed down." — which wraps at words like any
+sentence. The same markup, from
 the same function, sits in a site page's retired notice, and both post to
 the same route. On the board, Secondary rather than the offer's Ember outline or the danger button's Scorch: it removes
 a file already retired for a container already down, in a commit that can be
@@ -1048,7 +1058,7 @@ down (`confirmedDown`, the one rule the route and the board share), and its pill
 then reads `retired`, its site page's word, in place of the live state. Until
 then the row keeps its live pill and grows a Smoke line under its facts in the
 deploy line's shape, `● retiring · Prune follows once the reconciler confirms
-the container down`, which names what Prune waits for and stays true when a
+the container down` (the key in mono, the reason in Nunito), which names what Prune waits for and stays true when a
 down fails (the failure then shows as `failed`, in Scorch, on the pill when
 nothing is left installed and on the row's `deploy failed` line when a version
 still is). On a site page,

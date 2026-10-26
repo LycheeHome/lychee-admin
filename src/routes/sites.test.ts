@@ -985,7 +985,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     assert.match(html, /awaiting image/);
     assert.match(html, /data-deploy="test-lychee-land"/);
     assert.match(html, /data-deploy-tag="0\.1\.0"/);
-    assert.match(html, /0\.1\.0 available/);
+    assert.match(html, /0\.1\.0<\/span> available/);
     assert.doesNotMatch(html, /data-attach=/);
   });
 
