@@ -460,7 +460,7 @@
       },
       {
         "name": "The Mono-Carries-Facts Rule",
-        "body": "If a machine produced it or will consume it — hostname, port, path, command, service name, status word, framework name — it is DM Mono. If a person wrote it as a sentence, it is Nunito. There is no third case, and no sentence sets a path in Nunito.",
+        "body": "If a machine produced it or will consume it — hostname, port, path, command, service name, status word, framework name — it is DM Mono. If a person wrote it as a sentence, it is Nunito. There is no third case, and no sentence sets a path in Nunito: a fact inside a sentence is a mono span in Chalk, within the sentence's Nunito. A line that pairs a status word with a reason (● deploy waiting · <reason>, ● retiring · <reason>) sets the word in mono and the reason in Nunito.",
         "section": "typography"
       },
       {
