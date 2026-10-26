@@ -117,7 +117,8 @@ export function PruneLine({
       </button>
       {/* A sentence, so sans; the file and the repository are facts, so mono. */}
       <span className="text-[0.75rem] leading-snug text-stone-400">
-        Deletes <span className="font-mono text-stone-50">{`${name}.yml`}</span> from{" "}
+        {/* A long hyphenless file name may break anywhere rather than widen the row. */}
+        Deletes <span className="font-mono text-stone-50 [overflow-wrap:anywhere]">{`${name}.yml`}</span> from{" "}
         {/* Kept together: at 390px it broke at its hyphen and read as two words. */}
         <span className="font-mono text-stone-50 whitespace-nowrap">lychee-resources</span> once its container is confirmed down.
       </span>

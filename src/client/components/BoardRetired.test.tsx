@@ -68,8 +68,10 @@ describe("a retired site resource on the board", () => {
     const facts = Array.from(caption.querySelectorAll("span")).map((s) => [s.textContent, s.getAttribute("class")]);
     // The short fixed fact keeps together (at 390px it broke at its hyphen);
     // the file name, which can be long, may still wrap.
+    // The file name may break anywhere when it must: a hyphenless label up to
+    // the resource-name cap is ~55 mono characters, wider than a 390px row.
     assert.deepEqual(facts, [
-      ["gone-lychee-land.yml", "font-mono text-stone-50"],
+      ["gone-lychee-land.yml", "font-mono text-stone-50 [overflow-wrap:anywhere]"],
       ["lychee-resources", "font-mono text-stone-50 whitespace-nowrap"],
     ]);
   });
