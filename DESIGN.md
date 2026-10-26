@@ -959,8 +959,9 @@ A deploy that is blocked or failed gets its own line directly under the name,
 healthy old build must never read as a broken one. Scorch marks trouble the
 operator has to act on and Smoke marks a deploy that is only waiting (`deploy
 waiting`); the colour sits on the `deploy <word>` alone, in mono, and the reason
-beside it is a phrase, so Nunito in Smoke, and is left out when it would only repeat the word or when the
-gate string sits beneath the line and already gives the reason. A blocked
+beside it is a phrase, so Nunito in Smoke, and is left out when it would only
+repeat the word or when the gate string sits beneath the line and already gives
+the reason. A blocked
 deploy is classified by the reconciler's `gate_code`, never by the sentence beside
 it, and a failed one by its `result`; a blocked row with no code, or with a code
 the app does not know, gets no line. A container row with
