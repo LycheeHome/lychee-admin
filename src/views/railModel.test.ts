@@ -97,16 +97,48 @@ describe("buildHealth", () => {
 describe("attentionCounts", () => {
   test("null per group when units is null", () => {
     const h = { sites: [{ hostname: "a", tone: "bad" as const, label: "failed", attention: true }], units: null, now: "" };
-    assert.deepEqual(attentionCounts(h, ["a"]), { sites: 1, service: null, reconciler: null, infrastructure: null });
+    assert.deepEqual(attentionCounts(h, ["a"]), { sites: { bad: 1, unknown: 0 }, service: null, reconciler: null, infrastructure: null });
   });
   test("sites the rail does not list are not counted", () => {
     const bad = { tone: "bad" as const, label: "failed", attention: true };
     const h = { sites: [{ hostname: "a", ...bad }, { hostname: "new", ...bad }], units: null, now: "" };
-    assert.equal(attentionCounts(h, ["a", "b"]).sites, 1);
+    assert.deepEqual(attentionCounts(h, ["a", "b"]).sites, { bad: 1, unknown: 0 });
   });
   test("counts per group", () => {
     const u = unitHealth(row({ status: "exited" }), "service");
     const h = { sites: [], units: [u, unitHealth(row({}), "service")], now: "" };
-    assert.deepEqual(attentionCounts(h, []), { sites: 0, service: 1, reconciler: 0, infrastructure: 0 });
+    assert.deepEqual(attentionCounts(h, []), {
+      sites: { bad: 0, unknown: 0 },
+      service: { bad: 1, unknown: 0 },
+      reconciler: { bad: 0, unknown: 0 },
+      infrastructure: { bad: 0, unknown: 0 },
+    });
+  });
+  // Critique 2026-10-26 P1, variant 03: a unit or site whose state could not be
+  // read is counted, apart from what is bad, so the rail never prints a 0 over it.
+  // The current row's ground is stone-700, the neutral chip's own fill: without
+  // an edge the chip vanished there and read as plain text. An inset ring keeps
+  // the Scorch chip's size.
+  test("the unknown chip keeps an edge on any row, current included", () => {
+    const classes = railModel.RAIL_COUNT_UNKNOWN.split(" ");
+    assert.ok(classes.includes("ring-1") && classes.includes("ring-inset"), railModel.RAIL_COUNT_UNKNOWN);
+    assert.ok(classes.some((c) => c.startsWith("ring-stone-")), "the ring has no colour");
+    assert.ok(!classes.some((c) => c.startsWith("border")), "a border would change the chip's size");
+  });
+
+  test("an unreadable unit or site is counted as unknown, apart from what is bad", () => {
+    const unknownUnit = unitHealth(row({ status: "unknown" }), "reconciler");
+    assert.equal(unknownUnit.label, "unknown");
+    const h = {
+      sites: [{ hostname: "a", tone: "neutral" as const, label: "unknown", attention: false }],
+      units: [unknownUnit, unitHealth(row({ status: "exited" }), "service"), unitHealth(row({ status: "unknown" }), "service")],
+      now: "",
+    };
+    assert.deepEqual(attentionCounts(h, ["a"]), {
+      sites: { bad: 0, unknown: 1 },
+      service: { bad: 1, unknown: 1 },
+      reconciler: { bad: 0, unknown: 1 },
+      infrastructure: { bad: 0, unknown: 0 },
+    });
   });
 });

@@ -63,26 +63,49 @@ export function buildHealth(
   return { sites: sites.map((s) => siteHealth(s, statuses[s.hostname])), units, now: now.toISOString() };
 }
 
+/**
+ * One group's count: what is bad (attention), and what could not be read.
+ * The rail prints their sum, so it never shows a 0 over an unreadable unit
+ * (critique 2026-10-26 P1): a printed 0 is a claim of health.
+ */
+export type GroupCount = { bad: number; unknown: number };
+
+/** A neutral `unknown` that is not already counted as needing attention. */
+const isUnknown = (e: { label: string; attention: boolean }) => !e.attention && e.label === "unknown";
+
 export function attentionCounts(
   h: HealthPayload,
   listed: Iterable<string>,
 ): {
-  sites: number;
-  service: number | null;
-  reconciler: number | null;
-  infrastructure: number | null;
+  sites: GroupCount;
+  service: GroupCount | null;
+  reconciler: GroupCount | null;
+  infrastructure: GroupCount | null;
 } {
   // Only sites the rail lists count: a health entry with no row to show for it
   // (a site added since the page loaded) would be an unexplained number.
   const listedSet = new Set(listed);
-  const count = (group: ServiceGroup): number | null =>
-    h.units ? h.units.filter((u) => u.group === group && u.attention).length : null;
+  const tally = <T extends { label: string; attention: boolean }>(entries: T[]): GroupCount => ({
+    bad: entries.filter((e) => e.attention).length,
+    unknown: entries.filter(isUnknown).length,
+  });
+  const count = (group: ServiceGroup): GroupCount | null => (h.units ? tally(h.units.filter((u) => u.group === group)) : null);
   return {
-    sites: h.sites.filter((s) => listedSet.has(s.hostname) && s.attention).length,
+    sites: tally(h.sites.filter((s) => listedSet.has(s.hostname))),
     service: count("service"),
     reconciler: count("reconciler"),
     infrastructure: count("infrastructure"),
   };
+}
+
+/** The number the rail prints for a count: bad and unknown together. */
+export function countTotal(c: GroupCount): number {
+  return c.bad + c.unknown;
+}
+
+/** Scorch when anything counted is bad, a neutral chip when all of it is unknown, quiet at zero. */
+export function countClass(c: GroupCount): string {
+  return c.bad > 0 ? RAIL_COUNT_BAD : c.unknown > 0 ? RAIL_COUNT_UNKNOWN : RAIL_COUNT_ZERO;
 }
 
 // The rail's class strings: the retired server rail's exactly, which the frozen rail fixtures pin.
@@ -183,3 +206,7 @@ export const FIND_TROUBLE = "font-mono text-[0.72rem] text-red-300";
 
 export const RAIL_COUNT_BAD ="font-mono text-[0.75rem] rounded-full px-1.5 bg-red-950/60 text-red-300";
 export const RAIL_COUNT_ZERO = "font-mono text-[0.75rem] text-stone-400";
+/** A count of units nobody could read: the neutral pill's colours on the bad chip's shape. Never Scorch. */
+// The inset ring is its edge on the current row, whose ground is the same stone-700.
+export const RAIL_COUNT_UNKNOWN =
+  "font-mono text-[0.75rem] rounded-full px-1.5 bg-stone-700 text-stone-300 ring-1 ring-inset ring-stone-600";
