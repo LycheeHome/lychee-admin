@@ -53,7 +53,14 @@ function frozen(i: number, meta: Record<string, Omit<Snapshot, "main">>): Snapsh
   read.add(`${name}.html`);
   const facts = meta[name];
   assert.ok(facts, `meta.json has no ${name}`);
-  return { main: applyRedesigns(readFileSync(path.join(FIXTURES, `${name}.html`), "utf8")), ...facts };
+  const raw = readFileSync(path.join(FIXTURES, `${name}.html`), "utf8");
+  const main = applyRedesigns(raw);
+  // meta.json's submit is the step's submit button byte for byte, so a
+  // declared redesign that reaches the button reaches it too: take it from
+  // the redesigned main, once the raw fixture is shown to still agree.
+  const button = (html: string) => html.match(/<button[^>]*id="add-site-submit"[\s\S]*?<\/button>/)?.[0];
+  assert.equal(button(raw), facts.submit, `${name}: meta.json's submit is not the fixture's button`);
+  return { main, ...facts, submit: button(main) ?? facts.submit };
 }
 
 /** Whether a run matches the frozen reference by the per-step test's own comparisons, at every step. */

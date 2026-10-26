@@ -915,7 +915,10 @@ announcing a Caddyfile block that often would bury the field being typed into;
 the one actionable thing in it — a rejection the submit would also make — is
 announced by its own `role="status"` error instead: a Scorch box whose text is
 the server's sentence, so Nunito, as is the submit's own error box beside the
-form.
+form. A rejection is said once. When a field already states the same sentence
+(today only the port, whose conflict check runs on the page too), the box stays
+hidden, the panel's line reads "Fix the port in the form and the block
+appears here." (not "above": at desktop width the form sits beside the panel), and a blocked submit points to and focuses that field instead.
 
 ### Routing Hop Chain (signature component)
 

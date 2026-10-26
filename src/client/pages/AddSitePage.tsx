@@ -152,6 +152,9 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
   const [addErrorClass, setAddErrorClass] = useState(PREVIEW_ERROR_CLASS);
   const [addErrorText, setAddErrorText] = useState("");
   const [blocked, setBlockedState] = useState(false);
+  // Where the rejection's reason is shown: the port field, when it already
+  // states the same sentence, or the panel's box. Said once, never twice.
+  const [blockedBy, setBlockedByState] = useState<"port-error" | "preview-error">("preview-error");
   const [submitting, setSubmitting] = useState(false);
 
   const formRef = useRef<HTMLFormElement>(null);
@@ -160,6 +163,9 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
   // Refs, not state, wherever app.js read a value synchronously: the submit's
   // guards must hold within one event, before any render.
   const blockedRef = useRef(false);
+  const blockedByRef = useRef<"port-error" | "preview-error">("preview-error");
+  // The port field's own sentence as last set, read when a preview answers.
+  const portMessageRef = useRef("");
   const inFlightRef = useRef(false);
   const sequenceRef = useRef(0);
   // False once the page has gone. An add still in flight then must not act:
@@ -213,10 +219,20 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
       }
       if (result.error) {
         // A rejection of exactly this input, and the only thing that blocks.
+        // When the port field already says the same sentence (both come from
+        // portConflictMessage), the panel points up instead of repeating it.
+        const fieldSays = result.error === portMessageRef.current;
+        const owner = fieldSays ? "port-error" : "preview-error";
         setBlocked(true);
-        setPreviewErrorClass((c) => withToken(c, "hidden", false));
+        blockedByRef.current = owner;
+        setBlockedByState(owner);
+        setPreviewErrorClass((c) => withToken(c, "hidden", fieldSays));
         setPreviewErrorText(result.error);
-        setPanel({ kind: "message", text: "Fix the problem above and the block appears here." });
+        setPanel({
+          kind: "message",
+          // "In the form", not "above": at desktop width the form is beside the panel.
+          text: fieldSays ? "Fix the port in the form and the block appears here." : "Fix the problem above and the block appears here.",
+        });
         setMarks({});
         return;
       }
@@ -249,6 +265,7 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
     (value: string) => {
       const sentence = portMessage(value, portOwners);
       portFieldRef.current?.setCustomValidity(sentence ?? "");
+      portMessageRef.current = sentence ?? "";
       setPortErrorClass((c) => withToken(c, "hidden", !sentence));
       setPortErrorText(sentence ?? "");
     },
@@ -313,7 +330,8 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
     event.preventDefault();
     // Blocked by a preview rejection: send the reader to the reason, post nothing.
     if (blockedRef.current) {
-      previewErrorRef.current?.focus();
+      if (blockedByRef.current === "port-error") portFieldRef.current?.focus();
+      else previewErrorRef.current?.focus();
       return;
     }
     if (inFlightRef.current) return;
@@ -428,6 +446,7 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
           addErrorClass={addErrorClass}
           addErrorText={addErrorText}
           blocked={blocked}
+          blockedBy={blockedBy}
           submitting={submitting}
           onHostnameChange={schedulePreview}
           onTypeChange={onTypeChange}

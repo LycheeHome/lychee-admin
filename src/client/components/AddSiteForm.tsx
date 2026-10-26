@@ -33,6 +33,8 @@ export type AddSiteFormProps = {
   addErrorText: string;
   /** A preview rejected the input: `aria-disabled` and the reason in `aria-describedby`. */
   blocked: boolean;
+  /** Which element states the rejection: the port field's own error, or the panel's box. */
+  blockedBy?: "port-error" | "preview-error";
   /** An add is in flight. */
   submitting: boolean;
   onHostnameChange: () => void;
@@ -194,7 +196,7 @@ export function AddSiteForm(props: AddSiteFormProps) {
           id="add-site-submit"
           className={BUTTON_PRIMARY}
           aria-disabled={props.blocked ? "true" : undefined}
-          aria-describedby={props.blocked ? "preview-error" : undefined}
+          aria-describedby={props.blocked ? (props.blockedBy ?? "preview-error") : undefined}
           disabled={props.submitting}
         >
           Add site
