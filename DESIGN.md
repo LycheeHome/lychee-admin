@@ -1002,6 +1002,15 @@ and it is recorded rather than quietly deleted because it is the shape this file
 fails in: a sentence that was accurate when written, describing an absence, and
 nothing breaks when the absence ends.
 
+**The attention summary.** When any row needs attention (a Scorch pill or a
+Scorch deploy line, decided by the same function that draws the row), one line
+sits under the eyebrow: `N need attention` in Scorch mono, then each row's name
+as a mono link to its row, in inventory order, in a Nunito sentence. The rows
+themselves keep inventory order, the one fixed map of the page, so nothing moves
+between re-reads; the five-second read is the sentence. A calm board has no
+line at all, and unknown or merely waiting rows are never named, because their
+tone is neutral.
+
 **The offer line.** When a service's declaration can be moved to a newer
 published version, the row grows one line beneath its facts — the available
 version as a Chalk mono fact followed by `available` in Nunito Smoke, then an
