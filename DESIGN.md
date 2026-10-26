@@ -1042,8 +1042,16 @@ reverted, so it is neither the row's way forward nor a destructive act, and no
 modal guards it. The button is shown only on evidence that the declaration is
 absent — an unreadable clone shows none anywhere — and only for a site's
 resource name; a hand-declared service such as palsave-api is never pruned from
-here. Whether the container is down yet is the route's to answer, through the
-toast, rather than the page's to predict.
+here. On the board the button also waits for the evidence the route itself
+checks: a row offers Prune only once the reconciler has confirmed its container
+down (`confirmedDown`, the one rule the route and the board share), and its pill
+then reads `retired`, its site page's word, in place of the live state. Until
+then the row keeps its live pill and grows a Smoke line under its facts in the
+deploy line's shape, `● retiring · Prune follows once the reconciler confirms
+the container down`, which names what Prune waits for and stays true when a
+down fails (that row's pill is then `failed`, in Scorch). On a site page,
+whether the container is down yet is still the route's to answer, through the
+toast.
 
 **The name, and a pill that cannot be read.** Every row carries an anchor
 (`service-<name>`) so a site's page can link to it, and a site resource's name

@@ -113,7 +113,8 @@ claim.
   published as available into that resource's declaration, never a tag named
   by the request. Its other is Prune, on a site row whose declaration is
   retired: deleting that file once the reconciler has confirmed the container
-  down. Attached sites appear there too, because the reconciler
+  down, which is also when the row starts reading `retired`; until then it
+  keeps its live state under a `retiring` line, with no Prune. Attached sites appear there too, because the reconciler
   publishes them like any other resource, but their home is still the site's
   own page, which carries the same offer line and the same Deploy control so
   the two can never disagree about what is on offer. The third is a host
