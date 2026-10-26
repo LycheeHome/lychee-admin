@@ -52,6 +52,18 @@ export const REDESIGNS: Redesign[] = [
     to: '<p class="text-[0.8rem] leading-relaxed m-0" data-deploy-state$1><span class="font-mono $2">',
     anchor: "data-deploy-state",
   },
+  // Two entries, by id: the repository card's attach and change-repository
+  // errors share the class and are not part of this change.
+  ...(["preview-error", "add-site-error"] as const).map(
+    (id): Redesign => ({
+      id: `error-box-sans:${id}`,
+      since: "2026-10-26",
+      why: "The add page's error box holds a sentence from the server, so sans (spec 2026-10-26-mono-sentences).",
+      from: new RegExp(`(id="${id}"[^>]*class="(?:hidden )?)font-mono (text-\\[0\\.8rem\\] text-red-300)`, "g"),
+      to: "$1$2",
+      anchor: `id="${id}"`,
+    }),
+  ),
 ];
 
 export function applyWith(html: string, entries: readonly Redesign[]): string {
