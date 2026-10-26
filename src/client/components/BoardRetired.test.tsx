@@ -66,9 +66,11 @@ describe("a retired site resource on the board", () => {
     assert.equal(caption.textContent, "Deletes gone-lychee-land.yml from lychee-resources once its container is confirmed down.");
     assert.equal(caption.getAttribute("class"), "text-[0.75rem] leading-snug text-stone-400");
     const facts = Array.from(caption.querySelectorAll("span")).map((s) => [s.textContent, s.getAttribute("class")]);
+    // The short fixed fact keeps together (at 390px it broke at its hyphen);
+    // the file name, which can be long, may still wrap.
     assert.deepEqual(facts, [
       ["gone-lychee-land.yml", "font-mono text-stone-50"],
-      ["lychee-resources", "font-mono text-stone-50"],
+      ["lychee-resources", "font-mono text-stone-50 whitespace-nowrap"],
     ]);
   });
 

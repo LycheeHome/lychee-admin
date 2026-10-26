@@ -931,8 +931,10 @@ describe("the Prune control", () => {
   // 2026-10-26-mono-sentences) it wraps at words like any sentence.
   test("the caption is one sentence that wraps at words: no non-breaking space, no nowrap tail", () => {
     const html = renderPruneControl("gone-lychee-land");
-    assert.match(html, /from <span class="font-mono text-stone-50">lychee-resources<\/span> once its container is confirmed down\./);
-    assert.doesNotMatch(html, /&nbsp;|\u00a0|whitespace-nowrap/);
+    assert.match(html, /from <span class="font-mono text-stone-50 whitespace-nowrap">lychee-resources<\/span> once its container is confirmed down\./);
+    assert.doesNotMatch(html, /&nbsp;|\u00a0/);
+    // Only the short fact keeps together; the sentence around it wraps.
+    assert.equal(html.match(/whitespace-nowrap/g)?.length, 1);
   });
 });
 
