@@ -4,7 +4,7 @@ import type { Deps } from "../deps";
 import * as caddyfile from "../lib/caddyfile";
 import { isManagedHostname } from "../lib/siteValidation";
 import { isSiteName } from "../lib/declarationWriter";
-import { declaredTag, pendingTag } from "../lib/siteResource";
+import { confirmedDown, declaredTag, pendingTag } from "../lib/siteResource";
 import { isHostAction, readCheckedActionState, readLastRuns, requestAction } from "../lib/hostOperations";
 import { readInventory } from "../lib/serviceInventory";
 import { buildBoard, findTimerUnit } from "../lib/serviceBoard";
@@ -260,8 +260,9 @@ export function createServicesRouter(deps: Deps): express.Router {
         refuse(404, `No declaration named ${name}.`);
         return;
       }
-      const entry = readInventory(deps.fs).entries.find((e) => e.name === name);
-      if (!entry || entry.version || !entry.result || !["deployed", "awaiting-image"].includes(entry.result)) {
+      const found = readInventory(deps.fs).entries.find((e) => e.name === name);
+      const entry = found?.kind === "container" ? found : undefined;
+      if (!entry || !confirmedDown(entry, declarations.find((d) => d.name === name))) {
         refuse(409, CONFIRM_DOWN_REASON);
         return;
       }

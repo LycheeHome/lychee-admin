@@ -368,6 +368,17 @@ describe("POST /resources/:name/prune", () => {
     assert.deepEqual(await res.json(), { ok: false, reason: CONFIRM_REASON });
   });
 
+  test("awaiting-image with a declaration tagged in the clone is the 409 and never reaches the writer", async () => {
+    const { calls, overrides } = spy();
+    const res = await post([{ ...DOWN, result: "awaiting-image" }], {
+      ...overrides,
+      readDeclarations: () => Promise.resolve([{ ...DECL[0], image: "ghcr.io/lycheehome/x:0.1.0" }]),
+    });
+    assert.equal(res.status, 409);
+    assert.deepEqual(await res.json(), { ok: false, reason: CONFIRM_REASON });
+    assert.equal(calls.length, 0);
+  });
+
   test("an installed version, a failed result or no inventory entry is a 409 and writes nothing", async () => {
     const { calls, overrides } = spy();
     for (const inv of [[{ ...DOWN, version: "v1" }], [{ ...DOWN, result: "failed" }], []]) {

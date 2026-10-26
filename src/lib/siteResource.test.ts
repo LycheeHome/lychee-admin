@@ -3,8 +3,10 @@ import { test } from "node:test";
 import { describe } from "node:test";
 import {
   claimedPorts,
+  confirmedDown,
   declaredTag,
   hostnameForResource,
+  imageTag,
   normalizeRepo,
   parseDeclaration,
   pendingTag,
@@ -93,6 +95,41 @@ describe("declaredTag", () => {
   test("an absent or missing declaration has no tag", () => {
     assert.equal(declaredTag(decl("ghcr.io/lycheehome/app:0.3.0", "absent")), null);
     assert.equal(declaredTag(undefined), null);
+  });
+});
+
+describe("imageTag", () => {
+  test("reads a tag from the last path segment, with no declaration or state involved", () => {
+    assert.equal(imageTag("ghcr.io/lycheehome/app:0.3.0"), "0.3.0");
+    assert.equal(imageTag("host:5000/app:1.2.0"), "1.2.0");
+    for (const image of ["ghcr.io/lycheehome/app", "host:5000/app", "ghcr.io/lycheehome/app:", "ghcr.io/lycheehome/app@sha256:abc"]) {
+      assert.equal(imageTag(image), null, image);
+    }
+  });
+});
+
+describe("confirmedDown", () => {
+  const entry = (over: Record<string, unknown> = {}) =>
+    ({ name: "gone-lychee-land", kind: "container", container: "gone-lychee-land", group: "service", reconciled: true, ...over }) as never;
+  const decl = (image: string) => ({ name: "gone-lychee-land", port: 3400, state: "absent", image });
+  const TAGLESS = decl("ghcr.io/lycheehome/gone");
+
+  test("a completed down with nothing installed is confirmed", () => {
+    assert.equal(confirmedDown(entry({ result: "deployed" }), TAGLESS), true);
+  });
+
+  test("awaiting-image is confirmed only for a tagless declaration", () => {
+    assert.equal(confirmedDown(entry({ result: "awaiting-image" }), TAGLESS), true);
+    // The tag is read from the image even though the declaration is absent.
+    assert.equal(confirmedDown(entry({ result: "awaiting-image" }), decl("ghcr.io/lycheehome/gone:0.1.0")), false);
+    assert.equal(confirmedDown(entry({ result: "awaiting-image" }), undefined), false);
+  });
+
+  test("an installed version, a failed down, no result or no entry is not confirmed", () => {
+    assert.equal(confirmedDown(entry({ result: "deployed", version: "0.1.0" }), TAGLESS), false);
+    assert.equal(confirmedDown(entry({ result: "failed" }), TAGLESS), false);
+    assert.equal(confirmedDown(entry(), TAGLESS), false);
+    assert.equal(confirmedDown(undefined, TAGLESS), false);
   });
 });
 
