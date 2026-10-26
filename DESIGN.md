@@ -298,7 +298,7 @@ carry a verdict.
 - **Smoke** (`stone-400`): Secondary text. Every explanatory sentence, form
   label, and card eyebrow.
 - **Smoke Light** (`stone-300`): Neutral status pill text — the `neutral` tone,
-  carrying `starting`, `unknown`, `not deployed` and `awaiting image` — and the accent color
+  carrying `starting`, `unknown`, `not deployed`, `awaiting image` and `retired` — and the accent color
   of the static radio control.
 - **Chalk** (`stone-50`): Primary text and every value that matters. Warm white,
   never `#fff`.
@@ -335,12 +335,14 @@ rarity is what makes a primary button unmissable. A control the page expects
 to be refused never wears it.
 
 **The Three-Tone Status Rule.** Site state resolves to exactly three tones:
-Clear, Scorch, or Smoke. `starting`, `unknown`, `not deployed` and
-`awaiting image` are **Smoke, never Scorch** — a container still running its
+Clear, Scorch, or Smoke. `starting`, `unknown`, `not deployed`,
+`awaiting image` and `retired` are **Smoke, never Scorch** — a container still running its
 first health check is not broken, a status we failed to read is not evidence
 that anything is down, a container that was never created (or was deliberately
-taken down) has not crashed, and a site attached to a repository whose first
-image has not been deployed yet is between two steps, not failing. Scorch is reserved for something that tried and failed, so that red
+taken down) has not crashed, a site attached to a repository whose first
+image has not been deployed yet is between two steps, not failing, and a
+declaration deliberately retired (`state: absent`, not yet pruned) was taken
+down on purpose. Scorch is reserved for something that tried and failed, so that red
 keeps meaning "this needs you now": a site that has simply never been deployed
 must not look like one that died. Never invent a fourth tone, and never let a
 tone marking site state appear without the canonical status word beside it —
@@ -348,9 +350,12 @@ that second clause is what makes the first safe, because the word carries
 which state it is while the tone carries only how bad it is. The
 what-gets-written panel's Clear-marked added lines are the one place Clear
 appears without a status word, because marking a diff addition is not a
-site-state verdict for this rule to govern. `not deployed`, `awaiting image`
-and `unknown` share Smoke and stay unambiguous, because the word is always
-there to tell them apart.
+site-state verdict for this rule to govern. `not deployed`, `awaiting image`,
+`retired` and `unknown` share Smoke and stay unambiguous, because the word is always
+there to tell them apart. That is why `retired` exists at all: a site re-added
+over a retired declaration once read `not deployed`, the same word as a site
+never attached, so the shared tone hid a different state. A new state that
+needs telling apart gets a new word, never a new tone.
 
 **The Pill-Needs-an-Edge Rule.** A status pill aligns to an edge the eye can
 follow down the page. A single-line row has a clean right edge, so the pill is
@@ -670,8 +675,8 @@ exceptions to it.
   aria-disabled at the offer's size
   (0.8rem, 6px by 12px padding, 32px minimum height). Derived from Primary in
   `shared.ts`, as Compact secondary is from Secondary, so the two cannot drift.
-  Used for the runbook's first Deploy and for the Prune under a site page's
-  retired warning, where that control is the page's next step.
+  Used for the runbook's first Deploy and for the Prune in a site page's
+  retired notice, where that control is the page's next step.
 - **Compact secondary:** Secondary's colours, hover, focus and disabled at the
   offer's size (0.8rem, 6px by 12px padding, 32px minimum height). Made for
   the prune control, which sits on the services board beside the 32px offer; at
@@ -715,6 +720,17 @@ exceptions to it.
 - **Shadow Strategy:** None at rest — see Elevation & Depth.
 - **Internal Padding:** 20px for detail cards, 24px for dialogs and the empty
   state.
+- **Retired notice:** A site page whose declaration is retired (`state: absent`,
+  not yet pruned) shows one more card, directly under the header and above the
+  Request path: a detail card with no label, holding a Smoke Light Body sentence
+  (`<name>.yml is retired (state: absent). Attaching a repository is refused
+  until it is pruned.`, machine facts in mono) over the prune line, its Prune the
+  page's one compact primary. It is the page-level state notice for a state
+  with exactly one way out, so it takes the card treatment and stays until the
+  state changes, unlike the transient Flash Banner. It does not reorder the
+  cards beneath it: Request path, Manual steps, From a repository and Danger
+  keep the order they have for a site that is not attached, since a site
+  re-added after a removal may need its DNS record again.
 - **Site row behavior:** The whole row is one `<a>`, undecorated, `16px 12px` of
   padding pulled back out with a matching negative margin so its hover ground
   reaches the content column's edges. Left: the hostname (Title face, shared
@@ -1014,11 +1030,11 @@ say.
 
 **The prune line.** A site row whose declaration is retired (`state: absent`)
 and still in `lychee-resources` grows one more line, last: a compact secondary
-`Prune old declaration` button (compact primary under a site page's retired
-warning, where it is the page's next step) and a mono caption naming the file it
+`Prune old declaration` button (compact primary in a site page's retired
+notice, where it is the page's next step) and a mono caption naming the file it
 deletes and the condition it waits for — `deletes <name>.yml from
 lychee-resources · once its container is confirmed down`. The same markup, from
-the same function, sits under a site page's detached warning, and both post to
+the same function, sits in a site page's retired notice, and both post to
 the same route. On the board, Secondary rather than the offer's Ember outline or the danger button's Scorch: it removes
 a file already retired for a container already down, in a commit that can be
 reverted, so it is neither the row's way forward nor a destructive act, and no
@@ -1118,9 +1134,12 @@ file it will write and saying that no tag is written until the first deploy.
 Its error is the form-level error surface with `role="alert"`, hidden until it
 has text. When the site's declaration is retired but not yet pruned, the field
 and the button stay enabled, and a Smoke Light sentence beside them warns that
-attaching is refused while the file is there and says to prune it, tied to both
-through `aria-describedby`; beneath it sits the board's prune line, so the way
-out is on the page rather than on GitHub. A warning and not a disabled control,
+attaching is refused while the file is retired and points to Prune above, tied
+to both through `aria-describedby`. The prune line itself is not here: it sits
+once, in the page's retired notice under the header (see Cards / Containers),
+so the way out is the first thing on the page rather than about 2,800px down,
+below Manual steps and all three scaffold files, where it used to be. A warning
+and not a disabled control,
 because the page's copy of `lychee-resources` can be stale; the writer pulls
 before it writes and refuses with the same prune reason, so pressing Attach is
 the check. Attached, the step's body becomes the image and declaration file in

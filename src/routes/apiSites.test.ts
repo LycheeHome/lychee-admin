@@ -160,4 +160,17 @@ describe("GET /api/sites", () => {
     assert.ok(second.body.sites.some((x) => x.hostname === "docs.lychee.land"));
     assert.ok(second.body.statuses["docs.lychee.land"]);
   });
+
+  test("a site over a retired declaration reads retired; a never-attached one reads not deployed", async () => {
+    const s = await start();
+    const { body } = await get(s.base);
+    assert.deepEqual(body.statuses["gone.lychee.land"], { kind: "retired" });
+    assert.deepEqual(body.statuses["legacy.lychee.land"], { kind: "container", state: "not-created" });
+  });
+
+  test("an unreadable clone never reads retired: whether the declaration is absent cannot be known", async () => {
+    const s = await start((_fakes, commands) => ({ ...commands, readDeclarations: () => Promise.resolve(null) }));
+    const { body } = await get(s.base);
+    assert.notDeepEqual(body.statuses["gone.lychee.land"], { kind: "retired" });
+  });
 });

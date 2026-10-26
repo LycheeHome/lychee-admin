@@ -581,7 +581,9 @@ describe("Prune on the services board", () => {
   // Was against the server's renderPruneControl; the site page's repository
   // card now renders DeployLines' PruneLine, so the board's row is checked
   // against that, as the same DOM. Its markup against what the retired server
-  // control rendered is held by the frozen gone-detached parity fixture.
+  // control rendered is held by the frozen board fixtures (the
+  // *-prunable-and-links cases); the gone-detached detail fixture that also
+  // held it was retired by the retired-state spec (2026-10-26).
   test("a row whose site declaration is absent carries the same control as the site page", () => {
     const html = renderServicesPage(board(["gone-lychee-land", "app-lychee-land"]), NOW, new Set(["gone-lychee-land"]), "lychee.land");
     const prune = rowOf(html, "gone-lychee-land").match(/<p [^>]*data-prune-line[\s\S]*?<\/p>/)?.[0];

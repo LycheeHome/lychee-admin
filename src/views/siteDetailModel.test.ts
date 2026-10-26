@@ -266,6 +266,17 @@ describe("addedNotice", () => {
     assert.match(notice, /not deployed until a repository is attached/);
     assert.match(notice, /From a repository has the steps/);
   });
+
+  // Re-adding a site before its old declaration is pruned is the main way into
+  // the retired state; the notice must explain the retired pill beside it, not
+  // contradict it with "not deployed".
+  test("a site re-added over a retired declaration is told why it reads as retired", async () => {
+    const notice = addedNotice((await seedSiteDetailFacts("gone.lychee.land")).site, { retired: true });
+    assert.equal(
+      notice,
+      "Added gone.lychee.land — routing is live. It shows as retired until its old declaration is pruned; Prune is just below.",
+    );
+  });
 });
 
 describe("manualSteps", () => {

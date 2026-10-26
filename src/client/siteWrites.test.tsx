@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-quer
 import type { SiteDetailPayload } from "../shared/siteDetail";
 import { seedSiteDetailPayload } from "../dev/testHelpers";
 import { fetchSiteDetail, siteDetailQueryKey } from "./api";
-import { RepositoryCard } from "./components/RepositoryCard";
+import { SiteDetail } from "./components/SiteDetail";
 import { useSiteWriteInFlight, useSiteWrites } from "./siteWrites";
 
 /*
@@ -23,6 +23,7 @@ type Detail = Extract<SiteDetailPayload, { caddyfileError: null }>;
 
 const TIMEOUT = { timeout: 5000 };
 const originalFetch = globalThis.fetch;
+const originalFocus = HTMLElement.prototype.focus;
 const TOAST = () => document.getElementById("flash-banner-message")!.textContent;
 const TOAST_HIDDEN = () => document.getElementById("flash-banner")!.classList.contains("hidden");
 
@@ -42,6 +43,14 @@ before(() => {
     <button type="button" id="flash-banner-action" class="hidden"></button>
     <button type="button" id="flash-banner-close" class="hidden">x</button></div>
     <button type="button" id="elsewhere">elsewhere</button>`;
+  // The harness renders the whole page, remove dialog included. A browser
+  // never focuses what a closed <dialog> holds; happy-dom does, so React's
+  // mount-time autoFocus on its Cancel would take focus from the page. The
+  // same emulation the site page's route tests use.
+  HTMLElement.prototype.focus = function (this: HTMLElement, options?: FocusOptions) {
+    if (this.closest("dialog:not([open])")) return;
+    originalFocus.call(this, options);
+  };
 });
 
 beforeEach(() => {
@@ -63,6 +72,7 @@ beforeEach(() => {
 
 after(() => {
   globalThis.fetch = originalFetch;
+  HTMLElement.prototype.focus = originalFocus;
 });
 
 const posts = () => calls.filter((c) => c.method === "POST");
@@ -80,8 +90,10 @@ function Page({ hostname }: { hostname: string }) {
     queryFn: () => fetchSiteDetail(hostname, false),
   });
   const payload = data?.found ? data.payload : null;
+  // The whole page, not only the card: since the retired-state spec, Prune
+  // sits in the page's retired notice above the card.
   return payload && payload.caddyfileError === null ? (
-    <RepositoryCard payload={payload} writes={writes} headingRef={headingRef} />
+    <SiteDetail payload={payload} writes={writes} cardHeadingRef={headingRef} />
   ) : null;
 }
 
@@ -515,6 +527,27 @@ describe("Prune", () => {
         TIMEOUT,
       );
       await waitFor(() => assert.equal(button.disabled, false), TIMEOUT);
+      // Refused, so nothing changed: the notice and step 3's warning both stay.
+      assert.ok(document.querySelector('section[aria-label="Retired declaration"]'));
+      assert.ok(byId("attach-warning"));
+    } finally {
+      finish(client);
+    }
+  });
+
+  test("a declaration pruned elsewhere: the next re-read drops the notice without a throw", async () => {
+    current = await gone();
+    const client = mount("gone.lychee.land");
+    try {
+      await waitFor(() => assert.ok(document.querySelector('section[aria-label="Retired declaration"]')), TIMEOUT);
+      // Pruned by hand on GitHub: the site reads not deployed and is no longer detached.
+      current = { ...current, detached: false, status: { kind: "container", state: "not-created" } };
+      await act(async () => {
+        await client.invalidateQueries({ queryKey: siteDetailQueryKey("gone.lychee.land") });
+      });
+      await waitFor(() => assert.ok(!document.querySelector('section[aria-label="Retired declaration"]')), TIMEOUT);
+      assert.ok(!byId("attach-warning"));
+      assert.ok(!document.querySelector("[data-prune]"));
     } finally {
       finish(client);
     }

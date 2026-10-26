@@ -39,6 +39,13 @@ describe("siteHealth", () => {
     assert.equal(h.tone, "neutral");
     assert.equal(h.attention, false);
   });
+  // The rail dot and find read this: a neutral dot (the same Smoke as not
+  // deployed), the word for screen readers and find, and never an attention count.
+  test("retired is neutral, labelled retired, and never attention", () => {
+    assert.deepEqual(siteHealth(proxy, { kind: "retired" }), {
+      hostname: "api.lychee.land", tone: "neutral", label: "retired", attention: false,
+    });
+  });
 });
 
 describe("unitHealth", () => {
