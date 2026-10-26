@@ -1150,10 +1150,13 @@ yourself.
 
 **The attach control** is step three's body until there is something to show
 instead: a Smoke label, then the affixed repository field and a primary
-`Attach repository` button on one wrapping row, then a mono caption naming the
-file it will write and saying that no tag is written until the first deploy.
+`Attach repository` button on one wrapping row, then a caption naming the
+file it will write and saying that no tag is written until the first deploy,
+as one Nunito sentence with its facts in Chalk mono, as the prune line's is
+(the change-repository caption beneath its own field follows the same form).
 Its error is the form-level error surface with `role="alert"`, hidden until it
-has text. When the site's declaration is retired but not yet pruned, the field
+has text, in Nunito like every error box that holds a sentence: the add page's
+two and the pages' refresh alert. When the site's declaration is retired but not yet pruned, the field
 and the button stay enabled, and a Smoke Light sentence beside them warns that
 attaching is refused while the file is retired and points to Prune above, tied
 to both through `aria-describedby`. The prune line itself is not here: it sits

@@ -18,6 +18,9 @@ import {
 } from "../../views/siteDetailModel";
 import {
   BODY,
+  CAPTION,
+  CAPTION_FILE,
+  CAPTION_KEEP,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
   CARD,
@@ -215,7 +218,8 @@ function GateLine({ resource }: { resource: SiteResourceView }) {
   ) : null;
 }
 
-const FORM_ERROR = "font-mono text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0";
+// Sans: the writer's refusal is a sentence (spec 2026-10-26-mono-sentences).
+const FORM_ERROR = "text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0";
 const EMPTY_REPO = "Enter the repository's name.";
 
 /** html.ts's repoField: the fixed registry prefix joined to the input. Ids are `<id>-row`, `<id>-prefix`, `<id>-repo`. */
@@ -328,8 +332,12 @@ function AttachForm({
           Attach repository
         </button>
       </div>
-      <p className="font-mono text-[0.72rem] text-stone-400 m-0 break-all">
-        {`writes ${resourceName}.yml to lychee-resources · no tag until the first deploy`}
+      {/* A sentence, so sans, as the Prune caption is; its facts in mono. */}
+      <p className={`${CAPTION} m-0`}>
+        {/* " to " is one text node, as the frozen markup has it. */}
+        Writes <span className={CAPTION_FILE}>{`${resourceName}.yml`}</span>
+        {" to "}
+        <span className={CAPTION_KEEP}>lychee-resources</span>, with no tag until the first deploy.
       </p>
       {detached ? (
         // Prune lives in the page's retired notice, above (RetiredNotice);
@@ -387,8 +395,8 @@ function ChangeRepositoryForm({
             Change repository
           </button>
         </div>
-        <p className="font-mono text-[0.72rem] text-stone-400 m-0 break-all">
-          {`rewrites the image line in ${resource.name}.yml · only while it has no tag`}
+        <p className={`${CAPTION} m-0`}>
+          Rewrites the image line in <span className={CAPTION_FILE}>{`${resource.name}.yml`}</span>, only while it has no tag.
         </p>
         <FormError id="change-repo-error" error={error} />
       </form>

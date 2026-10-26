@@ -1,4 +1,4 @@
-import { BODY } from "../../views/shared";
+import { BODY, CAPTION, CAPTION_FILE, CAPTION_KEEP } from "../../views/shared";
 
 /*
  * Declared redesigns of the frozen parity fixtures (src/dev/fixtures/).
@@ -52,13 +52,29 @@ export const REDESIGNS: Redesign[] = [
     to: '<p class="text-[0.8rem] leading-relaxed m-0" data-deploy-state$1><span class="font-mono $2">',
     anchor: "data-deploy-state",
   },
-  // Two entries, by id: the repository card's attach and change-repository
-  // errors share the class and are not part of this change.
-  ...(["preview-error", "add-site-error"] as const).map(
+  {
+    id: "attach-caption",
+    since: "2026-10-26",
+    why: "The attach caption is a sentence, so sans with its facts in mono, as the Prune caption is (mono-sentences follow-up).",
+    from: /<p class="font-mono text-\[0\.72rem\] text-stone-400 m-0 break-all">writes ([^<]+)\.yml to lychee-resources · no tag until the first deploy<\/p>/g,
+    to: `<p class="${CAPTION} m-0">Writes <span class="${CAPTION_FILE}">$1.yml</span> to <span class="${CAPTION_KEEP}">lychee-resources</span>, with no tag until the first deploy.</p>`,
+    anchor: "no tag until the first deploy",
+  },
+  {
+    id: "change-repository-caption",
+    since: "2026-10-26",
+    why: "The change-repository caption is a sentence, so sans with its file in mono (mono-sentences follow-up).",
+    from: /<p class="font-mono text-\[0\.72rem\] text-stone-400 m-0 break-all">rewrites the image line in ([^<]+)\.yml · only while it has no tag<\/p>/g,
+    to: `<p class="${CAPTION} m-0">Rewrites the image line in <span class="${CAPTION_FILE}">$1.yml</span>, only while it has no tag.</p>`,
+    anchor: "only while it has no tag",
+  },
+  // By id: the two add-page boxes (2026-10-26), then the repository card's
+  // attach and change-repository errors (the follow-up the same day).
+  ...(["preview-error", "add-site-error", "attach-error", "change-repo-error"] as const).map(
     (id): Redesign => ({
       id: `error-box-sans:${id}`,
       since: "2026-10-26",
-      why: "The add page's error box holds a sentence from the server, so sans (spec 2026-10-26-mono-sentences).",
+      why: "An error box holds a sentence from the server or the writer, so sans (spec 2026-10-26-mono-sentences and its follow-up).",
       from: new RegExp(`(id="${id}"[^>]*class="(?:hidden )?)font-mono (text-\\[0\\.8rem\\] text-red-300)`, "g"),
       to: "$1$2",
       anchor: `id="${id}"`,

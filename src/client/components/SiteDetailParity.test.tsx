@@ -235,7 +235,8 @@ describe("the repository card, whole, in every branch", () => {
       "form",
       'data-attach="legacy.lychee.land"',
       'id="attach-error"',
-      "writes legacy-lychee-land.yml to lychee-resources",
+      "Writes ",
+      "legacy-lychee-land.yml</span> to ",
       "Once the repository is attached and",
       'id="scaffold-file-0"',
       'data-copy-target="cmd-tag"',
@@ -264,7 +265,7 @@ describe("the repository card, whole, in every branch", () => {
       'id="change-repo-error"',
       'value="preview-site"',
       "No image found at",
-      "rewrites the image line in preview-lychee-land.yml",
+      "Rewrites the image line in",
       "Nothing to deploy until the image exists",
     ]);
     assert.ok(!server.includes("<details"));

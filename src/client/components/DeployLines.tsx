@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { BUTTON_OFFER, BUTTON_PRIMARY_COMPACT, BUTTON_SECONDARY_COMPACT } from "../../views/shared";
+import { BUTTON_OFFER, BUTTON_PRIMARY_COMPACT, BUTTON_SECONDARY_COMPACT, CAPTION, CAPTION_FILE, CAPTION_KEEP } from "../../views/shared";
 
 /*
  * The deploy lines the services board and the site page share, element for
@@ -116,11 +116,10 @@ export function PruneLine({
         Prune old declaration
       </button>
       {/* A sentence, so sans; the file and the repository are facts, so mono. */}
-      <span className="text-[0.75rem] leading-snug text-stone-400">
-        {/* A long hyphenless file name may break anywhere rather than widen the row. */}
-        Deletes <span className="font-mono text-stone-50 [overflow-wrap:anywhere]">{`${name}.yml`}</span> from{" "}
-        {/* Kept together: at 390px it broke at its hyphen and read as two words. */}
-        <span className="font-mono text-stone-50 whitespace-nowrap">lychee-resources</span> once its container is confirmed down.
+      <span className={CAPTION}>
+        Deletes <span className={CAPTION_FILE}>{`${name}.yml`}</span>
+        {" from "}
+        <span className={CAPTION_KEEP}>lychee-resources</span> once its container is confirmed down.
       </span>
     </p>
   );
