@@ -528,7 +528,7 @@ describe("Prune", () => {
       );
       await waitFor(() => assert.equal(button.disabled, false), TIMEOUT);
       // Refused, so nothing changed: the notice and step 3's warning both stay.
-      assert.ok(document.querySelector('section[aria-label="Retired declaration"]'));
+      assert.ok(document.querySelector('section[aria-labelledby="retired-notice-heading"]'));
       assert.ok(byId("attach-warning"));
     } finally {
       finish(client);
@@ -539,13 +539,13 @@ describe("Prune", () => {
     current = await gone();
     const client = mount("gone.lychee.land");
     try {
-      await waitFor(() => assert.ok(document.querySelector('section[aria-label="Retired declaration"]')), TIMEOUT);
+      await waitFor(() => assert.ok(document.querySelector('section[aria-labelledby="retired-notice-heading"]')), TIMEOUT);
       // Pruned by hand on GitHub: the site reads not deployed and is no longer detached.
       current = { ...current, detached: false, status: { kind: "container", state: "not-created" } };
       await act(async () => {
         await client.invalidateQueries({ queryKey: siteDetailQueryKey("gone.lychee.land") });
       });
-      await waitFor(() => assert.ok(!document.querySelector('section[aria-label="Retired declaration"]')), TIMEOUT);
+      await waitFor(() => assert.ok(!document.querySelector('section[aria-labelledby="retired-notice-heading"]')), TIMEOUT);
       assert.ok(!byId("attach-warning"));
       assert.ok(!document.querySelector("[data-prune]"));
     } finally {

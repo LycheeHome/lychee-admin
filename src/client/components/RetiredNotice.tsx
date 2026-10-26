@@ -12,7 +12,11 @@ import { PruneLine, type DeployLineControls } from "./DeployLines";
  */
 export function RetiredNotice({ name, controls }: { name: string; controls?: DeployLineControls }) {
   return (
-    <section aria-label="Retired declaration" className={`${CARD} flex flex-col gap-3`}>
+    <section aria-labelledby="retired-notice-heading" className={`${CARD} flex flex-col gap-3`}>
+      {/* Hidden: the sentence names the state; the heading puts Prune in the page's outline. */}
+      <h3 id="retired-notice-heading" className="sr-only">
+        Retired declaration
+      </h3>
       <p className={`${BODY} text-stone-300`}>
         <span className={MONO_FACT}>{`${name}.yml`}</span>
         {" is retired ("}

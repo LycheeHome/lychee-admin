@@ -722,7 +722,8 @@ exceptions to it.
   state.
 - **Retired notice:** A site page whose declaration is retired (`state: absent`,
   not yet pruned) shows one more card, directly under the header and above the
-  Request path: a detail card with no label, holding a Smoke Light Body sentence
+  Request path: a detail card with no visible label (its `Retired declaration`
+  heading is an `sr-only` h3, so heading navigation reaches its Prune), holding a Smoke Light Body sentence
   (`<name>.yml is retired (state: absent). Attaching a repository is refused
   until it is pruned.`, machine facts in mono) over the prune line, its Prune the
   page's one compact primary. It is the page-level state notice for a state

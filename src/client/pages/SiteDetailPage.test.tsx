@@ -2,7 +2,7 @@ import "../test/setup";
 import assert from "node:assert/strict";
 import { after, afterEach, before, beforeEach, describe, test } from "node:test";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { focusManager, QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
+import { focusManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { SiteDetailPayload } from "../../shared/siteDetail";
 import { seedSiteDetailPayload } from "../../dev/testHelpers";
 import { siteDetailQueryKey } from "../api";
@@ -115,53 +115,99 @@ describe("siteDetailInterval", () => {
   });
 });
 
-describe("siteDetailQuery's focus and reconnect re-reads pause with the polling", () => {
+describe("siteDetailQuery's reconnect re-read pauses with the polling; focus is the page's", () => {
   const pauses = [
     { writing: true, dialogOpen: false },
     { writing: false, dialogOpen: true },
     { writing: true, dialogOpen: true },
   ];
 
-  test("both are off under either pause and on otherwise", () => {
+  test("reconnect is off under either pause and on otherwise; the query's own focus re-read is always off", () => {
     for (const pause of pauses) {
       const options = siteDetailQuery(HOST, pause);
       assert.equal(options.refetchOnWindowFocus, false);
       assert.equal(options.refetchOnReconnect, false);
     }
     const idle = siteDetailQuery(HOST, { writing: false, dialogOpen: false });
-    assert.equal(idle.refetchOnWindowFocus, true);
+    // The page's focus re-read pulls the clone, which TanStack's cannot.
+    assert.equal(idle.refetchOnWindowFocus, false);
     assert.equal(idle.refetchOnReconnect, true);
   });
+});
 
-  /** Observe the query, let it go stale, fire a window-focus event, and count the reads. */
-  async function readsAfterFocus(pause: { writing: boolean; dialogOpen: boolean }): Promise<number> {
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    qc.mount();
-    const observer = new QueryObserver(qc, siteDetailQuery(HOST, pause));
-    const unsubscribe = observer.subscribe(() => {});
-    try {
-      await waitFor(() => assert.equal(reads(), 1), TIMEOUT);
-      await new Promise((r) => setTimeout(r, 2_100));
-      focusManager.setFocused(false);
-      focusManager.setFocused(true);
-      await new Promise((r) => setTimeout(r, 150));
-      return reads();
-    } finally {
-      unsubscribe();
-      qc.unmount();
-      qc.clear();
-      focusManager.setFocused(undefined);
-    }
-  }
+/** Let the page's read go stale, then fire a window-focus event. */
+async function focusAfterStale(staleWait = 2_100): Promise<void> {
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, staleWait));
+  });
+  await act(async () => {
+    focusManager.setFocused(false);
+    focusManager.setFocused(true);
+    await new Promise((r) => setTimeout(r, 150));
+  });
+}
 
-  test("a focus event after staleTime does not re-read while the dialog is open or a write is in flight", async () => {
-    assert.equal(await readsAfterFocus({ writing: false, dialogOpen: true }), 1);
-    calls = [];
-    assert.equal(await readsAfterFocus({ writing: true, dialogOpen: false }), 1);
+describe("a focus re-read pulls the lychee-resources clone", () => {
+  afterEach(() => focusManager.setFocused(undefined));
+
+  test("a focus after staleTime re-reads with ?refresh=1", async () => {
+    mount();
+    await waitFor(() => assert.ok(heading()), TIMEOUT);
+    await focusAfterStale();
+    await waitFor(() => assert.equal(reads(), 2), TIMEOUT);
+    assert.equal(calls.at(-1)?.url, `/api/sites/${HOST}?refresh=1`);
   });
 
-  test("the same steps with no pause do re-read", async () => {
-    assert.equal(await readsAfterFocus({ writing: false, dialogOpen: false }), 2);
+  test("a focus inside staleTime does not re-read", async () => {
+    mount();
+    await waitFor(() => assert.ok(heading()), TIMEOUT);
+    await focusAfterStale(0);
+    assert.equal(reads(), 1);
+  });
+
+  test("no focus re-read while the remove dialog is open", async () => {
+    mount();
+    await waitFor(() => assert.ok(heading()), TIMEOUT);
+    act(() => {
+      fireEvent.click(document.querySelector('[data-open-dialog="confirm-remove-dialog"]') as HTMLElement);
+    });
+    await waitFor(() => assert.equal(interval(), false), TIMEOUT);
+    await focusAfterStale();
+    assert.equal(reads(), 1);
+  });
+
+  test("no focus re-read while a write of the page's is in flight", async () => {
+    mount();
+    await waitFor(() => assert.ok(heading()), TIMEOUT);
+    let release: (r: Response) => void = () => {};
+    postAnswer = () => new Promise<Response>((resolve) => (release = resolve));
+    act(() => {
+      fireEvent.click(document.querySelector(`[data-deploy="${seed.resource?.name}"]`) as HTMLElement);
+    });
+    await waitFor(() => assert.equal(interval(), false), TIMEOUT);
+    await focusAfterStale();
+    assert.equal(reads(), 1);
+    await act(async () => release(json(200, { ok: true })));
+  });
+
+  test("the 15s poll still reads without a pull", async (t) => {
+    t.mock.timers.enable({ apis: ["setInterval"] });
+    mount();
+    await waitFor(() => assert.ok(heading()), TIMEOUT);
+    await act(async () => {
+      t.mock.timers.tick(15_000);
+    });
+    await waitFor(() => assert.equal(reads(), 2), TIMEOUT);
+    assert.equal(calls.at(-1)?.url, `/api/sites/${HOST}`);
+  });
+
+  test("a failed focus re-read shows the alert and keeps the page", async () => {
+    mount();
+    await waitFor(() => assert.ok(heading()), TIMEOUT);
+    answer = () => json(502, { ok: false, reason: "pull failed" });
+    await focusAfterStale();
+    await waitFor(() => assert.match(screen.getByRole("alert").textContent ?? "", /Couldn't refresh app\.lychee\.land: pull failed/), TIMEOUT);
+    assert.ok(heading(), "the page went");
   });
 });
 
@@ -177,13 +223,13 @@ describe("SiteDetailPage", () => {
     assert.ok(!screen.queryByRole("alert"));
   });
 
-  test("the observer's options: 15s, 3s with a requested tag, not in the background, on focus, 2s stale", async () => {
+  test("the observer's options: 15s, 3s with a requested tag, not in the background, reconnect, focus left to the page, 2s stale", async () => {
     mount();
     await waitFor(() => assert.ok(heading()), TIMEOUT);
     assert.equal(interval(), 15_000);
     const options = observerOptions();
     assert.equal(options.refetchIntervalInBackground, false);
-    assert.equal(options.refetchOnWindowFocus, true);
+    assert.equal(options.refetchOnWindowFocus, false);
     assert.equal(options.refetchOnReconnect, true);
     assert.equal(options.staleTime, 2_000);
 
