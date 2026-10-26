@@ -92,7 +92,7 @@ function useNoticeMessage(notice: InitialNotice, firstPath: string | null): stri
   if (!notice) return null;
   if (notice.kind === "removed") return `Removed ${notice.host}. Remember to remove the DNS record in Cloudflare manually.`;
   const data = site.data;
-  return createdHost && data?.found && data.payload.caddyfileError === null ? addedNotice(data.payload.site) : null;
+  return createdHost && data?.found && data.payload.caddyfileError === null ? addedNotice(data.payload.site, { retired: data.payload.detached }) : null;
 }
 
 export function AppFrame({ notice, children }: { notice: InitialNotice; children: ReactNode }) {

@@ -292,10 +292,15 @@ export function dangerSentences(opts: { attached: boolean; deletableFiles: boole
  * The notice a site lands on after being created. Its job is to explain the
  * status pill beside it: two of the three types arrive not-yet-working, so
  * leading with what did succeed keeps the two from contradicting each other.
+ * A site re-added before its old declaration was pruned reads `retired`, so
+ * its sentence says that and points at the notice holding Prune.
  */
-export function addedNotice(site: Site): string {
+export function addedNotice(site: Site, opts: { retired?: boolean } = {}): string {
   if (site.type === "static") {
     return `Added ${site.hostname} — Caddy is serving the placeholder page it created. Manual steps has the DNS record and how to replace it.`;
+  }
+  if (site.framework && opts.retired) {
+    return `Added ${site.hostname} — routing is live. It shows as retired until its old declaration is pruned; Prune is just below.`;
   }
   if (site.framework) {
     return `Added ${site.hostname} — routing is live. It shows as not deployed until a repository is attached and its first image deployed; From a repository has the steps.`;

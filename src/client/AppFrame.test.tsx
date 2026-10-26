@@ -45,7 +45,7 @@ type Detail = Extract<SiteDetailPayload, { caddyfileError: null }>;
 const details = new Map<string, Detail>();
 
 before(async () => {
-  for (const host of ["app.lychee.land", "blog.lychee.land", "preview.lychee.land"]) {
+  for (const host of ["app.lychee.land", "blog.lychee.land", "preview.lychee.land", "gone.lychee.land"]) {
     details.set(host, (await seedSiteDetailPayload(host)).payload);
   }
 });
@@ -469,6 +469,12 @@ describe("the page notice", () => {
     const site = details.get("app.lychee.land")!.site;
     await waitFor(() => assert.equal(noticeText(), addedNotice(site)), TIMEOUT);
     assert.equal(document.querySelectorAll("#page-notice").length, 1);
+  });
+
+  test("?created=1 on a site re-added over a retired declaration explains retired, not not deployed", async () => {
+    mount("/sites/gone.lychee.land?created=1", stubFetch());
+    await waitFor(() => assert.match(noticeText() ?? "", /shows as retired until its old declaration is pruned/), TIMEOUT);
+    assert.doesNotMatch(noticeText() ?? "", /not deployed/);
   });
 
   // Express drew no notice for a site it could not find or a Caddyfile it
