@@ -43,6 +43,18 @@ import { BUTTON_DANGER, BUTTON_OFFER, BUTTON_SECONDARY_COMPACT, SERVICE_DETAIL, 
 /** The state route's poll interval, app.js's ACTION_POLL_MS. Separate from the board's own refetch. */
 export const ACTION_POLL_MS = 2000;
 
+/**
+ * The poll's timers, swappable so a test can hold exactly this poll's ticks.
+ * Holding every global timer of ACTION_POLL_MS also caught TanStack's stale
+ * timer, which is 2000 ms too whenever a millisecond passes between a read
+ * landing and the timer being set. The defaults look the globals up per call,
+ * so `mock.timers` still intercepts them.
+ */
+export const pollTimers = {
+  set: (fn: () => void, ms: number): ReturnType<typeof setTimeout> => setTimeout(fn, ms),
+  clear: (id: ReturnType<typeof setTimeout> | undefined): void => clearTimeout(id),
+};
+
 /** html.ts's actionFact: the last run as a fact line's content. */
 function ActionFactText({ run, now }: { run: ActionState | undefined; now: Date }) {
   const fact = actionFact(run, now);
@@ -291,12 +303,12 @@ export function HostActions({ row, run, live, onLive, now, api }: HostActionsPro
         const state = polledState(outcome);
         if (state) latest.current.onLive(state);
       }
-      timer = setTimeout(tick, ACTION_POLL_MS);
+      timer = pollTimers.set(tick, ACTION_POLL_MS);
     };
-    timer = setTimeout(tick, ACTION_POLL_MS);
+    timer = pollTimers.set(tick, ACTION_POLL_MS);
     return () => {
       cancelled = true;
-      clearTimeout(timer);
+      pollTimers.clear(timer);
     };
   }, [row.name, targetAction, targetClickedAt]);
 

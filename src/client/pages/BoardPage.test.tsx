@@ -8,7 +8,7 @@ import { boardQueryKey } from "../api";
 import { createQueryClient } from "../queryClient";
 import { seedHealth } from "../test/healthFixture";
 import { BoardPage } from "./BoardPage";
-import { ACTION_POLL_MS } from "../components/HostActions";
+import { ACTION_POLL_MS, pollTimers } from "../components/HostActions";
 
 /*
  * The live board page: one group's board, re-read every 15s (3s while a row
@@ -286,25 +286,26 @@ describe("BoardPage controls", () => {
     // The state poll's own timers are held here instead of running on the
     // clock, so the test fires each poll itself and needs no sleeps: a second
     // poll would show up as a second held timer, a restart as a cleared one.
+    // Held through the poll's own seam, never by delay: TanStack's stale timer
+    // is 2000 ms too whenever a millisecond passes before it is set, and a
+    // delay filter caught it as a second poll under load.
     const held = new Map<number, () => void>();
     const cleared: number[] = [];
     let nextId = 1;
-    const realSetTimeout = globalThis.setTimeout;
-    const realClearTimeout = globalThis.clearTimeout;
-    globalThis.setTimeout = ((fn: (...a: unknown[]) => void, ms?: number, ...args: unknown[]) => {
-      if (ms !== ACTION_POLL_MS) return realSetTimeout(fn, ms, ...args);
-      const id = -nextId++;
-      held.set(id, () => fn(...args));
-      return id;
-    }) as typeof setTimeout;
-    globalThis.clearTimeout = ((id?: Parameters<typeof clearTimeout>[0]) => {
-      if (typeof id === "number" && held.has(id)) {
-        held.delete(id);
-        cleared.push(id);
-        return;
+    const realTimers = { ...pollTimers };
+    pollTimers.set = (fn, ms) => {
+      assert.equal(ms, ACTION_POLL_MS);
+      const id = nextId++;
+      held.set(id, fn);
+      return id as unknown as ReturnType<typeof setTimeout>;
+    };
+    pollTimers.clear = (id) => {
+      const key = id as unknown as number;
+      if (held.has(key)) {
+        held.delete(key);
+        cleared.push(key);
       }
-      realClearTimeout(id);
-    }) as typeof clearTimeout;
+    };
     const statePolls = () => calls.filter((c) => c.method === "GET" && c.url.endsWith("/state")).length;
     /** Fires the one held poll timer and waits for its fetch to have been made. */
     const firePoll = async (expected: number) => {
@@ -351,8 +352,8 @@ describe("BoardPage controls", () => {
       // The same poll's next tick: exactly one more state read.
       await firePoll(2);
     } finally {
-      globalThis.setTimeout = realSetTimeout;
-      globalThis.clearTimeout = realClearTimeout;
+      pollTimers.set = realTimers.set;
+      pollTimers.clear = realTimers.clear;
     }
   });
 });
