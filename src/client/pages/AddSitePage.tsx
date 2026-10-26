@@ -254,15 +254,19 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
     [portOwners],
   );
 
-  // The arrival preview, the bfcache restore, and leaving: a pending preview
-  // is cancelled and any answer still in flight is dropped.
-  useEffect(() => {
+  // A layout effect, not a passive one: its cleanup runs in the commit that
+  // removes the page. A passive cleanup runs after a router move commits, so
+  // an add answered in between still read the page as mounted, hid another
+  // page's toast or navigated away from where the user had gone.
+  useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
     };
   }, []);
 
+  // The arrival preview, the bfcache restore, and leaving: a pending preview
+  // is cancelled and any answer still in flight is dropped.
   useEffect(() => {
     void refreshPreview();
     const onPageShow = (event: PageTransitionEvent) => {
