@@ -45,6 +45,16 @@ describe("the retired notice", () => {
     assert.deepEqual(mono, ["gone-lychee-land.yml", "state: absent"]);
   });
 
+  // At 390px the mono fact class's break-all split it as "abse / nt"; a short
+  // fact keeps together, while the file name may still break if it must.
+  test("state: absent never breaks inside itself", async () => {
+    const spans = notice(await page("gone.lychee.land"))!.querySelectorAll("p span");
+    const state = Array.from(spans).find((s) => s.textContent === "state: absent")!;
+    const cls = state.getAttribute("class") ?? "";
+    assert.match(cls, /\bwhitespace-nowrap\b/);
+    assert.doesNotMatch(cls, /\bbreak-all\b/);
+  });
+
   test("holds the page's one Prune, as the compact primary, with Visit secondary", async () => {
     const root = await page("gone.lychee.land");
     const prunes = root.querySelectorAll("[data-prune]");

@@ -16,7 +16,8 @@ export function RetiredNotice({ name, controls }: { name: string; controls?: Dep
       <p className={`${BODY} text-stone-300`}>
         <span className={MONO_FACT}>{`${name}.yml`}</span>
         {" is retired ("}
-        <span className={MONO_FACT}>state: absent</span>
+        {/* A short fact keeps together: MONO_FACT's break-all split it mid-word at 390px. */}
+        <span className={MONO_FACT.replace("break-all", "whitespace-nowrap")}>state: absent</span>
         {"). Attaching a repository is refused until it is pruned."}
       </p>
       <PruneLine name={name} emphasis="primary" controls={controls} />
