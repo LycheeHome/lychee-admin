@@ -356,14 +356,10 @@ describe("the repository card, whole, in every branch", () => {
     ]);
   });
 
-  test("gone: the detached warning, with Prune as the Primary", async () => {
-    const server = assertParity("gone-detached", await seeded("gone.lychee.land"), [
-      'id="attach-warning"',
-      'data-prune="gone-lychee-land"',
-      'aria-describedby="attach-warning"',
-    ]);
-    assert.ok(!server.includes("data-attached"));
-  });
+  // gone (a retired declaration) had a case here against the frozen
+  // gone-detached fixture. The retired-state spec (2026-10-26) redesigned
+  // exactly that case, so the fixture was retired rather than edited or
+  // regenerated; RetiredNotice.test.tsx holds the new markup.
 
   test("an inventory-only resource, nothing installed: the resource name stands in for the image", async () => {
     const payload = await withResource("preview.lychee.land", (r) => ({ ...r, repo: null, available: undefined }));

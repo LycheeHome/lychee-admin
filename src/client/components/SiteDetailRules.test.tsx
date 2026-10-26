@@ -1370,7 +1370,8 @@ describe("renderSiteDetail from a repository", () => {
     const c = card(html);
     assert.doesNotMatch(html, /awaiting image/);
     assert.match(c, /app-lychee-land\.yml/);
-    assert.match(c, /Prune it to re-attach/);
+    // Shortened by the retired-state spec: Prune is in the notice above now.
+    assert.match(c, /Prune it above; pressing Attach checks again\./);
     assert.doesNotMatch(c, /before re-attaching/);
     const button = c.match(/<button[^>]*type="submit"[^>]*>/);
     assert.ok(button);
@@ -1383,16 +1384,20 @@ describe("renderSiteDetail from a repository", () => {
     assert.match(c, /id="attach-warning"/);
   });
 
-  test("detached: the warning carries the Prune control for the site's resource", () => {
-    const c = card(renderSiteDetail(NEXT_SITE, { ...BASE, detached: true, status: { kind: "container", state: "not-created" } }));
-    assert.ok(c.includes(renderPruneControl("app-lychee-land", "primary")));
-    const button = c.match(/<button[^>]*data-prune="app-lychee-land"[^>]*>([^<]*)<\/button>/);
+  // Since the retired-state spec (2026-10-26) the Prune control is the page's
+  // retired notice's, above the request path, not the card's.
+  test("detached: the page's retired notice carries the Prune control; the card does not", () => {
+    const html = renderSiteDetail(NEXT_SITE, { ...BASE, detached: true, status: { kind: "retired" } });
+    const c = card(html);
+    assert.doesNotMatch(c, /data-prune=/);
+    assert.ok(html.includes(renderPruneControl("app-lychee-land", "primary")));
+    const button = html.match(/<button[^>]*data-prune="app-lychee-land"[^>]*>([^<]*)<\/button>/);
     assert.ok(button);
     assert.equal(button[1], "Prune old declaration");
     assert.match(button[0], /type="button"/);
     assert.ok(button[0].includes(`class="${BUTTON_PRIMARY_COMPACT}"`));
-    // After the warning it acts on, so the reason is read before the action.
-    assert.ok(c.indexOf("data-prune=") > c.indexOf('id="attach-warning"'));
+    // Above the request path, so the reason and the action come first.
+    assert.ok(html.indexOf("data-prune=") < html.indexOf("Request path"));
   });
 
   test("detached: Attach steps back to Secondary and stays enabled", () => {

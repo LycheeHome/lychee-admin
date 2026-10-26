@@ -47,6 +47,8 @@ import { RailLink } from "../clientNav";
 import { CommandBlock, CopyButton, FailureLine, Icon } from "./CommandBlock";
 import { RemoveDialog, type RemoveDialogHandle } from "./RemoveDialog";
 import { RepositoryCard, type SiteWrites } from "./RepositoryCard";
+import { RetiredNotice } from "./RetiredNotice";
+import { resourceNameFor } from "../../lib/siteResource";
 
 /*
  * The site page's markup in JSX, element for element what the retired
@@ -459,6 +461,9 @@ export function SiteDetail({
   const declaration = removeDeclaration(site, payload);
   // Offered only for a directory that is actually there.
   const deletableFiles = Boolean(payload.filesPath && payload.filesExist);
+  // A retired declaration's notice and Prune sit under the header (the
+  // retired-state spec): only a framework site has a declaration to retire.
+  const retiredName = payload.detached && site.framework ? resourceNameFor(site.hostname, payload.domain) : null;
   const cards: Record<string, ReactNode> = {
     path: <RequestPath payload={payload} />,
     manual: <ManualSteps payload={payload} />,
@@ -476,6 +481,7 @@ export function SiteDetail({
     <>
       <div className={`${DETAIL_WIDTH} flex flex-col gap-5`}>
         <Header payload={payload} headingRef={headingRef} />
+        {retiredName ? <RetiredNotice name={retiredName} controls={writes} /> : null}
         {cardOrder(payload).map((name) => (
           <Fragment key={name}>{cards[name]}</Fragment>
         ))}

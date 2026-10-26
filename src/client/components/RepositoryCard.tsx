@@ -29,7 +29,7 @@ import {
   SERVICE_DETAIL,
 } from "../../views/shared";
 import { CommandBlock, CopyButton, FailureLine, Icon } from "./CommandBlock";
-import { OfferLine, PruneLine, RequestedLine } from "./DeployLines";
+import { OfferLine, RequestedLine } from "./DeployLines";
 
 /*
  * The site page's "From a repository" card in JSX, element for element what
@@ -332,19 +332,17 @@ function AttachForm({
         {`writes ${resourceName}.yml to lychee-resources · no tag until the first deploy`}
       </p>
       {detached ? (
-        <>
-          <p id="attach-warning" className={`${BODY} text-stone-300`}>
-            <Runs
-              runs={[
-                { mono: `${resourceName}.yml` },
-                " is retired (",
-                { mono: "state: absent" },
-                ") and was still in lychee-resources when this page loaded. Attaching is refused while it is there. Prune it to re-attach; pressing Attach checks again.",
-              ]}
-            />
-          </p>
-          <PruneLine name={resourceName} emphasis="primary" controls={writes} />
-        </>
+        // Prune lives in the page's retired notice, above (RetiredNotice);
+        // this stays as the reason Attach's aria-describedby points to.
+        <p id="attach-warning" className={`${BODY} text-stone-300`}>
+          <Runs
+            runs={[
+              "Attaching is refused while ",
+              { mono: `${resourceName}.yml` },
+              " is retired. Prune it above; pressing Attach checks again.",
+            ]}
+          />
+        </p>
       ) : null}
       <FormError id="attach-error" error={error} />
     </form>

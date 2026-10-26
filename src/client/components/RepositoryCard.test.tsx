@@ -4,6 +4,7 @@ import { afterEach, describe, test } from "node:test";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { seedSiteDetailPayload } from "../../dev/testHelpers";
 import { RepositoryCard, type SiteWrites } from "./RepositoryCard";
+import { RetiredNotice } from "./RetiredNotice";
 
 /*
  * The repository card's controls: with `writes` absent they are the server's
@@ -72,13 +73,18 @@ describe("RepositoryCard with writes", () => {
     assert.deepEqual(calls, [["deploy", "broken-lychee-land", "0.1.1"]]);
   });
 
-  test("Prune under the detached warning calls prune(name)", async () => {
+  // Prune moved from the card's detached warning to the page's retired notice
+  // (the retired-state spec, 2026-10-26); the card itself carries none.
+  test("Prune in the retired notice calls prune(name), and the card carries no Prune", async () => {
     const { payload } = await seedSiteDetailPayload("gone.lychee.land");
     const { writes, calls } = fakeWrites();
-    const { container, rerender } = render(<RepositoryCard payload={payload} writes={writes} />);
+    const card = render(<RepositoryCard payload={payload} writes={writes} />);
+    assert.ok(!card.container.querySelector("[data-prune]"));
+    card.unmount();
+    const { container, rerender } = render(<RetiredNotice name="gone-lychee-land" controls={writes} />);
     fireEvent.click(container.querySelector('[data-prune="gone-lychee-land"]')!);
     assert.deepEqual(calls, [["prune", "gone-lychee-land"]]);
-    rerender(<RepositoryCard payload={payload} writes={{ ...writes, busy: new Set(["gone-lychee-land"]) }} />);
+    rerender(<RetiredNotice name="gone-lychee-land" controls={{ ...writes, busy: new Set(["gone-lychee-land"]) }} />);
     assert.equal(container.querySelector<HTMLButtonElement>("[data-prune]")!.disabled, true);
   });
 

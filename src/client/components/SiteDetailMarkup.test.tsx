@@ -115,7 +115,6 @@ const CASES: Record<string, [fixture: string, hostname: string, override: Partia
   "an installed container in a bad state": ["container-bad-state", "app.lychee.land", { status: { kind: "container", state: "exited" } }],
   "a failed first deploy": ["broken-failed-first-deploy", "broken.lychee.land", {}],
   "an empty tunnelId": ["empty-tunnel-id", "blog.lychee.land", { tunnelId: "" }],
-  "the detached warning and Prune": ["gone-detached", "gone.lychee.land", {}],
   "a first deploy on offer, steps folded": ["preview-awaiting-first-image", "preview.lychee.land", {}],
   "Change repository, no tag found": [
     "preview-no-tag-found",
