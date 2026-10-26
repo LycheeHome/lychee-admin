@@ -145,7 +145,10 @@ claim.
 - **Canonical status vocabulary**, shared by the header pill and the last
   hop of the request path: `running`, `unhealthy`, `starting`, `exited`,
   `restarting`, `paused`, `not deployed`, `awaiting image`, `failed`,
-  `unknown`, and `responding` / `not responding` for plain proxies.
+  `retired`, `unknown`, and `responding` / `not responding` for plain proxies.
+  `retired` is a site re-added over a declaration that is `state: absent` and
+  not yet pruned: neutral, because it was taken down on purpose, and its own
+  word so it never reads like a site that was never attached.
   `starting`, `awaiting image` and `unknown` are neutral — not failures;
   `failed` is a first deploy the reconciler attempted and could not complete.
 - **Terminology that must stay stable**: managed hostname; static vs
