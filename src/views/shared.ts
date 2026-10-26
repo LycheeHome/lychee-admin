@@ -112,6 +112,15 @@ export const BODY = `text-stone-400 text-[0.8rem] leading-snug m-0 ${PROSE_MEASU
 /** A machine fact inline in a sentence: mono, at Chalk. */
 export const MONO_FACT = "font-mono text-stone-50 break-all";
 /**
+ * A control's caption: one Nunito sentence at 0.75rem, with its facts as
+ * CAPTION_FILE (a declaration's file name, which may break anywhere rather
+ * than widen a narrow row) or CAPTION_KEEP (a short fixed fact, which keeps
+ * together: `lychee-resources` broke at its hyphen at 390px).
+ */
+export const CAPTION = "text-[0.75rem] leading-snug text-stone-400";
+export const CAPTION_FILE = "font-mono text-stone-50 [overflow-wrap:anywhere]";
+export const CAPTION_KEEP = "font-mono text-stone-50 whitespace-nowrap";
+/**
  * A path is a machine fact and is case-sensitive, so it takes the Micro-label
  * size and weight but never its uppercase — the one place in the system where
  * that transform is dropped. Used by add site's preview and the detail page's

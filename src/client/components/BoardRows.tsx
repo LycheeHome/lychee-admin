@@ -168,7 +168,8 @@ export type BoardProps = {
 };
 
 /** The add-site page's error treatment, visible. */
-export const BOARD_ALERT = "font-mono text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0";
+// Sans: "Couldn't refresh …: <reason>" is a sentence (spec 2026-10-26-mono-sentences).
+export const BOARD_ALERT = "text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0";
 
 /**
  * One board page's body: eyebrow, freshness line, then the rows or the
