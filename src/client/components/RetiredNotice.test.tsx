@@ -23,7 +23,7 @@ async function page(hostname: string): Promise<HTMLElement> {
 const NOTICE = "gone-lychee-land.yml is retired (state: absent). Attaching a repository is refused until it is pruned.";
 const WARNING = "Attaching is refused while gone-lychee-land.yml is retired. Prune it above; pressing Attach checks again.";
 
-const notice = (root: HTMLElement) => root.querySelector<HTMLElement>('section[aria-label="Retired declaration"]');
+const notice = (root: HTMLElement) => root.querySelector<HTMLElement>('section[aria-labelledby="retired-notice-heading"]');
 
 describe("the retired notice", () => {
   test("sits between the header and the request path", async () => {
@@ -72,6 +72,19 @@ describe("the retired notice", () => {
     const attach = root.querySelector<HTMLButtonElement>("form[data-attach] button[type=submit]");
     assert.match(attach?.getAttribute("aria-describedby") ?? "", /\battach-warning\b/);
     assert.ok(!root.querySelector("form[data-attach] [data-prune]"));
+  });
+
+  // Heading navigation reaches the page's primary action: the notice joins the
+  // page's outline (h2 hostname, h3 per card) without a visible label.
+  test("is named by its own h3, visually hidden", async () => {
+    const card = notice(await page("gone.lychee.land"))!;
+    const h3 = card.querySelector("h3");
+    assert.ok(h3, "the notice has no heading");
+    assert.equal(h3.textContent, "Retired declaration");
+    assert.match(h3.getAttribute("class") ?? "", /\bsr-only\b/);
+    assert.ok(h3.id, "the heading has no id");
+    assert.equal(card.getAttribute("aria-labelledby"), h3.id);
+    assert.ok(!card.hasAttribute("aria-label"));
   });
 
   test("is absent on a site that is not retired", async () => {
