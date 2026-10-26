@@ -801,13 +801,20 @@ describe("the shared board read", () => {
     assert.equal(reads, 3);
   });
 
-  test("the payload carries prunable, managed, domain, requested and lastRuns", async () => {
+  test("the payload carries prunable, retiring, managed, domain, requested and lastRuns", async () => {
     const gone = { name: "gone-lychee-land", kind: "container", container: "gone-lychee-land", group: "service", reconciled: true, result: "deployed" };
+    const up = { name: "up-lychee-land", kind: "container", container: "up-lychee-land", group: "service", reconciled: true, version: "0.2.1", result: "deployed" };
     const pal = { name: "palworld-palchuds", kind: "unit", unit: "palworld-palchuds.service", group: "service", reconciled: false, actions: ["start", "stop"] };
-    const s = await start(inventory([gone, NOTES, pal]), {
+    const s = await start(inventory([gone, up, NOTES, pal]), {
       readDeclarations: () =>
         Promise.resolve([
           { name: "gone-lychee-land", port: 3400, state: "absent", image: "ghcr.io/lycheehome/gone" },
+          // Still running: retired, not yet confirmed down.
+          { name: "up-lychee-land", port: 3401, state: "absent", image: "ghcr.io/lycheehome/up:0.2.1" },
+          // No inventory entry yet: retiring, and the board has no row for it.
+          { name: "ghost-lychee-land", port: 3402, state: "absent", image: "ghcr.io/lycheehome/ghost" },
+          // Not a site resource: in neither set.
+          { name: "palsave-api", port: 8788, state: "absent", image: "ghcr.io/lycheehome/palsave-api:v1" },
           { name: "notes", port: 3000, state: "running", image: "ghcr.io/lycheehome/notes:v1.5.0" },
         ]),
       readOpUnits: (names) =>
@@ -820,15 +827,24 @@ describe("the shared board read", () => {
     const { config } = await import("../config");
     s.fs.writeFile(config.caddyfilePath, "http://blog.lychee.land {\n\troot * /var/www/blog.lychee.land\n\tfile_server\n}\n");
     const body = (await (await s.get("/api/services?group=service")).json()) as {
-      prunable: string[]; managed: string[]; domain: string; requested: Record<string, string>; lastRuns: Record<string, { action: string; state: string }>;
+      prunable: string[]; retiring: string[]; managed: string[]; domain: string; requested: Record<string, string>; lastRuns: Record<string, { action: string; state: string }>;
     };
     assert.deepEqual(body.prunable, ["gone-lychee-land"]);
+    assert.deepEqual([...body.retiring].sort(), ["ghost-lychee-land", "up-lychee-land"]);
     assert.deepEqual(body.managed, ["blog.lychee.land"]);
     // The client maps a row's name to a managed hostname through it.
     assert.equal(body.domain, config.domain);
     assert.deepEqual(body.requested, { notes: "v1.5.0" });
     assert.equal(body.lastRuns["palworld-palchuds"].action, "stop");
     assert.equal(body.lastRuns["palworld-palchuds"].state, "succeeded");
+  });
+
+  test("an unreadable clone gives both sets empty", async () => {
+    const gone = { name: "gone-lychee-land", kind: "container", container: "gone-lychee-land", group: "service", reconciled: true, result: "deployed" };
+    const s = await start(inventory([gone]), { readDeclarations: () => Promise.resolve(null) });
+    const body = (await (await s.get("/api/services?group=service")).json()) as { prunable: string[]; retiring: string[] };
+    assert.deepEqual(body.prunable, []);
+    assert.deepEqual(body.retiring, []);
   });
 
   test("the site page's writes clear the cache too: add, attach, repository, detach, delete, delete-files", async () => {
@@ -840,7 +856,7 @@ describe("the shared board read", () => {
       config.tunnelConfigPath,
       "tunnel: 11111111-2222-3333-4444-555555555555\ningress:\n  - hostname: blog.lychee.land\n    service: http://localhost:80\n  - service: http_status:404\n",
     );
-    type Board = { managed: string[]; prunable: string[] };
+    type Board = { managed: string[]; prunable: string[]; retiring: string[] };
     const board = async () => (await (await s.get("/api/services?group=service")).json()) as Board;
     const post = (p: string, fields: Record<string, string> = {}) =>
       fetch(`${s.base}${p}`, {
@@ -872,7 +888,10 @@ describe("the shared board read", () => {
     assert.equal(reads, 5, "delete: a fresh read");
 
     assert.equal((await post("/sites/test.lychee.land/detach")).status, 200);
-    assert.deepEqual((await board()).prunable, ["test-lychee-land"], "detach: the retired declaration is prunable");
+    const retired = await board();
+    // No inventory entry yet, so nothing has confirmed its container down.
+    assert.deepEqual(retired.retiring, ["test-lychee-land"], "detach: the retired declaration is retiring until the reconciler confirms it down");
+    assert.deepEqual(retired.prunable, []);
     assert.equal(reads, 6, "detach: a fresh read");
 
     assert.equal((await post("/sites/blog.lychee.land/delete-files")).status, 200);

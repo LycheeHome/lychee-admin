@@ -50,7 +50,7 @@ function payload(group: ServiceGroup, rows: BoardRow[], extra: Partial<BoardPayl
     boardEmpty: false,
     now: NOW.toISOString(),
     domain: DOMAIN,
-    prunable: [],
+    prunable: [], retiring: [],
     managed: [],
     requested: {},
     lastRuns: {},

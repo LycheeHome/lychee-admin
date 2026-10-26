@@ -22,6 +22,8 @@ export type BoardPayload = {
   now: string;
   /** Site rows whose declaration is absent and whose container is confirmed down: they offer Prune. */
   prunable: string[];
+  /** Site rows whose declaration is absent but whose container is not yet confirmed down: a retiring line, no Prune. */
+  retiring: string[];
   /** Hostnames that are managed sites, so a site resource's name links to its page. */
   managed: string[];
   /**

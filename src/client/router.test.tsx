@@ -61,7 +61,7 @@ function payload(group: ServiceGroup): BoardPayload {
     boardEmpty: false,
     now: "2026-10-22T12:00:00Z",
     domain: "lychee.land",
-    prunable: [],
+    prunable: [], retiring: [],
     managed: [],
     requested: {},
     lastRuns: {},
