@@ -236,7 +236,7 @@ describe("renderServicesPage", () => {
   test("a ci-failed row shows the deploy line in the bad tone", () => {
     const html = offerBoard({ version: "v2.11.4", result: "blocked", gateCode: "ci-failed", status: "running" });
     assert.ok(html.includes("data-deploy-state"));
-    assert.ok(html.includes(`<span class="${TONE_TEXT.bad}"><span aria-hidden="true">&#9679;</span> deploy blocked</span>`));
+    assert.ok(html.includes(`<span class="font-mono ${TONE_TEXT.bad}"><span aria-hidden="true">&#9679;</span> deploy blocked</span>`));
     assert.ok(html.includes("\u00B7 CI failed"));
     assert.deepEqual(pills(html), ["running"]);
   });
@@ -278,8 +278,8 @@ describe("renderServicesPage", () => {
 
   test("a ci-pending row shows the line in the neutral tone", () => {
     const html = offerBoard({ version: "v2.11.4", result: "blocked", gateCode: "ci-pending", status: "running" });
-    assert.ok(html.includes(`<span class="${TONE_TEXT.neutral}"><span aria-hidden="true">&#9679;</span> deploy waiting</span>`));
-    assert.ok(!html.includes(`<span class="${TONE_TEXT.bad}">`));
+    assert.ok(html.includes(`<span class="font-mono ${TONE_TEXT.neutral}"><span aria-hidden="true">&#9679;</span> deploy waiting</span>`));
+    assert.ok(!html.includes(`<span class="font-mono ${TONE_TEXT.bad}">`));
   });
 
   test("an undeployed failed row has no deploy line", () => {
@@ -378,7 +378,7 @@ describe("renderServicesPage", () => {
   test("an available newer than version offers Deploy", () => {
     const html = offerBoard({ version: "v1.4.0", target: "v1.4.0", available: "v1.5.0" });
     assert.ok(html.includes("data-offer"));
-    assert.ok(html.includes("v1.5.0 available"));
+    assert.ok(html.includes("v1.5.0</span> available"));
     assert.ok(html.includes('data-deploy="notes"'));
     assert.ok(html.includes(BUTTON_OFFER));
     assert.ok(!html.includes(BUTTON_DANGER));
@@ -399,7 +399,7 @@ describe("renderServicesPage", () => {
     assert.ok(html.includes("v1.4.0"));
     assert.ok(html.includes("deploy failed"));
     assert.ok(html.includes("health check failed after install"));
-    assert.ok(html.includes("v1.6.0 available"));
+    assert.ok(html.includes("v1.6.0</span> available"));
     assert.ok(html.includes('data-deploy="notes"'));
     assert.ok(html.indexOf("data-gate") < html.indexOf("data-offer"));
   });

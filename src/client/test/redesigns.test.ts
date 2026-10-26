@@ -32,10 +32,14 @@ describe("declared redesigns of frozen fixtures", () => {
 
   test("no fixture already holds a redesign's new markup", () => {
     for (const r of REDESIGNS) {
+      // The replacement as a pattern, each capture a wildcard; a hit counts
+      // only if it holds the anchor, since its parts (a Body paragraph, say)
+      // also appear on lines the entry has nothing to do with.
+      const escaped = r.to.split(/\$\d/).map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+      const replaced = new RegExp(escaped.join("[^<]*?"), "g");
       for (const f of all) {
-        // The replacement with its capture groups blanked: what only the new markup would contain.
-        const fixed = r.to.split(/\$\d/)[0]!;
-        assert.ok(fixed === "" || !f.html.includes(fixed), `${f.name} already holds ${r.id}'s new markup`);
+        const hits = Array.from(f.html.matchAll(replaced)).filter((h) => h[0].includes(r.anchor));
+        assert.equal(hits.length, 0, `${f.name} already holds ${r.id}'s new markup`);
       }
     }
   });

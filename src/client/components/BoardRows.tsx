@@ -22,6 +22,7 @@ import {
   unknownSentence,
 } from "../../views/boardRowModel";
 import {
+  BODY,
   FRAME_WIDTH,
   PROSE_MEASURE,
   SERVICE_DETAIL,
@@ -109,8 +110,9 @@ export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
           )}
         </p>
         {trouble ? (
-          <p className="font-mono text-[0.8rem] leading-relaxed m-0" data-deploy-state="">
-            <span className={TONE_TEXT[trouble.tone]}>
+          // The key is a machine word, so mono; the reason after it is a phrase, so sans.
+          <p className="text-[0.8rem] leading-relaxed m-0" data-deploy-state="">
+            <span className={`font-mono ${TONE_TEXT[trouble.tone]}`}>
               {/* One text node, as the server writes it: split nodes shift the
                   word by a fraction of a pixel and change its antialiasing. */}
               <Dot />
@@ -126,8 +128,8 @@ export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
         ) : null}
         {facts.length > 0 ? <p className={SERVICE_DETAIL}>{facts.join(" · ")}</p> : null}
         {retired === "retiring" ? (
-          <p className="font-mono text-[0.8rem] leading-relaxed m-0" data-retiring="">
-            <span className={TONE_TEXT.neutral}>
+          <p className="text-[0.8rem] leading-relaxed m-0" data-retiring="">
+            <span className={`font-mono ${TONE_TEXT.neutral}`}>
               {/* One text node, as the deploy line writes its word. */}
               <Dot />
               {" retiring"}
@@ -135,7 +137,7 @@ export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
             <span className="text-stone-400">· {RETIRING_REASON}</span>
           </p>
         ) : null}
-        {unknown ? <p className={SERVICE_DETAIL}>{unknown}</p> : null}
+        {unknown ? <p className={BODY}>{unknown}</p> : null}
         {gate ? (
           <p className={`${SERVICE_DETAIL} text-stone-300`} data-gate="">
             {gate}

@@ -77,7 +77,9 @@ describe("a retired site resource on the board", () => {
     const line = li.querySelector<HTMLElement>("[data-retiring]");
     assert.ok(line, "no retiring line");
     assert.equal(line.textContent, RETIRING_LINE);
-    assert.equal(line.querySelector("span")?.getAttribute("class"), TONE_TEXT.neutral);
+    // The key is mono, the reason sans (spec 2026-10-26-mono-sentences).
+    assert.equal(line.querySelector("span")?.getAttribute("class"), `font-mono ${TONE_TEXT.neutral}`);
+    assert.ok(!(line.getAttribute("class") ?? "").includes("font-mono"), "the whole line is mono");
     assert.ok(!li.querySelector("[data-prune]"));
     const facts = Array.from(li.querySelectorAll("p")).find((p) => p.textContent === "0.2.1");
     assert.ok(facts, "no facts line");

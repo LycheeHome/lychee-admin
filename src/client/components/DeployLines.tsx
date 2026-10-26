@@ -43,7 +43,10 @@ export function OfferLine({
   const deploy = controls?.deploy;
   return (
     <p className="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-offer="">
-      <span className="font-mono text-[0.8rem] text-rose-300">{`${tag} available`}</span>
+      {/* A value you can only read, so not Ember: the tag a Chalk mono fact, the word sans. */}
+      <span className="text-[0.8rem] text-stone-400">
+        <span className="font-mono text-stone-50">{tag}</span> available
+      </span>
       <button
         type="button"
         className={emphasis === "primary" ? BUTTON_PRIMARY_COMPACT : BUTTON_OFFER}
