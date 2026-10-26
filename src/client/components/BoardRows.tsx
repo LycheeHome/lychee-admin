@@ -6,15 +6,17 @@ import { RailLink } from "../clientNav";
 import { FailureLine } from "./CommandBlock";
 import { OfferLine, PruneLine, RequestedLine } from "./DeployLines";
 import { summarizeRow } from "../../views/boardFacts";
+import { describeStatus } from "../../lib/siteDisplay";
 import {
   GROUP_LABELS,
   SITE_NAME_LINK,
   boardContent,
   groupNoneSentence,
   inventoryFreshness,
+  RETIRING_REASON,
+  retiredRow,
   rowOffer,
   rowPill,
-  showsPrune,
   siteLinkHost,
   unavailableSentence,
   unknownSentence,
@@ -58,6 +60,7 @@ type RowContext = {
   now: Date;
   domain: string;
   prunable: ReadonlySet<string>;
+  retiring: ReadonlySet<string>;
   managed: ReadonlySet<string>;
   requested: Readonly<Record<string, string>>;
   lastRuns: Readonly<Record<string, ActionState>>;
@@ -70,7 +73,7 @@ function own<T>(record: Readonly<Record<string, T>>, key: string): T | undefined
 }
 
 export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
-  const { board, now, domain, prunable, managed } = ctx;
+  const { board, now, domain, prunable, retiring, managed } = ctx;
   const payloadRun = own(ctx.lastRuns, row.name);
   // A host action this row is following (HostActions sets it from a 202 and
   // each poll answer) outranks the payload until the run settles and the
@@ -79,7 +82,10 @@ export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
   const run = live ?? payloadRun;
   // The row's words come from the same builders the HTML board uses.
   const summary = summarizeRow(row, board, now);
-  const labels = rowPill(summary.labels, run);
+  const retired = retiredRow(row.name, prunable, retiring, domain);
+  // Confirmed down, the row says what its site page says; before that, the
+  // pill stays the container's live state, which is the board's job.
+  const labels = retired === "down" ? describeStatus({ kind: "retired" }) : rowPill(summary.labels, run);
   const { trouble, gate, facts } = summary;
   const offer = rowOffer(row, own(ctx.requested, row.name));
   const siteHost = siteLinkHost(row.name, domain, managed);
@@ -119,6 +125,16 @@ export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
           </p>
         ) : null}
         {facts.length > 0 ? <p className={SERVICE_DETAIL}>{facts.join(" · ")}</p> : null}
+        {retired === "retiring" ? (
+          <p className="font-mono text-[0.8rem] leading-relaxed m-0" data-retiring="">
+            <span className={TONE_TEXT.neutral}>
+              {/* One text node, as the deploy line writes its word. */}
+              <Dot />
+              {" retiring"}
+            </span>{" "}
+            <span className="text-stone-400">· {RETIRING_REASON}</span>
+          </p>
+        ) : null}
         {unknown ? <p className={SERVICE_DETAIL}>{unknown}</p> : null}
         {gate ? (
           <p className={`${SERVICE_DETAIL} text-stone-300`} data-gate="">
@@ -127,7 +143,7 @@ export function ServiceRow({ row, ctx }: { row: BoardRow; ctx: RowContext }) {
         ) : null}
         <FailureLine facts={row} extraClass="mt-1.5" commandId={`cmd-reconcile-log-${row.name}`} />
         {offer ? offer.requested ? <RequestedLine tag={offer.tag} name={row.name} controls={ctx.controls} /> : <OfferLine name={row.name} tag={offer.tag} controls={ctx.controls} /> : null}
-        {showsPrune(row.name, prunable, domain) ? <PruneLine name={row.name} controls={ctx.controls} /> : null}
+        {retired === "down" ? <PruneLine name={row.name} controls={ctx.controls} /> : null}
         <HostActions row={row} run={payloadRun} live={live} onLive={setLive} now={now} api={ctx.controls?.hostActions} />
       </div>
     </li>
@@ -168,6 +184,7 @@ export function Board({ payload, group, controls, headingRef, alert }: BoardProp
     now,
     domain: payload.domain,
     prunable: new Set(payload.prunable),
+    retiring: new Set(payload.retiring),
     managed: new Set(payload.managed),
     requested: payload.requested,
     lastRuns: payload.lastRuns,
