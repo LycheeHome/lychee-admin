@@ -1,11 +1,12 @@
 /*
  * The document-level behaviour every page shares, which public/app.js used to
- * bind: copy buttons, the page notice's close and the toast's close. Copy is
- * delegated from the document so a button in markup rendered after this ran
- * (anything React renders) works the same as one the server rendered; the two
- * closes are delegated too, because the page notice and the toast live in the
- * server's shell and a route can replace neither. Strings are the retired
- * app.js's, verbatim.
+ * bind: copy buttons and the toast's close. Copy is delegated from the
+ * document so a button anywhere React renders works without wiring its own
+ * handler; the toast's close is delegated too, because toast.ts drives the
+ * toast host by id, outside React (AppFrame renders it once, memoised). The
+ * page notice's close is not here: PageNotice owns it, and a document-level
+ * remove would take a node React owns. Strings are the retired app.js's,
+ * verbatim.
  */
 
 import { hideToast } from "./toast";
@@ -23,10 +24,6 @@ export function installSharedBindings(doc: Document): () => void {
     const from = event.target instanceof Element ? event.target : null;
     if (!from) return;
 
-    if (from.closest("#page-notice-close")) {
-      doc.getElementById("page-notice")?.remove();
-      return;
-    }
     if (from.closest("#flash-banner-close")) {
       hideToast();
       return;

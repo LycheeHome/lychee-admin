@@ -1,5 +1,5 @@
 // What the navigation rail says, as data: tones, attention, the counting rule,
-// unit hrefs and the class strings both rail renderers share. No node imports:
+// unit hrefs and the rail's class strings (Rail.tsx, FindPanel.tsx). No node imports:
 // Vite bundles this file into the client.
 import type { Site } from "../lib/caddyfile";
 import { describeStatus, deployTrouble, type SiteStatus } from "../lib/siteDisplay";
@@ -85,7 +85,7 @@ export function attentionCounts(
   };
 }
 
-// Class strings shared by both rail renderers (server rail.ts, client Rail.tsx).
+// The rail's class strings: the retired server rail's exactly, which the frozen rail fixtures pin.
 // The current-item treatment is the old header's: Chalk on Hairline with a 2px Ember Edge rule.
 const RAIL_CURRENT =
   `aria-[current=page]:text-stone-50 aria-[current=page]:bg-stone-700 ` +
@@ -126,6 +126,14 @@ export const RAIL_WIDE_QUERY = "(min-width: 900px)";
 export const RAIL_DRAWER =
   "fixed inset-y-0 left-0 m-0 p-0 h-dvh max-h-none w-[280px] max-w-[calc(100vw-3rem)] " +
   "font-sans bg-stone-900 text-stone-50 border-0 border-r border-stone-700 open:flex flex-col backdrop:bg-black/60";
+
+/** The rail's `<aside>`: hidden below 900px, a sticky full-height column from there. */
+export const RAIL_ASIDE =
+  "hidden min-[900px]:flex flex-col sticky top-0 self-start h-screen border-r border-stone-700 bg-stone-900";
+
+/** The narrow-screen top bar's `<header>`, which stands in for the rail below 900px. */
+export const TOP_BAR =
+  "min-[900px]:hidden flex items-center justify-between gap-4 px-4 py-3 border-b border-stone-700";
 
 /** The narrow-screen top bar's menu button, which opens the rail as a drawer. */
 export const RAIL_MENU = `inline-flex items-center justify-center size-9 rounded-md bg-transparent border border-stone-700 text-stone-400 hover:text-stone-50 hover:bg-stone-800 cursor-pointer text-lg ${FOCUS_RING}`;

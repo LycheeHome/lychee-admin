@@ -1,21 +1,22 @@
 import "./test/setup";
 import assert from "node:assert/strict";
-import { afterEach, describe, test } from "node:test";
+import { afterEach, before, describe, test } from "node:test";
 import { act, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import type { BoardPayload, BoardRow, ServiceGroup } from "../shared/board";
+import type { SiteDetailPayload } from "../shared/siteDetail";
 import type { SitesPayload } from "../shared/sites";
-import { testShell } from "../dev/testHelpers";
-import { renderClientPage, type ClientPage } from "../views/clientShell";
-import { layout, type RailCurrent } from "../views/shell";
+import { SEEDED_RAIL_SITES, seedSiteDetailPayload } from "../dev/testHelpers";
 import { RAIL_DOT } from "../views/railModel";
 import { seedHealth } from "./test/healthFixture";
+import { STATIC_TITLE, loadStaticDocument, railPayload } from "./test/staticDocument";
 import { BOARD_ROUTES, isClientRoute, mountApp } from "./router";
 
 /*
- * The single root: React Router between the three board pages, the rail as a
- * portal into the server's aside, and plain anchors everywhere a router link
- * would leave a server page's body on screen (Review Focus 3).
+ * The single root on the static document: a body holding only `#react-root`,
+ * into which mountApp renders AppFrame (the top bar, the rail, <main>) around
+ * the routed page. React Router moves between the client routes, and a URL
+ * no route matches keeps its rail links plain anchors (Review Focus 3).
  */
 
 const TIMEOUT = { timeout: 5000 };
@@ -44,6 +45,7 @@ afterEach(() => {
   happyDOM.setViewport({ width: 1024 });
   document.body.innerHTML = "";
   document.title = "";
+  railGate = null;
   happyDOM.setURL("http://localhost/");
   // setURL keeps history.state: without this, the next test's "fresh"
   // document load would carry the last test's router key.
@@ -79,49 +81,53 @@ const SITES: SitesPayload = {
   caddyfileError: null,
 };
 
+/** `GET /api/sites/:hostname`'s answers, by hostname; any other host is a 404. */
+const details = new Map<string, Extract<SiteDetailPayload, { caddyfileError: null }>>();
+
+before(async () => {
+  details.set("app.lychee.land", (await seedSiteDetailPayload("app.lychee.land")).payload);
+});
+
+/** Holds `/api/rail` open until `release()`, so a test can look before it answers. */
+let railGate: Promise<void> | null = null;
+
 function stubFetch(): void {
   fetched = [];
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
     fetched.push(url);
     if (url === "/api/health") return json({ ok: true, ...seedHealth() });
+    if (url === "/api/rail") {
+      await railGate;
+      return json({ ok: true, ...railPayload(SEEDED_RAIL_SITES.map((s) => ({ ...s }))) });
+    }
     if (url === "/api/sites") return json({ ok: true, ...SITES });
+    if (url.startsWith("/api/sites/")) {
+      const host = decodeURIComponent(url.slice("/api/sites/".length).split("?")[0] ?? "");
+      const found = details.get(host);
+      return found
+        ? json({ ok: true, ...found })
+        : new Response(JSON.stringify({ ok: false, reason: `No site named ${host}` }), { status: 404 });
+    }
     const group = new URLSearchParams(url.split("?")[1] ?? "").get("group") as ServiceGroup;
     return json({ ok: true, ...payload(group) });
   }) as typeof fetch;
 }
 
-const PAGE: Record<string, Exclude<ClientPage, "site" | "add-site">> = {
-  "/": "sites",
-  "/services": "services",
-  "/reconciler": "reconciler",
-  "/infrastructure": "infrastructure",
-};
-const TITLE: Record<string, string> = { "/": "Sites", "/services": "Services", "/reconciler": "Reconciler", "/infrastructure": "Infrastructure" };
-
 /**
- * The document the server sends for `path`, as its body, then the one root
- * mounted over it. `banner` is the server's #page-notice: `/?removed=` on the
- * list, `?created=1` on a site page.
+ * The static document every client route is served, at `path`, then the one
+ * root mounted on it. Any notice (`?removed=` on the list, `?created=1` on a
+ * site page) is read off the URL by the client, as in a browser.
  */
-function load(path: string, banner?: string): void {
+function load(path: string): void {
   stubFetch();
   happyDOM.setURL(`http://localhost${path}`);
-  path = path.split(/[?#]/)[0] ?? path;
-  const page = PAGE[path];
-  // Any other path is a server page, which marks nothing.
-  const current: RailCurrent = page ? { page } : null;
-  const shell = testShell({ current });
-  const notice = banner === undefined ? undefined : { message: banner };
-  const html = page
-    ? renderClientPage(TITLE[path], page, shell, notice)
-    : layout("A server page", "<p id=\"server-body\">a server page</p>", { shell, banner: notice });
-  document.title = html.match(/<title>([^<]*)<\/title>/)?.[1] ?? "";
-  // The body without its script tags, which happy-dom would try to fetch.
-  document.body.innerHTML = html
-    .replace(/^[\s\S]*<body[^>]*>/, "")
-    .replace(/<\/body>[\s\S]*$/, "")
-    .replace(/<script\b[^>]*\bsrc=[^>]*><\/script>/g, "");
+  loadStaticDocument();
+  // No `queries.gcTime: 0` here, unlike the frame's own tests: a route
+  // loader primes its page's query before the page observes it, and with no
+  // observer a zero gcTime collects it in between, so the page reads again
+  // and a move back no longer shows the cache. Every test settles its reads
+  // before teardown instead.
   client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { gcTime: 0 } } });
   act(() => {
     app = mountApp(client as QueryClient);
@@ -130,9 +136,9 @@ function load(path: string, banner?: string): void {
 }
 
 /**
- * A URL no client route matches, standing in for a server page. Every page
- * the server serves is a client route now, but the rule that keeps a server
- * page's body on screen (the `*` route, plain anchors) is still the router's.
+ * A URL no client route matches. Express never serves the document there,
+ * but the router's rule for one (the `*` route renders nothing, rail links
+ * stay plain anchors, no scroll restoration) still holds.
  */
 const SERVER_PAGE = "/elsewhere";
 
@@ -141,7 +147,7 @@ const row = (name: string) => document.querySelector(`[data-service="${name}"]`)
 const focused = () => `focus is on ${document.activeElement?.outerHTML.slice(0, 80) ?? "nothing"}`;
 const railLink = (href: string) => document.querySelector<HTMLAnchorElement>(`#rail a[href="${href}"]`);
 const marked = () => Array.from(document.querySelectorAll("#rail a[aria-current=\"page\"]")).map((a) => a.getAttribute("href"));
-/** The rail's dots are coloured once the island owns the rail and health has landed. */
+/** The rail's dots are coloured once its rows are in and health has landed. */
 const railLive = () =>
   waitFor(() => assert.equal(document.querySelector('#rail [data-site="api.lychee.land"] [data-dot]')?.getAttribute("class"), RAIL_DOT.bad), TIMEOUT);
 
@@ -159,7 +165,7 @@ describe("isClientRoute", () => {
 });
 
 describe("the sites list route", () => {
-  const listRow = (hostname: string) => document.querySelector(`#app-root a[href="/sites/${hostname}"]`);
+  const listRow = (hostname: string) => document.querySelector(`main a[href="/sites/${hostname}"]`);
   const NOTICE = "Removed a&b.lychee.land. Remember to remove the DNS record in Cloudflare manually.";
 
   /** Clicks `link` and says whether anything (the router) cancelled it; cancels it after, so happy-dom stays put. */
@@ -180,9 +186,10 @@ describe("the sites list route", () => {
     return cancelled === true;
   }
 
-  test("a direct visit renders the list into #app-root, titled Sites, with the sites heading current", async () => {
+  test("a direct visit renders the list into <main>, titled Sites, with the sites heading current", async () => {
     load("/");
     await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
+    assert.ok(!document.getElementById("app-root"), "a server mount point is back");
     assert.equal(document.title, "Sites");
     assert.deepEqual(marked(), ["/"]);
     assert.ok(fetched.includes("/api/sites"));
@@ -231,30 +238,30 @@ describe("the sites list route", () => {
     await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
     await act(async () => {});
     assert.ok(document.activeElement === document.body, focused());
-    assert.ok(!document.querySelector("#app-root h2")?.hasAttribute("tabindex"));
+    assert.ok(!document.querySelector("main h2")?.hasAttribute("tabindex"));
   });
 
   // A site row and Add site are router links now: SiteDetailRoutes.test.tsx
   // and AddSiteRoutes.test.tsx follow them.
 
   test("on load, ?removed leaves the URL; other parameters and the hash stay (Review Focus 3)", async () => {
-    load("/?removed=a%26b.lychee.land&x=1#h", NOTICE);
+    load("/?removed=a%26b.lychee.land&x=1#h");
     assert.equal(window.location.search, "?x=1");
     assert.equal(window.location.hash, "#h");
     await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
-    // The notice stays on the page it was rendered for.
+    // Read off the URL before it was stripped, and kept on the page it was asked for.
     assert.equal(document.getElementById("page-notice-message")?.textContent, NOTICE);
   });
 
   test("?removed alone leaves a bare path", async () => {
-    load("/?removed=blog.lychee.land", NOTICE);
+    load("/?removed=blog.lychee.land");
     assert.equal(window.location.href, "http://localhost/");
     // Settled before teardown: unmounting mid-load leaves a timer behind.
     await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
   });
 
   test("the first client navigation away removes #page-notice, and returning to / does not bring it back", async () => {
-    load("/?removed=a%26b.lychee.land", NOTICE);
+    load("/?removed=a%26b.lychee.land");
     await railLive();
     await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
     assert.ok(document.getElementById("page-notice"));
@@ -272,21 +279,37 @@ describe("the sites list route", () => {
     assert.ok(!document.getElementById("page-notice"));
   });
 
-  test("a server page's own notice is left alone", async () => {
-    load(SERVER_PAGE, "A notice.");
-    await railLive();
-    assert.ok(document.getElementById("page-notice"));
-  });
 });
 
 describe("the single root", () => {
-  test("takes the server's rail over through one portal: one rail, one #find", async () => {
+  test("renders the whole body into #react-root: one top bar, one rail, one #find, one <main>", async () => {
     load("/services");
     await railLive();
+    const root = document.getElementById("react-root");
+    assert.ok(root);
+    assert.equal(root.getAttribute("class"), "contents");
+    // The frame's parts are the root's own children, so with `contents` they
+    // are the body grid's items, as the server shell's were.
+    assert.deepEqual(
+      Array.from(root.children).map((el) => `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}`),
+      ["header#top-bar", "aside#rail", "div"],
+    );
+    assert.ok(root.children[2]?.firstElementChild?.tagName === "MAIN");
     assert.equal(document.querySelectorAll("#find").length, 1);
     assert.equal(document.querySelectorAll("#rail nav[aria-label=\"Host\"]").length, 1);
     assert.equal(document.querySelectorAll("#top-bar h1").length, 1);
+    assert.equal(document.querySelectorAll("main").length, 1);
+    assert.equal(document.querySelectorAll("#flash-banner").length, 1);
+    assert.equal(document.querySelectorAll("#copy-status").length, 1);
     assert.ok(await waitFor(() => row("swee") ?? assert.fail("no board"), TIMEOUT));
+  });
+
+  // Moved from the retired RailIsland.test.tsx.
+  test("mounts nothing without the root's mount point", () => {
+    document.body.innerHTML = '<aside id="rail" data-rail></aside>';
+    client = new QueryClient();
+    assert.ok(!mountApp(client));
+    assert.equal(document.body.innerHTML, '<aside id="rail" data-rail=""></aside>');
   });
 
   test("a direct visit to each board URL renders its own board", async () => {
@@ -440,10 +463,9 @@ describe("the single root", () => {
     await waitFor(() => assert.deepEqual(scrolled, ["service-lychee-watch"]), TIMEOUT);
   });
 
-  test("on a server page the rail's services link is a plain anchor", async () => {
+  test("at a URL no route matches the rail's services link is a plain anchor", async () => {
     load(SERVER_PAGE);
     await railLive();
-    assert.ok(document.getElementById("server-body"));
     const link = railLink("/services");
     assert.ok(link);
     // Record whether anything before the document cancelled the click, then
@@ -461,12 +483,39 @@ describe("the single root", () => {
     } finally {
       document.removeEventListener("click", record);
     }
-    assert.equal(cancelledBeforeUs, false, "a router took the click on a server page");
-    assert.ok(document.getElementById("server-body"), "the server page's body was replaced");
+    assert.equal(cancelledBeforeUs, false, "a router took the click off the client routes");
     assert.equal(window.location.pathname, SERVER_PAGE);
     assert.deepEqual(marked(), []);
-    // Nothing on a server page reads a board.
+    // Nothing there reads a board.
     assert.ok(!fetched.some((u) => u.startsWith("/api/services")));
+  });
+});
+
+describe("RF2: a document load on the static document", () => {
+  test("at /sites/app.lychee.land the title is the hostname, and once /api/rail answers its row is current", async () => {
+    let release: () => void = () => {};
+    railGate = new Promise<void>((resolve) => (release = resolve));
+    load("/sites/app.lychee.land");
+    assert.equal(document.title, STATIC_TITLE);
+    await waitFor(() => assert.equal(document.getElementById("site-hostname")?.textContent, "app.lychee.land"), TIMEOUT);
+    assert.equal(document.title, "app.lychee.land");
+    // Before /api/rail answers there is no row to mark.
+    assert.ok(!document.querySelector('#rail [data-site="app.lychee.land"]'));
+    release();
+    await waitFor(
+      () => assert.equal(document.querySelector('#rail a[data-site="app.lychee.land"]')?.getAttribute("aria-current"), "page"),
+      TIMEOUT,
+    );
+    assert.deepEqual(marked(), ["/sites/app.lychee.land"]);
+  });
+
+  test("at an unknown host the title is Site not found and the not-found body shows", async () => {
+    load("/sites/nope.lychee.land");
+    await waitFor(() => assert.equal(document.querySelector("main h2")?.textContent, "Site not found"), TIMEOUT);
+    assert.equal(document.title, "Site not found");
+    assert.match(document.querySelector("main")?.textContent ?? "", /Back to sites/);
+    await waitFor(() => assert.ok(document.querySelector('#rail [data-site="app.lychee.land"]')), TIMEOUT);
+    assert.deepEqual(marked(), []);
   });
 });
 
@@ -499,7 +548,7 @@ describe("scroll restoration", () => {
     assert.equal(window.scrollY, 0);
   });
 
-  test("a server page neither restores the shared position nor takes scrolling over from the browser", async () => {
+  test("a URL no route matches neither restores the shared position nor takes scrolling over from the browser", async () => {
     stale();
     const ys = recordScrolls();
     load(SERVER_PAGE);
@@ -588,6 +637,31 @@ describe("the narrow-screen drawer", () => {
     await waitFor(() => assert.ok(!dialog()), TIMEOUT);
     await waitFor(() => assert.ok(document.activeElement === row("swee"), focused()), TIMEOUT);
     assert.equal(row("swee")?.getAttribute("tabindex"), "-1");
+  });
+
+  test("⌘K from the page focuses #find on a wide screen, and opens the drawer on a narrow one", async () => {
+    const pressK = (target: Element) =>
+      act(() => {
+        target.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true, cancelable: true }));
+      });
+    load("/services");
+    await railLive();
+    await waitFor(() => assert.ok(row("swee")), TIMEOUT);
+    pressK(document.body);
+    assert.ok(document.activeElement === document.querySelector("#rail #find"), focused());
+    assert.ok(!dialog());
+    act(() => app?.unmount());
+    app = null;
+    client?.clear();
+
+    happyDOM.setViewport({ width: 600 });
+    load("/services");
+    await railLive();
+    await waitFor(() => assert.ok(row("swee")), TIMEOUT);
+    pressK(document.body);
+    await waitFor(() => assert.ok(dialog()?.open), TIMEOUT);
+    await waitFor(() => assert.ok(document.activeElement === dialog()?.querySelector("#find"), focused()), TIMEOUT);
+    assert.equal(document.querySelectorAll("#find").length, 1);
   });
 
   test("Escape still closes it and returns focus to its opener", async () => {

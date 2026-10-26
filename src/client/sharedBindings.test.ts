@@ -107,9 +107,11 @@ describe("copy buttons", () => {
 });
 
 describe("closes", () => {
-  test("#page-notice-close removes #page-notice", () => {
+  // The page notice is React's (PageNotice, with its own close; AppFrame.test.tsx's
+  // "its close removes it"): the document-level binding must never remove a node React owns.
+  test("#page-notice-close is left to React: the binding does not remove #page-notice", () => {
     document.getElementById("page-notice-close")!.click();
-    assert.ok(!document.getElementById("page-notice"));
+    assert.ok(document.getElementById("page-notice"));
   });
 
   test("#flash-banner-close hides the toast", () => {

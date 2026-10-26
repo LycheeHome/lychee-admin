@@ -1,7 +1,7 @@
 // What the ⌘K find panel lists, as data. Pure: no DOM, no React.
 import type { ServiceGroup } from "../shared/board";
 import type { HealthPayload, Tone, UnitHealth } from "../shared/health";
-import type { RailData } from "../views/shell";
+import type { RailData } from "../shared/rail";
 
 export type FindItem =
   | {

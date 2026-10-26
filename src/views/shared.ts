@@ -1,14 +1,6 @@
 import type { StatusTone } from "../lib/siteDisplay";
 import { parseTimestamp } from "../lib/unitState";
 
-export function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 export const BUTTON_PRIMARY =
   "font-sans font-semibold text-sm bg-rose-400 text-stone-900 border-none rounded-md min-h-10 px-4 py-2.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-rose-300 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-rose-400/40 disabled:hover:bg-rose-400/40 aria-disabled:cursor-not-allowed aria-disabled:text-stone-500 aria-disabled:bg-rose-400/40 aria-disabled:hover:bg-rose-400/40";
 /**
@@ -58,6 +50,24 @@ export const STATUS_PILL_BASE =
 export const FOCUS_RING =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
 export const DETAIL_WIDTH = "max-w-[760px] mx-auto w-full";
+
+// The page frame's class strings (AppFrame.tsx), the retired server shell's
+// exactly, which the frozen shell fixtures pin.
+
+/** The content column beside the rail, and the 1080px <main> inside it. */
+export const SHELL_COLUMN = "min-w-0 px-6 pb-16";
+export const SHELL_MAIN = "max-w-[1080px] mx-auto py-8 pb-8 flex flex-col gap-6";
+
+/** The × that dismisses the toast or the page notice. */
+export const DISMISS_BUTTON =
+  `shrink-0 text-stone-400 hover:text-stone-50 bg-transparent border-none cursor-pointer text-base leading-none ${FOCUS_RING}`;
+
+/** The flash toast's box, without its tone (showToast() supplies that) or its initial `hidden`. */
+export const FLASH_BANNER =
+  "fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[min(480px,calc(100vw-2rem))] font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 border shadow-lg shadow-black/40 flex items-center justify-between gap-3";
+
+/** The in-flow page notice (`?created=1`, `?removed=`), lined up with the cards beneath it. */
+export const PAGE_NOTICE = `${DETAIL_WIDTH} bg-rose-950/60 border border-rose-400/70 font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 flex items-start justify-between gap-3`;
 /**
  * The page frame — the same 1080px the shell's <main> already uses, in the
  * content column beside the rail. A page takes this when it has two kinds of content that belong
@@ -162,10 +172,6 @@ export const ICONS = {
   search: `<circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />`,
   layoutGrid: `<rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" /><rect width="7" height="7" x="14" y="14" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" />`,
 };
-
-export function icon(name: keyof typeof ICONS): string {
-  return `<svg class="${ICON_CLASS}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
-}
 
 /**
  * A bad-tone status word as a predicate, so a unit and a container read alike

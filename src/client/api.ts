@@ -2,6 +2,7 @@ import type { ApiError, ApiOk, BoardPayload, ServiceGroup } from "../shared/boar
 import type { SitesPayload } from "../shared/sites";
 import type { SiteDetailPayload } from "../shared/siteDetail";
 import type { AddSitePayload } from "../shared/addSite";
+import type { RailPayload } from "../shared/rail";
 
 /** The prefix every board query shares: a write invalidates by it, so no group's board is left stale. */
 export const BOARD_QUERY_ROOT = ["board"] as const;
@@ -23,6 +24,9 @@ export function siteDetailQueryKey(hostname: string) {
 export function sitesQueryKey() {
   return ["sites"] as const;
 }
+
+/** The one key the rail's rows are read under; every write invalidates it with health. */
+export const RAIL_QUERY_KEY = ["rail"] as const;
 
 /** The one key the add page's facts are read under. */
 export function addSiteQueryKey() {
@@ -103,6 +107,16 @@ export async function fetchAddSite(refresh: boolean): Promise<AddSitePayload> {
     steps: body.steps,
     caddyfileError: body.caddyfileError,
   };
+}
+
+/**
+ * GET /api/rail: the rail's rows, with no status check. An unreadable
+ * Caddyfile is `sites: null` and an unreadable inventory `hostAvailable:
+ * false`, never a throw; a throw is the read itself failing.
+ */
+export async function fetchRail(): Promise<RailPayload> {
+  const body = await getApi<RailPayload>("/api/rail");
+  return { sites: body.sites, hostAvailable: body.hostAvailable, domain: body.domain };
 }
 
 /**

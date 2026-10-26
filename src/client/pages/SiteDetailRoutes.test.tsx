@@ -6,18 +6,18 @@ import { QueryClient } from "@tanstack/react-query";
 import type { BoardPayload, BoardRow, ServiceGroup } from "../../shared/board";
 import type { SiteDetailPayload } from "../../shared/siteDetail";
 import type { SitesPayload } from "../../shared/sites";
-import { seedSiteDetailPayload, testShell } from "../../dev/testHelpers";
-import { renderClientPage, type ClientPage } from "../../views/clientShell";
-import { layout } from "../../views/shell";
+import { SEEDED_RAIL_SITES, seedSiteDetailPayload } from "../../dev/testHelpers";
 import { RAIL_DOT } from "../../views/railModel";
+import { addedNotice } from "../../views/siteDetailModel";
 import { seedHealth } from "../test/healthFixture";
+import { loadStaticDocument, railPayload } from "../test/staticDocument";
 import { siteDetailQueryKey } from "../api";
 import { siteOf } from "../clientNav";
 import { isClientRoute, mountApp } from "../router";
 
 /*
  * /sites/:hostname as a client route, on router.test.tsx's harness: the
- * server's shell for a URL, then the one root mounted over it, with fetch
+ * static document at a URL, then the one root mounted on it, with fetch
  * answering the APIs from the dev seed.
  */
 
@@ -101,6 +101,7 @@ function stubFetch(): void {
     const url = String(input);
     fetched.push(url);
     if (url === "/api/health") return json(200, { ok: true, ...seedHealth() });
+    if (url === "/api/rail") return json(200, { ok: true, ...railPayload(SEEDED_RAIL_SITES.map((s) => ({ ...s }))) });
     if (url === "/api/sites") return json(200, { ok: true, ...SITES });
     if (url.startsWith("/api/sites/")) {
       const host = decodeURIComponent(url.slice("/api/sites/".length).split("?")[0] ?? "");
@@ -112,32 +113,18 @@ function stubFetch(): void {
   }) as typeof fetch;
 }
 
-const PAGE: Record<string, Exclude<ClientPage, "site" | "add-site">> = { "/": "sites", "/services": "services" };
-const TITLE: Record<string, string> = { "/": "Sites", "/services": "Services" };
-
 /**
- * The document the server sends for `path`, then the root mounted over it.
- * A site page's shell marks no rail row here, so a marked row is the client's.
+ * The static document at `url`, then the root mounted on it. Every rail row
+ * and notice is the client's; any notice is read off the URL.
  */
-function load(url: string, banner?: string): void {
+function load(url: string): void {
   stubFetch();
   assigned = [];
   Object.defineProperty(window.location, "assign", { configurable: true, value: (href: string) => void assigned.push(href) });
   happyDOM.setURL(`http://localhost${url}`);
-  const path = url.split(/[?#]/)[0] ?? url;
-  const notice = banner === undefined ? undefined : { message: banner };
-  const shell = testShell({ current: PAGE[path] ? { page: PAGE[path] } : null });
-  const isSite = siteOf(path) !== null;
-  const html = PAGE[path]
-    ? renderClientPage(TITLE[path], PAGE[path], shell, notice)
-    : isSite
-      ? renderClientPage(path.slice(7), "site", shell, notice)
-      : layout("A server page", '<p id="server-body">a server page</p>', { shell, banner: notice });
-  document.title = html.match(/<title>([^<]*)<\/title>/)?.[1] ?? "";
-  document.body.innerHTML = html
-    .replace(/^[\s\S]*<body[^>]*>/, "")
-    .replace(/<\/body>[\s\S]*$/, "")
-    .replace(/<script\b[^>]*\bsrc=[^>]*><\/script>/g, "");
+  loadStaticDocument();
+  // No `queries.gcTime: 0`: a route loader primes its page's query before the
+  // page observes it, which a zero gcTime would collect in between.
   client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { gcTime: 0 } } });
   act(() => {
     app = mountApp(client as QueryClient);
@@ -204,7 +191,7 @@ describe("the site page route", () => {
   test("list → site loads no document; title, row and focus follow; the arrival reads with ?refresh=1", async () => {
     load("/");
     await railLive();
-    const row = await waitFor(() => document.querySelector('#app-root a[href="/sites/app.lychee.land"]') ?? assert.fail("no row"), TIMEOUT);
+    const row = await waitFor(() => document.querySelector('main a[href="/sites/app.lychee.land"]') ?? assert.fail("no row"), TIMEOUT);
     assert.equal(clickCancelled(row), true, "the click was left to the browser");
     await showing("app");
     assert.equal(window.location.pathname, "/sites/app.lychee.land");
@@ -248,7 +235,7 @@ describe("the site page route", () => {
     load("/services");
     await railLive();
     const link = await waitFor(
-      () => document.querySelector('#app-root a[href="/sites/app.lychee.land"]') ?? assert.fail("no site link"),
+      () => document.querySelector('main a[href="/sites/app.lychee.land"]') ?? assert.fail("no site link"),
       TIMEOUT,
     );
     assert.equal(clickCancelled(link), true, "the click was left to the browser");
@@ -274,13 +261,11 @@ describe("the site page route", () => {
     assert.deepEqual(assigned, []);
   });
 
-  // No server page is left (the add page is a client route since
-  // AddSiteRoutes.test.tsx); a URL no route matches stands in for one, since
-  // the rule that keeps a server page's body on screen is still the router's.
-  test("from a server page a site is a document load", async () => {
+  // No server page is left; a URL no route matches stands in for one, since
+  // the rule for leaving the client routes is still the router's.
+  test("from a URL no route matches a site is a document load", async () => {
     load("/elsewhere");
     await railLive();
-    assert.ok(document.getElementById("server-body"), "the server page's body was replaced");
     assert.ok(!fetched.some((u) => u.startsWith("/api/sites/")));
     assert.equal(clickCancelled(railLink("/sites/app.lychee.land") as HTMLAnchorElement), false);
   });
@@ -303,7 +288,7 @@ describe("the site page route", () => {
 
   test("an unknown site shows the not-found body, titled Site not found, with no row current", async () => {
     load("/sites/nope.lychee.land");
-    await waitFor(() => assert.equal(document.querySelector("#app-root h2")?.textContent, "Site not found"), TIMEOUT);
+    await waitFor(() => assert.equal(document.querySelector("main h2")?.textContent, "Site not found"), TIMEOUT);
     assert.equal(document.title, "Site not found");
     assert.deepEqual(marked(), []);
   });
@@ -320,8 +305,10 @@ describe("the site page route", () => {
   }
 
   test("Review Focus 5: ?created=1 leaves the URL, the notice stays until the first move away and does not come back", async () => {
-    const NOTICE = "Added app.lychee.land.";
-    load("/sites/app.lychee.land?created=1&x=1#hop", NOTICE);
+    const site = details.get("app.lychee.land")?.site;
+    assert.ok(site);
+    const NOTICE = addedNotice(site);
+    load("/sites/app.lychee.land?created=1&x=1#hop");
     assert.equal(window.location.search, "?x=1");
     assert.equal(window.location.hash, "#hop");
     await railLive();
@@ -351,10 +338,10 @@ describe("the site page route", () => {
       load("/sites/app.lychee.land");
       await railLive();
       await showing("app");
-      const crumb = document.querySelector('#app-root nav[aria-label="Breadcrumb"] a[href="/"]');
+      const crumb = document.querySelector('main nav[aria-label="Breadcrumb"] a[href="/"]');
       assert.ok(crumb, "no breadcrumb link");
       assert.equal(clickCancelled(crumb), true, "the click was left to the browser");
-      await waitFor(() => assert.ok(document.querySelector('#app-root a[href="/sites/blog.lychee.land"]')), TIMEOUT);
+      await waitFor(() => assert.ok(document.querySelector('main a[href="/sites/blog.lychee.land"]')), TIMEOUT);
       assert.equal(window.location.pathname, "/");
       assert.equal(document.title, "Sites");
       assert.deepEqual(marked(), ["/"]);
@@ -371,7 +358,7 @@ describe("the site page route", () => {
       load("/sites/app.lychee.land");
       await railLive();
       await showing("app");
-      const link = document.querySelector(`#app-root a[href="/services#service-${name}"]`);
+      const link = document.querySelector(`main a[href="/services#service-${name}"]`);
       assert.ok(link, "no resource link");
       assert.equal(clickCancelled(link), true, "the click was left to the browser");
       await waitFor(() => assert.ok(document.getElementById(`service-${name}`)), TIMEOUT);
@@ -387,12 +374,12 @@ describe("the site page route", () => {
       load("/sites/nope.lychee.land");
       await railLive();
       const back = await waitFor(
-        () => document.querySelector('#app-root a[href="/"]') ?? assert.fail("no back link"),
+        () => document.querySelector('main a[href="/"]') ?? assert.fail("no back link"),
         TIMEOUT,
       );
       assert.equal(back.textContent, "← Back to sites");
       assert.equal(clickCancelled(back), true, "the click was left to the browser");
-      await waitFor(() => assert.ok(document.querySelector('#app-root a[href="/sites/blog.lychee.land"]')), TIMEOUT);
+      await waitFor(() => assert.ok(document.querySelector('main a[href="/sites/blog.lychee.land"]')), TIMEOUT);
       assert.equal(document.title, "Sites");
       assert.deepEqual(assigned, []);
     });
@@ -403,13 +390,13 @@ describe("the site page route", () => {
         load("/sites/err.lychee.land");
         await railLive();
         const back = await waitFor(
-          () => document.querySelector('#app-root a[href="/"]') ?? assert.fail("no back link"),
+          () => document.querySelector('main a[href="/"]') ?? assert.fail("no back link"),
           TIMEOUT,
         );
-        assert.ok(document.getElementById("app-root")?.textContent?.includes("cannot read"));
+        assert.ok(document.querySelector("main")?.textContent?.includes("cannot read"));
         assert.equal(back.textContent, "← sites");
         assert.equal(clickCancelled(back), true, "the click was left to the browser");
-        await waitFor(() => assert.ok(document.querySelector('#app-root a[href="/sites/blog.lychee.land"]')), TIMEOUT);
+        await waitFor(() => assert.ok(document.querySelector('main a[href="/sites/blog.lychee.land"]')), TIMEOUT);
         assert.equal(document.title, "Sites");
         assert.deepEqual(assigned, []);
       } finally {
@@ -419,7 +406,7 @@ describe("the site page route", () => {
   });
 
   test("a hash-only move on the site page keeps its notice", async () => {
-    load("/sites/app.lychee.land?created=1", "Added app.lychee.land.");
+    load("/sites/app.lychee.land?created=1");
     await railLive();
     await showing("app");
     act(() => {

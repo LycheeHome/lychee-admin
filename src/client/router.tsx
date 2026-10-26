@@ -1,5 +1,4 @@
-import { StrictMode, useLayoutEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
+import { StrictMode, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
 import {
@@ -14,7 +13,7 @@ import {
 } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import { ADD_SITE_ROUTE, BOARD_ROUTES, ClientNavContext, SITE_ROUTE, SITES_ROUTE, isClientRoute, type ClientNav } from "./clientNav";
-import { RailPortal } from "./RailIsland";
+import { AppFrame, readInitialNotice, type InitialNotice } from "./AppFrame";
 import { addSiteQueryKey, fetchAddSite, fetchSiteDetail, siteDetailQueryKey } from "./api";
 import { AddSitePage } from "./pages/AddSitePage";
 import { BoardPage, boardQuery } from "./pages/BoardPage";
@@ -25,46 +24,36 @@ import { installSharedBindings } from "./sharedBindings";
 export { BOARD_ROUTES, isClientRoute } from "./clientNav";
 
 /*
- * The client's one React root and its router. Every page mounts it on the
- * empty `#react-root` the shell emits; it renders the rail into the server's
- * aside through a portal on every page, and the page content into
- * `#app-root` where the server put one: the sites list, the three board
- * pages, the add page and a site's page, which is every page the server
- * serves. On any other URL the route renders nothing and the rail's links
- * stay plain anchors, so a server page beneath would never be replaced.
+ * The client's one React root and its router. Every client route is served
+ * the same static document, whose body is only `#react-root`; the root
+ * renders AppFrame into it (the top bar, the rail, and <main> with the toast
+ * host, the copy-status region and the page notice) around the routed page:
+ * the sites list, the three board pages, the add page and a site's page. On
+ * any other URL the route renders nothing inside the frame and the rail's
+ * links stay plain anchors.
  */
 
 const Nothing = () => null;
 
-/** The layout every route shares: the rail, the page, and scroll restoration for back and forward. */
-function AppLayout({ scrollKey }: { scrollKey: (location: Location) => string }) {
+/** The layout every route shares: the frame around the page, and scroll restoration for back and forward. */
+function AppLayout({ scrollKey, notice }: { scrollKey: (location: Location) => string; notice: InitialNotice }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [appRoot] = useState(() => document.getElementById("app-root"));
   // Once the router has moved, it is never the document's first location
   // again, even back on that entry: from then on the router owns scrolling.
   const [firstKey] = useState(location.key);
-  const [firstPath] = useState(location.pathname);
   const [moved, setMoved] = useState(false);
   if (!moved && location.key !== firstKey) setMoved(true);
   const documentLoad = !moved && location.key === firstKey;
-  // The server's #page-notice (`?removed` on the list, `?created=1` on a
-  // site's page) belongs to the document it was rendered for: the first
-  // in-app move away from that page removes it, so neither the next page nor
-  // a move back shows it again. A move that stays on the page (a hash, its
-  // own rail link) keeps it. A server page's notice is never touched, because
-  // nothing moves in-app from a server page.
-  useLayoutEffect(() => {
-    if (moved && location.pathname !== firstPath) document.getElementById("page-notice")?.remove();
-  }, [moved, location.pathname, firstPath]);
   const nav = useMemo<ClientNav>(
     () => ({ pathname: location.pathname, locationKey: location.key, navigate: (href) => void navigate(href), documentLoad }),
     [location.pathname, location.key, navigate, documentLoad],
   );
   return (
     <ClientNavContext.Provider value={nav}>
-      <RailPortal />
-      {appRoot ? createPortal(<Outlet />, appRoot) : null}
+      <AppFrame notice={notice}>
+        <Outlet />
+      </AppFrame>
       {isClientRoute(location.pathname) ? <ScrollRestoration getKey={scrollKey} /> : null}
     </ClientNavContext.Provider>
   );
@@ -74,7 +63,7 @@ function AppLayout({ scrollKey }: { scrollKey: (location: Location) => string })
  * Scroll restoration is for the entries the router pushes between client
  * routes, and nothing else.
  *
- * - On a server page it is not rendered at all: rendered, it would switch the
+ * - On a URL no route matches it is not rendered at all: rendered, it would switch the
  *   browser's own per-entry restoration off (`history.scrollRestoration =
  *   "manual"`) and save every unload under one shared key.
  * - Every entry the router did not push (a fresh document load, a reload of
@@ -97,12 +86,15 @@ function documentScrollKey(): (location: Location) => string {
  * cached board at once (then refreshes it), and the rows exist by the time the
  * router scrolls to a `#service-` hash. A failed read is not the loader's to
  * report: the page shows it, above the last good board or alone.
+ *
+ * `notice` is what the document load's URL asked for (readInitialNotice),
+ * read before stripNoticeParams dropped it; AppFrame shows it.
  */
-export function appRoutes(client: QueryClient): RouteObject[] {
+export function appRoutes(client: QueryClient, notice: InitialNotice = null): RouteObject[] {
   return [
     {
       // One scroll key per router, which is one per document.
-      element: <AppLayout scrollKey={documentScrollKey()} />,
+      element: <AppLayout scrollKey={documentScrollKey()} notice={notice} />,
       children: [
         ...Object.entries(BOARD_ROUTES).map(([path, group]): RouteObject => ({
           path,
@@ -168,16 +160,16 @@ export function appRoutes(client: QueryClient): RouteObject[] {
   ];
 }
 
-export function createAppRouter(client: QueryClient): DataRouter {
-  return createBrowserRouter(appRoutes(client));
+export function createAppRouter(client: QueryClient, notice: InitialNotice = null): DataRouter {
+  return createBrowserRouter(appRoutes(client, notice));
 }
 
-/** The parameters that ask the server for a #page-notice. */
+/** The parameters that ask for a #page-notice. */
 const NOTICE_PARAMS = ["removed", "created"];
 
 /**
  * Drops `removed` and `created` from the URL, so a reload does not repeat the
- * notice the server rendered for them. Every other parameter is kept as
+ * notice they asked for. Every other parameter is kept as
  * written, and so are the hash and the history entry's state (the router's
  * key, on a back to this entry).
  */
@@ -193,17 +185,20 @@ export function stripNoticeParams(win: Window): void {
 }
 
 /**
- * Mounts the one root on `#react-root`. Null, mounting nothing, where the
- * shell has no mount point. `unmount` also disposes the router, which listens
- * to the window's history.
+ * Mounts the one root on `#react-root`, the static document's only content.
+ * Null, mounting nothing, where there is no mount point. `unmount` also
+ * disposes the router, which listens to the window's history.
  */
 export function mountApp(client: QueryClient, doc: Document = document): { router: DataRouter; unmount: () => void } | null {
   const el = doc.getElementById("react-root");
   if (!el) return null;
-  // Before the router reads the URL, so it starts on the clean one.
-  stripNoticeParams(doc.defaultView ?? window);
+  const win = doc.defaultView ?? window;
+  // The notice first, off the URL as it arrived; then the URL is cleaned,
+  // before the router reads it, so the router starts on the clean one.
+  const notice = readInitialNotice(win);
+  stripNoticeParams(win);
   const uninstallBindings = installSharedBindings(doc);
-  const router = createAppRouter(client);
+  const router = createAppRouter(client, notice);
   const root = createRoot(el);
   root.render(
     <StrictMode>

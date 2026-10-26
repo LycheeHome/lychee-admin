@@ -19,10 +19,8 @@ import {
   type SiteEnv,
 } from "../lib/siteValidation";
 import { buildSitePreview } from "../lib/sitePreview";
-import { addedNotice, type SiteResourceView } from "../views/siteDetailModel";
-import { loadShell } from "./loadShell";
-import { renderClientPage } from "../views/clientShell";
-import { ADD_SITE_TITLE, SITES_HEADING_TEXT as SITES_TITLE } from "../views/siteListModel";
+import type { SiteResourceView } from "../views/siteDetailModel";
+import { sendClientDocument } from "./clientDocument";
 import { clearBoardCache } from "./services";
 import { cachedRead, evictRead } from "./readCache";
 import { hostProblems, hostProblemUnits, undeployedStatus, type SiteStatus } from "../lib/siteDisplay";
@@ -324,20 +322,12 @@ export function createSitesRouter(deps: Deps): Router {
   const { backupFile } = deps.backup;
   const { logAction } = deps.logger;
 
-  // The list is the client's: the shared shell around its mount point,
-  // titled as the client titles it after an in-app navigation, with the data
-  // from /api/sites. The `?removed` notice is still the server's: a fact
-  // about a removal that already completed, rendered as #page-notice above
-  // the mount point whatever the Caddyfile says on this request.
-  sitesRouter.get("/", (req, res) => {
-    const removed = typeof req.query.removed === "string" ? req.query.removed : undefined;
-    const banner = removed
-      ? { message: `Removed ${removed}. Remember to remove the DNS record in Cloudflare manually.` }
-      : undefined;
-    // One read of the bundle, checked here and emitted by layout() from the same shell.
-    const shell = loadShell(deps, { page: "sites" });
-    if (!shell.assets) return res.status(500).type("text/plain").send("client bundle missing; run npm run build");
-    return res.type("html").send(renderClientPage(SITES_TITLE, "sites", shell, banner));
+  // The list is the client's, and so is everything around it: the static
+  // document, whose React frame reads the rail from /api/rail, the list from
+  // /api/sites and the `?removed` notice off the URL. Always 200: an
+  // unreadable Caddyfile is the page's to show.
+  sitesRouter.get("/", (_req, res) => {
+    sendClientDocument(res, deps);
   });
 
   // The sites list's data for the client. Always 200: an unreadable Caddyfile
@@ -431,49 +421,32 @@ export function createSitesRouter(deps: Deps): Router {
     }
   });
 
-  // The add page is the client's: the shared shell around its mount point,
-  // titled as the client titles it, with the data from /api/sites/new (whose
-  // ?refresh=1 arrival read, sent by the route loader, does the clone pull
-  // this GET used to). No rail row is marked: the page's breadcrumb carries
-  // its location. An unreadable Caddyfile is the page's to show, from the
+  // The add page is the client's: the static document, with the data from
+  // /api/sites/new (whose ?refresh=1 arrival read, sent by the route loader,
+  // pulls the clone). An unreadable Caddyfile is the page's to show, from the
   // API's caddyfileError, so this answers 200 whatever the Caddyfile says.
   //
   // Registered above /sites/:hostname deliberately: Express matches in
   // registration order, so if this were below, "new" would be captured as
-  // :hostname and answer the not-found page.
+  // :hostname and could answer 404.
   sitesRouter.get("/sites/new", (_req, res) => {
-    // One read of the bundle, checked here and emitted by layout() from the same shell.
-    const shell = loadShell(deps, null);
-    if (!shell.assets) return res.status(500).type("text/plain").send("client bundle missing; run npm run build");
-    return res.type("html").send(renderClientPage(ADD_SITE_TITLE, "add-site", shell));
+    sendClientDocument(res, deps);
   });
 
-  // A site's page is the client's: the shared shell around its mount point,
-  // with the data from /api/sites/:hostname (whose ?refresh=1 arrival read,
-  // sent by the route loader, does the clone pull this GET used to). The
-  // server still decides the status, the title and the rail's current row,
-  // and draws the `?created=1` notice, so a direct load is right before the
-  // bundle runs. An unreadable Caddyfile is the page's to show, from the
-  // API's caddyfileError, as on the list: 200, nothing marked (marking a row
-  // would claim a site the server could not find), no notice.
+  // A site's page is the client's: the static document, with the data from
+  // /api/sites/:hostname (whose ?refresh=1 arrival read, sent by the route
+  // loader, pulls the clone). The server decides only the status: 404 when
+  // the Caddyfile is readable and has no such managed site. An unreadable
+  // Caddyfile is the page's to show, from the API's caddyfileError: 200.
   sitesRouter.get("/sites/:hostname", (req, res) => {
     const hostname = req.params.hostname.toLowerCase();
-    const created = req.query.created === "1";
-    let site: Site | undefined;
-    let readable = true;
+    let missing = false;
     try {
-      site = findManagedSite(deps, hostname);
+      missing = findManagedSite(deps, hostname) === undefined;
     } catch {
-      readable = false;
+      // Unreadable: the page says so, with 200.
     }
-    // One read of the bundle, checked here and emitted by layout() from the same shell.
-    const shell = loadShell(deps, site ? { site: site.hostname } : null);
-    if (!shell.assets) return res.status(500).type("text/plain").send("client bundle missing; run npm run build");
-    if (readable && !site) {
-      return res.status(404).type("html").send(renderClientPage("Site not found", "site", shell));
-    }
-    const banner = site && created ? { message: addedNotice(site) } : undefined;
-    return res.type("html").send(renderClientPage(hostname, "site", shell, banner));
+    sendClientDocument(res, deps, missing ? 404 : 200);
   });
 
   sitesRouter.post("/sites", async (req, res) => {

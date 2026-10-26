@@ -8,7 +8,7 @@ import type { Deps } from "../deps";
 import { createBackup } from "../lib/backup";
 import { createLogger } from "../lib/logger";
 import { type ClientConfig, startClientSockets } from "../lib/clients";
-import { readClientManifest } from "../views/clientShell";
+import { readClientDocument } from "../routes/clientDocument";
 import { createFakes } from "./fakes";
 import { applySeed, SEEDED_DECLARATIONS } from "./seed";
 
@@ -21,11 +21,12 @@ const deps: Deps = {
   backup: createBackup(fs),
   logger: createLogger(fs),
   // Re-read on every use, unlike production's once-at-startup read: `vite
-  // build --watch` replaces the hashed bundle (and empties public/client) on
-  // each client edit, and on a fresh start it finishes after this server is
-  // listening. A cached read would keep serving a deleted script, or a 500.
-  get clientAssets() {
-    return readClientManifest(path.join(__dirname, "..", "..", "public"));
+  // build --watch` rewrites index.html with new hashed tags (and empties
+  // public/client) on each client edit, and on a fresh start it finishes
+  // after this server is listening. A cached read would keep serving a
+  // deleted script, or a 500.
+  get clientDocument() {
+    return readClientDocument(path.join(__dirname, "..", "..", "public"));
   },
 };
 

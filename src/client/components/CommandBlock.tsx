@@ -40,7 +40,7 @@ const ICON_PATHS = {
 
 export type IconName = keyof typeof ICON_PATHS;
 
-/** shared.ts's icon(): one text line's height, hidden from assistive tech. */
+/** An icon from shared.ts's path data: one text line's height, hidden from assistive tech. */
 export function Icon({ name }: { name: IconName }) {
   return (
     <svg
