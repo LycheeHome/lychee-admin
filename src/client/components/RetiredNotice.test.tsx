@@ -21,7 +21,8 @@ async function page(hostname: string): Promise<HTMLElement> {
 }
 
 const NOTICE = "gone-lychee-land.yml is retired (state: absent). Attaching a repository is refused until it is pruned.";
-const WARNING = "Attaching is refused while gone-lychee-land.yml is retired. Prune it above; pressing Attach checks again.";
+const RETIRED_CARD =
+  "While gone-lychee-land.yml is retired, there is nothing to set up here. Prune it above, then attach a repository again; the setup steps come back once it's pruned.";
 
 const notice = (root: HTMLElement) => root.querySelector<HTMLElement>('section[aria-labelledby="retired-notice-heading"]');
 
@@ -65,13 +66,26 @@ describe("the retired notice", () => {
     assert.ok(visit?.getAttribute("class")?.startsWith(BUTTON_SECONDARY));
   });
 
-  test("step 3 keeps a shortened warning for Attach, and no Prune of its own", async () => {
+  // Critique 2026-10-26 P2, variant 02: while retired, the repository card
+  // is one sentence, not a 2,200px runbook whose Attach is refused anyway.
+  test("the repository card is one sentence while retired: no runbook, no Attach", async () => {
     const root = await page("gone.lychee.land");
-    const warning = root.querySelector("#attach-warning");
-    assert.equal(warning?.textContent, WARNING);
-    const attach = root.querySelector<HTMLButtonElement>("form[data-attach] button[type=submit]");
-    assert.match(attach?.getAttribute("aria-describedby") ?? "", /\battach-warning\b/);
-    assert.ok(!root.querySelector("form[data-attach] [data-prune]"));
+    const card = Array.from(root.querySelectorAll("section")).find((s) => s.querySelector("h3")?.textContent === "From a repository");
+    assert.ok(card, "no repository card");
+    const sentence = card.querySelector<HTMLElement>("[data-retired-card]");
+    assert.equal(sentence?.textContent, RETIRED_CARD);
+    assert.deepEqual(Array.from(sentence!.querySelectorAll("span")).map((s) => s.textContent), ["gone-lychee-land.yml"]);
+    assert.ok(!card.querySelector("form[data-attach]"), "Attach is offered while retired");
+    assert.ok(!card.querySelector("#attach-warning"));
+    assert.ok(!card.querySelector("details, pre"), "the runbook is still here");
+    // The build and run rows stay: facts about the image, not setup.
+    assert.match(card.textContent ?? "", /npm run build/);
+  });
+
+  test("an unretired Next.js site keeps its runbook and Attach", async () => {
+    const root = await page("legacy.lychee.land");
+    assert.ok(root.querySelector("form[data-attach]"));
+    assert.ok(!root.querySelector("[data-retired-card]"));
   });
 
   // Heading navigation reaches the page's primary action: the notice joins the

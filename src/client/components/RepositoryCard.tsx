@@ -303,18 +303,8 @@ function FormError({ id, error }: { id: string; error: string | null }) {
   );
 }
 
-/** html.ts's attachForm, with the retired declaration's warning and Prune as the Primary when detached. */
-function AttachForm({
-  hostname,
-  resourceName,
-  detached,
-  writes,
-}: {
-  hostname: string;
-  resourceName: string;
-  detached: boolean;
-  writes?: SiteWrites;
-}) {
+/** html.ts's attachForm. A retired site never shows it: its card is one sentence (RepositoryCard). */
+function AttachForm({ hostname, resourceName, writes }: { hostname: string; resourceName: string; writes?: SiteWrites }) {
   const { inputRef, onSubmit, error } = useRepoForm(writes?.attach, writes?.attaching ?? false, writes?.attachError);
   return (
     <form className="flex flex-col gap-1.5" data-attach={hostname} noValidate onSubmit={onSubmit}>
@@ -322,13 +312,8 @@ function AttachForm({
         Repository in LycheeHome
       </label>
       <div className="flex flex-wrap items-center gap-2.5">
-        <RepoField id="attach" value="" extraDescribedBy={detached ? "attach-warning" : ""} inputRef={inputRef} />
-        <button
-          type="submit"
-          className={detached ? BUTTON_SECONDARY : BUTTON_PRIMARY}
-          aria-describedby={detached ? "attach-warning" : undefined}
-          disabled={writes?.attaching || undefined}
-        >
+        <RepoField id="attach" value="" extraDescribedBy="" inputRef={inputRef} />
+        <button type="submit" className={BUTTON_PRIMARY} disabled={writes?.attaching || undefined}>
           Attach repository
         </button>
       </div>
@@ -339,19 +324,6 @@ function AttachForm({
         {" to "}
         <span className={CAPTION_KEEP}>lychee-resources</span>, with no tag until the first deploy.
       </p>
-      {detached ? (
-        // Prune lives in the page's retired notice, above (RetiredNotice);
-        // this stays as the reason Attach's aria-describedby points to.
-        <p id="attach-warning" className={`${BODY} text-stone-300`}>
-          <Runs
-            runs={[
-              "Attaching is refused while ",
-              { mono: `${resourceName}.yml` },
-              " is retired. Prune it above; pressing Attach checks again.",
-            ]}
-          />
-        </p>
-      ) : null}
       <FormError id="attach-error" error={error} />
     </form>
   );
@@ -585,6 +557,27 @@ export function RepositoryCard({ payload, writes, headingRef }: RepositoryCardPr
     );
   }
 
+  // Retired (state: absent, not yet pruned): Attach is refused until the prune
+  // the notice above offers, so the runbook would be 2,200px of setup nobody
+  // can act on. One sentence says so; the runbook returns after the prune.
+  if (payload.detached) {
+    return (
+      <section className={CARD}>
+        <Heading headingRef={headingRef} />
+        <p className={`${BODY} mb-3`} data-retired-card="">
+          <Runs
+            runs={[
+              "While ",
+              { mono: `${resourceName}.yml` },
+              " is retired, there is nothing to set up here. Prune it above, then attach a repository again; the setup steps come back once it's pruned.",
+            ]}
+          />
+        </p>
+        <Baked scaffold={scaffold} />
+      </section>
+    );
+  }
+
   const [one, two, three, four] = runbookSteps(site, payload);
   const files = payload.scaffoldFiles ?? [];
   const scaffoldNames = files.map((f) => f.name.split("/").pop()).join(", ");
@@ -638,12 +631,7 @@ export function RepositoryCard({ payload, writes, headingRef }: RepositoryCardPr
               ) : null}
             </>
           ) : (
-            <AttachForm
-              hostname={site.hostname}
-              resourceName={resourceName}
-              detached={payload.detached === true}
-              writes={writes}
-            />
+            <AttachForm hostname={site.hostname} resourceName={resourceName} writes={writes} />
           )}
         </RunbookStep>
         <RunbookStep step={four} title={["Deploy"]}>

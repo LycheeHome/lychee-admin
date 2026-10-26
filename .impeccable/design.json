@@ -413,12 +413,12 @@
       "css": ".ds-step { display: flex; gap: 12px; margin-bottom: 20px; } .ds-step-n { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.6875rem; color: oklch(71.2% 0.194 13.428); border: 1px solid color-mix(in oklch, oklch(71.2% 0.194 13.428) 40%, transparent); border-radius: 9999px; width: 1.2rem; height: 1.2rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; } .ds-step-done { color: oklch(86.9% 0.005 56.366); border-color: oklch(44.4% 0.011 73.639); } .ds-step-title { margin: 0; font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-weight: 600; font-size: 0.9rem; color: oklch(98.5% 0.001 106.423); } .ds-step-done-word { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-weight: 400; font-size: 0.72rem; color: oklch(70.9% 0.01 56.259); }"
     },
     {
-      "name": "Detached Warning",
+      "name": "Retired Repository Card",
       "kind": "custom",
       "refersTo": "attach-warning",
-      "description": "The sentence beside the attach control when the site's declaration is retired but not yet pruned. A Smoke Light warning, not a disabled control, because the page's copy of lychee-resources can be stale and the writer's own pull decides. It points up to the retired notice under the page header, which holds the page's one Prune (compact Primary); the warning carries no Prune of its own. It is tied to the field and Attach button through aria-describedby.",
-      "html": "<p id=\"attach-warning\" class=\"ds-detached-warning\">Attaching is refused while <span class=\"ds-detached-warning__mono\">test-lychee-land.yml</span> is retired. Prune it above; pressing Attach checks again.</p>",
-      "css": ".ds-detached-warning { font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.8rem; line-height: 1.375; color: oklch(86.9% 0.005 56.366); margin: 0; } .ds-detached-warning__mono { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.75rem; }"
+      "description": "The repository card of a site whose declaration is retired (state: absent) but not yet pruned. Attach would be refused until the prune, so the card carries no runbook and no attach control: one Body sentence names the file and points to the Prune in the retired notice above, and the build and run rows stay as facts. After the prune the page re-reads and the full runbook returns.",
+      "html": "<p class=\"ds-retired-card\">While <span class=\"ds-retired-card__mono\">test-lychee-land.yml</span> is retired, there is nothing to set up here. Prune it above, then attach a repository again; the setup steps come back once it's pruned.</p>",
+      "css": ".ds-retired-card { font-family: Nunito, ui-sans-serif, system-ui, sans-serif; font-size: 0.8rem; line-height: 1.375; color: oklch(70.9% 0.01 56.259); margin: 0 0 12px; max-width: 25rem; } .ds-retired-card__mono { font-family: 'DM Mono', ui-monospace, SFMono-Regular, Consolas, monospace; color: oklch(98.5% 0.001 106.423); }"
     }
   ],
   "narrative": {
