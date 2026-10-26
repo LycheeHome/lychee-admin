@@ -1049,7 +1049,9 @@ then reads `retired`, its site page's word, in place of the live state. Until
 then the row keeps its live pill and grows a Smoke line under its facts in the
 deploy line's shape, `● retiring · Prune follows once the reconciler confirms
 the container down`, which names what Prune waits for and stays true when a
-down fails (that row's pill is then `failed`, in Scorch). On a site page,
+down fails (the failure then shows as `failed`, in Scorch, on the pill when
+nothing is left installed and on the row's `deploy failed` line when a version
+still is). On a site page,
 whether the container is down yet is still the route's to answer, through the
 toast.
 
