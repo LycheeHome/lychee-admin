@@ -89,9 +89,6 @@ export function RequestedLine({ tag, name, controls }: { tag: string; name?: str
   );
 }
 
-/** The server's `&nbsp;`, as a code point: it keeps the note's tail on the filename's line. */
-const NBSP = String.fromCharCode(0xa0);
-
 /**
  * html.ts's renderPruneControl: Secondary on the board, where a row is
  * housekeeping; Primary under a site page's retired warning, where it is the
@@ -118,9 +115,10 @@ export function PruneLine({
       >
         Prune old declaration
       </button>
-      <span className="font-mono text-[0.72rem] text-stone-400 break-all">
-        {`deletes ${name}.yml from lychee-resources${NBSP}`}
-        <span className="whitespace-nowrap">· once its container is confirmed down</span>
+      {/* A sentence, so sans; the file and the repository are facts, so mono. */}
+      <span className="text-[0.75rem] leading-snug text-stone-400">
+        Deletes <span className="font-mono text-stone-50">{`${name}.yml`}</span> from{" "}
+        <span className="font-mono text-stone-50">lychee-resources</span> once its container is confirmed down.
       </span>
     </p>
   );

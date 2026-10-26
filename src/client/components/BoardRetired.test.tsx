@@ -59,6 +59,19 @@ describe("a retired site resource on the board", () => {
     assert.ok(!li.querySelector("[data-retiring]"));
   });
 
+  // Spec 2026-10-26-mono-sentences: a sentence in sans, its facts in mono.
+  test("the prune caption is a sans sentence with its facts in mono", () => {
+    const li = rowOf(board(payload([row("gone-lychee-land", { status: "not-created", result: "deployed" })], { prunable: ["gone-lychee-land"] })), "gone-lychee-land");
+    const caption = li.querySelector<HTMLElement>("[data-prune-line] > span")!;
+    assert.equal(caption.textContent, "Deletes gone-lychee-land.yml from lychee-resources once its container is confirmed down.");
+    assert.equal(caption.getAttribute("class"), "text-[0.75rem] leading-snug text-stone-400");
+    const facts = Array.from(caption.querySelectorAll("span")).map((s) => [s.textContent, s.getAttribute("class")]);
+    assert.deepEqual(facts, [
+      ["gone-lychee-land.yml", "font-mono text-stone-50"],
+      ["lychee-resources", "font-mono text-stone-50"],
+    ]);
+  });
+
   test("confirmed down with an exited or unknown live status still reads retired", () => {
     for (const status of ["exited", "unknown"] as const) {
       const li = rowOf(board(payload([row("gone-lychee-land", { status, result: "deployed" })], { prunable: ["gone-lychee-land"] })), "gone-lychee-land");

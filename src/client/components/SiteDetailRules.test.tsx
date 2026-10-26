@@ -926,10 +926,13 @@ describe("the Prune control", () => {
     }
   });
 
-  test("the caption joins with a non-breaking space and keeps the separator with what it introduces", () => {
+  // The mono caption once needed a non-breaking space and a nowrap tail to
+  // keep "· once…" off a line of its own; as a sans sentence (spec
+  // 2026-10-26-mono-sentences) it wraps at words like any sentence.
+  test("the caption is one sentence that wraps at words: no non-breaking space, no nowrap tail", () => {
     const html = renderPruneControl("gone-lychee-land");
-    assert.match(html, /lychee-resources&nbsp;<span class="whitespace-nowrap">· once its container is confirmed down<\/span>/);
-    assert.doesNotMatch(html, / · /);
+    assert.match(html, /from <span class="font-mono text-stone-50">lychee-resources<\/span> once its container is confirmed down\./);
+    assert.doesNotMatch(html, /&nbsp;|\u00a0|whitespace-nowrap/);
   });
 });
 
