@@ -79,6 +79,32 @@ describe("the add page's form", () => {
   });
 });
 
+// One "checked" for both options: a Hairline fill and an Ember Edge border,
+// with an Ember radio. The proxy card's Ember Deep wash read close to the
+// error ground (critique 2026-10-26 minors, "01 Ember edge, both").
+describe("the type options", () => {
+  // [label class, radio class] for each option, whatever the attribute order.
+  const options = () =>
+    Array.from(html.matchAll(/<label class="([^"]*)"><span[^>]*><input([^>]*)>/g))
+      .filter((m) => /\bname="type"/.test(m[2] ?? ""))
+      .map((m) => [m[1], m[2]?.match(/\bclass="([^"]*)"/)?.[1]] as const);
+
+  test("both options share one class, unchecked and checked", () => {
+    const found = options();
+    assert.equal(found.length, 2);
+    assert.equal(found[0]?.[0], found[1]?.[0]);
+    assert.match(found[0]?.[0] ?? "", /\bborder-stone-700 bg-transparent\b/);
+    assert.match(found[0]?.[0] ?? "", /has-\[:checked\]:bg-stone-700 has-\[:checked\]:border-rose-800(?: |$)/);
+  });
+
+  test("no option is washed in Ember Deep, and both radios are Ember", () => {
+    assert.doesNotMatch(html, /has-\[:checked\]:bg-rose-950/);
+    const found = options();
+    assert.equal(found.length, 2);
+    for (const [, radio] of found) assert.match(radio ?? "", /^accent-rose-400 /);
+  });
+});
+
 describe("the add page describes Next.js as it actually works", () => {
   const NEXTJS_DESCRIPTION =
     "Routes to a container the reconciler runs on this port, built from the site's own repository. After you add it, the site's page has the steps to attach and deploy.";
