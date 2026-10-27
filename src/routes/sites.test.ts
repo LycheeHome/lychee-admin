@@ -1022,7 +1022,7 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     assert.match(html, /data-attach=/);
   });
 
-  test("a retired declaration renders as not attached, with Attach enabled and the prune warning beside it", async () => {
+  test("a retired declaration renders retired, with Prune above and a one-sentence card instead of Attach", async () => {
     declarations([{ ...TEST_DECLARATION, state: "absent" }]);
     writeInventory([siteEntry({ result: "deployed" })]);
     const html = await page();
@@ -1032,9 +1032,9 @@ describe("GET /sites/:hostname — a Next.js site's resource", () => {
     assert.doesNotMatch(html, /not deployed/);
     assert.match(html, /prune/i);
     assert.match(html, /data-prune="test-lychee-land"/);
-    const button = html.match(/<button[^>]*type="submit"[^>]*>Attach repository/);
-    assert.ok(button, "no Attach button");
-    assert.doesNotMatch(button[0], /\sdisabled(?=[\s>/])/);
+    // Critique 2026-10-26 P2: Attach is refused while retired, so it isn't offered.
+    assert.doesNotMatch(html, /Attach repository/);
+    assert.match(html, /data-retired-card/);
   });
 
   // The reconciler removes a pruned site's status.json only once it proves the

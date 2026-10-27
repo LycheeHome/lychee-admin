@@ -527,9 +527,9 @@ describe("Prune", () => {
         TIMEOUT,
       );
       await waitFor(() => assert.equal(button.disabled, false), TIMEOUT);
-      // Refused, so nothing changed: the notice and step 3's warning both stay.
+      // Refused, so nothing changed: the notice and the card's retired sentence both stay.
       assert.ok(document.querySelector('section[aria-labelledby="retired-notice-heading"]'));
-      assert.ok(byId("attach-warning"));
+      assert.ok(document.querySelector("[data-retired-card]"));
     } finally {
       finish(client);
     }
@@ -546,7 +546,9 @@ describe("Prune", () => {
         await client.invalidateQueries({ queryKey: siteDetailQueryKey("gone.lychee.land") });
       });
       await waitFor(() => assert.ok(!document.querySelector('section[aria-labelledby="retired-notice-heading"]')), TIMEOUT);
-      assert.ok(!byId("attach-warning"));
+      assert.ok(!document.querySelector("[data-retired-card]"));
+      // Pruned, the runbook and its Attach come back.
+      assert.ok(document.querySelector("form[data-attach]"));
       assert.ok(!document.querySelector("[data-prune]"));
     } finally {
       finish(client);

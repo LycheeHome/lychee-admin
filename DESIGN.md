@@ -1175,17 +1175,15 @@ as one Nunito sentence with its facts in Chalk mono, as the prune line's is
 (the change-repository caption beneath its own field follows the same form).
 Its error is the form-level error surface with `role="alert"`, hidden until it
 has text, in Nunito like every error box that holds a sentence: the add page's
-two and the pages' refresh alert. When the site's declaration is retired but not yet pruned, the field
-and the button stay enabled, and a Smoke Light sentence beside them warns that
-attaching is refused while the file is retired and points to Prune above, tied
-to both through `aria-describedby`. The prune line itself is not here: it sits
-once, in the page's retired notice under the header (see Cards / Containers),
-so the way out is the first thing on the page rather than about 2,800px down,
-below Manual steps and all three scaffold files, where it used to be. A warning
-and not a disabled control,
-because the page's copy of `lychee-resources` can be stale; the writer pulls
-before it writes and refuses with the same prune reason, so pressing Attach is
-the check. Attached, the step's body becomes the image and declaration file in
+two and the pages' refresh alert. When the site's declaration is retired but
+not yet pruned, there is no attach control and no runbook at all: the card's
+body is one Body sentence, "While `<name>.yml` is retired, there is nothing to
+set up here. Prune it above, then attach a repository again; the setup steps
+come back once it's pruned.", above the build and run rows. Attach would be
+refused until the prune, which the page's retired notice under the header
+offers (see Cards / Containers), so a 2,200px runbook below it was setup nobody
+could act on (critique 2026-10-26). After the prune the page re-reads and the
+runbook returns. Attached, the step's body becomes the image and declaration file in
 mono, so the step shows what was written rather than that something was.
 
 **The change-repository control** joins that body only once the reconciler has

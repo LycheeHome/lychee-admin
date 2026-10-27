@@ -1367,26 +1367,17 @@ describe("renderSiteDetail from a repository", () => {
     assert.match(c, /0\.1\.0 requested/);
   });
 
-  // The clone may be stale (refreshed on page load, but bounded), so the page
-  // warns and the writer's own fresh pull decides; it refuses with the same
-  // prune reason if the retired file is still there.
-  test("detached: renders as not attached, Attach enabled, with the prune warning tied to it", () => {
+  // Since the critique of 2026-10-26 (P2, variant 02) a retired site's card is
+  // one sentence: Attach is refused until the prune the notice above offers,
+  // so the runbook and its Attach would be setup nobody can act on.
+  test("detached: the card is one sentence naming the file, with no runbook and no Attach", () => {
     const html = renderSiteDetail(NEXT_SITE, { ...BASE, detached: true, status: { kind: "container", state: "not-created" } });
     const c = card(html);
     assert.doesNotMatch(html, /awaiting image/);
+    assert.match(c, /data-retired-card/);
     assert.match(c, /app-lychee-land\.yml/);
-    // Shortened by the retired-state spec: Prune is in the notice above now.
-    assert.match(c, /Prune it above; pressing Attach checks again\./);
-    assert.doesNotMatch(c, /before re-attaching/);
-    const button = c.match(/<button[^>]*type="submit"[^>]*>/);
-    assert.ok(button);
-    assert.doesNotMatch(button[0], /\sdisabled(?=[\s>/])/);
-    assert.match(button[0], /aria-describedby="attach-warning"/);
-    const input = c.match(/<input[^>]*id="attach-repo"[^>]*>/);
-    assert.ok(input);
-    assert.doesNotMatch(input[0], /\sdisabled(?=[\s>/])/);
-    assert.match(input[0], /aria-describedby="attach-prefix attach-warning"/);
-    assert.match(c, /id="attach-warning"/);
+    assert.match(c, /Prune it above, then attach a repository again; the setup steps come back once it(?:'|&#x27;|&#39;)s pruned\./);
+    assert.doesNotMatch(c, /data-attach=|attach-warning|<details|<pre/);
   });
 
   // Since the retired-state spec (2026-10-26) the Prune control is the page's
@@ -1405,9 +1396,10 @@ describe("renderSiteDetail from a repository", () => {
     assert.ok(html.indexOf("data-prune=") < html.indexOf("Request path"));
   });
 
-  test("detached: Attach steps back to Secondary and stays enabled", () => {
-    const c = card(renderSiteDetail(NEXT_SITE, { ...BASE, detached: true, status: { kind: "container", state: "not-created" } }));
-    assert.ok(c.includes(`<button type="submit" class="${BUTTON_SECONDARY}" aria-describedby="attach-warning">Attach repository</button>`));
+  test("not detached: Attach is the step's Primary, with nothing describing a refusal", () => {
+    const c = card(renderSiteDetail(NEXT_SITE, { ...BASE, status: { kind: "container", state: "not-created" } }));
+    assert.ok(c.includes(`<button type="submit" class="${BUTTON_PRIMARY}">Attach repository</button>`));
+    assert.doesNotMatch(c, /attach-warning/);
   });
 
   test("not detached: no Prune control, whatever the resource's state", () => {
