@@ -845,8 +845,8 @@ count** at its right edge, in two chips that are never summed: what is bad, a
 0.75rem mono chip in Scorch on Scorch Deep, and beside it what could not be
 read (`unknown`), the neutral pill's Smoke on Hairline with an inset Hairline
 Strong ring so it keeps an edge on the current row's identical ground. Zero of
-both is quiet Smoke text with no chip, so a healthy rail carries no colour but
-its green dots. A site counts when its tone is bad; a unit when its board row's
+both shows nothing, seen or spoken, so a healthy rail carries no mark but its
+green dots (until 2026-10-27 it printed a quiet Smoke `0` on every row). A site counts when its tone is bad; a unit when its board row's
 pill is bad or its last deploy was blocked or failed (read as the board shows
 the row, so a page's count and its summary line agree). An unknown counts because a
 printed 0 is a claim of health the rail cannot make about something it couldn't
