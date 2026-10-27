@@ -266,15 +266,16 @@ carry a verdict.
 
 - **Ember** (`rose-400`): The only chromatic voice. Primary button fills, every
   focus ring in the app, the numerals beside manual steps, the checked
-  reverse-proxy radio, and the "back to sites" link on the not-found page.
+  type option's radio, and the "back to sites" link on the not-found page.
 - **Ember Light** (`rose-300`): Ember's hover state on filled buttons, and the
   offer button's text.
 - **Ember Edge** (`rose-800`): Structural Ember — the border of the checked
-  reverse-proxy option, the 2px left rule marking the port/framework branch of
-  the add form, and the 2px left rule on the current header nav item.
-- **Ember Deep** (`rose-950`): The ground beneath Ember text — the checked
-  reverse-proxy option's fill (at 50%), every non-error flash banner (at 60%),
-  and the offer button's hover fill.
+  type option, the 2px left rule marking the port/framework branch of the add
+  form, and the 2px left rule on the current rail item.
+- **Ember Deep** (`rose-950`): The ground beneath Ember text — every non-error
+  flash banner (at 60%) and the offer button's hover fill. Never a selection's
+  ground: as the checked proxy option's wash it read as the error ground's
+  neighbour, and it left that option on 2026-10-27.
 
 ### Neutral
 
@@ -418,7 +419,10 @@ says its own name and names a site.
   while that hostname is being composed — with the shared `.lychee.land` suffix
   dropped to Smoke Deep so the subdomain reads first. Legible there because
   27px is large text, and nowhere else. Slight negative tracking because mono
-  at display size otherwise sprawls.
+  at display size otherwise sprawls. The subdomain is held as one unit (an
+  inline block), so a narrow line breaks before the suffix, never at a hyphen
+  inside the label; the headline is `overflow-wrap: anywhere`, so a label
+  wider than the line still wraps inside itself.
 - **Title** (Poetsen One, 1rem, line-height 1.625): A list row's hostname, with
   the shared `.<domain>` suffix dropped to Smoke beside it. The only other place
   the display face appears.
@@ -435,7 +439,7 @@ says its own name and names a site.
   11px — the floor below which small UI text stops being reliably legible.
 - **Body** (Nunito, 0.8rem, line-height 1.375, Smoke): Every explanatory
   sentence. Every Body sentence is capped at 25rem, about 70 characters at
-  0.8rem; the card keeps its 760px width, and mono content beside the prose
+  0.8rem; the card keeps the frame's width, and mono content beside the prose
   stays full width. The cap is in rem because a `ch` is the width of a zero,
   so `70ch` held about 95 Nunito letters. The one narrower measure is the
   empty state's pitch, which keeps its own 46ch (about 62 letters). Dialog
@@ -475,13 +479,13 @@ not caps.
 
 ## Layout
 
-A page frame and a reading column inside it, not two unrelated containers. The
-site list runs to the full 1080px frame and fills it with one row per site,
-separated by a `1px` Hairline and stacked with no gap, so a wider window widens
-the gap between a row's two halves rather than its content. A site's detail page
-caps at the 760px reading column and stays one column, because everything on it
-is either a sentence to read or a command to copy, and neither improves at
-1200px. Add-site takes the frame too — see The Frame-And-Column Rule below.
+One page frame, 1080px, and every page in it. The site list fills it with one
+row per site, separated by a `1px` Hairline and stacked with no gap, so a wider
+window widens the gap between a row's two halves rather than its content. A
+site's detail page takes the same frame and stays one column; its sentences
+hold the prose measure, and its cards, the request path, code and commands take
+the width. Add-site takes the frame too and splits it — see The Frame-And-Column
+Rule below.
 
 A list row has two halves: the hostname and its mono address on the left, the
 status pill alone on the right, right-aligned so the pills share an edge down the
@@ -499,8 +503,8 @@ unchanged: they speak for a site, these lines for the host beneath all of them.
 
 At 900px and wider the page is two columns: a 250px rail fixed to the left edge
 at full viewport height, scrolling on its own behind a `1px` Hairline right rule,
-and the content column beside it, where the 1080px frame and 760px reading
-column centre in the remaining width with 24px of horizontal padding and 24px
+and the content column beside it, where the 1080px frame centres in the
+remaining width with 24px of horizontal padding and 24px
 gaps between sections. Below 900px the rail gives way to a top bar (a `1px`
 Hairline bottom rule, 16px side padding) and the content column takes the whole
 viewport. Content width is therefore the viewport less the rail, which is why
@@ -533,9 +537,10 @@ never folded, capped, truncated with an ellipsis, or put inside an inner scroll
 box. A generated workflow file renders at full height. One exception is
 horizontal overflow on a one-line command, which must not wrap: `overflow-x:
 auto` with `white-space: nowrap`. Long values wrap by breaking characters
-(`break-all`), never by being cut; a rail hostname instead breaks at the dot
-before its domain, and anywhere only when one label alone is wider than the
-rail. Two surfaces scroll inside themselves because nothing else can reach
+(`break-all`), never by being cut. Hostnames are the exception: a Headline
+holds its label whole and breaks before the domain, and a rail row shows the
+label alone; either breaks inside a label only when that label alone is wider
+than its line. Two surfaces scroll inside themselves because nothing else can reach
 their content: the rail, once its sites outgrow the viewport, and the find
 panel's result list, once it does. Two more are named. A finished host action's
 log folds at rest; it is open while the action runs and open after a failure,
@@ -545,16 +550,17 @@ the body one click away — but a step that is not done never folds, so setup in
 progress is never behind a click.
 
 **The Frame-And-Column Rule.** 1080px is the page frame — the shell's `<main>`,
-and any page holding two kinds of content that belong side by
-side. 760px is a reading column, applied *inside* that frame by a page holding
-one. No width ever lengthens a line of prose past about 70 characters: every
-Body sentence carries the prose measure (25rem), a cap on text rather than a
-third page width, so the column can stay wide for commands. On the add-site page
-the frame buys a second column and the form column is 656px, narrower than the
-760 it replaced. The site list fills the frame because its rows need the width
-to align a reserved status column; the detail page caps at 760 because
-everything on it is a sentence to read or a command to copy and it has nothing
-to put beside them. The system holds exactly two numbers and never a third.
+and every page inside it, so every page starts at one left edge and moving
+between them moves nothing. No width ever lengthens a line of prose past about
+70 characters: every Body sentence carries the prose measure (25rem), a cap on
+text rather than a second page width, so the frame can stay wide for commands,
+code and the request path. A page with two kinds of content that belong side by
+side splits the frame — on the add-site page the form column is 656px beside
+the panel — rather than narrowing it. The site list fills the frame because its
+rows need the width to align a reserved status column. Until 2026-10-27 a site's
+detail page centred a 760px reading column inside the frame, and its left edge
+jumped 160px at 1440px on every move from the list; there is no reading column
+now. The system holds one page width and never a second.
 
 ## Elevation & Depth
 
@@ -760,9 +766,11 @@ exceptions to it.
 - **Selectable option rows:** The static/reverse-proxy choice is not a bare radio
   pair but two bordered rows (6px radius, 12px × 10px padding) each holding a
   radio, a Body Strong title in Chalk, and a Smoke explanation indented to the
-  title's text. Checked state uses `:has(:checked)` — the static row goes
-  Hairline fill with a Hairline Strong border; the proxy row goes Ember Deep at
-  50% with an Ember Edge border, and its radio's `accent-color` is Ember.
+  title's text. Both rows share one treatment: unchecked, a Hairline border on
+  a transparent ground; checked (`:has(:checked)`), a Hairline fill with an
+  Ember Edge border, and every radio's `accent-color` is Ember. Until
+  2026-10-27 the two disagreed — the static row went neutral and the proxy row
+  went Ember Deep at 50%, a wash that read close to the error ground.
 - **Error:** Inline errors are 0.8rem Scorch. A form-level error is Scorch on
   Scorch Deep at 60% with a Scorch Edge border at 70%, 6px radius, hidden until
   it has text.
@@ -802,8 +810,12 @@ content by a `1px` Hairline rule. Top to bottom, at 20px gaps:
 - the `lychee` `admin` wordmark as a home link at Display 1.5rem, the page's h1;
 - the find box (below);
 - **sites**, a heading link to the list, then every managed site in Caddyfile
-  order: a dot, the hostname, and a right-aligned `static` or `:<port>` hint in
-  Smoke Light. The label is Chalk and `.lychee.land` is Smoke;
+  order: a dot, the label, and a right-aligned `static` or `:<port>` hint in
+  Smoke Light. The label is Chalk; the domain is said once, as `· lychee.land`
+  beside the heading (hidden from assistive tech), and each row keeps it as
+  screen-reader text, so a row's accessible name is still its full hostname.
+  The apex row is `lychee.land` whole. Until 2026-10-27 each row showed
+  `.lychee.land` in Smoke and three seed rows wrapped to two lines;
 - **host**, a plain heading over three links, `services`, `reconciler` and
   `infrastructure`: the services board's three pages, peers of one another.
 
@@ -883,7 +895,7 @@ each scaffold file in full, at full height, at 0.72rem with 1.6 leading, under a
 Micro-label row carrying the file's path (uppercase dropped, as a path always
 is) on the left and its line count on the right. It **wraps** rather than
 scrolling sideways — `pre-wrap`, breaking anywhere — because the release
-workflow's build line is wider than the reading column, and The Show-It Rule
+workflow's build line is wider than the card, and The Show-It Rule
 allows horizontal overflow only on a one-line command. The copy button reads
 the text content, so wrapping changes nothing that is copied; it pins
 top-right, per The Coupled-Inset Rule.
