@@ -192,7 +192,15 @@ export function Rail({
         />
         <nav aria-label="Sites" className="flex flex-col gap-0.5">
           <RailLink href="/" className={RAIL_HEADING_LINK} aria-current={ariaCurrent(isPage(current, "sites"))}>
-            sites
+            {/* The domain is said once here, so a row can show its label alone. */}
+            <span>
+              sites
+              {rail.domain ? (
+                <span data-rail-domain="" aria-hidden="true">
+                  {` · ${rail.domain}`}
+                </span>
+              ) : null}
+            </span>
             <Count name="sites" value={counts ? counts.sites : null} />
           </RailLink>
           {rail.sites === null ? (
@@ -213,8 +221,8 @@ export function Rail({
                       <span className={RAIL_DOT[dot.tone]} data-dot="" aria-hidden="true" />
                       <span className={RAIL_HOSTNAME}>
                         <span className="text-stone-50">{lead}</span>
-                        <wbr />
-                        {dimmed}
+                        {/* Heard, not shown: the heading names the domain. */}
+                        {dimmed ? <span className="sr-only">{dimmed}</span> : null}
                       </span>
                       <span className="sr-only">, </span>
                       <span className={RAIL_HINT}>{site.hint}</span>

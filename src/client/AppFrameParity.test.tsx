@@ -46,10 +46,7 @@ const FIXTURES = path.join(__dirname, "..", "dev", "fixtures");
 const seen = new Set<string>();
 function fixture(dir: "shell" | "rail", name: string): string {
   seen.add(`${dir}/${name}.html`);
-  const html = readFileSync(path.join(FIXTURES, dir, `${name}.html`), "utf8");
-  // A rail fixture is one element compared alone; the redesigns that touch
-  // the frame (the skip link before the top bar) are the shell's.
-  return dir === "shell" ? applyRedesigns(html) : html;
+  return applyRedesigns(readFileSync(path.join(FIXTURES, dir, `${name}.html`), "utf8"));
 }
 
 const SEED_RAIL: RailPayload = {

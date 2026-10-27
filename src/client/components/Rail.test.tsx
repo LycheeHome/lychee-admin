@@ -11,6 +11,7 @@ import type { RailData } from "../../shared/rail";
 import type { HealthPayload } from "../../shared/health";
 import { SEEDED_RAIL_SITES } from "../../dev/testHelpers";
 import { canonical } from "../test/canonical";
+import { applyRedesigns } from "../test/redesigns";
 import { seedHealth } from "../test/healthFixture";
 import { Navigation, Rail, TopBar } from "./Rail";
 
@@ -43,7 +44,7 @@ const RAIL_FIXTURES = path.join(__dirname, "..", "..", "dev", "fixtures", "rail"
 
 function fixtureInner(name: string, selector: string): string {
   const template = document.createElement("template");
-  template.innerHTML = readFileSync(path.join(RAIL_FIXTURES, `${name}.html`), "utf8");
+  template.innerHTML = applyRedesigns(readFileSync(path.join(RAIL_FIXTURES, `${name}.html`), "utf8"));
   const root = template.content.querySelector(selector);
   assert.ok(root, `${name}.html has no ${selector}`);
   return root.innerHTML;
@@ -229,6 +230,44 @@ describe("Rail with health", () => {
     const { container } = render(<Rail rail={railData()} health={null} healthError={false} lastRead={null} />);
     const name = container.querySelector('[data-site="preview.lychee.land"] .min-w-0');
     assert.equal(name?.getAttribute("class"), "min-w-0 [overflow-wrap:anywhere]");
+  });
+});
+
+// A row shows the label alone; the domain is said once, beside the heading
+// (critique 2026-10-26 minors, "01 Label only"). The full hostname stays the
+// row's text for assistive tech, as sr-only text, so its name is unchanged.
+describe("rail rows show the label only", () => {
+  const rowOf = (container: HTMLElement, hostname: string): HTMLElement => {
+    const row = container.querySelector<HTMLElement>(`[data-site="${hostname}"]`);
+    assert.ok(row, `no row for ${hostname}`);
+    return row;
+  };
+
+  test("a subdomain's row shows its label, with the domain as screen-reader text", () => {
+    const { container } = render(<Rail rail={railData()} health={null} healthError={false} lastRead={null} />);
+    const row = rowOf(container, "preview.lychee.land");
+    const name = row.querySelector(".min-w-0");
+    assert.equal(name?.querySelector(".text-stone-50")?.textContent, "preview");
+    const domain = name?.querySelector(".sr-only");
+    assert.equal(domain?.textContent, ".lychee.land");
+    assert.equal(name?.querySelector("wbr"), null, "nothing visible is left to wrap at");
+    assert.ok(row.textContent?.startsWith("preview.lychee.land, :3100"), row.textContent ?? "");
+  });
+
+  test("the apex row shows the whole name and hides nothing", () => {
+    const { container } = render(<Rail rail={railData()} health={null} healthError={false} lastRead={null} />);
+    const name = rowOf(container, "lychee.land").querySelector(".min-w-0");
+    assert.equal(name?.textContent, "lychee.land");
+    assert.equal(name?.querySelector(".sr-only"), null);
+  });
+
+  test("the sites heading names the domain once, hidden from assistive tech", () => {
+    const { container } = render(<Rail rail={railData()} health={null} healthError={false} lastRead={null} />);
+    const heading = container.querySelector('nav[aria-label="Sites"] > a[href="/"]');
+    assert.ok(heading);
+    const domain = heading.querySelector("[data-rail-domain]");
+    assert.equal(domain?.textContent, " · lychee.land");
+    assert.equal(domain?.getAttribute("aria-hidden"), "true");
   });
 });
 

@@ -96,9 +96,11 @@ export const REDESIGNS: Redesign[] = [
     id: "skip-link",
     since: "2026-10-27",
     why: "A skip link is the frame's first Tab stop, past the rail to <main> (critique 2026-10-26: thirteen rail stops before content).",
-    from: /<header id="top-bar"/g,
-    to: `<a href="#main" class="${SKIP_LINK}">Skip to content</a><header id="top-bar"`,
-    anchor: '<header id="top-bar"',
+    // The shell's body opens with the top bar, indented; the rail's own
+    // top-bar fixture is the header alone, and gets no skip link.
+    from: /^ {2}<header id="top-bar"/g,
+    to: `  <a href="#main" class="${SKIP_LINK}">Skip to content</a><header id="top-bar"`,
+    anchor: '  <header id="top-bar"',
   },
   {
     id: "main-target",
@@ -131,6 +133,30 @@ export const REDESIGNS: Redesign[] = [
     from: /class="max-w-\[640px\] mx-auto w-full flex flex-col gap-4"/g,
     to: 'class="max-w-[1080px] mx-auto w-full flex flex-col gap-4"',
     anchor: 'class="max-w-[640px] mx-auto w-full flex flex-col gap-4"',
+  },
+  {
+    id: "rail-row-label",
+    since: "2026-10-27",
+    why: "A rail row shows its label alone, with the domain kept as screen-reader text, so rows stop wrapping (critique 2026-10-26 minors, \"01 Label only\").",
+    from: /<wbr>(\.[^<]+)<\/span>/g,
+    to: '<span class="sr-only">$1</span></span>',
+    anchor: "<wbr>.",
+  },
+  {
+    id: "rail-row-apex",
+    since: "2026-10-27",
+    why: "The apex row has no domain to hide, and nothing left to break at.",
+    from: /<wbr><\/span>/g,
+    to: "</span>",
+    anchor: "<wbr></span>",
+  },
+  {
+    id: "rail-heading-domain",
+    since: "2026-10-27",
+    why: "The sites heading names the domain once, hidden from assistive tech, since each row's name still carries it.",
+    from: />sites<span data-count="sites"/g,
+    to: '><span>sites<span data-rail-domain aria-hidden="true"> · lychee.land</span></span><span data-count="sites"',
+    anchor: '>sites<span data-count="sites"',
   },
   {
     id: "port-said-once",
