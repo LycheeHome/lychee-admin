@@ -269,13 +269,15 @@ carry a verdict.
   type option's radio, and the "back to sites" link on the not-found page.
 - **Ember Light** (`rose-300`): Ember's hover state on filled buttons, and the
   offer button's text.
-- **Ember Edge** (`rose-800`): Structural Ember — the border of the checked
-  type option, the 2px left rule marking the port/framework branch of the add
-  form, and the 2px left rule on the current rail item.
+- **Ember Edge** (`rose-800`): Structural Ember — the 2px left rule on the
+  current rail item. Never a form's: it sits a percent of lightness from Scorch
+  Border, so beside an invalid field's ring the checked type option's border
+  and the port branch's rule both read as a second error, and both left it on
+  2026-10-27.
 - **Ember Deep** (`rose-950`): The ground beneath Ember text — every non-error
   flash banner (at 60%) and the offer button's hover fill. Never a selection's
   ground: as the checked proxy option's wash it read as the error ground's
-  neighbour, and it left that option on 2026-10-27.
+  neighbour, and it left that option on 2026-10-26.
 
 ### Neutral
 
@@ -609,8 +611,10 @@ word or numeral (status pills, the 1.2rem step numerals).
 
 Borders are `1px` everywhere. The one deliberate exception is the add-site form's
 conditional branch — the port, framework, and healthcheck fields sit behind a
-`2px` Ember Edge left rule with 12px of padding, which is the only place in the
-system where a border carries meaning rather than edge definition.
+`2px` Hairline Strong left rule with 12px of padding, which is the only place in
+the system where a border carries meaning rather than edge definition. It is
+neutral because its meaning is structure (these fields belong to the option
+above), and an Ember Edge rule there read as Scorch beside an invalid field.
 
 Icons are 24×24 stroked line icons at `1em`, `stroke-width: 2`, round caps and
 joins, inheriting `currentColor` — plus, trash, clipboard, check, external
@@ -766,11 +770,12 @@ exceptions to it.
 - **Selectable option rows:** The static/reverse-proxy choice is not a bare radio
   pair but two bordered rows (6px radius, 12px × 10px padding) each holding a
   radio, a Body Strong title in Chalk, and a Smoke explanation indented to the
-  title's text. Both rows share one treatment: unchecked, a Hairline border on
-  a transparent ground; checked (`:has(:checked)`), a Hairline fill with an
-  Ember Edge border, and every radio's `accent-color` is Ember. Until
-  2026-10-27 the two disagreed — the static row went neutral and the proxy row
-  went Ember Deep at 50%, a wash that read close to the error ground.
+  title's text. Both rows share one neutral treatment: unchecked, a Hairline
+  border on a transparent ground; checked (`:has(:checked)`), a Hairline fill
+  with a Smoke Deep border. Ember is every radio's `accent-color` and nothing
+  else. Until 2026-10-26 the proxy row went Ember Deep at 50%, a wash that read
+  close to the error ground; until 2026-10-27 both went Ember Edge, which read
+  as Scorch beside an invalid field's ring.
 - **Error:** Inline errors are 0.8rem Scorch. A form-level error is Scorch on
   Scorch Deep at 60% with a Scorch Edge border at 70%, 6px radius, hidden until
   it has text.
@@ -836,17 +841,22 @@ with the full status phrase in a screen-reader label beside it. A **static site'
 dot is hollow**, a `1px` Hairline Strong ring, because there is nothing to poll;
 the hollow dot is also every site's dot before the first health read. Each of
 `sites`, `services`, `reconciler` and `infrastructure` carries an **attention
-count** at its right edge: above zero it is a 0.75rem mono chip in Scorch on
-Scorch Deep, and zero is quiet Smoke text with no chip, so a healthy rail carries
-no colour but its green dots. A site counts when its tone is bad; a unit when its
-tone is bad or its last deploy was blocked or failed. A site or unit whose state
-could not be read (`unknown`) counts too, because a printed 0 is a claim of
-health the rail cannot make about something it couldn't see: the number is bad
-plus unknown, the chip stays Scorch when anything counted is bad, and becomes
-the neutral pill's Smoke on Hairline, with an inset Hairline Strong ring so it keeps an edge on the current row's identical ground, when everything counted is only unknown.
-A screen reader hears the split (`3 need attention, 1 unknown`), since the one
-number merges what a colour alone can't separate. The top bar's overall count
-follows the same rule. When the latest health
+count** at its right edge, in two chips that are never summed: what is bad, a
+0.75rem mono chip in Scorch on Scorch Deep, and beside it what could not be
+read (`unknown`), the neutral pill's Smoke on Hairline with an inset Hairline
+Strong ring so it keeps an edge on the current row's identical ground. Zero of
+both is quiet Smoke text with no chip, so a healthy rail carries no colour but
+its green dots. A site counts when its tone is bad; a unit when its board row's
+pill is bad or its last deploy was blocked or failed (read as the board shows
+the row, so a page's count and its summary line agree). An unknown counts because a
+printed 0 is a claim of health the rail cannot make about something it couldn't
+see; it gets its own chip because a Scorch number that includes it claims
+failures that don't exist (until 2026-10-27 the two were one number, Scorch
+whenever anything was bad). Each chip says what it counts to a screen reader
+(`3 need attention, 1 unknown`). Each page link counts what that page shows, so
+a site's container counts under `services` as well as under `sites`; the top
+bar's overall count takes everything once, a site and its container as one
+thing, bad if either is, so it can be less than the rail's chips added up. When the latest health
 read failed, every polled dot goes `neutral`, the counts disappear and one Smoke
 line reads `health unavailable · last read <age>` — never a remembered green.
 
@@ -862,7 +872,11 @@ status pill at a shared right edge, and `deploy blocked` or `deploy failed` in
 Scorch mono before the pill when that is why it is listed. Rows are 0.8rem mono
 in Smoke; the highlighted row goes Chalk on a Hairline fill, without the Ember
 Edge rule, which belongs to where you are rather than where you might go. Empty
-states are one Smoke sentence per group.
+states are one Smoke sentence per group. Enter or a click on a row is the end of
+the search: the query clears, the panel closes and focus leaves the box, so the
+page arrived at takes focus as any move's does — its heading, or the board row
+the move named, which shows the Ember focus ring (until 2026-10-27 the panel
+stayed open over the row it had opened).
 
 **Below 900px** the rail is replaced by a top bar: the wordmark (the h1 at that
 width), then the overall attention count, a find button and a menu button, each
@@ -925,9 +939,11 @@ below Headline size, where the Dim-Text Rule's 4.5:1 floor applies and Smoke
 Deep does not clear it. Additions are marked by colour, never by a `+` gutter,
 because a YAML list dash in the same column reads as a deletion.
 
-Below a `1px` Hairline rule, the six add steps in execution order, with any
-step that will not run for the chosen type carrying the same `—` mark the
-remove flow's report uses for `skipped`.
+Below a `1px` Hairline rule, the six add steps in execution order. A step the
+chosen type skips (a reverse proxy creates no site directory) reads `· skipped`
+beside its label as soon as the type is chosen, a word a listener hears; a
+submit's own ✓, ✗ or `·` marks stand at the right edge. Until 2026-10-27 the
+skipped step showed nothing until a good preview, then a bare `—` at that edge.
 
 The panel is not a live region. It rewrites on every debounced keystroke, and
 announcing a Caddyfile block that often would bury the field being typed into;
@@ -1022,11 +1038,12 @@ nothing breaks when the absence ends.
 **The attention summary.** When any row needs attention (a Scorch pill or a
 Scorch deploy line, decided by the same function that draws the row), one line
 sits under the eyebrow: `N need attention` in Scorch mono, then each row's name
-as a mono link to its row, in inventory order, in a Nunito sentence. The rows
+as a mono link to its row, in inventory order, in a Nunito sentence; then, apart,
+`N unknown` in Smoke Light mono and the rows whose state could not be read, so
+the line counts exactly what the rail's two chips count for this page. The rows
 themselves keep inventory order, the one fixed map of the page, so nothing moves
-between re-reads; the five-second read is the sentence. A calm board has no
-line at all, and unknown or merely waiting rows are never named, because their
-tone is neutral.
+between re-reads; the five-second read is the sentence. A calm board with
+nothing unknown has no line at all, and merely waiting rows are never named.
 
 **The offer line.** When a service's declaration can be moved to a newer
 published version, the row grows one line beneath its facts — the available

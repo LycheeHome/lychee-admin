@@ -429,7 +429,11 @@ describe("the single root", () => {
     await waitFor(() => assert.ok(scrolled.includes("service-lychee-watch"), `scrolled: ${scrolled.join(",")}`), TIMEOUT);
     // In-app: only the new group's board was fetched, no document came with it.
     assert.ok(fetched.slice(loads).every((u) => u.startsWith("/api/")));
-    assert.equal(document.querySelector("#find"), find);
+    assert.ok(document.querySelector("#find") === find, "find was replaced");
+    // Focus lands on the row the move named, as it does on the same page,
+    // not on the new page's heading (critique 2026-10-27).
+    await waitFor(() => assert.ok(document.activeElement === row("lychee-watch"), `focus on ${document.activeElement?.id || document.activeElement?.tagName}`), TIMEOUT);
+    assert.equal(find.value, "");
   });
 
   test("find's Enter on a row of this page moves focus to that row", async () => {
@@ -448,6 +452,10 @@ describe("the single root", () => {
     // both happy-dom objects into its message, which takes minutes.
     await waitFor(() => assert.ok(document.activeElement === row("swee"), focused()), TIMEOUT);
     assert.equal(row("swee")?.getAttribute("tabindex"), "-1");
+    // Review 2026-10-27: focusable only while the move holds it, so a later
+    // click inside the row neither focuses it nor draws its ring.
+    act(() => find.focus());
+    assert.equal(row("swee")?.hasAttribute("tabindex"), false);
   });
 
   test("a same-path rail link lands focus on the page heading", async () => {
@@ -617,7 +625,9 @@ describe("the narrow-screen drawer", () => {
     assert.equal(document.activeElement?.tagName, "H2");
   });
 
-  test("find's Enter in the drawer closes it, and the new page's heading takes focus", async () => {
+  // The move names a row, so focus lands on it on the new page too, as it
+  // does on the same page (critique 2026-10-27); it used to be the heading.
+  test("find's Enter in the drawer closes it, and the named row on the new page takes focus", async () => {
     await openOnBoard("#rail-find");
     const find = dialog()?.querySelector<HTMLInputElement>("#find");
     assert.ok(find);
@@ -629,8 +639,8 @@ describe("the narrow-screen drawer", () => {
     });
     await waitFor(() => assert.ok(row("lychee-watch")), TIMEOUT);
     await waitFor(() => assert.ok(!dialog()), TIMEOUT);
-    await waitFor(() => assert.equal(document.activeElement?.textContent, "Reconciler"), TIMEOUT);
-    assert.equal(document.activeElement?.tagName, "H2");
+    await waitFor(() => assert.ok(document.activeElement === row("lychee-watch"), focused()), TIMEOUT);
+    assert.equal(window.location.pathname, "/reconciler");
   });
 
   test("find's Enter in the drawer on a row of this page closes it and lands focus on that row", async () => {

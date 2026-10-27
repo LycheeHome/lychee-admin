@@ -336,8 +336,8 @@ describe("the rail's health", () => {
     assert.equal(dot("app.lychee.land"), RAIL_DOT.ok);
     assert.equal(dot("blog.lychee.land"), RAIL_DOT.none);
     assert.equal(document.querySelectorAll("#rail [data-site]").length, 8);
-    assert.equal(document.querySelector('#rail [data-count="sites"]')?.textContent, "2");
-    await waitFor(() => assert.equal(document.querySelector('#top-bar [data-count="all"]')?.firstChild?.textContent, "5"), TIMEOUT);
+    assert.equal(document.querySelector('#rail [data-count="sites"] [data-count-bad]')?.firstChild?.textContent, "2");
+    await waitFor(() => assert.equal(document.querySelector('#top-bar [data-count="all"] [data-count-bad]')?.firstChild?.textContent, "5"), TIMEOUT);
   });
 
   test("a failed poll after a good one never shows the remembered green", async () => {
@@ -388,7 +388,7 @@ describe("the rail's health", () => {
     await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), TIMEOUT);
     assert.equal(dot("app.lychee.land"), RAIL_DOT.ok);
     assert.ok(unavailable() === null, "the error state stayed");
-    assert.equal(document.querySelector('#rail [data-count="sites"]')?.textContent, "2");
+    assert.equal(document.querySelector('#rail [data-count="sites"] [data-count-bad]')?.firstChild?.textContent, "2");
   });
 
   for (const [platform, hint] of [

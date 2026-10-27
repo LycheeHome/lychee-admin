@@ -121,14 +121,45 @@ describe("FindPanel", () => {
     assert.match(active(), /api\.lychee\.land/);
     key(input, "ArrowDown");
     assert.match(active(), /broken\.lychee\.land/);
-    key(input, "Enter");
-    assert.deepEqual(visits, ["/sites/broken.lychee.land"]);
     key(input, "ArrowDown");
     assert.match(active(), /swee/);
-    key(input, "Enter");
-    assert.deepEqual(visits, ["/sites/broken.lychee.land", "/services#service-swee"]);
     key(input, "ArrowUp");
     assert.match(active(), /broken\.lychee\.land/);
+    key(input, "Enter");
+    assert.deepEqual(visits, ["/sites/broken.lychee.land"]);
+  });
+
+  // Critique 2026-10-27 P2: the panel stayed open over the row it had just
+  // opened, with focus still in the box. A move is the end of a search: the
+  // query clears, the panel closes, and focus leaves the box, so the page
+  // arrived at takes it as any in-app move's does.
+  test("Enter closes and clears find, and gives focus up to the page", () => {
+    const { input, visits } = setup();
+    focus(input);
+    type(input, "swee");
+    key(input, "ArrowDown");
+    key(input, "Enter");
+    assert.deepEqual(visits, ["/services#service-swee-staging"]);
+    // Booleans, not elements: a failing assert prints its operands, and a happy-dom element never finishes printing.
+    assert.ok(listbox() === null, "the panel is still open");
+    assert.equal(input.getAttribute("aria-expanded"), "false");
+    assert.equal(input.value, "");
+    assert.ok(document.activeElement !== input, "focus stayed in find");
+  });
+
+  test("a click closes and clears find too", () => {
+    const { input, visits } = setup();
+    focus(input);
+    type(input, "swee");
+    const option = document.querySelector<HTMLElement>('[role="option"]');
+    assert.ok(option);
+    act(() => {
+      fireEvent.click(option);
+    });
+    assert.deepEqual(visits, ["/services#service-swee"]);
+    assert.ok(listbox() === null, "the panel is still open");
+    assert.equal(input.value, "");
+    assert.ok(document.activeElement !== input, "focus stayed in find");
   });
 
   test("the highlighted option is aria-selected", () => {

@@ -85,7 +85,8 @@ describe("previewSections", () => {
 describe("marks", () => {
   test("skipMarks", () => {
     const m = skipMarks([{ id: "a", willRun: false }, { id: "b", willRun: true }]);
-    assert.deepEqual(m.a, { text: "—", className: "text-stone-400" });
+    // A skipped step says so beside its label, not as a bare mark (critique 2026-10-27).
+    assert.deepEqual(m.a, { text: "", className: "", skipped: true });
     assert.deepEqual(m.b, { text: "", className: "" });
   });
   test("resultMarks", () => {
@@ -98,7 +99,7 @@ describe("marks", () => {
     ]);
     assert.deepEqual(m.a, { text: "✓", className: "text-green-300" });
     assert.deepEqual(m.b, { text: "✗", className: "text-red-300" });
-    assert.deepEqual(m.c, { text: "—", className: "text-stone-400" });
+    assert.deepEqual(m.c, { text: "", className: "", skipped: true });
     assert.deepEqual(m.d, { text: "·", className: "text-stone-400" });
     assert.deepEqual(m.e, { text: "", className: "" });
   });

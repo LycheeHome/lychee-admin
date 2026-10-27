@@ -6,7 +6,6 @@ import { RailLink } from "../clientNav";
 import { FailureLine } from "./CommandBlock";
 import { OfferLine, PruneLine, RequestedLine } from "./DeployLines";
 import { summarizeRow } from "../../views/boardFacts";
-import { describeStatus } from "../../lib/siteDisplay";
 import {
   GROUP_LABELS,
   SITE_NAME_LINK,
@@ -14,9 +13,8 @@ import {
   groupNoneSentence,
   inventoryFreshness,
   RETIRING_REASON,
-  retiredRow,
   rowOffer,
-  rowPill,
+  rowShown,
   siteLinkHost,
   unavailableSentence,
   unknownSentence,
@@ -81,12 +79,10 @@ function own<T>(record: Readonly<Record<string, T>>, key: string): T | undefined
  */
 function rowState(row: BoardRow, ctx: RowContext, run: ActionState | undefined) {
   const { board, now, domain, prunable, retiring } = ctx;
-  // The row's words come from the same builders the HTML board uses.
+  // The row's words come from the same builders the HTML board uses; its pill
+  // from rowShown, which the rail's counts read too.
   const summary = summarizeRow(row, board, now);
-  const retired = retiredRow(row.name, prunable, retiring, domain);
-  // Confirmed down, the row says what its site page says; before that, the
-  // pill stays the container's live state, which is the board's job.
-  const labels = retired === "down" ? describeStatus({ kind: "retired" }) : rowPill(summary.labels, run);
+  const { labels, retired } = rowShown(row, { prunable, retiring, domain, run });
   return { summary, retired, labels };
 }
 
@@ -96,16 +92,19 @@ function needsAttention(row: BoardRow, ctx: RowContext): boolean {
   return labels.tone === "bad" || summary.trouble?.tone === "bad";
 }
 
-/**
- * The board leads with trouble (critique 2026-10-26 P1): one line naming the
- * rows that need attention, each a link to its row, while the rows keep their
- * inventory order. Absent when nothing does.
- */
-function AttentionSummary({ names }: { names: string[] }) {
-  if (names.length === 0) return null;
+/** A row whose state could not be read: a neutral `unknown` pill, not already trouble. */
+function isUnknownRow(row: BoardRow, ctx: RowContext): boolean {
+  const { summary, labels } = rowState(row, ctx, own(ctx.lastRuns, row.name));
+  return labels.pill === "unknown" && labels.tone !== "bad" && summary.trouble?.tone !== "bad";
+}
+
+/** One half of the summary: a count, then the rows it counts, each a link to its row. */
+function SummaryPart({ count, names, className }: { count: string; names: string[]; className: string }) {
   return (
-    <p className={`${BODY} max-w-none`} data-attention-summary="">
-      <span className="font-mono text-red-300">{`${names.length} ${names.length === 1 ? "needs" : "need"} attention`}</span>
+    <>
+      <span className={`font-mono ${className}`} data-summary-count="">
+        {count}
+      </span>
       {": "}
       {names.map((name, i) => (
         <Fragment key={name}>
@@ -116,6 +115,26 @@ function AttentionSummary({ names }: { names: string[] }) {
         </Fragment>
       ))}
       .
+    </>
+  );
+}
+
+/**
+ * The board leads with trouble (critique 2026-10-26 P1): one line naming the
+ * rows that need attention, then, apart and neutral, the rows whose state
+ * could not be read (2026-10-27 P1), so it counts what the rail's two chips
+ * count. Each name links to its row; the rows keep their inventory order.
+ * Absent when there is neither.
+ */
+function AttentionSummary({ bad, unknown }: { bad: string[]; unknown: string[] }) {
+  if (bad.length === 0 && unknown.length === 0) return null;
+  return (
+    <p className={`${BODY} max-w-none`} data-attention-summary="">
+      {bad.length > 0 ? (
+        <SummaryPart count={`${bad.length} ${bad.length === 1 ? "needs" : "need"} attention`} names={bad} className="text-red-300" />
+      ) : null}
+      {bad.length > 0 && unknown.length > 0 ? " " : null}
+      {unknown.length > 0 ? <SummaryPart count={`${unknown.length} unknown`} names={unknown} className="text-stone-300" /> : null}
     </p>
   );
 }
@@ -288,7 +307,10 @@ export function Board({ payload, group, controls, headingRef, alert }: BoardProp
             {alert}
           </p>
         ) : null}
-        {shown === "rows" ? <AttentionSummary names={rows.filter((r) => needsAttention(r, ctx)).map((r) => r.name)} /> : null}
+        {shown === "rows" ? <AttentionSummary
+            bad={rows.filter((r) => needsAttention(r, ctx)).map((r) => r.name)}
+            unknown={rows.filter((r) => isUnknownRow(r, ctx)).map((r) => r.name)}
+          /> : null}
         {content}
       </div>
       {offers ? (

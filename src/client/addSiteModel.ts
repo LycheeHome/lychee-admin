@@ -2,15 +2,21 @@
 // public/app.js. No Node and no DOM: the components render what these return.
 import type { SitePreview } from "../lib/sitePreview";
 
-const STEP_MARKS: Record<string, string> = { ok: "✓", failed: "✗", skipped: "—", "not-run": "·" };
+const STEP_MARKS: Record<string, string> = { ok: "✓", failed: "✗", "not-run": "·" };
 const STEP_MARK_CLASSES: Record<string, string> = {
   ok: "text-green-300",
   failed: "text-red-300",
-  skipped: "text-stone-400",
   "not-run": "text-stone-400",
 };
 
-export type StepMark = { text: string; className: string };
+/**
+ * A step's mark beside its label. A skipped step has no mark: it says
+ * `skipped` beside its label instead, a word a listener hears (critique
+ * 2026-10-27), so `skipped` is a state, not a glyph.
+ */
+export type StepMark = { text: string; className: string; skipped?: true };
+
+const SKIPPED: StepMark = { text: "", className: "", skipped: true };
 
 // The field carries only the subdomain label. A pasted full hostname must not
 // have the domain doubled onto it, and trailing dots from a pasted FQDN must
@@ -67,9 +73,7 @@ export function previewSections(
 export function skipMarks(steps: { id: string; willRun: boolean }[]): Record<string, StepMark> {
   const marks: Record<string, StepMark> = {};
   for (const step of steps) {
-    marks[step.id] = step.willRun
-      ? { text: "", className: "" }
-      : { text: STEP_MARKS.skipped, className: STEP_MARK_CLASSES.skipped };
+    marks[step.id] = step.willRun ? { text: "", className: "" } : SKIPPED;
   }
   return marks;
 }
@@ -77,7 +81,8 @@ export function skipMarks(steps: { id: string; willRun: boolean }[]): Record<str
 export function resultMarks(steps: { id: string; status: string }[]): Record<string, StepMark> {
   const marks: Record<string, StepMark> = {};
   for (const step of steps) {
-    marks[step.id] = { text: STEP_MARKS[step.status] ?? "", className: STEP_MARK_CLASSES[step.status] ?? "" };
+    marks[step.id] =
+      step.status === "skipped" ? SKIPPED : { text: STEP_MARKS[step.status] ?? "", className: STEP_MARK_CLASSES[step.status] ?? "" };
   }
   return marks;
 }

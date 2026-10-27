@@ -22,6 +22,11 @@ export interface UnitHealth {
   trouble: "blocked" | "failed" | null;
   href: string;
   attention: boolean;
+  /**
+   * The managed site this unit's container serves, or null. Such a unit counts
+   * on its board page and under sites, and once in the overall count.
+   */
+  site: string | null;
 }
 
 /** GET /api/health. `units` is null when the inventory is unavailable. */

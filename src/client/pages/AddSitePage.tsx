@@ -32,6 +32,9 @@ type AddAnswer = { hostname?: string; error?: string; steps?: { id: string; stat
 type BlockedBy = "port-error" | "hostname-error" | "preview-error";
 
 const PREVIEW_DEBOUNCE_MS = 250;
+/** The steps a reverse proxy skips, known from the type alone: it creates no site directory. */
+const SKIPPED_BY_PROXY: readonly string[] = ["files"];
+const NONE_SKIPPED: readonly string[] = [];
 const PREVIEW_ERROR_CLASS =
   // Sans: its text is a sentence from the server (spec 2026-10-26-mono-sentences).
   "hidden text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0";
@@ -336,6 +339,9 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
   const onTypeChange = (event: ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setType(value);
+    // Marks belong to the type they were read for: until the next answer the
+    // type decides which step is skipped, and a failed read keeps it so.
+    setMarks({});
     // Switching back to reverse proxy re-checks the port, so a conflict typed
     // before the switch away is reported again.
     if (value === "reverse-proxy") validatePort(portFieldRef.current?.value ?? "");
@@ -494,6 +500,7 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
           steps={payload.steps}
           panel={panel}
           marks={marks}
+          skipped={isProxy ? SKIPPED_BY_PROXY : NONE_SKIPPED}
           previewErrorRef={previewErrorRef}
           previewErrorClass={previewErrorClass}
           previewErrorText={previewErrorText}

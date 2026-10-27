@@ -60,11 +60,24 @@ function frozen(i: number, meta: Record<string, Omit<Snapshot, "main">>): Snapsh
   // the redesigned main, once the raw fixture is shown to still agree.
   const button = (html: string) => html.match(/<button[^>]*id="add-site-submit"[\s\S]*?<\/button>/)?.[0];
   assert.equal(button(raw), facts.submit, `${name}: meta.json's submit is not the fixture's button`);
-  return { main, ...facts, submit: button(main) ?? facts.submit };
+  return { main: withoutFilesStep(main), ...facts, submit: button(main) ?? facts.submit };
+}
+
+/**
+ * A declared exclusion: the step list's `files` row. Since 2026-10-27 it says
+ * `skipped` beside its label as soon as reverse proxy is chosen (critique
+ * 2026-10-27 P2), where the reference showed nothing until a good preview and
+ * then a bare `—`; which frozen steps had reverse proxy chosen is a property
+ * of the radio, not of the markup, so no declared substitution can say it.
+ * AddSiteRoutes.test.tsx ("the step a reverse proxy skips") holds the row.
+ */
+function withoutFilesStep(html: string): string {
+  return html.replace(/<li class="flex gap-2" data-step-id="files">[\s\S]*?<\/li>/, '<li data-step-id="files"></li>');
 }
 
 /** Whether a run matches the frozen reference by the per-step test's own comparisons, at every step. */
-function matchesReference(run: Snapshot[]): boolean {
+function matchesReference(raw: Snapshot[]): boolean {
+  const run = raw.map((s) => ({ ...s, main: withoutFilesStep(s.main) }));
   if (run.length !== reference.length) return false;
   return run.every((c, i) => {
     const r = reference[i];
@@ -107,7 +120,7 @@ before(async () => {
   const meta = JSON.parse(readFileSync(path.join(FIXTURES, "meta.json"), "utf8")) as Record<string, Omit<Snapshot, "main">>;
   assert.deepEqual(Object.keys(meta), ADD_SITE_STEPS.map((_, i) => fixtureName(i)), "meta.json names every step, in order");
   reference = ADD_SITE_STEPS.map((_, i) => frozen(i, meta));
-  candidate = await candidateRun(() => mountCandidate(payload), answers);
+  candidate = (await candidateRun(() => mountCandidate(payload), answers)).map((s) => ({ ...s, main: withoutFilesStep(s.main) }));
 });
 
 /** A frozen step's `<main>`, parsed, to query. */
@@ -217,7 +230,8 @@ describe("the frozen reference reaches each step's branch", () => {
     assert.equal(sent.length, 1);
     const page = parsed(s.main);
     const marks = Array.from(page.querySelectorAll("#add-site-steps .step-mark")).map((m) => m.textContent);
-    assert.deepEqual(marks, ["✓", "✓", "—", "✓", "✗", "·"]);
+    // The files row is excluded (withoutFilesStep); the other five keep their marks.
+    assert.deepEqual(marks, ["✓", "✓", "✓", "✗", "·"]);
     assert.ok(one(page, '[data-step-id="caddy"] .step-mark').classList.contains("text-red-300"));
     assert.ok(parsed(s.toast).querySelector("#flash-banner.hidden"), "the toast is hidden");
     const failure = (answers[sent[0]].body as { error: string }).error;
@@ -233,7 +247,8 @@ describe("the frozen reference reaches each step's branch", () => {
     assert.match(body, /reverse_proxy localhost:3700/);
     assert.doesNotMatch(body, /3600/);
     const marks = Array.from(page.querySelectorAll("#add-site-steps .step-mark")).map((m) => m.textContent);
-    assert.deepEqual(marks, ["", "", "—", "", "", ""]);
+    // The files row is excluded (withoutFilesStep); the other five are unmarked.
+    assert.deepEqual(marks, ["", "", "", "", ""]);
   });
 
   test("11: a persisted pageshow re-enables submit, hides the toast and re-runs the preview", () => {

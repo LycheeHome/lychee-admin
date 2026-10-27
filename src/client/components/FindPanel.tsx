@@ -239,6 +239,18 @@ export function FindPanel({
     }
   };
 
+  // A move is the end of a search (critique 2026-10-27): the query clears,
+  // the panel closes, and focus leaves the box, so the page arrived at takes
+  // focus as any in-app move's does (its heading, or the row a hash names)
+  // instead of the panel covering where the operator landed.
+  const go = (href: string) => {
+    clearQuery();
+    setOpen(false);
+    returnTo.current = null;
+    inputRef.current?.blur();
+    navigate(href);
+  };
+
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Escape") {
       if (inDrawer) {
@@ -270,7 +282,7 @@ export function FindPanel({
     if (e.key === "Enter" && open && current >= 0) {
       e.preventDefault();
       const item = items[current];
-      if (item) navigate(item.href);
+      if (item) go(item.href);
     }
   };
 
@@ -350,7 +362,7 @@ export function FindPanel({
                           onMouseEnter={() => setActive(i)}
                           // Keep focus in the input, so the click lands before blur closes the panel.
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => navigate(item.href)}
+                          onClick={() => go(item.href)}
                         >
                           <Row item={item} domain={domain} />
                         </div>

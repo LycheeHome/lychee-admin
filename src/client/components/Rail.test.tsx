@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, describe, test } from "node:test";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { RAIL_COUNT_BAD, RAIL_COUNT_UNKNOWN, RAIL_COUNT_ZERO, RAIL_DOT, attentionCounts, countTotal } from "../../views/railModel";
+import { RAIL_COUNT_BAD, RAIL_COUNT_PAIR, RAIL_COUNT_UNKNOWN, RAIL_COUNT_ZERO, RAIL_DOT } from "../../views/railModel";
 import { BUTTON_PRIMARY, FOCUS_RING } from "../../views/shared";
 import type { RailData } from "../../shared/rail";
 import type { HealthPayload } from "../../shared/health";
@@ -65,6 +65,11 @@ const dotClass = (container: HTMLElement, hostname: string): string => {
 };
 
 const count = (container: HTMLElement, name: string): Element | null => container.querySelector(`[data-count="${name}"]`);
+/** A count's two chips: what is bad, in Scorch, and what could not be read, neutral. */
+const chip = (container: ParentNode, name: string, kind: "bad" | "unknown"): Element | null =>
+  container.querySelector(`[data-count="${name}"] [data-count-${kind}]`);
+/** A chip's visible number, without its screen-reader words. */
+const shown = (el: Element | null): string | undefined => el?.firstChild?.textContent ?? undefined;
 
 describe("Rail parity with the frozen server rail", () => {
   test("the seeded sites", () => {
@@ -155,10 +160,12 @@ describe("Rail with health", () => {
     assert.equal(dotClass(container, "preview.lychee.land"), RAIL_DOT.neutral);
     assert.equal(dotClass(container, "blog.lychee.land"), RAIL_DOT.none);
 
-    assert.equal(count(container, "sites")?.textContent, "2");
-    assert.equal(count(container, "sites")?.getAttribute("class"), RAIL_COUNT_BAD);
-    assert.equal(count(container, "service")?.textContent, "3");
-    assert.equal(count(container, "service")?.getAttribute("class"), RAIL_COUNT_BAD);
+    for (const [name, n] of [["sites", "2"], ["service", "3"]] as const) {
+      assert.equal(count(container, name)?.getAttribute("class"), RAIL_COUNT_PAIR, name);
+      assert.equal(shown(chip(container, name, "bad")), n, name);
+      assert.equal(chip(container, name, "bad")?.getAttribute("class"), RAIL_COUNT_BAD, name);
+      assert.equal(chip(container, name, "unknown"), null, `${name} shows an unknown chip over nothing unknown`);
+    }
     for (const zero of ["reconciler", "infrastructure"]) {
       assert.equal(count(container, zero)?.textContent, "0");
       assert.equal(count(container, zero)?.getAttribute("class"), RAIL_COUNT_ZERO);
@@ -206,13 +213,13 @@ describe("Rail with health", () => {
     assert.equal(container.querySelector('[data-site="removed.lychee.land"]'), null);
     assert.equal(container.querySelectorAll("[data-site]").length, 8);
     // The unlisted entry is ignored by the count as well: only the seed's two listed sites need attention.
-    assert.equal(count(container, "sites")?.textContent, "2");
+    assert.equal(shown(chip(container, "sites", "bad")), "2");
   });
 
   test("units unavailable: the sites count shows and the host counts are absent", () => {
     const health: HealthPayload = { ...seedHealth(), units: null };
     const { container } = render(<Rail rail={railData()} health={health} healthError={false} lastRead={null} />);
-    assert.equal(count(container, "sites")?.textContent, "2");
+    assert.equal(shown(chip(container, "sites", "bad")), "2");
     for (const name of ["service", "reconciler", "infrastructure"]) {
       assert.equal(count(container, name)?.textContent ?? "", "", `${name} shows a count`);
     }
@@ -335,36 +342,47 @@ describe("the top bar and its drawer", () => {
     assert.equal(header.querySelectorAll("#rail-find").length, 1);
   });
 
-  test("the overall count is the sum of the attention counts", () => {
-    const { header } = mountNavigation(seedHealth());
-    const counts = attentionCounts(seedHealth(), railData().sites?.map((x) => x.hostname) ?? []);
-    const sum = [counts.sites, counts.service, counts.reconciler, counts.infrastructure].reduce((n, c) => n + (c ? countTotal(c) : 0), 0);
-    assert.equal(sum, 5);
-    const slot = header.querySelector('[data-count="all"]');
-    assert.equal(slot?.firstChild?.textContent, String(sum));
-    assert.equal(slot?.getAttribute("class"), RAIL_COUNT_BAD);
+  // Each thing once: a site's container counts as its site, so the overall
+  // count can be less than the rail's chips added up (critique 2026-10-27 P1).
+  test("the overall count is everything once, bad and unknown apart", () => {
+    const h = seedHealth();
+    h.units?.push({ ...(h.units ?? [])[0]!, name: "broken-lychee-land", tone: "bad", label: "failed", attention: true, site: "broken.lychee.land" });
+    const { header } = mountNavigation(h);
+    assert.equal(shown(chip(header, "all", "bad")), "5");
+    assert.equal(chip(header, "all", "unknown"), null);
+    assert.equal(chip(header, "all", "bad")?.querySelector(".sr-only")?.textContent, " need attention");
   });
 
-  // Critique 2026-10-26 P1, variant 03: one number per group, unknowns
-  // included; Scorch when anything counted is bad, a neutral chip otherwise.
-  test("an unreadable unit is counted: a neutral chip where nothing is bad, inside the Scorch one where something is", () => {
+  // Critique 2026-10-27 P1: a Scorch number never carries an unknown. What is
+  // bad is a Scorch chip, what could not be read a neutral one beside it, and
+  // each says what it counts to a listener.
+  test("bad and unknown are two chips, never one sum", () => {
     const h = seedHealth();
     const units = (h.units ?? []).map((u) => (u.name === "lychee-watch" ? { ...u, tone: "neutral" as const, label: "unknown" } : u));
     units.push({ ...units[0]!, name: "lychee-notes", group: "service", tone: "neutral", label: "unknown", attention: false, trouble: null });
     const { container } = render(<Rail rail={railData()} health={{ ...h, units }} healthError={false} lastRead={null} />);
-    const reconciler = count(container, "reconciler")!;
-    assert.equal(reconciler.firstChild?.textContent, "1");
-    assert.equal(reconciler.getAttribute("class"), RAIL_COUNT_UNKNOWN);
-    assert.equal(reconciler.querySelector(".sr-only")?.textContent, " (0 need attention, 1 unknown)");
-    const service = count(container, "service")!;
-    assert.equal(service.firstChild?.textContent, "4");
-    assert.equal(service.getAttribute("class"), RAIL_COUNT_BAD);
-    assert.equal(service.querySelector(".sr-only")?.textContent, " (3 need attention, 1 unknown)");
-    // A group with nothing unknown is spoken as before: just its number.
+    assert.equal(chip(container, "reconciler", "bad"), null);
+    assert.equal(shown(chip(container, "reconciler", "unknown")), "1");
+    assert.equal(chip(container, "reconciler", "unknown")?.getAttribute("class"), RAIL_COUNT_UNKNOWN);
+    assert.equal(shown(chip(container, "service", "bad")), "3");
+    assert.equal(shown(chip(container, "service", "unknown")), "1");
+    assert.equal(count(container, "service")?.textContent, "3 need attention, 1 unknown");
+    assert.equal(count(container, "reconciler")?.textContent, "1 unknown");
+    // The link's text is its accessible name: the label, then what it counts.
+    assert.equal(container.querySelector('a[href="/reconciler"]')?.textContent, "reconciler, 1 unknown");
+    // A group with nothing to count stays a quiet 0.
     assert.equal(count(container, "infrastructure")?.textContent, "0");
   });
 
-  test("the overall count includes unknowns, neutral when nothing is bad", () => {
+  // Review 2026-10-27: one is singular, as the board's summary line says it.
+  test("one bad thing is spoken in the singular", () => {
+    const h = seedHealth();
+    const units = (h.units ?? []).map((u) => (u.name === "lychee-watch" ? { ...u, tone: "bad" as const, label: "exited", attention: true } : u));
+    const { container } = render(<Rail rail={railData()} health={{ ...h, units }} healthError={false} lastRead={null} />);
+    assert.equal(container.querySelector('a[href="/reconciler"]')?.textContent, "reconciler, 1 needs attention");
+  });
+
+  test("the overall count shows unknowns as their own neutral chip", () => {
     const h = seedHealth();
     const quiet = {
       ...h,
@@ -372,10 +390,9 @@ describe("the top bar and its drawer", () => {
       units: [{ ...(h.units ?? [])[0]!, name: "lychee-watch", group: "reconciler" as const, tone: "neutral" as const, label: "unknown", attention: false, trouble: null }],
     };
     const { header } = mountNavigation(quiet);
-    const slot = header.querySelector('[data-count="all"]')!;
-    assert.equal(slot.firstChild?.textContent, "1");
-    assert.equal(slot.getAttribute("class"), RAIL_COUNT_UNKNOWN);
-    assert.equal(slot.querySelector(".sr-only")?.textContent, " need attention (0 bad, 1 unknown)");
+    assert.equal(chip(header, "all", "bad"), null);
+    assert.equal(shown(chip(header, "all", "unknown")), "1");
+    assert.equal(header.querySelector('[data-count="all"]')?.textContent, "1 unknown");
   });
 
   test("an errored poll empties the overall count", () => {
@@ -554,7 +571,7 @@ describe("the rail's design rules, in states the fixtures cannot hold", () => {
     const { container } = render(
       <Rail rail={railData({ current: { site: "broken.lychee.land" } })} health={seedHealth()} healthError={false} lastRead={null} />,
     );
-    assert.equal(count(container, "sites")?.textContent, "2", "the state has no site trouble");
+    assert.equal(shown(chip(container, "sites", "bad")), "2", "the state has no site trouble");
     assertRules(container, "health");
   });
 

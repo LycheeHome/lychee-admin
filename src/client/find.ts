@@ -47,9 +47,20 @@ const unitItem = (u: UnitHealth): FindItem => ({
  */
 const matches = (needle: string) => (haystack: string): boolean => haystack.toLowerCase().includes(needle);
 
-function group(units: UnitHealth[] | null, keep: (u: UnitHealth) => boolean): FindGroups {
+/**
+ * A site's container is listed as its site, never also as a unit, unless
+ * `alsoSiteUnit` says otherwise for it.
+ */
+function group(
+  units: UnitHealth[] | null,
+  keep: (u: UnitHealth) => boolean,
+  alsoSiteUnit: (u: UnitHealth) => boolean = () => false,
+): FindGroups {
   if (!units) return [];
-  return UNIT_GROUPS.map((key) => ({ key, items: units.filter((u) => u.group === key && keep(u)).map(unitItem) }));
+  return UNIT_GROUPS.map((key) => ({
+    key,
+    items: units.filter((u) => u.group === key && (u.site === null || alsoSiteUnit(u)) && keep(u)).map(unitItem),
+  }));
 }
 
 /** With nothing typed: every site and unit that needs attention. Nothing at all before health is read. */
@@ -58,7 +69,14 @@ export function attentionResults(health: HealthPayload | null): FindGroups {
   const sites = health.sites
     .filter((s) => s.attention)
     .map((s): FindItem => ({ kind: "site", hostname: s.hostname, tone: s.tone, label: s.label, href: siteHref(s.hostname) }));
-  return [{ key: "sites", items: sites }, ...group(health.units, (u) => u.attention)];
+  // A site that reads healthy while its container's deploy is blocked or
+  // failed would otherwise be listed nowhere, though its board row is named:
+  // that container is listed as the unit it is, with its trouble.
+  const listedSites = new Set(health.sites.filter((s) => s.attention).map((s) => s.hostname));
+  return [
+    { key: "sites", items: sites },
+    ...group(health.units, (u) => u.attention, (u) => u.site !== null && !listedSites.has(u.site)),
+  ];
 }
 
 /**

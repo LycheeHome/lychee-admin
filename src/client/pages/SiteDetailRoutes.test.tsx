@@ -244,7 +244,9 @@ describe("the site page route", () => {
     assert.deepEqual(assigned, []);
   });
 
-  test("find's Enter on a site keeps focus in a wide-screen #find", async () => {
+  // Critique 2026-10-27: a move from find is the end of a search, so find
+  // gives focus up and the site's page takes it, as any in-app move's does.
+  test("find's Enter on a site closes find and focuses the site's hostname", async () => {
     load("/sites/app.lychee.land");
     await railLive();
     await showing("app");
@@ -256,8 +258,9 @@ describe("the site page route", () => {
       fireEvent.keyDown(find, { key: "Enter" });
     });
     await showing("blog");
-    await act(async () => {});
-    assertFocus(find);
+    await waitFor(() => assertFocus(hostHeading()), TIMEOUT);
+    assert.equal(find.value, "");
+    assert.ok(document.querySelector('[role="listbox"]') === null, "find's panel is still open");
     assert.deepEqual(assigned, []);
   });
 

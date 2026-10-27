@@ -83,8 +83,12 @@ export interface RowSummary {
   facts: string[];
 }
 
-/** Everything a row says except its controls, which each renderer owns. `now` is a parameter so ages are testable. */
-export function summarizeRow(row: BoardRow, board: Pick<ServiceBoard, "schedule" | "timerUnit">, now: Date): RowSummary {
+/**
+ * A row's verdict: its pill and its deploy line. The board and the rail's
+ * counts both read it, so a board page's count and its summary line can never
+ * name different rows.
+ */
+export function rowVerdict(row: BoardRow): Pick<RowSummary, "applying" | "undeployed" | "labels" | "trouble"> {
   const applying = isApplying(row);
   // A container with no installed version reads the reconciler's verdict, as
   // the site page does: the container is not asked about a version that was
@@ -94,15 +98,21 @@ export function summarizeRow(row: BoardRow, board: Pick<ServiceBoard, "schedule"
   // Neutral, and only while the live state is not already red: "applying"
   // must never hide a container that is actually failing.
   const labels = applying && live.tone !== "bad" ? { ...live, pill: "applying", tone: "neutral" as const } : live;
+  // The pill stays the thing's own health; a deploy that is blocked or failed
+  // gets its own line, so a healthy old build never reads as a broken one. An
+  // undeployed container's trouble is already its pill, so it gets no line.
+  const trouble = undeployed ? null : deployTrouble(row);
+  return { applying, undeployed, labels, trouble };
+}
+
+/** Everything a row says except its controls, which each renderer owns. `now` is a parameter so ages are testable. */
+export function summarizeRow(row: BoardRow, board: Pick<ServiceBoard, "schedule" | "timerUnit">, now: Date): RowSummary {
+  const { applying, undeployed, labels, trouble } = rowVerdict(row);
 
   const facts: string[] = [];
   // One fact with an arrow, not two: version and target are a single change.
   if (applying) facts.push(`${row.version} → ${row.target}`);
   else if (row.version) facts.push(row.version);
-  // The pill stays the thing's own health; a deploy that is blocked or failed
-  // gets its own line, so a healthy old build never reads as a broken one. An
-  // undeployed container's trouble is already its pill, so it gets no line.
-  const trouble = undeployed ? null : deployTrouble(row);
   const gate = troubleGate(row);
   // The raw result word is the reconciler's vocabulary (`skipped`, `deployed`,
   // `awaiting-image`), not the operator's, so it is never printed. The one

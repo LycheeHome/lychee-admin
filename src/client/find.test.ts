@@ -93,6 +93,7 @@ describe("findResults", () => {
       trouble: null,
       href: "/infrastructure#service-abl",
       attention: false,
+      site: null,
     });
     h.sites.push({ hostname: "data.lychee.land", tone: "ok", label: "running", attention: false });
     const dotted = findResults("a.l", h, railSites);
@@ -133,6 +134,7 @@ describe("findResults", () => {
       trouble: null,
       href: "/reconciler#service-Upper-Case",
       attention: false,
+      site: null,
     });
     assert.deepEqual(names(findResults("upper", h, railSites), "reconciler"), ["Upper-Case"]);
   });
@@ -141,5 +143,51 @@ describe("findResults", () => {
     const groups = findResults("api", seedHealth(), railSites);
     const api = groups[0]?.items[0];
     assert.equal(api?.href, "/sites/api.lychee.land");
+  });
+});
+
+// /api/health lists a site's container as a unit (each board page counts its
+// site rows), marked with its site. Find already lists the site, so the
+// container is never a second place to go.
+describe("a site's container", () => {
+  const withSiteUnit = (): HealthPayload => {
+    const h = seedHealth();
+    h.units?.push({
+      name: "broken-lychee-land",
+      group: "service",
+      tone: "bad",
+      label: "failed",
+      trouble: null,
+      href: "/services#service-broken-lychee-land",
+      attention: true,
+      site: "broken.lychee.land",
+    });
+    return h;
+  };
+
+  // Review 2026-10-27: a site that reads healthy while its container's deploy
+  // is blocked would otherwise be in neither group, though its board names it.
+  test("is listed with its trouble when its site does not already need attention", () => {
+    const h = seedHealth();
+    h.units?.push({
+      name: "app-lychee-land",
+      group: "service",
+      tone: "ok",
+      label: "running",
+      trouble: "blocked",
+      href: "/services#service-app-lychee-land",
+      attention: true,
+      site: "app.lychee.land",
+    });
+    assert.ok(names(attentionResults(h), "service")?.includes("app-lychee-land"));
+  });
+
+  test("is not a unit in find's attention list", () => {
+    assert.ok(!names(attentionResults(withSiteUnit()), "service")?.includes("broken-lychee-land"));
+    assert.ok(names(attentionResults(withSiteUnit()), "sites")?.includes("broken.lychee.land"));
+  });
+
+  test("is not a unit in find's results", () => {
+    assert.deepEqual(names(findResults("broken", withSiteUnit(), railSites), "service"), []);
   });
 });

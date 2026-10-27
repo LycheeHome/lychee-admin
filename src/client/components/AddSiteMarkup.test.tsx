@@ -94,11 +94,14 @@ describe("the type options", () => {
     assert.equal(found.length, 2);
     assert.equal(found[0]?.[0], found[1]?.[0]);
     assert.match(found[0]?.[0] ?? "", /\bborder-stone-700 bg-transparent\b/);
-    assert.match(found[0]?.[0] ?? "", /has-\[:checked\]:bg-stone-700 has-\[:checked\]:border-rose-800(?: |$)/);
+    assert.match(found[0]?.[0] ?? "", /has-\[:checked\]:bg-stone-700 has-\[:checked\]:border-stone-500(?: |$)/);
   });
 
-  test("no option is washed in Ember Deep, and both radios are Ember", () => {
-    assert.doesNotMatch(html, /has-\[:checked\]:bg-rose-950/);
+  // Critique 2026-10-27: an Ember Edge border on the checked option sat a
+  // percent of lightness from Scorch's border, beside an invalid field's ring,
+  // and read as a second error. Checked is neutral; Ember is the radio alone.
+  test("no option is washed or edged in Ember, and both radios are Ember", () => {
+    assert.doesNotMatch(html, /has-\[:checked\]:(bg|border)-rose-/);
     const found = options();
     assert.equal(found.length, 2);
     for (const [, radio] of found) assert.match(radio ?? "", /^accent-rose-400 /);
@@ -266,11 +269,13 @@ describe("the add page's preview panel", () => {
     assert.doesNotMatch(tagById(html, "write-preview"), /aria-live/);
   });
 
-  test("the port branch keeps the 2px Ember Edge rule DESIGN.md documents", () => {
+  // A 2px rule marks the branch the proxy option opens. Neutral, as the
+  // checked option is: in Ember Edge it read as Scorch beside an error.
+  test("the port branch keeps its 2px rule, in Hairline Strong", () => {
     const branch = html.match(/<div class="port-input[^"]*"/);
     assert.ok(branch);
-    assert.match(branch[0], /border-l-2/);
-    assert.match(branch[0], /border-l-rose-800/);
+    assert.match(branch[0], /border-l-2 border-l-stone-600 /);
+    assert.doesNotMatch(branch[0], /rose/);
   });
 });
 
