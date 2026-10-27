@@ -1,5 +1,5 @@
 import { MAX_RESOURCE_NAME_LENGTH, SITE_MIN_PORT } from "./platform";
-import { isValidHostname, maxSiteLabelLength, siteSuffixFor } from "./siteNames";
+import { hostnameMessage, maxSiteLabelLength, siteSuffixFor } from "./siteNames";
 import { hostnameExists, parseSites, type SiteType } from "./caddyfile";
 
 /**
@@ -88,9 +88,8 @@ export function readSiteInput(body: unknown): SiteInput {
  * malformed hostname still fails without touching the filesystem.
  */
 export function validateSiteInput(input: SiteInput, env: SiteEnv): Validation {
-  if (!isValidHostname(input.hostname, env.domain)) {
-    return { ok: false, error: `"${input.hostname}" must be a subdomain of ${env.domain}` };
-  }
+  const hostnameProblem = hostnameMessage(input.hostname, env.domain);
+  if (hostnameProblem) return { ok: false, error: hostnameProblem };
 
   if (env.reservedHostnames.includes(input.hostname)) {
     return { ok: false, error: `"${input.hostname}" is reserved` };

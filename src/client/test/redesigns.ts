@@ -69,6 +69,14 @@ export const REDESIGNS: Redesign[] = [
     anchor: "only while it has no tag",
   },
   {
+    id: "hostname-error-slot",
+    since: "2026-10-27",
+    why: "The hostname field gains its own error, as the port has: described by it, in a hidden status slot after the field's row (critique 2026-10-26, hostname errors).",
+    from: /(aria-describedby=")hostname-suffix(")([\s\S]*?<span id="hostname-suffix"[^>]*>[^<]*<\/span>\s*<\/span>)/g,
+    to: '$1hostname-suffix hostname-error$2$3<span id="hostname-error" class="hidden text-red-300 text-[0.8rem]" role="status" aria-live="polite"></span>',
+    anchor: 'aria-describedby="hostname-suffix"',
+  },
+  {
     id: "port-said-once",
     since: "2026-10-26",
     why: "A port conflict the field already states is said once: the submit points to the field's error, the panel's box hides, and the panel's line points up (critique 2026-10-21, \"the add-site error is said twice\").",

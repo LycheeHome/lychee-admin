@@ -34,7 +34,10 @@ export type AddSiteFormProps = {
   /** A preview rejected the input: `aria-disabled` and the reason in `aria-describedby`. */
   blocked: boolean;
   /** Which element states the rejection: the port field's own error, or the panel's box. */
-  blockedBy?: "port-error" | "preview-error";
+  blockedBy?: "port-error" | "hostname-error" | "preview-error";
+  hostnameFieldRef?: Ref<HTMLInputElement>;
+  hostnameErrorClass?: string;
+  hostnameErrorText?: string;
   /** An add is in flight. */
   submitting: boolean;
   onHostnameChange: () => void;
@@ -56,12 +59,14 @@ export function AddSiteForm(props: AddSiteFormProps) {
           className="flex items-stretch rounded-md focus-within:outline focus-within:outline-2 focus-within:outline-rose-400 focus-within:outline-offset-2"
         >
           <input
+            ref={props.hostnameFieldRef}
             type="text"
             id="hostname-field"
             name="hostname"
             required
             autoComplete="off"
-            aria-describedby="hostname-suffix"
+            aria-describedby="hostname-suffix hostname-error"
+            aria-invalid={props.hostnameErrorText ? "true" : undefined}
             className={`${INPUT} rounded-r-none flex-1 min-w-0 focus:outline-none!`}
             placeholder="blog"
             onChange={props.onHostnameChange}
@@ -72,6 +77,10 @@ export function AddSiteForm(props: AddSiteFormProps) {
           >
             {`.${domain}`}
           </span>
+        </span>
+        {/* The hostname's own error, as the port has: tied to the field, said once. */}
+        <span id="hostname-error" className={props.hostnameErrorClass ?? "hidden text-red-300 text-[0.8rem]"} role="status" aria-live="polite">
+          {props.hostnameErrorText}
         </span>
       </label>
 

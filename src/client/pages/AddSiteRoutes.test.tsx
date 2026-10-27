@@ -217,6 +217,32 @@ describe("a rejection said once", () => {
     assert.ok(!fetched.includes("POST /sites"), "a blocked submit posted");
   });
 
+  // Critique 2026-10-26 P2: a hostname the page can already judge (its
+  // characters) is said under the field, tied to it, and once.
+  test("an invalid hostname is said under its field, and once", async () => {
+    const BAD = `"shop!!" can only use letters, digits and hyphens, and can't start or end with a hyphen`;
+    load("/sites/new");
+    await showingForm();
+    previewAnswer = { ready: false, error: BAD };
+    type("Shop!!");
+    const field = document.getElementById("hostname-field") as HTMLInputElement;
+    assert.equal(document.getElementById("hostname-error")?.textContent, BAD);
+    assert.equal(field.getAttribute("aria-invalid"), "true");
+    assert.match(field.getAttribute("aria-describedby") ?? "", /\bhostname-error\b/);
+    await waitFor(() => assert.equal(submit().getAttribute("aria-disabled"), "true"), TIMEOUT);
+    assert.ok(document.getElementById("preview-error")?.classList.contains("hidden"), "the panel repeats the field");
+    assert.equal(panelLine(), "Fix the hostname in the form and the block appears here.");
+    assert.equal(submit().getAttribute("aria-describedby"), "hostname-error");
+    act(() => {
+      fireEvent.submit(form() as HTMLFormElement);
+    });
+    assert.equal(document.activeElement?.id, "hostname-field");
+    // Fixed, the field clears and stops claiming it's invalid.
+    type("shop");
+    assert.equal(document.getElementById("hostname-error")?.textContent, "");
+    assert.equal(field.getAttribute("aria-invalid"), null);
+  });
+
   test("a rejection no field states keeps the panel's box, and a blocked submit goes there", async () => {
     load("/sites/new");
     await showingForm();

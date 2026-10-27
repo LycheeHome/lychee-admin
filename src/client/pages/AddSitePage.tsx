@@ -5,6 +5,7 @@ import type { SitePreview } from "../../lib/sitePreview";
 import { FOCUS_RING, FRAME_WIDTH } from "../../views/shared";
 import { ADD_SITE_TITLE } from "../../views/siteListModel";
 import { composeHostname, headlineParts, portMessage, resultMarks, skipMarks, type StepMark } from "../addSiteModel";
+import { hostnameMessage } from "../../lib/siteNames";
 import { addSiteQueryKey, fetchAddSite } from "../api";
 import { RailLink, useClientNav } from "../clientNav";
 import { BOARD_ALERT } from "../components/BoardRows";
@@ -27,12 +28,15 @@ import { CaddyfileError } from "../components/SiteDetail";
 
 type PreviewAnswer = { ready: true; preview: SitePreview } | { ready: false; error?: string };
 type AddAnswer = { hostname?: string; error?: string; steps?: { id: string; status: string }[] };
+/** Which element states a rejection: a field's own error, or the panel's box. */
+type BlockedBy = "port-error" | "hostname-error" | "preview-error";
 
 const PREVIEW_DEBOUNCE_MS = 250;
 const PREVIEW_ERROR_CLASS =
   // Sans: its text is a sentence from the server (spec 2026-10-26-mono-sentences).
   "hidden text-[0.8rem] text-red-300 bg-red-950/60 border border-red-400/70 rounded-md px-3 py-2 m-0";
 const PORT_ERROR_CLASS = "port-error hidden text-red-300 text-[0.8rem]";
+const HOSTNAME_ERROR_CLASS = "hidden text-red-300 text-[0.8rem]";
 const PROXY_DESCRIPTION_CLASS = "text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]";
 const NEXTJS_DESCRIPTION_CLASS = "hidden text-stone-300 text-[0.75rem] leading-snug pl-[1.55rem]";
 
@@ -154,7 +158,9 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
   const [blocked, setBlockedState] = useState(false);
   // Where the rejection's reason is shown: the port field, when it already
   // states the same sentence, or the panel's box. Said once, never twice.
-  const [blockedBy, setBlockedByState] = useState<"port-error" | "preview-error">("preview-error");
+  const [blockedBy, setBlockedByState] = useState<BlockedBy>("preview-error");
+  const [hostnameErrorClass, setHostnameErrorClass] = useState(HOSTNAME_ERROR_CLASS);
+  const [hostnameErrorText, setHostnameErrorText] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const formRef = useRef<HTMLFormElement>(null);
@@ -163,7 +169,10 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
   // Refs, not state, wherever app.js read a value synchronously: the submit's
   // guards must hold within one event, before any render.
   const blockedRef = useRef(false);
-  const blockedByRef = useRef<"port-error" | "preview-error">("preview-error");
+  const blockedByRef = useRef<BlockedBy>("preview-error");
+  const hostnameFieldRef = useRef<HTMLInputElement>(null);
+  // The hostname field's own sentence as last set, read when a preview answers.
+  const hostnameMessageRef = useRef("");
   // The port field's own sentence as last set, read when a preview answers.
   const portMessageRef = useRef("");
   const inFlightRef = useRef(false);
@@ -221,8 +230,13 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
         // A rejection of exactly this input, and the only thing that blocks.
         // When the port field already says the same sentence (both come from
         // portConflictMessage), the panel points up instead of repeating it.
-        const fieldSays = result.error === portMessageRef.current;
-        const owner = fieldSays ? "port-error" : "preview-error";
+        const owner: BlockedBy =
+          result.error === portMessageRef.current
+            ? "port-error"
+            : result.error === hostnameMessageRef.current
+              ? "hostname-error"
+              : "preview-error";
+        const fieldSays = owner !== "preview-error";
         setBlocked(true);
         blockedByRef.current = owner;
         setBlockedByState(owner);
@@ -231,7 +245,9 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
         setPanel({
           kind: "message",
           // "In the form", not "above": at desktop width the form is beside the panel.
-          text: fieldSays ? "Fix the port in the form and the block appears here." : "Fix the problem above and the block appears here.",
+          text: fieldSays
+            ? `Fix the ${owner === "port-error" ? "port" : "hostname"} in the form and the block appears here.`
+            : "Fix the problem above and the block appears here.",
         });
         setMarks({});
         return;
@@ -260,6 +276,19 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => void refreshPreview(), PREVIEW_DEBOUNCE_MS);
   }, [refreshPreview, setBlocked]);
+
+  // The hostname's characters are judged here, by the validator's own
+  // sentence, lowercased as the server reads it, so the two can't disagree.
+  const onHostnameChange = useCallback(() => {
+    const label = hostnameFieldRef.current?.value ?? "";
+    const hostname = composeHostname(label, domain).toLowerCase();
+    const sentence = hostname ? hostnameMessage(hostname, domain) : null;
+    hostnameFieldRef.current?.setCustomValidity(sentence ?? "");
+    hostnameMessageRef.current = sentence ?? "";
+    setHostnameErrorClass((c) => withToken(c, "hidden", !sentence));
+    setHostnameErrorText(sentence ?? "");
+    schedulePreview();
+  }, [domain, schedulePreview]);
 
   const validatePort = useCallback(
     (value: string) => {
@@ -331,6 +360,7 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
     // Blocked by a preview rejection: send the reader to the reason, post nothing.
     if (blockedRef.current) {
       if (blockedByRef.current === "port-error") portFieldRef.current?.focus();
+      else if (blockedByRef.current === "hostname-error") hostnameFieldRef.current?.focus();
       else previewErrorRef.current?.focus();
       return;
     }
@@ -448,7 +478,10 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
           blocked={blocked}
           blockedBy={blockedBy}
           submitting={submitting}
-          onHostnameChange={schedulePreview}
+          hostnameFieldRef={hostnameFieldRef}
+          hostnameErrorClass={hostnameErrorClass}
+          hostnameErrorText={hostnameErrorText}
+          onHostnameChange={onHostnameChange}
           onTypeChange={onTypeChange}
           onPortChange={onPortChange}
           onFrameworkChange={onFrameworkChange}
