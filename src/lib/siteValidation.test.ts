@@ -85,6 +85,25 @@ describe("validateSiteInput", () => {
     assert.deepEqual(result, { ok: false, error: `"blog.example.com" must be a subdomain of lychee.land` });
   });
 
+  // Critique 2026-10-26 P2: "Shop!!" was told it "must be a subdomain", which
+  // it is; what is wrong is its characters. One message per real cause.
+  test("an invalid label is told what's wrong with its characters, not its domain", () => {
+    const result = validateSiteInput(readSiteInput({ hostname: "shop!!.lychee.land" }), ENV);
+    assert.deepEqual(result, {
+      ok: false,
+      error: `"shop!!" can only use letters, digits and hyphens, and can't start or end with a hyphen`,
+    });
+    for (const bad of ["-shop.lychee.land", "shop-.lychee.land", "sh_op.lychee.land"]) {
+      const r = validateSiteInput(readSiteInput({ hostname: bad }), ENV);
+      assert.ok(!r.ok && /can only use letters, digits and hyphens/.test(r.error), bad);
+    }
+  });
+
+  test("a hostname with more than one label under the domain is told it must be one", () => {
+    const result = validateSiteInput(readSiteInput({ hostname: "a.b.lychee.land" }), ENV);
+    assert.deepEqual(result, { ok: false, error: `"a.b" is more than one label: a site is a single name under lychee.land` });
+  });
+
   test("rejects a reverse proxy with no port", () => {
     const result = validateSiteInput(readSiteInput({ hostname: "x.lychee.land", type: "reverse-proxy" }), ENV);
     assert.deepEqual(result, { ok: false, error: "A valid local port is required for a reverse proxy site" });

@@ -40,6 +40,22 @@ export function isValidHostname(hostname: string, domain: string): boolean {
 }
 
 /**
+ * Why a hostname is not a valid site hostname, in one sentence, or null when
+ * it is. One message per real cause (critique 2026-10-26: invalid characters
+ * were told they "must be a subdomain"). The validator and the add page's
+ * hostname field both say this, so the two never word it differently.
+ */
+export function hostnameMessage(hostname: string, domain: string): string | null {
+  if (isValidHostname(hostname, domain)) return null;
+  const suffix = `.${domain}`.toLowerCase();
+  const lower = hostname.toLowerCase();
+  if (!lower.endsWith(suffix) || lower.length === suffix.length) return `"${hostname}" must be a subdomain of ${domain}`;
+  const label = hostname.slice(0, hostname.length - suffix.length);
+  if (label.includes(".")) return `"${label}" is more than one label: a site is a single name under ${domain}`;
+  return `"${label}" can only use letters, digits and hyphens, and can't start or end with a hyphen`;
+}
+
+/**
  * Caddyfile blocks lychee-admin doesn't own (e.g. a manually added local-LAN
  * block like lychee.local) must never show up as a managed site, since
  * removing them here would still delete their local directory or tunnel

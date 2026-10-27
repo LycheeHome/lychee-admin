@@ -923,9 +923,14 @@ the one actionable thing in it — a rejection the submit would also make — is
 announced by its own `role="status"` error instead: a Scorch box whose text is
 the server's sentence, so Nunito, as is the submit's own error box beside the
 form. A rejection is said once. When a field already states the same sentence
-(today only the port, whose conflict check runs on the page too), the box stays
-hidden, the panel's line reads "Fix the port in the form and the block
-appears here." (not "above": at desktop width the form sits beside the panel), and a blocked submit points to and focuses that field instead.
+(the port, whose conflict check runs on the page too, and the hostname, whose
+characters the page judges with the validator's own `hostnameMessage`), the box
+stays hidden, the panel's line reads "Fix the port in the form and the block
+appears here." (or "the hostname"; not "above": at desktop width the form sits
+beside the panel), and a blocked submit points to and focuses that field
+instead. The hostname's error sits under its field in a status slot, with
+`aria-invalid` on the field while it holds one, and says one cause per message:
+wrong domain, more than one label, or invalid characters.
 
 ### Routing Hop Chain (signature component)
 
