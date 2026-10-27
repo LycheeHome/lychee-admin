@@ -59,6 +59,14 @@ export const FOCUS_RING =
  */
 export const FRAME_WIDTH = "max-w-[1080px] mx-auto w-full";
 
+/**
+ * A hostname headline's typed label, held as one unit: a line breaks before
+ * the domain rather than inside the label (at a hyphen, say), and a label too
+ * long for a line still wraps inside itself, under the headline's
+ * `[overflow-wrap:anywhere]`.
+ */
+export const HOSTNAME_LABEL = "inline-block max-w-full";
+
 // The page frame's class strings (AppFrame.tsx), the retired server shell's
 // exactly, which the frozen shell fixtures pin.
 

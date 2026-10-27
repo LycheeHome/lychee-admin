@@ -183,6 +183,34 @@ export const REDESIGNS: Redesign[] = [
     anchor: "accent-stone-300",
   },
   {
+    id: "site-headline-label",
+    since: "2026-10-27",
+    why: "A site's hostname headline holds its label as one unit and wraps only where it cannot fit, never mid-word as break-all did (critique 2026-10-26 minors, \"01 Label kept whole\").",
+    from: /(id="site-hostname" class="[^"]*m-0) break-all">([^<]+)/g,
+    to: '$1 [overflow-wrap:anywhere]"><span class="inline-block max-w-full">$2</span>',
+    anchor: 'id="site-hostname" class=',
+  },
+  {
+    id: "add-headline-wrap",
+    since: "2026-10-27",
+    why: "The add page's headline wraps only where it cannot fit, so a long label cannot overflow it.",
+    from: /(<h2 class="[^"]*m-0)(">\s*<span id="composed-hostname")/g,
+    to: "$1 [overflow-wrap:anywhere]$2",
+    anchor: '<span id="composed-hostname"',
+  },
+  // The typed label is one unit, so at 390px a line breaks before the domain
+  // and not at the label's hyphen; the dual run types `blog`, then `shop`.
+  ...(["blog", "shop"] as const).map(
+    (label): Redesign => ({
+      id: `add-headline-label:${label}`,
+      since: "2026-10-27",
+      why: "The add page's composed headline holds the typed label as one unit (critique 2026-10-26 minors, \"01 Label kept whole\").",
+      from: new RegExp(`(id="composed-hostname" data-domain="lychee\\.land">)${label}(<span class="text-stone-500">)`, "g"),
+      to: `$1<span class="inline-block max-w-full">${label}</span>$2`,
+      anchor: `data-domain="lychee.land">${label}<span`,
+    }),
+  ),
+  {
     id: "port-said-once",
     since: "2026-10-26",
     why: "A port conflict the field already states is said once: the submit points to the field's error, the panel's box hides, and the panel's line points up (critique 2026-10-21, \"the add-site error is said twice\").",

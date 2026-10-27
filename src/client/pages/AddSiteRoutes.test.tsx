@@ -188,6 +188,24 @@ describe("isClientRoute", () => {
   });
 });
 
+// The typed label is one unit: a line breaks before the domain, never inside
+// the label (critique 2026-10-26 minors, "01 Label kept whole": at 390px
+// `preview-staging` broke at its hyphen).
+describe("the composed headline", () => {
+  test("holds the typed label whole, and wraps only where it cannot fit", async () => {
+    load("/sites/new");
+    await showingForm();
+    type("preview-staging");
+    const composed = () => document.getElementById("composed-hostname");
+    await waitFor(() => assert.match(composed()?.textContent ?? "", /^preview-staging\.lychee\.land$/), TIMEOUT);
+    assert.equal(
+      composed()?.innerHTML,
+      '<span class="inline-block max-w-full">preview-staging</span><span class="text-stone-500">.lychee.land</span>',
+    );
+    assert.ok(headline()?.classList.contains("[overflow-wrap:anywhere]"), headline()?.className);
+  });
+});
+
 describe("a rejection said once", () => {
   const PORT_TAKEN = "Port 4000 is already used by api.lychee.land.";
   const panelLine = () =>

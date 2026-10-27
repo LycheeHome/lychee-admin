@@ -37,6 +37,7 @@ import {
   ERROR_BOX,
   FOCUS_RING,
   FRAME_WIDTH,
+  HOSTNAME_LABEL,
   MONO_FACT,
   TONE_PILL,
   TONE_TEXT,
@@ -130,9 +131,9 @@ function Header({ payload, headingRef }: { payload: DetailPayload; headingRef?: 
             <h2
               ref={headingRef}
               id="site-hostname"
-              className="font-mono text-[1.7rem] leading-[1.2] tracking-[-0.01em] text-stone-50 m-0 break-all"
+              className="font-mono text-[1.7rem] leading-[1.2] tracking-[-0.01em] text-stone-50 m-0 [overflow-wrap:anywhere]"
             >
-              {lead}
+              <span className={HOSTNAME_LABEL}>{lead}</span>
               {dimmed ? <span className="text-stone-500">{dimmed}</span> : null}
             </h2>
             <CopyButton target="site-hostname" label="Copy hostname" extraClass="shrink-0" />
