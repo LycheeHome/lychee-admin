@@ -3,6 +3,14 @@ import { BUTTON_PRIMARY, BUTTON_SECONDARY, FOCUS_RING, FORM_LABEL, INPUT } from 
 import { RailLink } from "../clientNav";
 
 /**
+ * A type option, checked or not: both share one "checked", a Hairline fill
+ * with an Ember Edge border beside an Ember radio (critique 2026-10-26; the
+ * proxy card's Ember Deep wash read close to the error ground).
+ */
+const TYPE_OPTION =
+  "flex flex-col gap-1 rounded-md border border-stone-700 bg-transparent px-3 py-2.5 cursor-pointer motion-safe:transition-colors hover:bg-stone-800/40 has-[:checked]:bg-stone-700 has-[:checked]:border-rose-800";
+
+/**
  * The add page's form, as `renderAddSite` wrote it and `public/app.js` then
  * changed it. Presentational: AddSiteBody (src/client/pages/AddSitePage.tsx)
  * owns every decision and passes each changing class string, text and
@@ -87,7 +95,7 @@ export function AddSiteForm(props: AddSiteFormProps) {
       <fieldset className="border-0 p-0 m-0 flex flex-col gap-3">
         <legend className="font-mono text-[0.7rem] uppercase tracking-[0.06em] text-stone-400 px-0 mb-2">Type</legend>
 
-        <label className="flex flex-col gap-1 rounded-md border border-stone-600 bg-stone-700/50 px-3 py-2.5 cursor-pointer motion-safe:transition-colors hover:bg-stone-700/80 has-[:checked]:bg-stone-700 has-[:checked]:border-stone-500">
+        <label className={TYPE_OPTION}>
           <span className="flex items-center gap-2 text-stone-50 text-[0.9rem] font-semibold">
             <input
               type="radio"
@@ -96,7 +104,7 @@ export function AddSiteForm(props: AddSiteFormProps) {
               defaultChecked
               aria-label="Static site"
               aria-describedby="type-static-description"
-              className={`accent-stone-300 ${FOCUS_RING}`}
+              className={`accent-rose-400 ${FOCUS_RING}`}
               onChange={props.onTypeChange}
             />
             {" Static site"}
@@ -108,7 +116,7 @@ export function AddSiteForm(props: AddSiteFormProps) {
           </span>
         </label>
 
-        <label className="flex flex-col gap-1 rounded-md border border-stone-700 bg-transparent px-3 py-2.5 cursor-pointer motion-safe:transition-colors hover:bg-stone-800/40 has-[:checked]:bg-rose-950/50 has-[:checked]:border-rose-800/70">
+        <label className={TYPE_OPTION}>
           <span className="flex items-center gap-2 text-stone-50 text-[0.9rem] font-semibold">
             <input
               type="radio"

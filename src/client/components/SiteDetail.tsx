@@ -34,10 +34,10 @@ import {
   CARD,
   CARD_LABEL,
   CARD_LABEL_BASE,
-  DETAIL_WIDTH,
   ERROR_BOX,
   FOCUS_RING,
   FRAME_WIDTH,
+  HOSTNAME_LABEL,
   MONO_FACT,
   TONE_PILL,
   TONE_TEXT,
@@ -131,9 +131,9 @@ function Header({ payload, headingRef }: { payload: DetailPayload; headingRef?: 
             <h2
               ref={headingRef}
               id="site-hostname"
-              className="font-mono text-[1.7rem] leading-[1.2] tracking-[-0.01em] text-stone-50 m-0 break-all"
+              className="font-mono text-[1.7rem] leading-[1.2] tracking-[-0.01em] text-stone-50 m-0 [overflow-wrap:anywhere]"
             >
-              {lead}
+              <span className={HOSTNAME_LABEL}>{lead}</span>
               {dimmed ? <span className="text-stone-500">{dimmed}</span> : null}
             </h2>
             <CopyButton target="site-hostname" label="Copy hostname" extraClass="shrink-0" />
@@ -479,7 +479,7 @@ export function SiteDetail({
   };
   return (
     <>
-      <div className={`${DETAIL_WIDTH} flex flex-col gap-5`}>
+      <div className={`${FRAME_WIDTH} flex flex-col gap-5`}>
         <Header payload={payload} headingRef={headingRef} />
         {retiredName ? <RetiredNotice name={retiredName} controls={writes} /> : null}
         {cardOrder(payload).map((name) => (
@@ -503,7 +503,7 @@ export function SiteDetail({
 /** The retired renderSiteNotFound's body. */
 export function SiteNotFound({ hostname }: { hostname: string }) {
   return (
-    <div className="max-w-[640px] mx-auto w-full flex flex-col gap-4">
+    <div className={`${FRAME_WIDTH} flex flex-col gap-4`}>
       <h2 className="font-mono text-[1.7rem] leading-[1.2] tracking-[-0.01em] text-stone-50 m-0">Site not found</h2>
       <p className="font-mono text-[0.85rem] text-stone-50 bg-red-950/60 border border-red-400/70 rounded-md px-4 py-3">
         {`No managed site found for "${hostname}".`}

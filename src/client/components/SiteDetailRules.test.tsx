@@ -139,12 +139,24 @@ describe("renderSiteDetail header", () => {
 
   test("dims the managed domain suffix on a subdomain", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
-    assert.match(html, /blog<span class="text-stone-500">\.lychee\.land<\/span>/);
+    assert.match(html, /blog<\/span><span class="text-stone-500">\.lychee\.land<\/span>/);
+  });
+
+  // The label is one unit, so a line breaks before the domain and never
+  // inside the label, nor mid-word in the domain (critique 2026-10-26 minors,
+  // "01 Label kept whole"; the headline was break-all).
+  test("holds the label whole, and wraps only where it cannot fit", () => {
+    const html = renderSiteDetail(STATIC_SITE, OPTS);
+    const h2 = html.match(/<h2 id="site-hostname" class="([^"]*)"[^>]*>([\s\S]*?)<\/h2>/);
+    assert.ok(h2, "no hostname headline");
+    assert.match(h2[1] ?? "", /\[overflow-wrap:anywhere\]/);
+    assert.doesNotMatch(h2[1] ?? "", /break-all/);
+    assert.equal(h2[2], '<span class="inline-block max-w-full">blog</span><span class="text-stone-500">.lychee.land</span>');
   });
 
   test("leaves the apex domain undimmed — it has no subdomain", () => {
     const html = renderSiteDetail(APEX_SITE, OPTS);
-    assert.match(html, /id="site-hostname"[^>]*>lychee\.land</);
+    assert.match(html, /id="site-hostname"[^>]*><span class="inline-block max-w-full">lychee\.land<\/span><\/h2>/);
     assert.doesNotMatch(html, /<span class="text-stone-500"><\/span>/);
   });
 
@@ -254,9 +266,19 @@ describe("renderSiteDetail header", () => {
     assert.match(html, /data-state-pill><span aria-hidden="true">●<\/span> responding<\/span>/);
   });
 
-  test("widens the column past the old 640px", () => {
+  // The page takes the 1080px frame the list, the add page and the boards
+  // take, so moving between them keeps one left edge (critique 2026-10-26,
+  // "Full frame"). Its sentences stay capped at the prose measure.
+  test("takes the 1080px frame, not a centred reading column", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
-    assert.match(html, /max-w-\[760px\]/);
+    assert.match(html, /^<div class="max-w-\[1080px\] mx-auto w-full flex flex-col gap-5">/);
+    assert.doesNotMatch(html, /max-w-\[760px\]/);
+  });
+
+  test("the not-found body takes the frame too", () => {
+    const html = renderSiteNotFound("nope.lychee.land");
+    assert.match(html, /^<div class="max-w-\[1080px\] mx-auto w-full flex flex-col gap-4">/);
+    assert.doesNotMatch(html, /max-w-\[640px\]/);
   });
 });
 
@@ -855,7 +877,7 @@ describe("the not-found page", () => {
   // of centring a block.
   test("the not-found wrapper spans its column instead of shrink-wrapping", () => {
     const html = renderSiteNotFound("nope.lychee.land");
-    const wrapper = html.match(/<div class="[^"]*max-w-\[640px\][^"]*"/);
+    const wrapper = html.match(/<div class="[^"]*max-w-\[1080px\][^"]*"/);
     assert.ok(wrapper, "no width-capped wrapper rendered");
     assert.match(wrapper[0], /\bw-full\b/);
   });

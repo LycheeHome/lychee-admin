@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ChangeE
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import type { AddSitePayload } from "../../shared/addSite";
 import type { SitePreview } from "../../lib/sitePreview";
-import { FOCUS_RING, FRAME_WIDTH } from "../../views/shared";
+import { FOCUS_RING, FRAME_WIDTH, HOSTNAME_LABEL } from "../../views/shared";
 import { ADD_SITE_TITLE } from "../../views/siteListModel";
 import { composeHostname, headlineParts, portMessage, resultMarks, skipMarks, type StepMark } from "../addSiteModel";
 import { hostnameMessage } from "../../lib/siteNames";
@@ -446,7 +446,7 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
 
         {/* The headline is the site being composed, in its detail page's
             Headline treatment; it follows the preview, not the keystroke. */}
-        <h2 ref={headingRef} className="font-mono text-[1.7rem] leading-[1.2] tracking-[-0.01em] text-stone-50 m-0">
+        <h2 ref={headingRef} className="font-mono text-[1.7rem] leading-[1.2] tracking-[-0.01em] text-stone-50 m-0 [overflow-wrap:anywhere]">
           <span id="composed-hostname" data-domain={domain}>
             {parts === null ? (
               "Add a site"
@@ -454,7 +454,7 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
               parts.whole
             ) : (
               <>
-                {parts.label}
+                <span className={HOSTNAME_LABEL}>{parts.label}</span>
                 <span className="text-stone-500">{parts.suffix}</span>
               </>
             )}

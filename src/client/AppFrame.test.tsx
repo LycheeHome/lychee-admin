@@ -471,6 +471,9 @@ describe("the page notice", () => {
     // Above the page, inside <main>, after the copy-status region.
     assert.ok(notice.parentElement?.tagName === "MAIN");
     assert.ok(notice.previousElementSibling?.id === "copy-status");
+    // The frame's width, as every page's content is (critique 2026-10-26).
+    assert.ok(notice.classList.contains("max-w-[1080px]"), notice.className);
+    assert.ok(!notice.classList.contains("max-w-[760px]"), notice.className);
   });
 
   test("?created=1 renders addedNotice(site) once the site's payload is in", async () => {
