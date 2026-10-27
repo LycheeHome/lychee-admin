@@ -262,9 +262,9 @@ export function RemoveDialog(props: RemoveDialogProps) {
           <span className="font-mono text-stone-50">state: absent</span>
           {" to "}
           <span className="font-mono text-stone-50">{`${declaration}.yml`}</span>
-          {
-            " in lychee-resources, and the reconciler takes the container down on its next run, usually within two minutes."
-          }
+          {" in "}
+          <span className="font-mono text-stone-50">lychee-resources</span>
+          {", and the reconciler takes the container down on its next run, usually within two minutes."}
         </p>
       ) : null}
       <div id="confirm-remove-outcome" className={outcomeClass} role="status" aria-live="polite">

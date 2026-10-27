@@ -376,8 +376,13 @@ export function manualSteps(site: Site, f: SiteDetailFacts, filesPath: string | 
   // that what is live is a placeholder.
   if (site.type === "static" && filesPath) {
     steps.push({
+      // The path and the file are facts, so code (the Mono-Carries-Facts rule).
       text: [
-        `Put your site's files in ${filesPath}/. lychee-admin created a placeholder index.html there, which Caddy serves until you replace it.`,
+        "Put your site's files in ",
+        { code: `${filesPath}/` },
+        ". lychee-admin created a placeholder ",
+        { code: "index.html" },
+        " there, which Caddy serves until you replace it.",
       ],
     });
   }

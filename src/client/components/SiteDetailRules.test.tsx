@@ -488,8 +488,9 @@ describe("renderSiteDetail manual steps", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     // add-site writes a placeholder index.html, so the site works immediately
     // and nothing otherwise prompts the user to notice what is actually live.
-    assert.match(html, /Put your site's files in \/var\/www\/blog\.lychee\.land\//);
-    assert.match(html, /placeholder index\.html/);
+    // The path is a fact, set as code (critique 2026-10-26).
+    assert.match(html, /Put your site(?:'|&#x27;|&#39;)s files in <code[^>]*>\/var\/www\/blog\.lychee\.land\/<\/code>/);
+    assert.match(html, /placeholder <code[^>]*>index\.html<\/code>/);
   });
 
   test("a reverse-proxy site is not told about a placeholder it never got", () => {

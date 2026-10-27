@@ -57,6 +57,9 @@ export const DETAIL_WIDTH = "max-w-[760px] mx-auto w-full";
 /** The content column beside the rail, and the 1080px <main> inside it. */
 export const SHELL_COLUMN = "min-w-0 px-6 pb-16";
 export const SHELL_MAIN = "max-w-[1080px] mx-auto py-8 pb-8 flex flex-col gap-6";
+/** The skip link: screen-reader only until focused, then fixed top-left; never a grid cell. */
+export const SKIP_LINK =
+  "sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 rounded-md bg-stone-800 border border-stone-700 px-3 py-2 text-[0.85rem] text-stone-50 no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
 
 /** The × that dismisses the toast or the page notice. */
 export const DISMISS_BUTTON =

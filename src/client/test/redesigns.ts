@@ -1,4 +1,4 @@
-import { BODY, CAPTION, CAPTION_FILE, CAPTION_KEEP } from "../../views/shared";
+import { BODY, CAPTION, CAPTION_FILE, CAPTION_KEEP, SKIP_LINK } from "../../views/shared";
 
 /*
  * Declared redesigns of the frozen parity fixtures (src/dev/fixtures/).
@@ -75,6 +75,38 @@ export const REDESIGNS: Redesign[] = [
     from: /(aria-describedby=")hostname-suffix(")([\s\S]*?<span id="hostname-suffix"[^>]*>[^<]*<\/span>\s*<\/span>)/g,
     to: '$1hostname-suffix hostname-error$2$3<span id="hostname-error" class="hidden text-red-300 text-[0.8rem]" role="status" aria-live="polite"></span>',
     anchor: 'aria-describedby="hostname-suffix"',
+  },
+  {
+    id: "static-step-facts",
+    since: "2026-10-27",
+    why: "The static site's manual step sets its path and file as code, the Mono-Carries-Facts rule (critique 2026-10-26).",
+    from: /Put your site(&#x27;|')s files in ([^ <]+)\/\. lychee-admin created a placeholder index\.html there/g,
+    to: 'Put your site$1s files in <code class="font-mono text-[0.72rem] text-stone-300 bg-stone-900 rounded-[4px] px-1">$2/</code>. lychee-admin created a placeholder <code class="font-mono text-[0.72rem] text-stone-300 bg-stone-900 rounded-[4px] px-1">index.html</code> there',
+    anchor: "files in ",
+  },
+  {
+    id: "remove-note-repository",
+    since: "2026-10-27",
+    why: "The remove dialog's step-5 note sets lychee-resources in mono like its other facts (critique 2026-10-26).",
+    from: /<\/span> in lychee-resources, and the reconciler takes/g,
+    to: '</span> in <span class="font-mono text-stone-50">lychee-resources</span>, and the reconciler takes',
+    anchor: " in lychee-resources, and the reconciler takes",
+  },
+  {
+    id: "skip-link",
+    since: "2026-10-27",
+    why: "A skip link is the frame's first Tab stop, past the rail to <main> (critique 2026-10-26: thirteen rail stops before content).",
+    from: /<header id="top-bar"/g,
+    to: `<a href="#main" class="${SKIP_LINK}">Skip to content</a><header id="top-bar"`,
+    anchor: '<header id="top-bar"',
+  },
+  {
+    id: "main-target",
+    since: "2026-10-27",
+    why: "<main> is the skip link's target: an id, and focusable without entering the tab order.",
+    from: /<main class="max-w-\[1080px\] mx-auto py-8 pb-8 flex flex-col gap-6">/g,
+    to: '<main id="main" tabindex="-1" class="max-w-[1080px] mx-auto py-8 pb-8 flex flex-col gap-6">',
+    anchor: '<main class="max-w-[1080px] mx-auto py-8 pb-8 flex flex-col gap-6">',
   },
   {
     id: "port-said-once",

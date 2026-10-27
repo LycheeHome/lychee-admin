@@ -181,12 +181,15 @@ describe("BoardPage", () => {
     assert.ok(document.querySelector('[data-service="notes"]'));
   });
 
-  test("sets the server's title and focuses the eyebrow, which takes focus but is not in the tab order", async () => {
+  // Only an in-app navigation moves focus (router.test.tsx covers it); a
+  // mount outside the router is a document load's, and takes none.
+  test("sets the server's title; outside the router it takes no focus, though the eyebrow can take it", async () => {
     mount("reconciler");
     current = payload([], {}, "reconciler");
     const heading = await screen.findByRole("heading", { name: "Reconciler" }, TIMEOUT);
     assert.equal(document.title, "Reconciler");
-    await waitFor(() => assert.equal(document.activeElement, heading), TIMEOUT);
+    await new Promise((r) => setTimeout(r, 30));
+    assert.ok(document.activeElement !== heading, "a mount outside the router took focus");
     assert.equal(heading.getAttribute("tabindex"), "-1");
   });
 

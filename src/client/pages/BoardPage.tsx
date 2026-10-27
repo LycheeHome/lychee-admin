@@ -44,9 +44,10 @@ const failedLine = (reason: string): string => `Couldn't refresh the services bo
  *   host-action button that does nothing.
  * - A failed re-read keeps the last good board and says so above its rows,
  *   until the next good read. A failed first read shows that line alone.
- * - On mount it takes the server's title for the page and moves focus to its
- *   eyebrow, so an in-app navigation is announced the way a page load is;
- *   never out of the find box, where the operator may still be typing.
+ * - On mount it takes the server's title for the page. An in-app navigation
+ *   moves focus to its eyebrow, so it is announced the way a page load is; a
+ *   document load takes none. Never out of the find box, where the operator
+ *   may still be typing.
  *
  * Nothing renders while the first answer is on its way: a skeleton is the
  * redesign's call.
@@ -83,6 +84,7 @@ export function BoardPage({ group }: { group: ServiceGroup }) {
   // rows are in. An in-app move's hash is the router's to scroll to.
   const nav = useClientNav();
   const [loadHash] = useState(() => (nav?.documentLoad ? window.location.hash : ""));
+  const arrivedInApp = nav !== null && !nav.documentLoad;
   useEffect(() => {
     if (focused.current) return;
     if (!hasBoard) {
@@ -97,13 +99,17 @@ export function BoardPage({ group }: { group: ServiceGroup }) {
         // An undecodable hash names no row.
       }
     }
+    // A document load (or a mount outside the router) takes no focus, as on
+    // the other pages: the browser announces a page load itself, and taking
+    // focus drew its default ring on the eyebrow (critique 2026-10-26).
+    if (!arrivedInApp) return;
     // A find box inside the drawer is not one being typed in: the move came
     // from it, and the drawer has just closed.
     const active = document.activeElement;
     if (active?.id === "find" && !active.closest("dialog")) return;
     // Scrolling is done: to the top, a saved position, or a #service- row.
     heading.current?.focus({ preventScroll: true });
-  }, [hasBoard, latestFailed, loadHash]);
+  }, [hasBoard, latestFailed, loadHash, arrivedInApp]);
 
   // A move that stays on this page (find's Enter on one of its rows, the
   // rail's link to it) does not remount it, so the focus above does not run

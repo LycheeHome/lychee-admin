@@ -161,15 +161,17 @@ claim.
   rejected on conflict with another site, with a port claimed by a declaration
   in `lychee-resources` (in any state, retired included), or with a reserved
   port (the app's own, and Caddy's admin API on 2019).
-- **React for every page but add site** — Express templates and Tailwind via
-  its CLI still render the add-site page; the sites list, a site's page and
-  the three board pages are React's, with client-side routing between them, a
-  sites list that re-reads itself every 15s, a site's page that re-reads
-  itself (every 15s, every 3s while a deploy it requested is waiting), and a
-  board that re-reads itself (every 15s, every 3s while a deploy or host
-  action is in progress) instead of reloading. This is a single-purpose
-  internal tool; the rest of it moves to React only page by page, with output
-  parity.
+- **A React single-page app, every page included** — Express answers every
+  client route with one static document and React renders the whole body:
+  the frame, the rail, the sites list, a site's page, the add page and the
+  three board pages, with client-side routing between them, a sites list that
+  re-reads itself every 15s, a site's page that re-reads itself (every 15s,
+  every 3s while a deploy it requested is waiting), and a board that re-reads
+  itself (every 15s, every 3s while a deploy or host action is in progress)
+  instead of reloading. The add page is the one that is not live: it reads
+  once per arrival. The migration ran page by page with output parity, and
+  the retired server renderers' last output stays frozen as the parity
+  reference.
 - **Served over plain HTTP on the LAN**, so `navigator.clipboard` is
   unavailable. Any copy affordance needs a select-the-text fallback.
 - **Single user, basic auth, bcrypt hash from the environment.** No roles, no

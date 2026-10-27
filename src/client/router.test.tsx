@@ -233,6 +233,16 @@ describe("the sites list route", () => {
     assert.deepEqual(marked(), ["/"]);
   });
 
+  // Critique 2026-10-26: a document load of a board page took focus and drew
+  // the browser's default ring on its eyebrow. A page load is the browser's to
+  // announce; only an in-app navigation moves focus, as on the list.
+  test("a direct visit to a board page takes no focus", async () => {
+    load("/services");
+    await waitFor(() => assert.ok(document.querySelector("[data-service]")), TIMEOUT);
+    await act(async () => {});
+    assert.ok(document.activeElement === document.body, focused());
+  });
+
   test("a direct visit takes no focus, so the list at rest is the server's markup", async () => {
     load("/");
     await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
@@ -292,9 +302,10 @@ describe("the single root", () => {
     // are the body grid's items, as the server shell's were.
     assert.deepEqual(
       Array.from(root.children).map((el) => `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}`),
-      ["header#top-bar", "aside#rail", "div"],
+      ["a", "header#top-bar", "aside#rail", "div"],
     );
-    assert.ok(root.children[2]?.firstElementChild?.tagName === "MAIN");
+    assert.equal(root.children[0]?.textContent, "Skip to content");
+    assert.ok(root.children[3]?.firstElementChild?.tagName === "MAIN");
     assert.equal(document.querySelectorAll("#find").length, 1);
     assert.equal(document.querySelectorAll("#rail nav[aria-label=\"Host\"]").length, 1);
     assert.equal(document.querySelectorAll("#top-bar h1").length, 1);

@@ -155,8 +155,11 @@ export function FindPanel({
     () => (q === "" ? attentionResults(health) : findResults(q, health, railSites)),
     [q, health, railSites],
   );
-  // With nothing typed only the groups that have something are shown.
-  const shown = q === "" ? groups.filter((g) => g.items.length > 0) : groups;
+  // With nothing typed, or once anything matches, only the groups that have
+  // something are shown: three "No … match" lines pushed a single hit down
+  // (critique 2026-10-26). When nothing matches anywhere, each group says so.
+  const anyMatch = groups.some((g) => g.items.length > 0);
+  const shown = q === "" || anyMatch ? groups.filter((g) => g.items.length > 0) : groups;
   const items = shown.flatMap((g) => g.items);
   const found = activeHref === null ? -1 : items.findIndex((item) => item.href === activeHref);
   // A highlighted row that has gone falls back to the first.
@@ -217,6 +220,13 @@ export function FindPanel({
     setPlace({ top: box.top, left: rail ? rail.right + 8 : box.left });
   }, [open, inDrawer]);
 
+  // The box is uncontrolled (its value is the server's at rest), so clearing
+  // the query clears the element too.
+  const clearQuery = () => {
+    setQuery("");
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
   const close = () => {
     setOpen(false);
     const target = returnTo.current;
@@ -237,9 +247,12 @@ export function FindPanel({
         // An open one closes and keeps focus in the box, inside the drawer.
         e.preventDefault();
         setOpen(false);
+        clearQuery();
         return;
       }
       e.preventDefault();
+      // Cleared, so the next ⌘K opens fresh rather than on the last search.
+      clearQuery();
       close();
       return;
     }
