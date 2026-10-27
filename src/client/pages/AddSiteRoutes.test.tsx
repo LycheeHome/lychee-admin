@@ -206,6 +206,30 @@ describe("the composed headline", () => {
   });
 });
 
+// Critique 2026-10-27 P2: the step a reverse proxy skips says so beside its
+// label as soon as the type is chosen, not after a good preview, and in a
+// word a listener hears, not a bare dash.
+describe("the step a reverse proxy skips", () => {
+  const filesStep = () => document.querySelector('#add-site-steps [data-step-id="files"]');
+  const chooseType = (value: string) =>
+    act(() => {
+      fireEvent.click(document.querySelector(`input[name="type"][value="${value}"]`) as HTMLInputElement);
+    });
+
+  test("reads skipped as soon as reverse proxy is chosen, with no preview", async () => {
+    load("/sites/new");
+    await showingForm();
+    assert.equal(filesStep()?.querySelector("[data-step-skipped]"), null, "skipped before a type that skips it");
+    chooseType("reverse-proxy");
+    const word = filesStep()?.querySelector("[data-step-skipped]");
+    assert.ok(word, "no skipped word");
+    assert.equal(word.textContent?.replace(/^·\s*/, ""), "skipped");
+    assert.equal(filesStep()?.querySelector(".step-mark")?.textContent, "", "a bare mark beside the word");
+    chooseType("static");
+    assert.equal(filesStep()?.querySelector("[data-step-skipped]"), null, "still skipped for a static site");
+  });
+});
+
 describe("a rejection said once", () => {
   const PORT_TAKEN = "Port 4000 is already used by api.lychee.land.";
   const panelLine = () =>

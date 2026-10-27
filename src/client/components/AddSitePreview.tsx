@@ -26,6 +26,8 @@ export type AddSitePreviewProps = {
   panel: PreviewPanel;
   /** Per step id; an absent entry is a reset mark. */
   marks: Record<string, StepMark>;
+  /** Steps the chosen type skips, known before any preview: a reverse proxy creates no directory. */
+  skipped: readonly string[];
   previewErrorRef: Ref<HTMLParagraphElement>;
   previewErrorClass: string;
   previewErrorText: string;
@@ -90,11 +92,19 @@ export function AddSitePreview(props: AddSitePreviewProps) {
         <p className={`${CARD_LABEL_BASE} text-stone-300 m-0 mb-3`}>In this order</p>
         <ol id="add-site-steps" className="font-mono text-[0.75rem] text-stone-400 m-0 mb-3 p-0 list-none grid gap-y-1.5">
           {props.steps.map((step, index) => {
-            const mark = props.marks[step.id];
+            const result = props.marks[step.id];
+            // A step's own result outranks the type: a submit's ✓ or ✗ stands.
+            const skipped = result ? result.skipped === true : props.skipped.includes(step.id);
+            const mark = skipped ? undefined : result;
             return (
               <li key={step.id} className="flex gap-2" data-step-id={step.id}>
                 <span className="text-stone-400 shrink-0">{`${index + 1}.`}</span>
                 <span>{step.label}</span>
+                {skipped ? (
+                  <span data-step-skipped="">
+                    <span aria-hidden="true">{"· "}</span>skipped
+                  </span>
+                ) : null}
                 {/* app.js wrote `step-mark ml-auto shrink-0 ${colour}`, a
                     trailing space included when the colour is empty. */}
                 <span className={mark ? `${MARK_BASE} ${mark.className}` : MARK_BASE}>{mark?.text}</span>
