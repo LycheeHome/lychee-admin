@@ -165,6 +165,23 @@ describe("a site's container", () => {
     return h;
   };
 
+  // Review 2026-10-27: a site that reads healthy while its container's deploy
+  // is blocked would otherwise be in neither group, though its board names it.
+  test("is listed with its trouble when its site does not already need attention", () => {
+    const h = seedHealth();
+    h.units?.push({
+      name: "app-lychee-land",
+      group: "service",
+      tone: "ok",
+      label: "running",
+      trouble: "blocked",
+      href: "/services#service-app-lychee-land",
+      attention: true,
+      site: "app.lychee.land",
+    });
+    assert.ok(names(attentionResults(h), "service")?.includes("app-lychee-land"));
+  });
+
   test("is not a unit in find's attention list", () => {
     assert.ok(!names(attentionResults(withSiteUnit()), "service")?.includes("broken-lychee-land"));
     assert.ok(names(attentionResults(withSiteUnit()), "sites")?.includes("broken.lychee.land"));

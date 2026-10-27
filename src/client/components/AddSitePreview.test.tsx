@@ -45,6 +45,15 @@ describe("the step list's skipped step", () => {
     assert.equal(row(container, "files")?.querySelector(".step-mark")?.textContent, "✓");
   });
 
+  test("a static submit that failed at the files step marks it ✗ in Scorch", () => {
+    const marks = resultMarks([{ id: "files", status: "failed" }]);
+    const { container } = render(<AddSitePreview {...props({ marks })} />);
+    const mark = row(container, "files")?.querySelector(".step-mark");
+    assert.equal(mark?.textContent, "✗");
+    assert.ok(mark?.classList.contains("text-red-300"));
+    assert.equal(row(container, "files")?.querySelector("[data-step-skipped]"), null);
+  });
+
   test("the dot before the word is decoration", () => {
     const { container } = render(<AddSitePreview {...props({ skipped: ["files"] })} />);
     assert.equal(row(container, "files")?.querySelector('[data-step-skipped] [aria-hidden="true"]')?.textContent, "· ");

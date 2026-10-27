@@ -1,4 +1,5 @@
 import "../test/setup";
+import answers from "../test/addSiteAnswers.json";
 import assert from "node:assert/strict";
 import { after, afterEach, before, describe, test } from "node:test";
 import { act, fireEvent, waitFor } from "@testing-library/react";
@@ -209,6 +210,8 @@ describe("the composed headline", () => {
 // Critique 2026-10-27 P2: the step a reverse proxy skips says so beside its
 // label as soon as the type is chosen, not after a good preview, and in a
 // word a listener hears, not a bare dash.
+const STATIC_SHOP = "POST /sites/preview hostname=shop.lychee.land&type=static&port=&framework=none&healthcheckPath=";
+
 describe("the step a reverse proxy skips", () => {
   const filesStep = () => document.querySelector('#add-site-steps [data-step-id="files"]');
   const chooseType = (value: string) =>
@@ -227,6 +230,22 @@ describe("the step a reverse proxy skips", () => {
     assert.equal(filesStep()?.querySelector(".step-mark")?.textContent, "", "a bare mark beside the word");
     chooseType("static");
     assert.equal(filesStep()?.querySelector("[data-step-skipped]"), null, "still skipped for a static site");
+  });
+
+  // Review 2026-10-27: a static preview's "will run" mark, already in, must not
+  // outrank the switch to reverse proxy; nor a proxy preview's skip the switch back.
+  test("a preview already in never outranks a type switch, either way", async () => {
+    load("/sites/new");
+    await showingForm();
+    previewAnswer = (answers as Record<string, { body: unknown }>)[STATIC_SHOP].body;
+    type("shop");
+    await waitFor(() => assert.ok(fetched.some((f) => f.startsWith("POST /sites/preview")), "no preview"), TIMEOUT);
+    await waitFor(() => assert.match(document.getElementById("preview-body")?.textContent ?? "", /file_server/), TIMEOUT);
+    previewAnswer = { ready: false };
+    chooseType("reverse-proxy");
+    assert.ok(filesStep()?.querySelector("[data-step-skipped]"), "a static preview's mark outranked the switch");
+    chooseType("static");
+    assert.ok(!filesStep()?.querySelector("[data-step-skipped]"), "a stale skip outranked the switch back");
   });
 });
 

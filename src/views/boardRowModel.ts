@@ -6,11 +6,11 @@
 // them. No node imports: Vite bundles this file into the client.
 import type { HostAction } from "../lib/platform";
 import type { ActionState } from "../lib/hostOperations";
-import type { StatusLabels, StatusTone } from "../lib/siteDisplay";
+import { describeStatus, type DeployTrouble, type StatusLabels, type StatusTone } from "../lib/siteDisplay";
 import { hostnameForResource, isSiteName } from "../lib/siteNames";
 import type { BoardRow, ServiceBoard } from "../lib/serviceBoard";
 import type { ServiceGroup } from "../lib/serviceInventory";
-import { offeredTag } from "./boardFacts";
+import { offeredTag, rowVerdict } from "./boardFacts";
 import { FOCUS_RING, formatAge, formatDuration } from "./shared";
 
 /** A run in progress names itself on the pill, neutral, the way `applying` does. */
@@ -114,6 +114,31 @@ export function retiredRow(
   if (!isSiteName(name, domain)) return null;
   if (prunable.has(name)) return "down";
   return retiring.has(name) ? "retiring" : null;
+}
+
+/** What decides how a board row reads beyond its own facts: the retired sets, the domain, and a running host action. */
+export interface RowShownContext {
+  prunable: ReadonlySet<string>;
+  retiring: ReadonlySet<string>;
+  domain: string;
+  run: ActionState | undefined;
+}
+
+/**
+ * How the board shows a row: its verdict, then a retired site confirmed down
+ * reading `retired`, then a running host action's word. The board draws it and
+ * the rail counts it, so a page's count and its summary line name the same rows.
+ */
+export function rowShown(
+  row: BoardRow,
+  ctx: RowShownContext,
+): { labels: StatusLabels; trouble: DeployTrouble | null; retired: "down" | "retiring" | null } {
+  const { labels: verdict, trouble } = rowVerdict(row);
+  const retired = retiredRow(row.name, ctx.prunable, ctx.retiring, ctx.domain);
+  // Confirmed down, the row says what its site page says; before that, the
+  // pill stays the container's live state, which is the board's job.
+  const labels = retired === "down" ? describeStatus({ kind: "retired" }) : rowPill(verdict, ctx.run);
+  return { labels, trouble, retired };
 }
 
 /**

@@ -2,6 +2,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import type { Site } from "../lib/caddyfile";
 import type { BoardRow, ServiceBoard } from "../shared/board";
+import type { ActionState } from "../lib/hostOperations";
 import * as railModel from "./railModel";
 import { attentionCounts, buildHealth, siteHealth, unitHealth } from "./railModel";
 
@@ -48,6 +49,8 @@ describe("siteHealth", () => {
   });
 });
 
+const SHOWN = { prunable: new Set<string>(), retiring: new Set<string>(), domain: "lychee.land", run: undefined };
+
 describe("unitHealth", () => {
   test("a running row with a blocked deploy counts", () => {
     const h = unitHealth(row({ result: "blocked", gateCode: "ci-failed" }), "service");
@@ -78,6 +81,20 @@ describe("unitHealth", () => {
   test("a moving pin reads applying, neutral, as its board row does", () => {
     const h = unitHealth(row({ version: "1.0.0", target: "1.1.0", result: "deployed" }), "service");
     assert.deepEqual([h.label, h.tone, h.attention], ["applying", "neutral", false]);
+  });
+  // Review 2026-10-27: what the board layers over the verdict, the rail reads too.
+  test("a running host action reads its word, neutral, as its board row does", () => {
+    const run = { action: "restart", state: "running", startedAt: "2026-10-27T00:00:00Z", unit: "palworld.service", logTail: "" } as ActionState;
+    const h = unitHealth(row({ name: "palworld", status: "exited" }), "service", null, { ...SHOWN, run });
+    assert.deepEqual([h.tone, h.attention], ["neutral", false]);
+    assert.notEqual(h.label, "unknown");
+  });
+  test("a retired site row confirmed down reads retired, as its board row does", () => {
+    const h = unitHealth(row({ name: "gone-lychee-land", kind: "container", status: "unknown" }), "service", "gone.lychee.land", {
+      ...SHOWN,
+      prunable: new Set(["gone-lychee-land"]),
+    });
+    assert.deepEqual([h.label, h.tone, h.attention], ["retired", "neutral", false]);
   });
   test("hrefs follow the group", () => {
     assert.equal(unitHealth(row({}), "service").href, "/services#service-swee");
@@ -125,6 +142,18 @@ describe("attentionCounts", () => {
   });
   // Each page's count is what that page shows, so a site's container counts
   // under sites and on its board; the total counts each thing once, as its site.
+  // Review 2026-10-27: a site that reads healthy while its container's deploy
+  // is blocked is one thing needing attention, so the total counts it once.
+  test("a healthy site whose container's deploy is blocked counts once in the total", () => {
+    const blocked = { ...unitHealth(row({ name: "app-lychee-land", result: "blocked", gateCode: "ci-failed" }), "service"), site: "app.lychee.land" };
+    assert.equal(blocked.attention, true);
+    const h = {
+      sites: [{ hostname: "app.lychee.land", tone: "ok" as const, label: "running", attention: false }],
+      units: [blocked],
+      now: "",
+    };
+    assert.deepEqual(attentionCounts(h, ["app.lychee.land"]).total, { bad: 1, unknown: 0 });
+  });
   test("a site's container counts on its board page and once in the total", () => {
     const broken = { ...unitHealth(row({ name: "broken-lychee-land", status: "exited" }), "service"), site: "broken.lychee.land" };
     const h = {

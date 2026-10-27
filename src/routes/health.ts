@@ -52,7 +52,7 @@ export function createHealthRouter(deps: Deps): Router {
         .filter((site) => isManagedHostname(site.hostname, config.domain));
       const shared = withSharedContainerReads(deps);
       const [statuses, page] = await Promise.all([cachedStatuses(sites, shared), loadBoardPage(shared)]);
-      const health = buildHealth(sites, statuses, page.board, config.domain, new Date());
+      const health = buildHealth(sites, statuses, page.board, config.domain, new Date(), page);
       return res.json({ ok: true, ...health } satisfies ApiOk<HealthPayload>);
     } catch (error) {
       return res.status(500).json({ ok: false, reason: `Could not read health: ${String(error)}` } satisfies ApiError);

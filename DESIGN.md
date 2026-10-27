@@ -847,16 +847,16 @@ read (`unknown`), the neutral pill's Smoke on Hairline with an inset Hairline
 Strong ring so it keeps an edge on the current row's identical ground. Zero of
 both is quiet Smoke text with no chip, so a healthy rail carries no colour but
 its green dots. A site counts when its tone is bad; a unit when its board row's
-pill is bad or its last deploy was blocked or failed (the board's own verdict,
-so a page's count and its summary line agree). An unknown counts because a
+pill is bad or its last deploy was blocked or failed (read as the board shows
+the row, so a page's count and its summary line agree). An unknown counts because a
 printed 0 is a claim of health the rail cannot make about something it couldn't
 see; it gets its own chip because a Scorch number that includes it claims
 failures that don't exist (until 2026-10-27 the two were one number, Scorch
 whenever anything was bad). Each chip says what it counts to a screen reader
 (`3 need attention, 1 unknown`). Each page link counts what that page shows, so
 a site's container counts under `services` as well as under `sites`; the top
-bar's overall count takes everything once, a site's container as its site, so
-it can be less than the rail's chips added up. When the latest health
+bar's overall count takes everything once, a site and its container as one
+thing, bad if either is, so it can be less than the rail's chips added up. When the latest health
 read failed, every polled dot goes `neutral`, the counts disappear and one Smoke
 line reads `health unavailable · last read <age>` — never a remembered green.
 

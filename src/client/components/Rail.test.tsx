@@ -368,8 +368,18 @@ describe("the top bar and its drawer", () => {
     assert.equal(shown(chip(container, "service", "unknown")), "1");
     assert.equal(count(container, "service")?.textContent, "3 need attention, 1 unknown");
     assert.equal(count(container, "reconciler")?.textContent, "1 unknown");
+    // The link's text is its accessible name: the label, then what it counts.
+    assert.equal(container.querySelector('a[href="/reconciler"]')?.textContent, "reconciler, 1 unknown");
     // A group with nothing to count stays a quiet 0.
     assert.equal(count(container, "infrastructure")?.textContent, "0");
+  });
+
+  // Review 2026-10-27: one is singular, as the board's summary line says it.
+  test("one bad thing is spoken in the singular", () => {
+    const h = seedHealth();
+    const units = (h.units ?? []).map((u) => (u.name === "lychee-watch" ? { ...u, tone: "bad" as const, label: "exited", attention: true } : u));
+    const { container } = render(<Rail rail={railData()} health={{ ...h, units }} healthError={false} lastRead={null} />);
+    assert.equal(container.querySelector('a[href="/reconciler"]')?.textContent, "reconciler, 1 needs attention");
   });
 
   test("the overall count shows unknowns as their own neutral chip", () => {

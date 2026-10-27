@@ -6,7 +6,8 @@ import { describeStatus, type SiteStatus } from "../lib/siteDisplay";
 import { hostnameForResource } from "../lib/siteNames";
 import type { BoardRow, ServiceBoard, ServiceGroup } from "../shared/board";
 import type { HealthPayload, SiteHealth, Tone, UnitHealth } from "../shared/health";
-import { rowVerdict } from "./boardFacts";
+import type { ActionState } from "../lib/hostOperations";
+import { rowShown, type RowShownContext } from "./boardRowModel";
 import { FOCUS_RING, INPUT } from "./shared";
 
 /** A static site (no status) is hollow and never needs attention. */
@@ -22,13 +23,27 @@ const GROUP_PAGE: Record<ServiceGroup, string> = {
   infrastructure: "/infrastructure",
 };
 
+const NOTHING_SHOWN: RowShownContext = { prunable: new Set(), retiring: new Set(), domain: "", run: undefined };
+
+/** What the board page knows beyond the rows themselves: the retired sets and each row's last host action. */
+export interface BoardShown {
+  prunable: ReadonlySet<string>;
+  retiring: ReadonlySet<string>;
+  lastRuns: Readonly<Record<string, ActionState>>;
+}
+
 /**
  * A unit needs attention when its board row does: a bad pill, or a last run
  * that is blocked or failed (not merely waiting). It reads the row's verdict
  * as the board does, so a page's count and its summary line agree.
  */
-export function unitHealth(row: BoardRow, group: ServiceGroup, site: string | null = null): UnitHealth {
-  const { labels, trouble: found } = rowVerdict(row);
+export function unitHealth(
+  row: BoardRow,
+  group: ServiceGroup,
+  site: string | null = null,
+  shown: RowShownContext = NOTHING_SHOWN,
+): UnitHealth {
+  const { labels, trouble: found } = rowShown(row, shown);
   const { pill, tone } = labels;
   const trouble = found && (found.word === "blocked" || found.word === "failed") && found.tone === "bad" ? found.word : null;
   return {
@@ -54,13 +69,17 @@ export function buildHealth(
   board: ServiceBoard,
   domain: string,
   now: Date,
+  shown: BoardShown = { prunable: new Set(), retiring: new Set(), lastRuns: {} },
 ): HealthPayload {
   const managed = new Set(sites.map((s) => s.hostname));
+  // Own properties only, as the board reads them: a row named `toString` has no run.
+  const runOf = (name: string) => (Object.hasOwn(shown.lastRuns, name) ? shown.lastRuns[name] : undefined);
   const units = board.inventoryAvailable
     ? board.groups.flatMap((g) =>
         g.rows.map((row) => {
           const host = hostnameForResource(row.name, domain);
-          return unitHealth(row, g.group, host && managed.has(host) ? host : null);
+          const ctx = { prunable: shown.prunable, retiring: shown.retiring, domain, run: runOf(row.name) };
+          return unitHealth(row, g.group, host && managed.has(host) ? host : null, ctx);
         }),
       )
     : null;
@@ -97,14 +116,28 @@ export function attentionCounts(
     unknown: entries.filter(isUnknown).length,
   });
   const count = (group: ServiceGroup): GroupCount | null => (h.units ? tally(h.units.filter((u) => u.group === group)) : null);
-  const sites = tally(h.sites.filter((s) => listedSet.has(s.hostname)));
+  const listedSites = h.sites.filter((s) => listedSet.has(s.hostname));
+  const sites = tally(listedSites);
   const plain = h.units ? tally(h.units.filter((u) => u.site === null)) : { bad: 0, unknown: 0 };
+  // Each site once, with its container: bad if either is, unknown only if
+  // neither is bad and either could not be read. A site that reads running
+  // while its container's deploy is blocked is one thing needing attention.
+  const own = (hostname: string) => (h.units ?? []).filter((u) => u.site === hostname);
+  const siteTotal = listedSites.reduce<GroupCount>(
+    (sum, s) => {
+      const parts = [s, ...own(s.hostname)];
+      if (parts.some((p) => p.attention)) return { ...sum, bad: sum.bad + 1 };
+      if (parts.some(isUnknown)) return { ...sum, unknown: sum.unknown + 1 };
+      return sum;
+    },
+    { bad: 0, unknown: 0 },
+  );
   return {
     sites,
     service: count("service"),
     reconciler: count("reconciler"),
     infrastructure: count("infrastructure"),
-    total: { bad: sites.bad + plain.bad, unknown: sites.unknown + plain.unknown },
+    total: { bad: siteTotal.bad + plain.bad, unknown: siteTotal.unknown + plain.unknown },
   };
 }
 

@@ -339,6 +339,9 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
   const onTypeChange = (event: ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setType(value);
+    // Marks belong to the type they were read for: until the next answer the
+    // type decides which step is skipped, and a failed read keeps it so.
+    setMarks({});
     // Switching back to reverse proxy re-checks the port, so a conflict typed
     // before the switch away is reported again.
     if (value === "reverse-proxy") validatePort(portFieldRef.current?.value ?? "");

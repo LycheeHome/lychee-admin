@@ -50,10 +50,15 @@ function hashTarget(): HTMLElement | null {
 
 /**
  * Focuses a row a move named: focusable at runtime only (the rendered markup
- * stays the server's), and already scrolled into view by the router.
+ * stays the server's), and already scrolled into view by the router. Only
+ * while the move holds it: once focus leaves, the row is not focusable again,
+ * so a later click inside it neither focuses it nor draws its ring.
  */
 function focusRow(row: HTMLElement): void {
-  if (!row.hasAttribute("tabindex")) row.tabIndex = -1;
+  if (!row.hasAttribute("tabindex")) {
+    row.tabIndex = -1;
+    row.addEventListener("blur", () => row.removeAttribute("tabindex"), { once: true });
+  }
   row.focus({ preventScroll: true });
 }
 

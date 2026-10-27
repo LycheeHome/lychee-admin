@@ -6,7 +6,6 @@ import { RailLink } from "../clientNav";
 import { FailureLine } from "./CommandBlock";
 import { OfferLine, PruneLine, RequestedLine } from "./DeployLines";
 import { summarizeRow } from "../../views/boardFacts";
-import { describeStatus } from "../../lib/siteDisplay";
 import {
   GROUP_LABELS,
   SITE_NAME_LINK,
@@ -14,9 +13,8 @@ import {
   groupNoneSentence,
   inventoryFreshness,
   RETIRING_REASON,
-  retiredRow,
   rowOffer,
-  rowPill,
+  rowShown,
   siteLinkHost,
   unavailableSentence,
   unknownSentence,
@@ -81,12 +79,10 @@ function own<T>(record: Readonly<Record<string, T>>, key: string): T | undefined
  */
 function rowState(row: BoardRow, ctx: RowContext, run: ActionState | undefined) {
   const { board, now, domain, prunable, retiring } = ctx;
-  // The row's words come from the same builders the HTML board uses.
+  // The row's words come from the same builders the HTML board uses; its pill
+  // from rowShown, which the rail's counts read too.
   const summary = summarizeRow(row, board, now);
-  const retired = retiredRow(row.name, prunable, retiring, domain);
-  // Confirmed down, the row says what its site page says; before that, the
-  // pill stays the container's live state, which is the board's job.
-  const labels = retired === "down" ? describeStatus({ kind: "retired" }) : rowPill(summary.labels, run);
+  const { labels, retired } = rowShown(row, { prunable, retiring, domain, run });
   return { summary, retired, labels };
 }
 

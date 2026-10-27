@@ -452,6 +452,10 @@ describe("the single root", () => {
     // both happy-dom objects into its message, which takes minutes.
     await waitFor(() => assert.ok(document.activeElement === row("swee"), focused()), TIMEOUT);
     assert.equal(row("swee")?.getAttribute("tabindex"), "-1");
+    // Review 2026-10-27: focusable only while the move holds it, so a later
+    // click inside the row neither focuses it nor draws its ring.
+    act(() => find.focus());
+    assert.equal(row("swee")?.hasAttribute("tabindex"), false);
   });
 
   test("a same-path rail link lands focus on the page heading", async () => {
