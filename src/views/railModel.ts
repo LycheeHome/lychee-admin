@@ -2,11 +2,11 @@
 // unit hrefs and the rail's class strings (Rail.tsx, FindPanel.tsx). No node imports:
 // Vite bundles this file into the client.
 import type { Site } from "../lib/caddyfile";
-import { describeStatus, deployTrouble, type SiteStatus } from "../lib/siteDisplay";
+import { describeStatus, type SiteStatus } from "../lib/siteDisplay";
 import { hostnameForResource } from "../lib/siteNames";
 import type { BoardRow, ServiceBoard, ServiceGroup } from "../shared/board";
 import type { HealthPayload, SiteHealth, Tone, UnitHealth } from "../shared/health";
-import { rowLabels } from "./boardFacts";
+import { rowVerdict } from "./boardFacts";
 import { FOCUS_RING, INPUT } from "./shared";
 
 /** A static site (no status) is hollow and never needs attention. */
@@ -22,10 +22,14 @@ const GROUP_PAGE: Record<ServiceGroup, string> = {
   infrastructure: "/infrastructure",
 };
 
-/** A unit needs attention when it is bad, or its last run is blocked or failed (not merely waiting). */
-export function unitHealth(row: BoardRow, group: ServiceGroup): UnitHealth {
-  const { pill, tone } = rowLabels(row.status);
-  const found = deployTrouble(row);
+/**
+ * A unit needs attention when its board row does: a bad pill, or a last run
+ * that is blocked or failed (not merely waiting). It reads the row's verdict
+ * as the board does, so a page's count and its summary line agree.
+ */
+export function unitHealth(row: BoardRow, group: ServiceGroup, site: string | null = null): UnitHealth {
+  const { labels, trouble: found } = rowVerdict(row);
+  const { pill, tone } = labels;
   const trouble = found && (found.word === "blocked" || found.word === "failed") && found.tone === "bad" ? found.word : null;
   return {
     name: row.name,
@@ -35,12 +39,14 @@ export function unitHealth(row: BoardRow, group: ServiceGroup): UnitHealth {
     trouble,
     href: `${GROUP_PAGE[group]}#service-${row.name}`,
     attention: tone === "bad" || trouble !== null,
+    site,
   };
 }
 
 /**
- * The counting rule: a site's container is counted once, as its site, so board
- * rows whose resource is a managed site never appear among the units.
+ * The counting rule: each page counts what it shows, so a site's container is
+ * a unit on its board page, marked with its site, and the overall count takes
+ * it once, as that site.
  */
 export function buildHealth(
   sites: Site[],
@@ -52,12 +58,10 @@ export function buildHealth(
   const managed = new Set(sites.map((s) => s.hostname));
   const units = board.inventoryAvailable
     ? board.groups.flatMap((g) =>
-        g.rows
-          .filter((row) => {
-            const host = hostnameForResource(row.name, domain);
-            return !(host && managed.has(host));
-          })
-          .map((row) => unitHealth(row, g.group)),
+        g.rows.map((row) => {
+          const host = hostnameForResource(row.name, domain);
+          return unitHealth(row, g.group, host && managed.has(host) ? host : null);
+        }),
       )
     : null;
   return { sites: sites.map((s) => siteHealth(s, statuses[s.hostname])), units, now: now.toISOString() };
@@ -65,8 +69,9 @@ export function buildHealth(
 
 /**
  * One group's count: what is bad (attention), and what could not be read.
- * The rail prints their sum, so it never shows a 0 over an unreadable unit
- * (critique 2026-10-26 P1): a printed 0 is a claim of health.
+ * The rail prints the two apart, Scorch and neutral, so it never shows a 0
+ * over an unreadable unit (critique 2026-10-26 P1: a printed 0 is a claim of
+ * health) and never sums an unknown into a Scorch number (2026-10-27 P1).
  */
 export type GroupCount = { bad: number; unknown: number };
 
@@ -81,6 +86,8 @@ export function attentionCounts(
   service: GroupCount | null;
   reconciler: GroupCount | null;
   infrastructure: GroupCount | null;
+  /** Everything once: the sites, and the units that are not a site's container. */
+  total: GroupCount;
 } {
   // Only sites the rail lists count: a health entry with no row to show for it
   // (a site added since the page loaded) would be an unexplained number.
@@ -90,22 +97,15 @@ export function attentionCounts(
     unknown: entries.filter(isUnknown).length,
   });
   const count = (group: ServiceGroup): GroupCount | null => (h.units ? tally(h.units.filter((u) => u.group === group)) : null);
+  const sites = tally(h.sites.filter((s) => listedSet.has(s.hostname)));
+  const plain = h.units ? tally(h.units.filter((u) => u.site === null)) : { bad: 0, unknown: 0 };
   return {
-    sites: tally(h.sites.filter((s) => listedSet.has(s.hostname))),
+    sites,
     service: count("service"),
     reconciler: count("reconciler"),
     infrastructure: count("infrastructure"),
+    total: { bad: sites.bad + plain.bad, unknown: sites.unknown + plain.unknown },
   };
-}
-
-/** The number the rail prints for a count: bad and unknown together. */
-export function countTotal(c: GroupCount): number {
-  return c.bad + c.unknown;
-}
-
-/** Scorch when anything counted is bad, a neutral chip when all of it is unknown, quiet at zero. */
-export function countClass(c: GroupCount): string {
-  return c.bad > 0 ? RAIL_COUNT_BAD : c.unknown > 0 ? RAIL_COUNT_UNKNOWN : RAIL_COUNT_ZERO;
 }
 
 // The rail's class strings: the retired server rail's exactly, which the frozen rail fixtures pin.
@@ -206,6 +206,8 @@ export const FIND_TROUBLE = "font-mono text-[0.72rem] text-red-300";
 
 export const RAIL_COUNT_BAD ="font-mono text-[0.75rem] rounded-full px-1.5 bg-red-950/60 text-red-300";
 export const RAIL_COUNT_ZERO = "font-mono text-[0.75rem] text-stone-400";
+/** The slot holding a count's chips, Scorch first, side by side. */
+export const RAIL_COUNT_PAIR = "inline-flex items-center gap-1";
 /** A count of units nobody could read: the neutral pill's colours on the bad chip's shape. Never Scorch. */
 // The inset ring is its edge on the current row, whose ground is the same stone-700.
 export const RAIL_COUNT_UNKNOWN =

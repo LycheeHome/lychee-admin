@@ -8,6 +8,7 @@ const unit = (name: string, group: UnitHealth["group"], extra: Partial<UnitHealt
   trouble: null,
   href: `/${group === "service" ? "services" : group}#service-${name}`,
   attention: false,
+  site: null,
   ...extra,
 });
 

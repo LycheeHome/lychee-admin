@@ -74,15 +74,18 @@ describe("GET /api/health", () => {
     assert.equal(body.sites.find((x) => x.hostname === "lychee.local"), undefined);
   });
 
-  test("units include swee's blocked deploy and exclude site containers", async () => {
+  test("units include swee's blocked deploy, and a site's container marked with its site", async () => {
     const s = await start();
     const body = (await (await fetch(`${s.base}/api/health`, { headers: { Authorization: AUTH } })).json()) as HealthPayload;
     assert.ok(body.units);
     const swee = body.units.find((u) => u.name === "swee");
     assert.equal(swee?.trouble, "blocked");
     assert.equal(swee?.attention, true);
-    assert.equal(body.units.find((u) => u.name === "broken-lychee-land"), undefined);
-    assert.ok(body.units.find((u) => u.name === "palsave-api"));
+    // Each board page counts its site rows; the overall count takes them once, as their site.
+    const broken = body.units.find((u) => u.name === "broken-lychee-land");
+    assert.equal(broken?.site, "broken.lychee.land");
+    assert.equal(broken?.attention, true, "a failed first deploy needs attention, as its board row says");
+    assert.equal(body.units.find((u) => u.name === "palsave-api")?.site, null);
   });
 
   test("a missing inventory gives units: null", async () => {

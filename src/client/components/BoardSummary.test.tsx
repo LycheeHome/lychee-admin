@@ -62,15 +62,32 @@ describe("the board's attention summary", () => {
     assert.equal(s?.textContent, "1 needs attention: crashed.");
   });
 
-  test("absent when nothing needs attention, unknown and waiting rows included", () => {
+  test("absent when nothing needs attention or is unknown, waiting rows included", () => {
     const s = summary(
-      payload([
-        row("calm"),
-        row("unread", { status: "unknown" }),
-        row("waiting", { version: "v1", result: "blocked", gateCode: "ci-pending" } as Partial<BoardRow>),
-      ]),
+      payload([row("calm"), row("waiting", { version: "v1", result: "blocked", gateCode: "ci-pending" } as Partial<BoardRow>)]),
     );
     assert.equal(s, null);
+  });
+
+  // Critique 2026-10-27 P1: what could not be read is named apart, in the
+  // neutral tone, never counted into the Scorch number, so the summary
+  // counts what the rail's two chips count.
+  test("names unknown rows apart, neutral, after the rows that need attention", () => {
+    const s = summary(payload([row("unread", { status: "unknown" }), row("crashed", { status: "exited" }), row("calm")]));
+    assert.ok(s, "no summary");
+    assert.equal(s.textContent, "1 needs attention: crashed. 1 unknown: unread.");
+    const [bad, unknown] = Array.from(s.querySelectorAll<HTMLElement>("[data-summary-count]"));
+    assert.match(bad?.className ?? "", /text-red-300/);
+    assert.doesNotMatch(unknown?.className ?? "", /text-red/);
+    assert.deepEqual(
+      Array.from(s.querySelectorAll("a")).map((a) => a.getAttribute("href")),
+      ["#service-crashed", "#service-unread"],
+    );
+  });
+
+  test("only unknown rows: the neutral half alone", () => {
+    const s = summary(payload([row("unread", { status: "unknown" }), row("also-unread", { status: "unknown" })]));
+    assert.equal(s?.textContent, "2 unknown: unread, also-unread.");
   });
 
   test("a retired row confirmed down reads retired, not trouble, and is not named", () => {

@@ -47,9 +47,13 @@ const unitItem = (u: UnitHealth): FindItem => ({
  */
 const matches = (needle: string) => (haystack: string): boolean => haystack.toLowerCase().includes(needle);
 
+/** A site's container is listed as its site, never also as a unit. */
 function group(units: UnitHealth[] | null, keep: (u: UnitHealth) => boolean): FindGroups {
   if (!units) return [];
-  return UNIT_GROUPS.map((key) => ({ key, items: units.filter((u) => u.group === key && keep(u)).map(unitItem) }));
+  return UNIT_GROUPS.map((key) => ({
+    key,
+    items: units.filter((u) => u.group === key && u.site === null && keep(u)).map(unitItem),
+  }));
 }
 
 /** With nothing typed: every site and unit that needs attention. Nothing at all before health is read. */
