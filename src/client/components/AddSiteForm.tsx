@@ -3,12 +3,13 @@ import { BUTTON_PRIMARY, BUTTON_SECONDARY, FOCUS_RING, FORM_LABEL, INPUT } from 
 import { RailLink } from "../clientNav";
 
 /**
- * A type option, checked or not: both share one "checked", a Hairline fill
- * with an Ember Edge border beside an Ember radio (critique 2026-10-26; the
- * proxy card's Ember Deep wash read close to the error ground).
+ * A type option, checked or not: both share one neutral "checked", a Hairline
+ * fill with a Smoke Deep border, and Ember is the radio alone. The proxy
+ * card's Ember Deep wash (critique 2026-10-26) and then an Ember Edge border
+ * (2026-10-27) both read as Scorch beside an invalid field's ring.
  */
 const TYPE_OPTION =
-  "flex flex-col gap-1 rounded-md border border-stone-700 bg-transparent px-3 py-2.5 cursor-pointer motion-safe:transition-colors hover:bg-stone-800/40 has-[:checked]:bg-stone-700 has-[:checked]:border-rose-800";
+  "flex flex-col gap-1 rounded-md border border-stone-700 bg-transparent px-3 py-2.5 cursor-pointer motion-safe:transition-colors hover:bg-stone-800/40 has-[:checked]:bg-stone-700 has-[:checked]:border-stone-500";
 
 /**
  * The add page's form, as `renderAddSite` wrote it and `public/app.js` then
@@ -145,7 +146,7 @@ export function AddSiteForm(props: AddSiteFormProps) {
       {/* Inline display, as app.js set it: the `hidden` class stays, and the
           style decides. */}
       <div
-        className="port-input hidden flex-col gap-3 border-l-2 border-l-rose-800/70 pl-3 ml-1"
+        className="port-input hidden flex-col gap-3 border-l-2 border-l-stone-600 pl-3 ml-1"
         style={{ display: isProxy ? "flex" : "none" }}
       >
         <label className="flex flex-col gap-1.5 text-[0.85rem] text-stone-400">
