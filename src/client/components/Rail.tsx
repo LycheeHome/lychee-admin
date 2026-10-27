@@ -10,7 +10,6 @@ import {
   RAIL_COUNT_BAD,
   RAIL_COUNT_PAIR,
   RAIL_COUNT_UNKNOWN,
-  RAIL_COUNT_ZERO,
   RAIL_HINT,
   RAIL_HOSTNAME,
   RAIL_MENU,
@@ -98,34 +97,15 @@ function Icon({ name }: { name: keyof typeof ICONS }) {
 
 /**
  * A count slot. Null renders the server's empty slot (no reading, or a failed
- * one); nothing to count is a quiet 0. Otherwise what is bad is a Scorch chip
+ * one), and so does nothing to count: a row with nothing to report carries no
+ * mark, seen or spoken. Otherwise what is bad is a Scorch chip
  * and what could not be read a neutral one beside it, never summed into one
  * Scorch number (critique 2026-10-27 P1), each saying what it counts. `lead`
  * is spoken before it, so a link reads "services, 4 need attention".
  */
-function Count({
-  name,
-  value,
-  zeroLabel = "",
-  lead = ", ",
-}: {
-  name: string;
-  value: GroupCount | null;
-  zeroLabel?: string;
-  lead?: string;
-}) {
-  if (value === null) return <span data-count={name} />;
+function Count({ name, value, lead = ", " }: { name: string; value: GroupCount | null; lead?: string }) {
+  if (value === null || (value.bad === 0 && value.unknown === 0)) return <span data-count={name} />;
   const spoken = lead ? <span className="sr-only">{lead}</span> : null;
-  if (value.bad === 0 && value.unknown === 0) {
-    return (
-      <>
-        {spoken}
-        <span data-count={name} className={RAIL_COUNT_ZERO}>
-          0{zeroLabel ? <span className="sr-only">{zeroLabel}</span> : null}
-        </span>
-      </>
-    );
-  }
   return (
     <>
       {spoken}
@@ -322,7 +302,7 @@ export function TopBar({ health, hostnames, healthError, onOpen }: TopBarProps) 
         <Wordmark />
       </h1>
       <div className="flex items-center gap-2">
-        <Count name="all" value={total} zeroLabel=" need attention" lead="" />
+        <Count name="all" value={total} lead="" />
         <button
           type="button"
           id="rail-find"

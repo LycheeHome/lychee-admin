@@ -238,7 +238,6 @@ export const FIND_EMPTY = RAIL_NOTE;
 export const FIND_TROUBLE = "font-mono text-[0.72rem] text-red-300";
 
 export const RAIL_COUNT_BAD ="font-mono text-[0.75rem] rounded-full px-1.5 bg-red-950/60 text-red-300";
-export const RAIL_COUNT_ZERO = "font-mono text-[0.75rem] text-stone-400";
 /** The slot holding a count's chips, Scorch first, side by side. */
 export const RAIL_COUNT_PAIR = "inline-flex items-center gap-1";
 /** A count of units nobody could read: the neutral pill's colours on the bad chip's shape. Never Scorch. */

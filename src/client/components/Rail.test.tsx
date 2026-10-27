@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, describe, test } from "node:test";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { RAIL_COUNT_BAD, RAIL_COUNT_PAIR, RAIL_COUNT_UNKNOWN, RAIL_COUNT_ZERO, RAIL_DOT } from "../../views/railModel";
+import { RAIL_COUNT_BAD, RAIL_COUNT_PAIR, RAIL_COUNT_UNKNOWN, RAIL_DOT } from "../../views/railModel";
 import { BUTTON_PRIMARY, FOCUS_RING } from "../../views/shared";
 import type { RailData } from "../../shared/rail";
 import type { HealthPayload } from "../../shared/health";
@@ -153,7 +153,7 @@ describe("Rail parity with the frozen server rail", () => {
 });
 
 describe("Rail with health", () => {
-  test("a payload fills dots and counts, and zero counts stay quiet", () => {
+  test("a payload fills dots and counts, and nothing to count shows nothing", () => {
     const { container } = render(<Rail rail={railData()} health={seedHealth()} healthError={false} lastRead={null} />);
     assert.equal(dotClass(container, "api.lychee.land"), RAIL_DOT.bad);
     assert.equal(dotClass(container, "app.lychee.land"), RAIL_DOT.ok);
@@ -166,9 +166,12 @@ describe("Rail with health", () => {
       assert.equal(chip(container, name, "bad")?.getAttribute("class"), RAIL_COUNT_BAD, name);
       assert.equal(chip(container, name, "unknown"), null, `${name} shows an unknown chip over nothing unknown`);
     }
-    for (const zero of ["reconciler", "infrastructure"]) {
-      assert.equal(count(container, zero)?.textContent, "0");
-      assert.equal(count(container, zero)?.getAttribute("class"), RAIL_COUNT_ZERO);
+    // Nothing to report says nothing: no 0, seen or spoken, and the link's
+    // name is its label alone.
+    for (const [zero, href] of [["reconciler", "/reconciler"], ["infrastructure", "/infrastructure"]] as const) {
+      assert.equal(count(container, zero)?.textContent, "", zero);
+      assert.equal(count(container, zero)?.getAttribute("class"), null, zero);
+      assert.equal(container.querySelector(`a[href="${href}"]`)?.textContent, zero);
     }
   });
 
@@ -353,6 +356,19 @@ describe("the top bar and its drawer", () => {
     assert.equal(chip(header, "all", "bad")?.querySelector(".sr-only")?.textContent, " need attention");
   });
 
+  test("the overall count shows nothing when nothing needs attention", () => {
+    const h = seedHealth();
+    const quiet = {
+      ...h,
+      sites: h.sites.map((s) => ({ ...s, tone: s.tone === "none" ? ("none" as const) : ("ok" as const), attention: false })),
+      units: (h.units ?? []).map((u) => ({ ...u, tone: "ok" as const, label: "running", attention: false, trouble: null })),
+    };
+    const { header } = mountNavigation(quiet);
+    const slot = header.querySelector('[data-count="all"]');
+    assert.ok(slot !== null, "the slot stays, empty");
+    assert.equal(slot?.textContent, "");
+  });
+
   // Critique 2026-10-27 P1: a Scorch number never carries an unknown. What is
   // bad is a Scorch chip, what could not be read a neutral one beside it, and
   // each says what it counts to a listener.
@@ -370,8 +386,8 @@ describe("the top bar and its drawer", () => {
     assert.equal(count(container, "reconciler")?.textContent, "1 unknown");
     // The link's text is its accessible name: the label, then what it counts.
     assert.equal(container.querySelector('a[href="/reconciler"]')?.textContent, "reconciler, 1 unknown");
-    // A group with nothing to count stays a quiet 0.
-    assert.equal(count(container, "infrastructure")?.textContent, "0");
+    // A group with nothing to count shows nothing.
+    assert.equal(count(container, "infrastructure")?.textContent, "");
   });
 
   // Review 2026-10-27: one is singular, as the board's summary line says it.
