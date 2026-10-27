@@ -219,6 +219,14 @@ export const REDESIGNS: Redesign[] = [
     }),
   ),
   {
+    id: "service-row-focus",
+    since: "2026-10-27",
+    why: "A board row a move lands on shows the Ember focus ring, so the operator sees where find or a link took them (critique 2026-10-27).",
+    from: /class="grid grid-cols-1 sm:grid-cols-\[9\.5rem_minmax\(0,1fr\)\] gap-x-4 gap-y-1\.5 items-start py-4 border-b border-stone-700 last:border-b-0"/g,
+    to: 'class="grid grid-cols-1 sm:grid-cols-[9.5rem_minmax(0,1fr)] gap-x-4 gap-y-1.5 items-start py-4 border-b border-stone-700 last:border-b-0 rounded-sm focus:outline focus:outline-2 focus:outline-rose-400 focus:outline-offset-2"',
+    anchor: "items-start py-4 border-b border-stone-700 last:border-b-0",
+  },
+  {
     id: "port-said-once",
     since: "2026-10-26",
     why: "A port conflict the field already states is said once: the submit points to the field's error, the panel's box hides, and the panel's line points up (critique 2026-10-21, \"the add-site error is said twice\").",

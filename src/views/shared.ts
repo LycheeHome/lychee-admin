@@ -113,8 +113,13 @@ export const TONE_PILL: Record<StatusTone, string> = {
  * down the page reading status alone, which is the whole argument for this
  * layout. Stacked below `sm`, where there is no width to align across.
  */
+/**
+ * A services-board row. A move to it (a link, find) focuses it, so it shows
+ * the shared Ember ring on `focus:`: a row is never a Tab stop, and a move a
+ * mouse started must show where it landed too.
+ */
 export const SERVICE_ROW =
-  "grid grid-cols-1 sm:grid-cols-[9.5rem_minmax(0,1fr)] gap-x-4 gap-y-1.5 items-start py-4 border-b border-stone-700 last:border-b-0";
+  "grid grid-cols-1 sm:grid-cols-[9.5rem_minmax(0,1fr)] gap-x-4 gap-y-1.5 items-start py-4 border-b border-stone-700 last:border-b-0 rounded-sm focus:outline focus:outline-2 focus:outline-rose-400 focus:outline-offset-2";
 /** The unit name: a machine fact, so mono, at Chalk because it is the value that matters. */
 export const SERVICE_NAME = "font-mono text-base leading-6 text-stone-50 break-words m-0";
 /** Detail and gate lines: Smoke (the dim-text floor), mono, wrapping rather than truncating. */

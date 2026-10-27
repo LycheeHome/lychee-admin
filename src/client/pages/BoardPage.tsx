@@ -37,6 +37,26 @@ export function boardQuery(group: ServiceGroup) {
 
 const failedLine = (reason: string): string => `Couldn't refresh the services board: ${reason}`;
 
+/** The element the URL's hash names, or null for none (or an undecodable one). */
+function hashTarget(): HTMLElement | null {
+  const hash = window.location.hash;
+  if (!hash) return null;
+  try {
+    return document.getElementById(decodeURIComponent(hash.slice(1)));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Focuses a row a move named: focusable at runtime only (the rendered markup
+ * stays the server's), and already scrolled into view by the router.
+ */
+function focusRow(row: HTMLElement): void {
+  if (!row.hasAttribute("tabindex")) row.tabIndex = -1;
+  row.focus({ preventScroll: true });
+}
+
 /**
  * A board page: /services, /reconciler or /infrastructure, one group each.
  *
@@ -108,6 +128,13 @@ export function BoardPage({ group }: { group: ServiceGroup }) {
     const active = document.activeElement;
     if (active?.id === "find" && !active.closest("dialog")) return;
     // Scrolling is done: to the top, a saved position, or a #service- row.
+    // A move that names a row lands on it, as a move within the page does
+    // (find's Enter on another group's unit; critique 2026-10-27).
+    const row = hashTarget();
+    if (row) {
+      focusRow(row);
+      return;
+    }
     heading.current?.focus({ preventScroll: true });
   }, [hasBoard, latestFailed, loadHash, arrivedInApp]);
 
@@ -122,19 +149,9 @@ export function BoardPage({ group }: { group: ServiceGroup }) {
   useEffect(() => {
     if (locationKey === shownKey.current) return;
     shownKey.current = locationKey;
-    let target: HTMLElement | null = null;
-    const hash = window.location.hash;
-    if (hash) {
-      try {
-        target = document.getElementById(decodeURIComponent(hash.slice(1)));
-      } catch {
-        // An undecodable hash names no row.
-      }
-    }
+    const target = hashTarget();
     if (target) {
-      if (!target.hasAttribute("tabindex")) target.tabIndex = -1;
-      // The router has scrolled it into view already.
-      target.focus({ preventScroll: true });
+      focusRow(target);
       return;
     }
     heading.current?.focus({ preventScroll: true });

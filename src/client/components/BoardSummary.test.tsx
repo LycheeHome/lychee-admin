@@ -103,3 +103,18 @@ describe("the board's attention summary", () => {
     );
   });
 });
+
+// Critique 2026-10-27 P2: a row a link or find moves to takes focus (made
+// focusable at runtime, BoardPage.tsx); it shows where the operator landed in
+// the shared Ember ring. `focus:`, not `focus-visible:`, because a row only
+// ever takes focus from a move, never from Tab, and a mouse-started move must
+// show it too.
+describe("a board row a move lands on", () => {
+  test("shows the Ember focus ring", () => {
+    const { container } = render(<Board payload={payload([row("swee")])} group="service" />);
+    const li = container.querySelector("#service-swee");
+    for (const c of ["focus:outline", "focus:outline-2", "focus:outline-rose-400", "focus:outline-offset-2"]) {
+      assert.ok(li?.classList.contains(c), `no ${c}`);
+    }
+  });
+});
