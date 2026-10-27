@@ -254,9 +254,19 @@ describe("renderSiteDetail header", () => {
     assert.match(html, /data-state-pill><span aria-hidden="true">●<\/span> responding<\/span>/);
   });
 
-  test("widens the column past the old 640px", () => {
+  // The page takes the 1080px frame the list, the add page and the boards
+  // take, so moving between them keeps one left edge (critique 2026-10-26,
+  // "Full frame"). Its sentences stay capped at the prose measure.
+  test("takes the 1080px frame, not a centred reading column", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
-    assert.match(html, /max-w-\[760px\]/);
+    assert.match(html, /^<div class="max-w-\[1080px\] mx-auto w-full flex flex-col gap-5">/);
+    assert.doesNotMatch(html, /max-w-\[760px\]/);
+  });
+
+  test("the not-found body takes the frame too", () => {
+    const html = renderSiteNotFound("nope.lychee.land");
+    assert.match(html, /^<div class="max-w-\[1080px\] mx-auto w-full flex flex-col gap-4">/);
+    assert.doesNotMatch(html, /max-w-\[640px\]/);
   });
 });
 
@@ -855,7 +865,7 @@ describe("the not-found page", () => {
   // of centring a block.
   test("the not-found wrapper spans its column instead of shrink-wrapping", () => {
     const html = renderSiteNotFound("nope.lychee.land");
-    const wrapper = html.match(/<div class="[^"]*max-w-\[640px\][^"]*"/);
+    const wrapper = html.match(/<div class="[^"]*max-w-\[1080px\][^"]*"/);
     assert.ok(wrapper, "no width-capped wrapper rendered");
     assert.match(wrapper[0], /\bw-full\b/);
   });

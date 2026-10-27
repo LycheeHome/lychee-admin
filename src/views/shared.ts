@@ -49,7 +49,15 @@ export const STATUS_PILL_BASE =
   "inline-flex items-center gap-1 shrink-0 font-mono text-[0.6875rem] uppercase tracking-[0.06em] px-2.5 py-1 rounded-full border border-transparent";
 export const FOCUS_RING =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
-export const DETAIL_WIDTH = "max-w-[760px] mx-auto w-full";
+
+/**
+ * The page frame — the same 1080px the shell's <main> already uses, in the
+ * content column beside the rail. Every page takes it, a site's page included,
+ * so moving between pages keeps one left edge (until 2026-10-27 a site's page
+ * centred a 760px column inside it, and its edge jumped 160px). Sentences hold
+ * PROSE_MEASURE inside it.
+ */
+export const FRAME_WIDTH = "max-w-[1080px] mx-auto w-full";
 
 // The page frame's class strings (AppFrame.tsx), the retired server shell's
 // exactly, which the frozen shell fixtures pin.
@@ -69,19 +77,13 @@ export const DISMISS_BUTTON =
 export const FLASH_BANNER =
   "fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[min(480px,calc(100vw-2rem))] font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 border shadow-lg shadow-black/40 flex items-center justify-between gap-3";
 
-/** The in-flow page notice (`?created=1`, `?removed=`), lined up with the cards beneath it. */
-export const PAGE_NOTICE = `${DETAIL_WIDTH} bg-rose-950/60 border border-rose-400/70 font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 flex items-start justify-between gap-3`;
-/**
- * The page frame — the same 1080px the shell's <main> already uses, in the
- * content column beside the rail. A page takes this when it has two kinds of content that belong
- * side by side; DETAIL_WIDTH is the reading column it caps to when it has one.
- */
-export const FRAME_WIDTH = "max-w-[1080px] mx-auto w-full";
+/** The in-flow page notice (`?created=1`, `?removed=`), lined up with the page beneath it. */
+export const PAGE_NOTICE = `${FRAME_WIDTH} bg-rose-950/60 border border-rose-400/70 font-mono text-[0.85rem] text-stone-50 rounded-md px-4 py-3 flex items-start justify-between gap-3`;
 /**
  * The measure every Smoke sentence holds: 25rem is about 70 characters of
  * Nunito at 0.8rem. In rem, not ch, because a ch is the width of a zero —
  * roughly 1.35 of Nunito's average letter — so `70ch` held about 95 letters.
- * Only the prose stops here; the 760px card keeps its width, and mono beside
+ * Only the prose stops here; the card keeps the frame's width, and mono beside
  * it (commands, code, the request-path chain) stays full width.
  */
 export const PROSE_MEASURE = "max-w-[25rem]";
