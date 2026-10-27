@@ -85,27 +85,33 @@ describe("FindPanel", () => {
     assert.equal(listbox()?.textContent, "Nothing needs attention.");
   });
 
-  test("typing `sw` says no site matches, under sites, and lists both swee services", () => {
+  // Critique 2026-10-26: three "No … match" lines pushed a single hit down.
+  // When anything matches, groups with nothing are not shown.
+  test("typing `sw` lists both swee services, and the groups with nothing are not shown", () => {
     const { input } = setup();
     focus(input);
     type(input, "sw");
-    const sites = document.querySelector('[data-find-group="sites"]');
-    assert.ok(sites, "no sites group");
-    assert.match(sites.textContent ?? "", /No site matches “sw”\./);
     const services = document.querySelector('[data-find-group="service"]');
     assert.equal(services?.querySelectorAll('[role="option"]').length, 2);
-    assert.match(document.querySelector('[data-find-group="reconciler"]')?.textContent ?? "", /No reconciler units match “sw”\./);
-    assert.match(
-      document.querySelector('[data-find-group="infrastructure"]')?.textContent ?? "",
-      /No infrastructure units match “sw”\./,
-    );
+    for (const empty of ["sites", "reconciler", "infrastructure"]) {
+      assert.ok(!document.querySelector(`[data-find-group="${empty}"]`), `${empty} shows with nothing in it`);
+    }
   });
 
-  test("a unit group with no match says so", () => {
+  test("when nothing matches anywhere, each group still says so", () => {
     const { input } = setup();
     focus(input);
-    type(input, "blog");
-    assert.match(document.querySelector('[data-find-group="service"]')?.textContent ?? "", /No services match “blog”\./);
+    type(input, "zzz");
+    assert.match(document.querySelector('[data-find-group="sites"]')?.textContent ?? "", /No site matches “zzz”\./);
+    assert.match(document.querySelector('[data-find-group="service"]')?.textContent ?? "", /No services match “zzz”\./);
+  });
+
+  test("Escape clears the query, so the next open starts fresh", () => {
+    const { input } = setup();
+    focus(input);
+    type(input, "cad");
+    key(input, "Escape");
+    assert.equal(input.value, "");
   });
 
   test("ArrowDown crosses groups and Enter opens the highlighted row", () => {
@@ -309,7 +315,7 @@ describe("FindPanel", () => {
     assert.equal(input.value, "sw");
     assert.equal(document.activeElement, input);
     assert.equal(input.getAttribute("aria-expanded"), "true");
-    assert.match(document.querySelector('[data-find-group="sites"]')?.textContent ?? "", /No site matches “sw”\./);
+    assert.equal(document.querySelector('[data-find-group="service"]')?.querySelectorAll('[role="option"]').length, 2);
   });
 
   test("text typed before mount, without focus, stays closed", () => {

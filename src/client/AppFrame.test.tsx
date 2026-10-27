@@ -195,6 +195,25 @@ function assertNoRowsNoError(within: Element | null): void {
   assert.ok(!(within.textContent ?? "").includes("Inventory unavailable"), "an inventory error line");
 }
 
+// Critique 2026-10-26: thirteen rail stops came before any content. A skip
+// link, the first thing Tab reaches, goes straight to <main>; hidden until it
+// is focused, and out of the body grid's flow so it takes no cell.
+describe("the skip link", () => {
+  test("is the first focusable element and points at <main>, which can take it", async () => {
+    mount("/services");
+    await waitFor(() => assert.ok(document.querySelector("main")), TIMEOUT);
+    const first = document.querySelector<HTMLElement>("a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])");
+    assert.equal(first?.textContent, "Skip to content");
+    assert.equal(first?.getAttribute("href"), "#main");
+    assert.match(first?.getAttribute("class") ?? "", /\bsr-only\b/);
+    assert.match(first?.getAttribute("class") ?? "", /\bfocus:not-sr-only\b/);
+    assert.match(first?.getAttribute("class") ?? "", /\bfocus:fixed\b/);
+    const main = document.querySelector("main");
+    assert.equal(main?.id, "main");
+    assert.equal(main?.getAttribute("tabindex"), "-1");
+  });
+});
+
 describe("the rail's data", () => {
   test("before /api/rail answers: the fixed parts, no rows and no error line; after it, the rows", async () => {
     const s = stubFetch();

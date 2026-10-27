@@ -2,6 +2,7 @@ import "./test/setup";
 import assert from "node:assert/strict";
 import { after, afterEach, before, describe, test } from "node:test";
 import { readdirSync, readFileSync } from "node:fs";
+import { applyRedesigns } from "./test/redesigns";
 import path from "node:path";
 import { act, cleanup, render } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -45,7 +46,10 @@ const FIXTURES = path.join(__dirname, "..", "dev", "fixtures");
 const seen = new Set<string>();
 function fixture(dir: "shell" | "rail", name: string): string {
   seen.add(`${dir}/${name}.html`);
-  return readFileSync(path.join(FIXTURES, dir, `${name}.html`), "utf8");
+  const html = readFileSync(path.join(FIXTURES, dir, `${name}.html`), "utf8");
+  // A rail fixture is one element compared alone; the redesigns that touch
+  // the frame (the skip link before the top bar) are the shell's.
+  return dir === "shell" ? applyRedesigns(html) : html;
 }
 
 const SEED_RAIL: RailPayload = {

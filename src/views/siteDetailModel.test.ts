@@ -306,8 +306,13 @@ describe("manualSteps", () => {
     const { site, facts } = await seedSiteDetailFacts("blog.lychee.land");
     const steps = manualSteps(site, facts, "/var/www/blog.lychee.land");
     assert.equal(steps.length, 2);
+    // The path and the file are facts, so code (the Mono-Carries-Facts rule; critique 2026-10-26).
     assert.deepEqual(steps[1].text, [
-      "Put your site's files in /var/www/blog.lychee.land/. lychee-admin created a placeholder index.html there, which Caddy serves until you replace it.",
+      "Put your site's files in ",
+      { code: "/var/www/blog.lychee.land/" },
+      ". lychee-admin created a placeholder ",
+      { code: "index.html" },
+      " there, which Caddy serves until you replace it.",
     ]);
   });
 });

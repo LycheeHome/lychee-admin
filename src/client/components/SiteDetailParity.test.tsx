@@ -103,7 +103,7 @@ describe("SiteDetail parity with the frozen server site page", () => {
     assertParity("apex-with-directory", await seeded("lychee.land"), [
       "Your files",
       "confirm-remove-delete-files",
-      "placeholder index.html",
+      ">index.html</code>",
     ]);
   });
 

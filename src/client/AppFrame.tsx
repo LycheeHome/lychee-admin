@@ -1,6 +1,6 @@
 import { memo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BUTTON_OFFER, DISMISS_BUTTON, FLASH_BANNER, SHELL_COLUMN, SHELL_MAIN } from "../views/shared";
+import { BUTTON_OFFER, DISMISS_BUTTON, FLASH_BANNER, SHELL_COLUMN, SHELL_MAIN, SKIP_LINK } from "../views/shared";
 import { addedNotice } from "../views/siteDetailModel";
 import type { RailData } from "../shared/rail";
 import { fetchSiteDetail, siteDetailQueryKey } from "./api";
@@ -121,9 +121,14 @@ export function AppFrame({ notice, children }: { notice: InitialNotice; children
 
   return (
     <>
+      {/* The first Tab stop: past the rail's thirteen to the content (critique
+          2026-10-26). Out of the body grid's flow while hidden and focused. */}
+      <a href="#main" className={SKIP_LINK}>
+        Skip to content
+      </a>
       <Navigation rail={rail} {...live} />
       <div className={SHELL_COLUMN}>
-        <main className={SHELL_MAIN}>
+        <main id="main" tabIndex={-1} className={SHELL_MAIN}>
           <ToastHost />
           <CopyStatus />
           {message !== null ? <PageNotice message={message} onClose={() => setDismissed(true)} /> : null}
