@@ -122,7 +122,7 @@ export const STRIP_CELL =
   // The ring is drawn inside the cell: the strip clips its overflow.
   "hover:bg-stone-700/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:-outline-offset-2";
 export const STRIP_LABEL = `${CARD_LABEL_BASE} text-stone-300 m-0`;
-export const STRIP_TOTAL = "font-mono text-[0.95rem] text-stone-50 flex items-center gap-2 flex-wrap";
+export const STRIP_TOTAL = "font-mono text-[0.9rem] text-stone-50 flex items-center gap-2 flex-wrap";
 /** Keeps its line's height when empty so the cells stay level. */
 export const STRIP_NOTE = "font-mono text-[0.75rem] text-stone-400 min-h-[1lh]";
 
@@ -180,6 +180,6 @@ export const RAIL_SIGNAL_COUNT: Record<"bad" | "neutral", string> = {
 };
 /** The narrow top bar's menu-button badge: the same mark, pinned to the button's corner. */
 export const MENU_BADGE: Record<"bad" | "neutral", string> = {
-  bad: "absolute -top-1 -right-1 inline-flex items-center gap-1 rounded-full bg-stone-900 px-1 font-mono text-[0.65rem] text-red-300",
-  neutral: "absolute -top-1 -right-1 inline-flex items-center gap-1 rounded-full bg-stone-900 px-1 font-mono text-[0.65rem] text-stone-400",
+  bad: "absolute -top-1 -right-1 inline-flex items-center gap-1 rounded-full bg-stone-900 px-1 font-mono text-[0.6875rem] text-red-300",
+  neutral: "absolute -top-1 -right-1 inline-flex items-center gap-1 rounded-full bg-stone-900 px-1 font-mono text-[0.6875rem] text-stone-400",
 };
