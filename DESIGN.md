@@ -544,7 +544,9 @@ holds its label whole and breaks before the domain, and a rail row shows the
 label alone; either breaks inside a label only when that label alone is wider
 than its line. Two surfaces scroll inside themselves because nothing else can reach
 their content: the rail, once its sites outgrow the viewport, and the find
-panel's result list, once it does. Two more are named. A finished host action's
+panel's result list, once it does. The overview's activity table scrolls
+sideways in its own box, and only below the width its five columns need; at
+the desktop width it never does, and the page itself never scrolls sideways. Two more are named. A finished host action's
 log folds at rest; it is open while the action runs and open after a failure,
 so the log that explains something is never behind a click. A finished runbook
 step folds at rest too — one line, the check, its title, `done`, and a chevron,
@@ -814,15 +816,18 @@ content by a `1px` Hairline rule. Top to bottom, at 20px gaps:
 
 - the `lychee` `admin` wordmark as a home link at Display 1.5rem, the page's h1;
 - the find box (below);
-- **sites**, a heading link to the list, then every managed site in Caddyfile
-  order: a dot, the label, and a right-aligned `static` or `:<port>` hint in
-  Smoke Light. The label is Chalk; the domain is said once, as `· lychee.land`
+- **overview**, a row linking to `/`, carrying the rail's one health mark
+  (below);
+- **sites**, a heading link to the list at `/sites`, then every managed site in
+  Caddyfile order: the label and a right-aligned `static` or `:<port>` hint in
+  Smoke Light, with no status mark. The label is Chalk; the domain is said once, as `· lychee.land`
   beside the heading (hidden from assistive tech), and each row keeps it as
   screen-reader text, so a row's accessible name is still its full hostname.
   The apex row is `lychee.land` whole. Until 2026-10-27 each row showed
   `.lychee.land` in Smoke and three seed rows wrapped to two lines;
 - **host**, a plain heading over three links, `services`, `reconciler` and
-  `infrastructure`: the services board's three pages, peers of one another.
+  `infrastructure`: the services board's three pages, peers of one another,
+  with no chip beside them.
 
 The rail is navigation only and carries no action: Add site lives beside the
 site list's heading as that page's Primary.
@@ -830,35 +835,28 @@ site list's heading as that page's Primary.
 Rows and links are 0.85rem mono in Smoke, going Chalk on hover; headings are
 0.75rem mono in Smoke. `aria-current="page"` is both the accessibility signal
 and the styling hook (the arbitrary `aria-[current=page]:` variant): Chalk text
-on a Hairline fill with a 2px Ember Edge left rule. It marks a site's own row on
+on a Hairline fill with a 2px Ember Edge left rule. It marks `overview` on `/`, a site's own row on
 its page, the `sites` heading on the list, and a board's link on its page;
 `/sites/new` marks nothing, since its breadcrumb carries the location. A rail
 item's destination never changes with location.
 
-**Dots and counts.** Each site carries an 8px dot in its status tone — Clear,
-Scorch, or Smoke for `neutral` — from the same canonical vocabulary as the pills,
-with the full status phrase in a screen-reader label beside it. A **static site's
-dot is hollow**, a `1px` Hairline Strong ring, because there is nothing to poll;
-the hollow dot is also every site's dot before the first health read. Each of
-`sites`, `services`, `reconciler` and `infrastructure` carries an **attention
-count** at its right edge, in two chips that are never summed: what is bad, a
-0.75rem mono chip in Scorch on Scorch Deep, and beside it what could not be
-read (`unknown`), the neutral pill's Smoke on Hairline with an inset Hairline
-Strong ring so it keeps an edge on the current row's identical ground. Zero of
-both shows nothing, seen or spoken, so a healthy rail carries no mark but its
-green dots (until 2026-10-27 it printed a quiet Smoke `0` on every row). A site counts when its tone is bad; a unit when its board row's
-pill is bad or its last deploy was blocked or failed (read as the board shows
-the row, so a page's count and its summary line agree). An unknown counts because a
-printed 0 is a claim of health the rail cannot make about something it couldn't
-see; it gets its own chip because a Scorch number that includes it claims
-failures that don't exist (until 2026-10-27 the two were one number, Scorch
-whenever anything was bad). Each chip says what it counts to a screen reader
-(`3 need attention, 1 unknown`). Each page link counts what that page shows, so
-a site's container counts under `services` as well as under `sites`; the top
-bar's overall count takes everything once, a site and its container as one
-thing, bad if either is, so it can be less than the rail's chips added up. When the latest health
-read failed, every polled dot goes `neutral`, the counts disappear and one Smoke
-line reads `health unavailable · last read <age>` — never a remembered green.
+**The overview signal.** The rail carries exactly one health mark: on the
+`overview` row, right-aligned, a 6px dot and then a count in 0.72rem mono. It
+counts only the worst tone present — a Scorch dot and the number of things that
+are bad when anything is; a Smoke dot and the number that could not be read
+when only unknowns remain; nothing at all when everything is clear or before
+the first health read; and a Smoke dot with no number when the latest read
+failed, never a remembered green. A bad count and an unknown count are never
+added together, so the mark never mixes tones. It counts each thing once, a
+site and its container as one thing, bad if either is, with the same function
+as the overview's strip and attention list, so the three always agree. The dot
+and number are `aria-hidden`; the link's accessible name carries the same facts
+(`overview, 3 need attention`).
+
+Until 2026-10-28 every site row carried an 8px status dot (hollow for a static
+site), every page link two attention chips, and the top bar an overall count:
+the rail was doing a dashboard's job in 250px. That job is the overview page's
+now (see Overview, below), and the rail is navigation plus one signal.
 
 **The find panel** opens from the find box: a mono input with its shortcut
 (`⌘K`, or `Ctrl K` off Apple platforms) printed inside it at its right edge in a
@@ -879,8 +877,12 @@ the move named, which shows the Ember focus ring (until 2026-10-27 the panel
 stayed open over the row it had opened).
 
 **Below 900px** the rail is replaced by a top bar: the wordmark (the h1 at that
-width), then the overall attention count, a find button and a menu button, each
-a 36px square outlined in Hairline. The menu button opens the rail itself as a
+width), then a find button and a menu button, each a 36px square outlined in
+Hairline. The menu button carries the overview signal as a badge pinned to its
+top-right corner — `● <count>` in 0.6875rem mono on a Hearth ground, Scorch or
+Smoke by the same rule, `●` alone after a failed read, none when clear —
+because it opens the drawer that holds the `overview` row; its accessible name
+says the same (`Open navigation, 3 need attention`). The menu button opens the rail itself as a
 modal drawer, 280px wide, from the left edge, over a 60% black backdrop; Esc or
 a backdrop click closes it and focus returns to the opener. Find on a narrow
 screen opens the drawer with the find box focused.
@@ -891,6 +893,66 @@ and the breadcrumb is plain location text, `sites / <hostname>`.
 Per-site tabs are deferred until a second tall, task-specific section exists
 alongside Deploy (most likely container logs); one such section does not make
 a tab strip.
+
+### Overview
+
+The page at `/`, and the one place the whole host is read at once. Three blocks
+stacked full width under an `Overview` eyebrow, 32px apart: the strip, needs
+attention, recent activity. It shares the frame with every other page.
+
+**The strip.** One flat Hearth Lift card with a Hairline edge and no padding of
+its own, divided by Hairline rules into four equal cells — `sites`,
+`services`, `reconciler`, `infrastructure` — each a link to that page, 20px by
+16px inside. Below 640px it is two by two, ruled between the rows and columns
+and never doubling the card's edge. A cell holds three lines: the group name as
+a Section Label in Smoke Light; the total and noun in 0.9rem mono Chalk
+(`8 sites`, `11 units`) followed by the rail's old chips, what is bad in Scorch
+on Scorch Deep and what could not be read in the neutral pill's colours, each
+only when non-zero; and a quiet 0.75rem Smoke line — `last tick <age>` on the
+reconciler cell, `all clear` on a cell with nothing to report, `inventory
+unavailable` when the inventory could not be read — which keeps its height when
+empty so the cells stay level. Hover lays a faint Hairline wash; the focus ring
+is drawn inside the cell, because the card clips its overflow. Ember stays off
+the strip.
+
+**The Count-Line Rule.** An overview cell is a count line, not a KPI tile: a
+label, a mono total with the tone chips, and one quiet fact. No hero figure, no
+chart or sparkline, no trend arrow, no percentage. The host has no metrics to
+visualize, only things that are fine, things that are not, and things nobody
+could read; a cell says how many of each and links to the page that names them.
+
+**Needs attention.** A Section Label in Scorch, `<n> need attention` (`needs`
+when one), over a Hairline-ruled list on a three-column grid: the state pill
+first in a fixed 150px column so every pill's left edge lines up (The
+Pill-Needs-an-Edge Rule), the subject as a 0.85rem mono Chalk link that wraps
+rather than widens, and where it lives (`sites`, `services`, `reconciler`,
+`infrastructure`) right-aligned in 0.75rem Smoke. A unit in deploy trouble
+reads `deploy blocked` or `deploy failed`. A site whose container is the only
+part in trouble is filed under its container's page, still linking to the site,
+so the `sites` cell never says `all clear` above a row filed under `sites`.
+The rows nobody could read follow under a Smoke Light subheading, `<n> couldn't
+be read`, in the same grid; with nothing bad, only that part shows; with
+nothing at all, the block is absent. When the health read fails, the block is
+one Smoke mono line, `health unavailable · last read <age>`.
+
+**Recent activity.** A Section Label, `Recent activity`, over a full-width
+Hairline-ruled table of the last eight events from the app's audit log and the
+reconciler's history, newest first, with columns `when`, `who`, `kind`,
+`subject`, `outcome`, all 0.8rem mono. `when` is an age in Smoke (`5m`, `3h`);
+`who` is plain Smoke text, `app` or `reconciler`, never toned or tagged;
+`subject` is a Chalk link when it has a page, plain Chalk when it does not;
+`outcome` leads with its word in its tone's text colour — Clear, Scorch, or
+Smoke Light. No zebra striping, no row hover. A source that could not be read
+gets one Nunito Smoke sentence under the table rather than reading as an empty
+history; with nothing recorded and both sources read, the sentence is
+`Nothing recorded yet.` Below the width the table needs, it scrolls sideways in
+its own box (The Show-It Rule), so the page never does.
+
+**The kind tag.** The `kind` column is the row's one shaped element: the kind
+word (`deploy`, `add`, `remove`, `attach`, `prune`, …) in 0.72rem mono Smoke
+Light inside a fully round chip with a `1px` Hairline Strong edge and no fill,
+so the eye can run down the column by kind. It is a category, not a verdict,
+and never takes a tone — the outcome carries the tone, always with its word.
 
 ### Command Block (signature component)
 
@@ -1040,7 +1102,7 @@ Scorch deploy line, decided by the same function that draws the row), one line
 sits under the eyebrow: `N need attention` in Scorch mono, then each row's name
 as a mono link to its row, in inventory order, in a Nunito sentence; then, apart,
 `N unknown` in Smoke Light mono and the rows whose state could not be read, so
-the line counts exactly what the rail's two chips count for this page. The rows
+the line counts exactly what the overview strip's chips count for this page. The rows
 themselves keep inventory order, the one fixed map of the page, so nothing moves
 between re-reads; the five-second read is the sentence. A calm board with
 nothing unknown has no line at all, and merely waiting rows are never named.
@@ -1329,7 +1391,8 @@ stops the container, and when.
 - **Don't** fold, cap, truncate, or add an inner scrollbar to content the
   operator might read. One operator, one wide viewport. The two named folds
   are The Show-It Rule's: a finished host action's log, and a finished
-  runbook step, at rest.
+  runbook step, at rest; its named scroll boxes are the rail, the find
+  panel's list, and the activity table below its width.
 - **Don't** use Poetsen One anywhere except the wordmark and a list row's
   hostname, and never above 1.5rem or at a weight it doesn't ship.
 - **Don't** fill a destructive button with Ember or make it the largest control
@@ -1342,10 +1405,14 @@ stops the container, and when.
   sentence — status colors belong to pills, sub-lines, and error surfaces.
 - **Don't** use uppercase for emphasis inside a sentence; it marks structure
   only.
+- **Don't** put a status mark back on the rail's site rows or host links. The
+  rail carries one health mark, the `overview` signal, and the overview page
+  carries the rest.
 - **Don't** show a live-looking indicator for something nothing checks. Hop 1
   never carries live state; every indicator on hops 2–4 is something actually
   checked, not invented health.
 - **Don't** auto-dismiss a banner that carries an unfinished manual action.
 - **Don't** drift toward the dark-SaaS-dashboard look (violet gradients,
-  glassmorphism, KPI tiles) or toward terminal cosplay (scanlines, ASCII
+  glassmorphism, KPI tiles — the overview's strip is count lines, per The
+  Count-Line Rule) or toward terminal cosplay (scanlines, ASCII
   borders, green-on-black, faux boot logs).
