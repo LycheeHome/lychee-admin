@@ -13,7 +13,7 @@ Date: 2026-10-28 (brainstorm begun 2026-10-27, paused for reconciler history, re
 - **The audit log gets its own page later.** `/activity` is sub-project 3. The overview shows a short slice of it, with no `see all` link until that page exists.
 - **Reconciler history was made a prerequisite, and has shipped.** The inventory stamps `last_run` on every tick, publishes `skipped` on most of them and holds only the latest run, so it cannot be a timeline. lychee-ops now publishes a transitions feed: lychee-contract v2.1.0, `schemas/events.schema.json`, agreement A-HIST-1, lychee-ops #63–65. An earlier idea, annotating the app's deploy requests with their live outcome, was dropped: the reconciler's own `deployed` / `failed` events now follow the app's `requested`.
 - **Approach A:** the tiles, the attention list and the rail signal all read the existing `/api/health` query (one poll, one counting function). A new `/api/activity` merges the two activity sources on the server. Rejected: one aggregate `/api/home` (two endpoints would report the same health and could drift apart), and merging on the client (the page would fetch the whole board payload, and the kind mapping would live where `/activity`'s server-side paging cannot reuse it).
-- **Visual treatment is not decided here.** The form of the tiles, the `overview` signal and the activity table goes through impeccable's comparing-design-variants procedure after this spec is approved. The chosen variant is written into this spec under "Visual decision" before writing-plans.
+- **Visual treatment: 04 Ledger**, chosen from a rendered comparison (impeccable + comparing-design-variants) after the rest of this spec was approved, and recorded under "Visual decision".
 
 ## Why
 
@@ -57,7 +57,7 @@ interface ActivityEvent {
   at: string;            // ISO timestamp
   who: ActivityWho;
   kind: ActivityKind;
-  subject: string;       // hostname or inventory name
+  subject: string;       // hostname for a site or a site's container, else inventory name
   href: string | null;
   outcome: string;       // short phrase, mono
   tone: "ok" | "bad" | "neutral";
@@ -75,7 +75,7 @@ interface ActivityPayload {
 
 | Event | kind | outcome | tone |
 |---|---|---|---|
-| `deployed` | deploy | `<from> → <to>`, or `→ <to>` when `from` is null | ok |
+| `deployed` | deploy | `deployed <from> → <to>`, or `deployed <to>` when `from` is null | ok |
 | `failed` | deploy | `failed at <step name>` (the text of `failed_step` before the first `: `) | bad |
 | `blocked` | deploy | `blocked · <gate_code>` | bad |
 | `awaiting-image` | deploy | `awaiting image` | neutral |
@@ -85,7 +85,7 @@ interface ActivityPayload {
 | `added` | add | `declared` | neutral |
 | `removed` | remove | `pruned` | neutral |
 
-The `gate_code` shows as the code itself, in mono. It is a machine fact, and the board's deploy line is where codes get prose.
+Every toned outcome leads with a word, so a tone never appears without one (the Three-Tone Status rule); that is why `deployed` carries the word and not only the versions. The `gate_code` shows as the code itself, in mono. It is a machine fact, and the board's deploy line is where codes get prose.
 
 **Mapping, audit actions** (`who: "app"`). The `-failed`, `-rolled-back`, `-rollback-failed` and `-refused` variants keep their kind and take the bad tone, with outcome `failed`, `rolled back`, `rollback failed` or `refused`. `detail`, when present, is not shown in v1.
 
@@ -105,6 +105,8 @@ The `gate_code` shows as the code itself, in mono. It is a machine fact, and the
 A successful `deploy-service` is logged with the tag as its whole `detail` (`src/routes/services.ts`), so its outcome reads `<tag> requested`. The `-failed` variant's `detail` is free text (`<tag>: <reason>` or an error string) and is never shown. An unknown audit action is dropped, so new actions do not render as raw strings.
 
 **Links.** A subject links to `/sites/<hostname>` when it is a managed hostname still in the Caddyfile, or when it is a site resource (`<label>-lychee-land`) whose hostname is still in the Caddyfile. It links to its board row (the same href `UnitHealth` uses) when it is an inventory entry still listed. Otherwise there is no link: a pruned resource or a removed site has nowhere to go.
+
+**Subject.** A site resource's events, from either source, show the site's hostname (`broken.lychee.land`, not `broken-lychee-land`), because the link goes to the site's page and the name should match that page. This holds whether or not the site is still in the Caddyfile, since the hostname is derived from the name (`hostnameForResource`). Every other subject is the inventory or audit name as written.
 
 **Endpoint:** `GET /api/activity?limit=<n>` in `src/routes/activity.ts`. The default and the overview's request are both 8. Values below 1 or non-numeric fall back to 8, and the limit is capped at 50. It always answers `200`, with `sources.app` / `sources.reconciler` false for a reader that returned `null`. Neither source is cached: they are two small files, and the audit log changes on every write. A Caddyfile that cannot be read means no site links, never an error. It sits behind the same basic auth and `sameOrigin` middleware as every route.
 
@@ -160,7 +162,7 @@ Each shows its total and noun (`9 sites`, `6 units`), then its bad count (Scorch
 - One row per thing, counted as `total` counts: a site and its container are one row, bad if either is.
 - Each row is a link (the site's page, or the unit's board row), with the subject, its state word and where it lives (`site`, `services`, `reconciler`, `infrastructure`).
 - Bad rows first, then unknown rows under a neutral subheading, in Caddyfile order for sites and inventory order for units.
-- The state words come from the health payload's `label`, which is the boards' and the site pages' vocabulary.
+- The state words come from the health payload's `label`, which is the boards' and the site pages' vocabulary, except that a unit with `trouble` set reads `deploy blocked` or `deploy failed`, as the board's deploy line does. Its `label` there is often `running`, which would hide why it is listed.
 - When the poll fails, this block is replaced by `health unavailable · last read <age>`, or `health unavailable` before any successful read.
 
 **Recent activity.** The last 8 events as a table with columns: age (`2m`, `4h`, `1d`, in a `<time datetime>` with the exact local time as its title), who, kind, subject (a router link when `href` is set), and outcome (toned).
@@ -199,11 +201,54 @@ The wordmark stays at `/`.
 
 ## Visual decision
 
-To be filled in from the comparison (impeccable + comparing-design-variants) before writing-plans. It covers:
-- the tile form;
-- the `overview` signal's form in each state, in the rail and on the top bar's menu button;
-- the needs-attention rows;
-- the activity table's columns, especially how `who` and `kind` read as labels.
+Chosen 2026-10-28: **04 Ledger**, with its signal (a dot plus a number), from the comparison at https://claude.ai/artifact/RPb8NWPButp2dcWDKZ8ebX (private). The other candidates were 01 Side Log (2×2 tiles with a narrow activity log to the right), 02 Strata (stacked bands with their trouble inline) and 03 Owned Trouble (four cards each listing its own trouble).
+
+**Page order, top to bottom, every block full width:** the `Overview` heading in eyebrow form, the strip, needs attention, recent activity.
+
+**The strip (the tiles).** One flat card (`hearth-lift`, hairline edge, no shadow, per Flat-At-Rest), divided into four equal cells by hairline rules. Each cell is a router link and holds three lines:
+- the group name as a section label (mono, uppercase, Smoke Light);
+- the total and noun in mono Chalk (`8 sites`, `11 units`), then the bad chip (Scorch) and the unknown chip (neutral), each only when non-zero;
+- a quiet third line: `last tick <age>` on the reconciler cell; `all clear` on a cell with nothing to report; `inventory unavailable` on the unit cells with no inventory; and otherwise empty, with the line's height kept so the cells stay level.
+
+There is no hero number and no chart. A cell is a count line, not a KPI tile. Since DESIGN.md's Don'ts name "KPI tiles", this change adds a named rule saying why the strip is not one (see Docs). Ember stays off the strip: the cells are links, but the page's interactive emphasis is the rows below.
+
+**Needs attention.** The heading is a section label in Scorch, `<n> need attention` (`needs` when 1). Below it sits a hairline-ruled list, one row per thing, on a three-column grid:
+- the state pill, first, in a fixed 150px column, so every pill's left edge lines up (Pill-Needs-an-Edge);
+- the subject as a link, in mono;
+- where it lives, right-aligned and quiet (`sites`, `services`, `reconciler`, `infrastructure`).
+
+The unknown rows follow under a neutral subheading, `<n> couldn't be read`, in the same grid. When there are no bad rows, only that subheading and its rows show. When the poll fails, the block is the single `health unavailable` line from section 3.
+
+**Recent activity.** The heading is a section label, `Recent activity`, over a full-width table with the columns `when`, `who`, `kind`, `subject`, `outcome`:
+- `when` is mono Smoke (`5m`, `3h`, `1d`).
+- `who` is plain mono Smoke text (`app`, `reconciler`). It is neutral, never toned or tagged.
+- `kind` is a small mono tag: a hairline-edged neutral chip with the kind word. It is the one shaped element in the row, so the eye can scan by kind down the column. A tag never takes a tone.
+- `subject` is a mono link when `href` is set, otherwise plain mono Chalk.
+- `outcome` is mono in its tone's text colour (Scorch for bad, Clear for ok, Smoke Light for neutral), always leading with its word.
+
+Rows are separated by hairlines. There is no zebra striping and no hover fill beyond the link's own.
+
+**The `overview` signal.** In the rail, right-aligned on the `overview` row: a 6px dot, then the count in mono.
+
+| State | Rail | Top bar menu button |
+|---|---|---|
+| bad > 0 | Scorch dot, `<bad>` in Scorch | badge `● <bad>`, Scorch |
+| only unknown | Smoke dot, `<unknown>` in Smoke | badge `● <unknown>`, neutral |
+| clean | nothing | nothing |
+| poll failed | Smoke dot, no number | badge `●`, neutral |
+
+The number counts only the worst tone present. The unknown count is not added to a bad count, so the mark never mixes tones. The dot and number are `aria-hidden`, and the screen-reader text is section 2's. The wordmark and every other rail row carry no mark.
+
+**Accepted costs.** Ledger is the longest of the four: with eight things in trouble, activity starts about 550px down, and its last rows fall below a 900px-tall screen. Per-group trouble names live only in the attention list, not in the cells. That is accepted, because the attention list is what triage reads first, and activity is the second question.
+
+**Implicit decisions the comparison named, now decided:**
+- Toned outcomes lead with a word: the `deployed` mapping in section 1.
+- A site container's subject is its hostname: section 1, Subject.
+- A unit in deploy trouble reads `deploy blocked` / `deploy failed` in the attention list: section 3.
+- `last tick <age>` sits on the reconciler cell, from `generated`.
+- No `see all` link until `/activity` exists.
+- `sites · lychee.land` stays on the rail's sites heading as plain navigation.
+- The dev seed gains audit lines and an `events.json` that produce the comparison's example rows (swee blocked on `ci-pending`, broken's failed first deploy, gone's retirement, app's `0.1.0 → 0.2.0`), so `npm run dev:mock` shows a populated table.
 
 ## Testing
 
@@ -243,4 +288,4 @@ To be filled in from the comparison (impeccable + comparing-design-variants) bef
   - Stack: `/` is the overview, the list is at `/sites`, `/api/activity`, the rail's single signal, find unchanged.
   - Core v1 feature flow: the list's URL, the rail paragraph, the remove chain's landing.
 - PRODUCT.md, only if its description of the read job changes.
-- DESIGN.md and `.impeccable/design.json` through `/impeccable document` (a scoped refresh) after the build, with the sidecar's rule bodies re-derived, not hand-edited.
+- DESIGN.md and `.impeccable/design.json` through `/impeccable document` (a scoped refresh) after the build, with the sidecar's rule bodies re-derived, not hand-edited. The refresh adds a named rule for the overview strip: its cells are count lines (a label, a mono total and the tone chips), with no hero figure and no chart, which is what separates them from the KPI tiles DESIGN.md's Don'ts rule out. It also records the `overview` signal (dot plus worst-tone count) and the activity table's neutral kind tag.
