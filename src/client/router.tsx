@@ -84,12 +84,13 @@ function documentScrollKey(): (location: Location) => string {
 }
 
 /**
- * The routes: one layout, the three board pages, the overview, the sites list, a site's
- * page, the add page, and a catch-all rendering nothing. Each board
- * route's loader primes its group's board, so a move between pages shows the
- * cached board at once (then refreshes it), and the rows exist by the time the
- * router scrolls to a `#service-` hash. A failed read is not the loader's to
- * report: the page shows it, above the last good board or alone.
+ * The routes: one layout, the overview at `/`, the sites list at `/sites`, a
+ * site's page, the add page, the three board pages, and a catch-all rendering
+ * nothing. Each board route's loader primes its group's board, so a move
+ * between pages shows the cached board at once (then refreshes it), and the
+ * rows exist by the time the router scrolls to a `#service-` hash. A failed
+ * read is not the loader's to report: the page shows it, above the last good
+ * board or alone.
  *
  * `notice` is what the document load's URL asked for (readInitialNotice),
  * read before stripNoticeParams dropped it; AppFrame shows it.

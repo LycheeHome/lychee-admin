@@ -40,9 +40,10 @@ const AUDIT = {
   "detach-site": { kind: "remove", outcome: "retired" },
   "change-repository": { kind: "repository", outcome: "repository changed" },
   "prune-declaration": { kind: "prune", outcome: "pruned" },
-  "refused-cross-site": { kind: "attach", outcome: "refused" },
+  // Not shown: sameOrigin logs it for any refused cross-site mutation, with the Host header as hostname.
+  "refused-cross-site": null,
   "host-action": { kind: "host", outcome: "started" },
-} satisfies Record<string, { kind: ActivityKind; outcome: string }>;
+} satisfies Record<string, { kind: ActivityKind; outcome: string } | null>;
 
 type BaseAction = keyof typeof AUDIT;
 
@@ -67,9 +68,10 @@ function auditOutcome(line: AuditLine): Outcome | null {
     }
   }
   if (!isBase(base)) return null;
-  const { kind, outcome } = AUDIT[base];
+  const entry = AUDIT[base];
+  if (entry === null) return null;
+  const { kind, outcome } = entry;
   if (variant) return bad(kind, variant);
-  if (base === "refused-cross-site") return bad(kind, outcome);
   if (base === "deploy-service") return neutral(kind, line.detail ? `${line.detail} requested` : outcome);
   if (base === "host-action") {
     const action = line.hostAction ?? "action";

@@ -326,8 +326,9 @@ export function createSitesRouter(deps: Deps): Router {
 
   // The overview at / and the list at /sites are the client's, and so is
   // everything around them: the static document, whose React frame reads the
-  // rail from /api/rail, the list from /api/sites and the `?removed` notice
-  // off the URL. Always 200: an unreadable Caddyfile is the page's to show.
+  // rail from /api/rail, the overview from /api/health and /api/activity, the
+  // list from /api/sites and, on /sites, the `?removed` notice off the URL.
+  // Always 200: an unreadable Caddyfile is the page's to show.
   sitesRouter.get("/", (_req, res) => {
     sendClientDocument(res, deps);
   });

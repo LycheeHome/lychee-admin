@@ -72,6 +72,11 @@ describe("parseReconcilerEvents", () => {
     assert.deepEqual(parseReconcilerEvents(raw)![0].events, [{ at: AT, type: "added" }]);
   });
 
+  test("a down event with a null from is dropped: the schema requires a string", () => {
+    const raw = file(life({ events: [{ at: AT, type: "down", from: null }, { at: AT, type: "added" }] }));
+    assert.deepEqual(parseReconcilerEvents(raw)![0].events, [{ at: AT, type: "added" }]);
+  });
+
   test("a lifetime missing a required field is dropped on its own", () => {
     const raw = file(life({ id: undefined }), life({ id: "b" }));
     assert.deepEqual(parseReconcilerEvents(raw)!.map((l) => l.id), ["b"]);

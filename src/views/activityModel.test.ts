@@ -64,7 +64,10 @@ describe("audit actions", () => {
     assert.deepEqual(shape(app({ action: "detach-site" })), { kind: "remove", outcome: "retired", tone: "neutral" });
     assert.deepEqual(shape(app({ action: "change-repository" })), { kind: "repository", outcome: "repository changed", tone: "neutral" });
     assert.deepEqual(shape(app({ action: "prune-declaration" })), { kind: "prune", outcome: "pruned", tone: "neutral" });
-    assert.deepEqual(shape(app({ action: "refused-cross-site" })), { kind: "attach", outcome: "refused", tone: "bad" });
+  });
+
+  it("refused-cross-site is dropped: its hostname is the request's Host header, not a subject", () => {
+    assert.deepEqual(buildActivity([{ timestamp: T, action: "refused-cross-site", hostname: "admin.lychee.land" }], null, ctx, 8), []);
   });
 
   it("maps host actions by their outcome", () => {

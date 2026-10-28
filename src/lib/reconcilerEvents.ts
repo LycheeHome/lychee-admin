@@ -14,7 +14,7 @@ export type ReconcilerEvent =
   | { at: string; type: "added" }
   | { at: string; type: "deployed"; from: string | null; to: string }
   | { at: string; type: "stopped" }
-  | { at: string; type: "down"; from: string | null }
+  | { at: string; type: "down"; from: string }
   | { at: string; type: "failed"; failed_step: string }
   | { at: string; type: "blocked"; gate_code: string }
   | { at: string; type: "awaiting-image" }
@@ -51,7 +51,7 @@ function parseEvent(raw: unknown): ReconcilerEvent | null {
     case "deployed":
       return isStrOrNull(raw.from) && isStr(raw.to) ? { at, type: "deployed", from: raw.from, to: raw.to } : null;
     case "down":
-      return isStrOrNull(raw.from) ? { at, type: "down", from: raw.from } : null;
+      return isStr(raw.from) ? { at, type: "down", from: raw.from } : null;
     case "failed":
       return isStr(raw.failed_step) ? { at, type: "failed", failed_step: raw.failed_step } : null;
     case "blocked":
@@ -81,7 +81,7 @@ function parseLifetime(raw: unknown): Lifetime | null {
   };
 }
 
-/** Milliseconds for ordering, falling back to the string when it does not parse. */
+/** Milliseconds for ordering; an unparseable added_at sorts earliest (-Infinity). */
 function addedKey(l: Lifetime): number {
   const ms = Date.parse(l.added_at);
   return Number.isNaN(ms) ? Number.NEGATIVE_INFINITY : ms;

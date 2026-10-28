@@ -276,6 +276,11 @@ describe("OverviewPage", () => {
     assert.ok(screen.getByRole("heading", { name: "Recent activity" }));
   });
 
+  test("the table is named by its heading", () => {
+    mount();
+    assert.ok(screen.getByRole("table", { name: "Recent activity" }));
+  });
+
   test("an outcome carries its word and its tone class", () => {
     mount();
     const cell = screen.getByText("deployed 0.1.0 → 0.2.0");

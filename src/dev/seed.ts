@@ -300,14 +300,14 @@ export const SEEDED_EVENTS = JSON.stringify(
       lifetime("swee", "unit", 3000, [
         { at: ago(3000), type: "added" },
         { at: ago(190), type: "deployed", from: "v2.10.0", to: "v2.11.4" },
-        { at: ago(12), type: "blocked", gate_code: "ci-failed" },
+        { at: ago(12), type: "blocked", gate_code: "ci-failed", gate: "job test concluded: failure" },
       ]),
       lifetime("broken-lychee-land", "container", 400, [
         { at: ago(400), type: "added" },
         { at: ago(45), type: "failed", failed_step: BROKEN_FAILED_STEP },
       ]),
       lifetime("lychee-notes", "container", 2000, [
-        { at: ago(130), type: "blocked", gate_code: "ci-pending" },
+        { at: ago(130), type: "blocked", gate_code: "ci-pending", gate: "CI is still running on the release commit" },
         { at: ago(70), type: "deployed", from: "1.3.0", to: "1.4.0" },
         { at: ago(70), type: "recovered", from: "blocked", from_gate_code: "ci-pending", attempts: 2 },
       ]),
@@ -344,7 +344,8 @@ export const SEEDED_AUDIT_LOG =
     auditLine(300, { action: "remove-site-failed", hostname: "legacy.lychee.land" }),
     auditLine(50, { action: "deploy-service", hostname: "broken-lychee-land", detail: "0.1.0" }),
     auditLine(20, { action: "host-action", caller: "operator", unit: "palworld-palchuds", hostAction: "restart", outcome: "started" }),
-    auditLine(5, { action: "refused-cross-site", hostname: "app.lychee.land" }),
+    // Logged with the request's Host header as hostname; the feed drops it.
+    auditLine(5, { action: "refused-cross-site", hostname: "admin.lychee.land" }),
   ].join("\n") + "\n";
 
 export function applySeed(fs: FileSystem): void {

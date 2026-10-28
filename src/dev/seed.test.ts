@@ -9,7 +9,7 @@ import { EVENTS_PATH } from "../lib/platform";
 import { readReconcilerEvents } from "../lib/reconcilerEvents";
 import { buildActivity } from "../views/activityModel";
 import { createInMemoryFileSystem } from "./fakes";
-import { applySeed, SEEDED_INVENTORY } from "./seed";
+import { applySeed, SEEDED_EVENTS, SEEDED_INVENTORY } from "./seed";
 
 // The inventory schema uses no `format` keywords (timestamps are patterns), so
 // ajv-formats is deliberately not a dependency.
@@ -22,6 +22,17 @@ function compile() {
 test("the seeded inventory validates against the contract's inventory schema", () => {
   const { ajv, validate } = compile();
   const ok = validate(JSON.parse(SEEDED_INVENTORY));
+  assert.ok(ok, ajv.errorsText(validate.errors, { separator: "\n" }));
+});
+
+test("the seeded feed validates against the contract's events schema", () => {
+  const ajv = new Ajv2020({ allErrors: true, strict: true, strictRequired: false });
+  // The events schema's one `format` is the lifetime id's uuid; checked by shape
+  // here rather than by adding ajv-formats as a dependency.
+  ajv.addFormat("uuid", /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  ajv.addSchema(loadContractJson<object>("schemas/common.schema.json"));
+  const validate = ajv.compile(loadContractJson<object>("schemas/events.schema.json"));
+  const ok = validate(JSON.parse(SEEDED_EVENTS));
   assert.ok(ok, ajv.errorsText(validate.errors, { separator: "\n" }));
 });
 

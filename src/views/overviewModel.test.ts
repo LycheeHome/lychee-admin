@@ -90,16 +90,34 @@ describe("stripCells", () => {
 });
 
 describe("attentionRows", () => {
-  test("a site and its blocked container are one bad row, worded by the container", () => {
+  test("a site and its blocked container are one bad row, worded by the container and filed under its page", () => {
     const h = payload({
       sites: [okSite("app.lychee.land")],
       units: [unit("app-lychee-land", "service", { site: "app.lychee.land", tone: "neutral", trouble: "blocked", attention: true })],
     });
     const { bad, unknown } = attentionRows(h);
     assert.deepEqual(bad, [
-      { subject: "app.lychee.land", word: "deploy blocked", where: "sites", href: "/sites/app.lychee.land", tone: "bad" },
+      { subject: "app.lychee.land", word: "deploy blocked", where: "services", href: "/sites/app.lychee.land", tone: "bad" },
     ]);
     assert.deepEqual(unknown, []);
+    assert.equal(stripCells(h, false, NOW)[0].note, "all clear");
+  });
+  test("a site whose container could not be read is filed under the container's page", () => {
+    const h = payload({
+      sites: [okSite("app.lychee.land")],
+      units: [unit("app-lychee-land", "service", { site: "app.lychee.land", tone: "neutral", label: "unknown" })],
+    });
+    assert.deepEqual(attentionRows(h).unknown, [
+      { subject: "app.lychee.land", word: "unknown", where: "services", href: "/sites/app.lychee.land", tone: "neutral" },
+    ]);
+  });
+  test("a site whose own state is the bad part keeps sites", () => {
+    const h = payload({
+      sites: [{ hostname: "app.lychee.land", tone: "bad", label: "exited", attention: true }],
+      units: [unit("app-lychee-land", "service", { site: "app.lychee.land", tone: "bad", trouble: "blocked", attention: true })],
+    });
+    assert.equal(attentionRows(h).bad[0].where, "sites");
+    assert.equal(attentionRows(h).bad[0].word, "exited");
   });
   test("a site that is itself bad reads its own label", () => {
     const { bad } = attentionRows(mixed());
