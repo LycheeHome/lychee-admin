@@ -36,7 +36,7 @@ Health is spread across four pages plus the rail. The rail shows it as a dot per
 
 ### 1. Data and API
 
-**Contract.** `contract.lock` goes from v2.0.0 to v2.1.0. `src/lib/platform.ts` gains `PATHS.events = "/var/lib/lychee-inventory/events.json"`. A-HIST-1 states that path, but `constants.json` does not list it, so a contract test reads `AGREEMENTS.md`'s A-HIST-1 section and requires the path to appear there.
+**Contract.** `contract.lock` goes from v2.0.0 to v2.1.0. `src/lib/platform.ts` gains `EVENTS_PATH = "/var/lib/lychee-inventory/events.json"`, beside `PATHS` rather than in it: `PATHS` is tested deep-equal to `constants.json`'s `paths`, which does not list the feed. A-HIST-1 states the path, so a contract test reads `AGREEMENTS.md`'s A-HIST-1 section and requires the path to appear there.
 
 **Reconciler feed reader:** `readReconcilerEvents(fs)` in `src/lib/reconcilerEvents.ts`. It returns the lifetimes as typed values, or `null`. The A-HIST-1 reader rules are requirements:
 - A missing file, unparseable JSON or a wrong top-level shape returns `null` ("no history"), never a throw.
@@ -126,7 +126,7 @@ A successful `deploy-service` is logged with the tag as its whole `detail` (`src
 - An **`overview`** link at the top of the rail nav, above the `sites` heading, linking to `/` and `aria-current="page"` there. The wordmark stays the h1 and keeps linking to `/`, with no signal.
 - `sites` links to `/sites`.
 
-**The signal's states**, from `attentionCounts(...).total`:
+**The signal's states**, from `attentionCounts(health, <health's own site hostnames>).total`. The signal and the overview page count the sites the health payload lists, not the rail's rows: the page that explains the number lists from the same payload, so the two always agree.
 
 | State | Shown | Screen reader, after "overview" |
 |---|---|---|
@@ -134,6 +134,7 @@ A successful `deploy-service` is logged with the tag as its whole `detail` (`src
 | `total.bad == 0`, `total.unknown > 0` | neutral | `, <n> couldn't be read` |
 | everything clean | nothing | nothing |
 | health poll failed (no data, or the last read errored) | neutral | `, health unavailable` |
+| before the first answer | nothing | nothing |
 
 A remembered green never shows: after a failed read the signal is neutral, whatever it was before. Whether it shows a dot, a number or split numbers is the visual decision. Its states are fixed here.
 
@@ -160,7 +161,7 @@ Each shows its total and noun (`9 sites`, `6 units`), then its bad count (Scorch
 
 **Needs attention.** Present only when `total.bad + total.unknown > 0`:
 - One row per thing, counted as `total` counts: a site and its container are one row, bad if either is.
-- Each row is a link (the site's page, or the unit's board row), with the subject, its state word and where it lives (`site`, `services`, `reconciler`, `infrastructure`).
+- Each row is a link (the site's page, or the unit's board row), with the subject, its state word and where it lives (`sites`, `services`, `reconciler`, `infrastructure`: the page names, as the tiles say them).
 - Bad rows first, then unknown rows under a neutral subheading, in Caddyfile order for sites and inventory order for units.
 - The state words come from the health payload's `label`, which is the boards' and the site pages' vocabulary, except that a unit with `trouble` set reads `deploy blocked` or `deploy failed`, as the board's deploy line does. Its `label` there is often `running`, which would hide why it is listed.
 - When the poll fails, this block is replaced by `health unavailable · last read <age>`, or `health unavailable` before any successful read.
@@ -195,8 +196,8 @@ Each shows its total and noun (`9 sites`, `6 units`), then its bad count (Scorch
 The wordmark stays at `/`.
 
 **Frozen fixtures:**
-- The rail cases in `src/dev/fixtures/rail/` that contain dots, chips, the top bar count or the unavailable line are **retired**, along with any shell case whose comparison depends on them. New tests in `Rail.test.tsx` hold the new markup.
-- The site page's and add page's fixtures differ only in those links' `href`. That is declared in `src/client/test/redesigns.ts`, dated, with each substitution anchored on the link's own class string so the wordmark's `href="/"` never matches. `redesigns.test.ts` already fails on an anchor that matches nothing or matches outside its anchor.
+- Every rail and shell fixture contains the rail, so the rail's changes are **declared** in `src/client/test/redesigns.ts` rather than retiring them all: four substitutions (the empty count slots go, the hollow dots go, the `sites` heading's `href` becomes `/sites`, and the `overview` row is inserted before the `Sites` nav). With `health: null` the overview row carries no signal, so it is fixed text. Everything else in each frame stays held to parity. The tests that exercised dots, chips, the top-bar count and the unavailable line are replaced by tests of the signal.
+- The site page's and add page's fixtures differ only in those links' `href`. That is declared in `redesigns.ts`, dated, with each substitution anchored on the link's `href="/" class="…"` prefix so the wordmark's `href="/"` never matches. `redesigns.test.ts` already fails on an anchor that matches nothing or matches outside its anchor.
 - The sites list fixtures are unchanged.
 
 ## Visual decision
@@ -248,7 +249,7 @@ The number counts only the worst tone present. The unknown count is not added to
 - `last tick <age>` sits on the reconciler cell, from `generated`.
 - No `see all` link until `/activity` exists.
 - `sites · lychee.land` stays on the rail's sites heading as plain navigation.
-- The dev seed gains audit lines and an `events.json` that produce the comparison's example rows (swee blocked on `ci-pending`, broken's failed first deploy, gone's retirement, app's `0.1.0 → 0.2.0`), so `npm run dev:mock` shows a populated table.
+- The dev seed gains audit lines and an `events.json` shaped like the comparison's example rows, but agreeing with the seed's own inventory (swee is blocked on `ci-failed` there, not `ci-pending`; broken's failed first deploy; gone's retirement; app's `0.1.0 → 0.2.0`), so `npm run dev:mock` shows a populated table.
 
 ## Testing
 
@@ -272,7 +273,7 @@ The number counts only the worst tone present. The unknown count is not added to
   - title and heading focus.
 - `src/client/components/Rail.test.tsx`: the `overview` row and its four signal states (visible and screen reader), site rows without dots, `sites` → `/sites`, the top bar menu button's signal.
 - Routing tests: `GET /sites` returns the document with `200`, `/sites/` redirects with `308`, and `removeChain` lands on `/sites?removed=`.
-- A contract test for `PATHS.events` against A-HIST-1.
+- A contract test for `EVENTS_PATH` against A-HIST-1.
 - `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`. Run the detector by hand over `src/views src/client`.
 
 **Dev mode.** `src/dev/seed.ts` gains an audit log (an add, a failed remove, a deploy request, a host action, a refusal) and an `events.json` with:
