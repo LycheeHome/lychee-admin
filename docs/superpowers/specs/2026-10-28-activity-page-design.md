@@ -92,8 +92,8 @@ Unchanged: always `200` otherwise, with an unreadable source reported in `source
 
 ### 5. Links in
 
-- **The overview's** `Recent activity` table gains `see all` linking to `/activity`. Its position is part of the visual comparison.
-- **A site's page** gains a quiet `activity` link to `/activity?subject=<hostname>`. Its position is part of the visual comparison.
+- **The overview's** `Recent activity` table gains `see all activity` under its last row, linking to `/activity`.
+- **A site's page** gains an `Activity` link to `/activity?subject=<hostname>` in its header, beside Visit, styled as a Secondary button.
 - Both are router links, like every other in-app link.
 
 ### 6. Edge cases
@@ -129,4 +129,25 @@ Unchanged: always `200` otherwise, with an unreadable source reported in `source
 
 ## Visual decision
 
-To be chosen from a rendered comparison after this spec is approved: where the filters sit, how the detail line reads, whether rows group by day, and where the site page's and overview's links go.
+Chosen 2026-10-28 from the comparison at https://claude.ai/artifact/V6akRfodvbwjUCAz3iW4jX (private): **01 Ledger, continued, with 02 Day Book's day headings, keeping ages.** The other candidates were 02 Day Book whole (clock times, a sentence filter, errors behind a Scorch rule), 03 Entries (two-line prose rows, filter chips) and 04 Gutter (a timeline gutter with tone dots, a card, copyable error insets).
+
+**Filters.** Three labelled native selects on one line above the table's left edge: a section-label caption (`subject`, `who`, `kind`) above each select, in the shared input style. Their empty options read `all subjects`, `all`, `all`. When any filter is set, a `clear filters` text link follows the selects.
+
+**The table.** The overview's table, column for column: `when`, `who`, `kind` (the neutral kind tag), `subject`, `outcome`, with the same class strings, so the two cannot drift.
+
+**Day headings (from 02).** The rows are grouped by local calendar day. Each group opens with a heading row spanning the table: a section label, `today · wed 28 oct`, `yesterday · tue 27 oct`, then `mon 26 oct` (weekday and date, lowercase, no year unless it differs from this year's). The heading sits on the row grid, with a Hairline under it. A page boundary can split a day; the next page continues that day without repeating its heading. The day is the browser's local day, the same clock as the age's title.
+
+**`when`.** Kept as an age (`13m`, `2d`), as on the overview, in a `<time datetime>` whose title is the exact local date and time. Under a day heading, an age still reads relative to now.
+
+**Detail (from 01).** A row with a `detail` shows it as a second line in the outcome column, 0.75rem mono Smoke Light, wrapping, never cut. The row's Hairline moves below the detail line, so the two lines read as one row.
+
+**Show older.** A Secondary button under the table, left-aligned, while `next` is set. `Start of history` replaces it as a quiet mono Smoke line.
+
+**Links in (both "B").**
+- The overview: `see all activity`, a quiet mono text link under the table's last row.
+- A site page: `Activity`, a Secondary button beside Visit, before it, in the header's action slot. The comparison drew it outlined; DESIGN.md's Secondary is filled because a 1px Hairline Strong outline is 2.29:1 and "invisible as an edge", so it is the existing Secondary. It never becomes Primary: Visit (or nothing) keeps the page's one Ember action.
+
+**Implicit decisions the comparison named, now decided:**
+- The dev seed's failed `remove-site` line for legacy gains a `detail` (a `caddy validate` message), so `npm run dev:mock` shows an app error beside a reconciler one.
+- No copy button on detail lines.
+- The rail's `activity` row is plain, with no mark.
