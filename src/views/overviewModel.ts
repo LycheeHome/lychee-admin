@@ -153,7 +153,9 @@ export const ACTIVITY_HEADING = `${CARD_LABEL_BASE} text-stone-300 m-0 mb-2`;
 export const ACTIVITY_NOTE = "m-0 mt-3 text-[0.8rem] leading-snug text-stone-400 max-w-[25rem]";
 /** Spaces a failed re-read's alert from the table it sits under. */
 export const ACTIVITY_ALERT_SLOT = "mt-3";
-export const ACTIVITY_TABLE = "w-full border-collapse text-left";
+/** The table's own scroll box, so a narrow screen scrolls the table and not the page. */
+export const ACTIVITY_SCROLL = "overflow-x-auto min-w-0";
+export const ACTIVITY_TABLE ="w-full border-collapse text-left";
 export const ACTIVITY_TH = `${CARD_LABEL_BASE} text-stone-300 font-medium py-2 pr-4 border-b border-stone-700`;
 export const ACTIVITY_TD = "font-mono text-[0.8rem] text-stone-400 py-2 pr-4 border-b border-stone-700 align-top";
 /** The kind chip: shaped, neutral, never a tone. */

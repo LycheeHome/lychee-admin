@@ -5,6 +5,7 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ActivityEvent, ActivityPayload } from "../../shared/activity";
 import type { HealthPayload, UnitHealth } from "../../shared/health";
+import { ACTIVITY_SCROLL } from "../../views/overviewModel";
 import { ACTIVITY_QUERY } from "../activity";
 import { HEALTH_QUERY } from "../health";
 import { seedHealth } from "../test/healthFixture";
@@ -259,6 +260,11 @@ describe("OverviewPage", () => {
     assert.ok(!table());
     assert.ok(!screen.queryByText(/showing/));
     assert.ok(!screen.queryByText("Nothing recorded yet."));
+  });
+
+  test("the table scrolls in its own box", () => {
+    mount();
+    assert.equal(table()?.parentElement?.className, ACTIVITY_SCROLL);
   });
 
   test("the table's header cells", () => {

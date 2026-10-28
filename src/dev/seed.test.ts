@@ -63,10 +63,12 @@ test("the seeded feed has a closed lifetime and a shared tick", () => {
   assert.equal(closed[0].name, "old-lychee-land");
   assert.ok(closed[0].removed_at);
   const notes = lifetimes.find((l) => l.name === "lychee-notes");
-  const rec = notes?.events.find((e) => e.type === "recovered");
-  const dep = notes?.events.find((e) => e.type === "deployed");
-  assert.ok(rec && dep);
-  assert.equal(rec.at, dep.at);
+  const events = notes?.events ?? [];
+  const recIdx = events.findIndex((e) => e.type === "recovered");
+  const depIdx = events.findIndex((e) => e.type === "deployed");
+  assert.ok(recIdx >= 0 && depIdx >= 0);
+  assert.equal(events[recIdx].at, events[depIdx].at);
+  assert.ok(depIdx < recIdx, "A-HIST-1: deployed comes before recovered within a tick");
 });
 
 test("the seeded audit log reads back in full", () => {

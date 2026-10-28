@@ -308,8 +308,8 @@ export const SEEDED_EVENTS = JSON.stringify(
       ]),
       lifetime("lychee-notes", "container", 2000, [
         { at: ago(130), type: "blocked", gate_code: "ci-pending" },
-        { at: ago(70), type: "recovered", from: "blocked", from_gate_code: "ci-pending", attempts: 2 },
         { at: ago(70), type: "deployed", from: "1.3.0", to: "1.4.0" },
+        { at: ago(70), type: "recovered", from: "blocked", from_gate_code: "ci-pending", attempts: 2 },
       ]),
       lifetime("gone-lychee-land", "container", 1500, [
         { at: ago(600), type: "deployed", from: null, to: "0.4.2" },

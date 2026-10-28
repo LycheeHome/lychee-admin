@@ -8,6 +8,7 @@ import {
   ACTIVITY_KIND_TAG,
   ACTIVITY_NOTE,
   ACTIVITY_OUTCOME,
+  ACTIVITY_SCROLL,
   ACTIVITY_SUBJECT,
   ACTIVITY_SUBJECT_LINK,
   ACTIVITY_TABLE,
@@ -50,6 +51,7 @@ export function ActivityTable({ payload, alert }: { payload: ActivityPayload | n
       body = (
         <>
           {events.length > 0 ? (
+            <div className={ACTIVITY_SCROLL}>
             <table className={ACTIVITY_TABLE}>
               <thead>
                 <tr>
@@ -88,6 +90,7 @@ export function ActivityTable({ payload, alert }: { payload: ActivityPayload | n
                 ))}
               </tbody>
             </table>
+            </div>
           ) : missing === null ? (
             <p className={ACTIVITY_NOTE}>Nothing recorded yet.</p>
           ) : null}
