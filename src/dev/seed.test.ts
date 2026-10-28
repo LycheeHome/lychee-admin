@@ -3,7 +3,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import Ajv2020 from "ajv/dist/2020";
 import { loadContractJson } from "./contract";
-import { SEEDED_INVENTORY } from "./seed";
+import { config } from "../config";
+import { readAuditTail } from "../lib/auditLog";
+import { EVENTS_PATH } from "../lib/platform";
+import { readReconcilerEvents } from "../lib/reconcilerEvents";
+import { buildActivity } from "../views/activityModel";
+import { createInMemoryFileSystem } from "./fakes";
+import { applySeed, SEEDED_INVENTORY } from "./seed";
 
 // The inventory schema uses no `format` keywords (timestamps are patterns), so
 // ajv-formats is deliberately not a dependency.
@@ -32,4 +38,49 @@ test("container rows carry release tags in the contract's form", () => {
       if (typeof v === "string" && v !== "") assert.match(v, pattern, `${row.name}.${key}`);
     }
   }
+});
+
+function seeded() {
+  const fs = createInMemoryFileSystem();
+  applySeed(fs);
+  return fs;
+}
+
+test("the seeded feed parses and holds every event type", () => {
+  const lifetimes = readReconcilerEvents(seeded(), EVENTS_PATH);
+  assert.ok(lifetimes);
+  const types = new Set(lifetimes.flatMap((l) => l.events.map((e) => e.type)));
+  assert.deepEqual(
+    [...types].sort(),
+    ["added", "awaiting-image", "blocked", "deployed", "down", "failed", "recovered", "removed", "stopped"],
+  );
+});
+
+test("the seeded feed has a closed lifetime and a shared tick", () => {
+  const lifetimes = readReconcilerEvents(seeded(), EVENTS_PATH) ?? [];
+  const closed = lifetimes.filter((l) => !l.open);
+  assert.equal(closed.length, 1);
+  assert.equal(closed[0].name, "old-lychee-land");
+  assert.ok(closed[0].removed_at);
+  const notes = lifetimes.find((l) => l.name === "lychee-notes");
+  const rec = notes?.events.find((e) => e.type === "recovered");
+  const dep = notes?.events.find((e) => e.type === "deployed");
+  assert.ok(rec && dep);
+  assert.equal(rec.at, dep.at);
+});
+
+test("the seeded audit log reads back in full", () => {
+  assert.equal(readAuditTail(seeded(), 50, config.logFile)?.length, 5);
+});
+
+test("seeded activity has both sources and fills the page", () => {
+  const fs = seeded();
+  const events = buildActivity(
+    readAuditTail(fs, 50, config.logFile),
+    readReconcilerEvents(fs, EVENTS_PATH),
+    { domain: config.domain, sites: new Set(), units: new Map() },
+    8,
+  );
+  assert.equal(events.length, 8);
+  assert.deepEqual([...new Set(events.map((e) => e.who))].sort(), ["app", "reconciler"]);
 });
