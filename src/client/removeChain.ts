@@ -1,3 +1,4 @@
+import { SITES_ROUTE } from "./clientNav";
 import { showToast } from "./toast";
 
 /*
@@ -108,7 +109,7 @@ export function filesFailureMessage(hostname: string, error: string): string {
   return `Removed ${hostname} from Caddy and the sites tunnel, but deleting its files failed:\n${error}\n\nThe site is no longer served. Its files are still on disk.`;
 }
 
-const removedHref = (hostname: string) => `/?removed=${encodeURIComponent(hostname)}`;
+const removedHref = (hostname: string) => `${SITES_ROUTE}?removed=${encodeURIComponent(hostname)}`;
 
 /**
  * The site is gone from Caddy and the tunnel, but its container is still

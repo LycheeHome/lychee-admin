@@ -27,6 +27,21 @@ export type Redesign = {
   anchor: string;
 };
 
+const FOCUS = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
+
+/** A fixture link to the sites list, by its exact class string, moved from / to /sites. */
+function sitesLink(id: string, className: string): Redesign {
+  const old = `href="/" class="${className}"`;
+  return {
+    id,
+    since: "2026-10-28",
+    why: "The sites list moved to /sites when / became the overview (spec 2026-10-28-overview-page).",
+    from: new RegExp(old.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
+    to: `href="/sites" class="${className}"`,
+    anchor: old,
+  };
+}
+
 export const REDESIGNS: Redesign[] = [
   {
     id: "offer-tag",
@@ -248,6 +263,19 @@ export const REDESIGNS: Redesign[] = [
       to: "$1$2",
       anchor: `id="${id}"`,
     }),
+  ),
+  // The links back to the sites list, each anchored on its own exact class
+  // string so the wordmark's and the rail heading's href="/" never match.
+  // The breadcrumb's sites link, on a site's page and on the add page.
+  sitesLink("sites-link:breadcrumb", `text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS}`),
+  // The not-found body's "← Back to sites".
+  sitesLink("sites-link:not-found", `${FOCUS} text-rose-400 no-underline font-mono text-[0.85rem] hover:underline`),
+  // The Caddyfile error's "← sites".
+  sitesLink("sites-link:caddyfile-error", `text-stone-400 no-underline font-mono text-[0.72rem] hover:text-stone-50 hover:underline ${FOCUS}`),
+  // The add form's Cancel.
+  sitesLink(
+    "sites-link:add-cancel",
+    `font-sans font-semibold text-sm bg-stone-600 text-stone-50 border-none rounded-md min-h-10 px-4 py-2.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-stone-700 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px ${FOCUS} disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-transparent disabled:hover:bg-transparent no-underline`,
   ),
 ];
 

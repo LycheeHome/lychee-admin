@@ -13,7 +13,7 @@ import type { ServiceGroup } from "../shared/board";
  * router (router.tsx) provides the context, so neither imports the other.
  */
 
-/** The board's three pages, by path; each renders one group. The other client routes are the sites list (SITES_ROUTE), the add page (ADD_SITE_ROUTE) and a site's page (SITE_ROUTE). */
+/** The board's three pages, by path; each renders one group. The other client routes are the overview (OVERVIEW_ROUTE), the sites list (SITES_ROUTE), the add page (ADD_SITE_ROUTE) and a site's page (SITE_ROUTE). */
 export const BOARD_ROUTES = {
   "/services": "service",
   "/reconciler": "reconciler",
@@ -22,8 +22,11 @@ export const BOARD_ROUTES = {
 
 export type BoardRoute = keyof typeof BOARD_ROUTES;
 
+/** The overview's path. Matched exactly, like every route here: never as a prefix of every path. */
+export const OVERVIEW_ROUTE = "/";
+
 /** The sites list's path. Matched exactly, like every route here: never as a prefix of `/sites/…`. */
-export const SITES_ROUTE = "/";
+export const SITES_ROUTE = "/sites";
 
 /** The add page. Registered before SITE_ROUTE, so "new" is never taken for a hostname. */
 export const ADD_SITE_ROUTE = "/sites/new";
@@ -56,12 +59,12 @@ export function siteOf(href: string): string | null {
   return hostname === "" || hostname === "new" || hostname.includes("/") ? null : hostname;
 }
 
-/** True when `href` is one of the pages the client renders (the sites list, a board page, the add page or a site's page), whatever query or hash it carries. */
+/** True when `href` is one of the pages the client renders (the overview, the sites list, a board page, the add page or a site's page), whatever query or hash it carries. */
 export function isClientRoute(href: string): boolean {
   const path = pathOf(href);
   return (
     path !== null &&
-    (path === SITES_ROUTE || path === ADD_SITE_ROUTE || Object.hasOwn(BOARD_ROUTES, path) || siteOf(path) !== null)
+    (path === OVERVIEW_ROUTE || path === SITES_ROUTE || path === ADD_SITE_ROUTE || Object.hasOwn(BOARD_ROUTES, path) || siteOf(path) !== null)
   );
 }
 

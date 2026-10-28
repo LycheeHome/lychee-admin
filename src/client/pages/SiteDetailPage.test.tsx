@@ -344,7 +344,7 @@ describe("SiteDetailPage", () => {
     mount();
     await waitFor(() => assert.ok(document.body.textContent?.includes("cannot read")), TIMEOUT);
     assert.ok(!heading());
-    assert.ok(document.querySelector('a[href="/"]')?.textContent?.includes("sites"));
+    assert.ok(document.querySelector('a[href="/sites"]')?.textContent?.includes("sites"));
     assert.equal(document.title, HOST);
   });
 

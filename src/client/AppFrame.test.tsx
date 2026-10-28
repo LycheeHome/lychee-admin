@@ -14,10 +14,11 @@ import { RAIL_DOT } from "../views/railModel";
 import { addedNotice } from "../views/siteDetailModel";
 import { RAIL_QUERY_KEY } from "./api";
 import { readInitialNotice, type InitialNotice } from "./AppFrame";
-import { BOARD_ROUTES } from "./clientNav";
+import { BOARD_ROUTES, OVERVIEW_ROUTE, SITES_ROUTE } from "./clientNav";
 import { HEALTH_QUERY } from "./health";
 import { AddSitePage } from "./pages/AddSitePage";
 import { BoardPage } from "./pages/BoardPage";
+import { OverviewPage } from "./pages/OverviewPage";
 import { SiteDetailRoute } from "./pages/SiteDetailPage";
 import { SitesPage } from "./pages/SitesPage";
 import { stripNoticeParams } from "./router";
@@ -117,6 +118,7 @@ function stubFetch(): Stub {
     if (url === "/api/rail") return s.rail();
     if (url === "/api/health") return s.health();
     if (url === "/api/sites") return json(200, { ok: true, ...SITES });
+    if (url.startsWith("/api/activity")) return json(200, { ok: true, events: [], sources: { app: true, reconciler: true }, now: "2026-10-22T12:00:00Z" });
     if (url.startsWith("/api/sites/new")) return json(500, { ok: false, reason: "not in this test" });
     if (url.startsWith("/api/sites/")) return s.site(decodeURIComponent(url.slice("/api/sites/".length).split("?")[0] ?? ""));
     const group = new URLSearchParams(url.split("?")[1] ?? "").get("group") as ServiceGroup;
@@ -137,7 +139,8 @@ function routes(notice: InitialNotice): RouteObject[] {
     {
       element: <FrameLayout notice={notice} />,
       children: [
-        { path: "/", element: <SitesPage /> },
+        { path: OVERVIEW_ROUTE, element: <OverviewPage /> },
+        { path: SITES_ROUTE, element: <SitesPage /> },
         ...Object.entries(BOARD_ROUTES).map(([path, group]) => ({ path, element: <BoardPage key={group} group={group} /> })),
         { path: "/sites/new", element: <AddSitePage /> },
         { path: "/sites/:hostname", element: <SiteDetailRoute /> },
@@ -219,7 +222,7 @@ describe("the rail's data", () => {
     const s = stubFetch();
     const answer = gate<Response>();
     s.rail = () => answer.promise;
-    mount("/", s);
+    mount("/sites", s);
     await waitFor(() => assert.ok(count("/api/rail") === 1), TIMEOUT);
     assertFixedParts(rail());
     assertNoRowsNoError(rail());
@@ -228,7 +231,7 @@ describe("the rail's data", () => {
   });
 
   test("is read once per document load, not on every move", async () => {
-    mount("/");
+    mount("/sites");
     await waitFor(() => assert.ok(rows().length > 0), TIMEOUT);
     await act(async () => void (await router!.navigate("/services")));
     await act(async () => void (await router!.navigate("/sites/app.lychee.land")));
@@ -239,7 +242,7 @@ describe("the rail's data", () => {
   test("health failing: the rows stay listed, with neutral dots and health unavailable", async () => {
     const s = stubFetch();
     s.health = async () => json(500, { ok: false, reason: "boom" });
-    mount("/", s);
+    mount("/sites", s);
     await waitFor(() => assert.ok(rail()?.querySelector("[data-health-unavailable]")), TIMEOUT);
     assert.deepEqual(rows(), SEED_RAIL.sites!.map((x) => x.hostname));
     const dot = (host: string) => rail()?.querySelector(`[data-site="${host}"] [data-dot]`)?.getAttribute("class");
@@ -252,7 +255,7 @@ describe("the rail's data", () => {
     const s = stubFetch();
     let failing = true;
     s.rail = async () => (failing ? json(500, { ok: false, reason: "boom" }) : json(200, { ok: true, ...SEED_RAIL }));
-    mount("/", s);
+    mount("/sites", s);
     await waitFor(() => assert.ok(client!.getQueryState(RAIL_QUERY_KEY)?.status === "error"), TIMEOUT);
     // Health answers too, so its own dots and counts are in by now.
     await waitFor(() => assert.ok(count("/api/health") >= 1), TIMEOUT);
@@ -274,7 +277,7 @@ describe("the rail's data", () => {
     const s = stubFetch();
     const answer = gate<Response>();
     s.rail = () => answer.promise;
-    mount("/", s);
+    mount("/sites", s);
     const menu = document.getElementById("rail-menu");
     assert.ok(menu, "no menu button");
     act(() => {
@@ -292,7 +295,7 @@ describe("the rail's data", () => {
 
   test("RF4: a toast survives a frame re-render (a rail re-read and a health poll)", async () => {
     const s = stubFetch();
-    mount("/", s);
+    mount("/sites", s);
     await waitFor(() => assert.ok(rows().length > 0), TIMEOUT);
     showToast("x", "error");
     const banner = document.getElementById("flash-banner");
@@ -331,7 +334,7 @@ describe("the rail's health", () => {
     });
 
   test("the poll fills in the rows' dots and the counts", async () => {
-    mount("/");
+    mount("/sites");
     await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), TIMEOUT);
     assert.equal(dot("app.lychee.land"), RAIL_DOT.ok);
     assert.equal(dot("blog.lychee.land"), RAIL_DOT.none);
@@ -342,7 +345,7 @@ describe("the rail's health", () => {
 
   test("a failed poll after a good one never shows the remembered green", async () => {
     const s = stubFetch();
-    mount("/", s);
+    mount("/sites", s);
     await waitFor(() => assert.equal(dot("app.lychee.land"), RAIL_DOT.ok), TIMEOUT);
     s.health = failing;
     await refetchHealth();
@@ -354,7 +357,7 @@ describe("the rail's health", () => {
   test("a failed first poll stays unavailable while the next poll is in flight", async () => {
     const s = stubFetch();
     s.health = failing;
-    mount("/", s);
+    mount("/sites", s);
     await waitFor(() => assert.equal(unavailable(), "health unavailable"), TIMEOUT);
     await waitFor(() => assert.ok(rows().length > 0), TIMEOUT);
     // The next poll is held open. TanStack resets a data-less errored query
@@ -377,7 +380,7 @@ describe("the rail's health", () => {
 
   test("an errored poll between two good ones clears: the dots show their tones again", async () => {
     const s = stubFetch();
-    mount("/", s);
+    mount("/sites", s);
     await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), TIMEOUT);
     s.health = failing;
     await refetchHealth();
@@ -398,7 +401,7 @@ describe("the rail's health", () => {
     test(`prints ${hint} on ${platform}`, async () => {
       Object.defineProperty(navigator, "platform", { value: platform, configurable: true });
       try {
-        mount("/");
+        mount("/sites");
         await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), TIMEOUT);
         assert.equal(document.querySelector("#rail [data-find-hint]")?.textContent, hint);
       } finally {
@@ -415,7 +418,7 @@ describe("the rail's health", () => {
 describe("the page's h1", () => {
   const visibleH1s = (width: number) => Array.from(document.querySelectorAll("h1")).filter((h) => displayedAt(h, width));
 
-  for (const url of ["/", "/services", "/sites/app.lychee.land", "/sites/nope.lychee.land", "/sites/new"]) {
+  for (const url of ["/", "/sites", "/services", "/sites/app.lychee.land", "/sites/nope.lychee.land", "/sites/new"]) {
     test(`${url}: each width displays exactly one, the wordmark`, async () => {
       mount(url);
       await waitFor(() => assert.ok(rows().length > 0), TIMEOUT);
@@ -440,13 +443,15 @@ describe("readInitialNotice", () => {
   };
 
   test("removed on the list, created=1 on a site's page, and nothing else", () => {
-    assert.deepEqual(at("/?removed=x.lychee.land"), { kind: "removed", host: "x.lychee.land" });
+    assert.deepEqual(at("/sites?removed=x.lychee.land"), { kind: "removed", host: "x.lychee.land" });
     assert.deepEqual(at("/sites/app.lychee.land?created=1"), { kind: "created" });
     assert.deepEqual(at("/sites/app.lychee.land?x=1&created=1#hop"), { kind: "created" });
     for (const url of [
       "/",
-      "/?removed=",
-      "/?removed=a&removed=b",
+      "/?removed=x.lychee.land",
+      "/sites",
+      "/sites?removed=",
+      "/sites?removed=a&removed=b",
       "/services?removed=x.lychee.land",
       "/sites/app.lychee.land?removed=x.lychee.land",
       "/sites/app.lychee.land?created=0",
@@ -462,8 +467,20 @@ describe("readInitialNotice", () => {
 describe("the page notice", () => {
   const REMOVED = "Removed x.lychee.land. Remember to remove the DNS record in Cloudflare manually.";
 
-  test("?removed renders the removed notice, and the URL loses the parameter", async () => {
+  test("?removed= on /sites shows the notice", async () => {
+    mount("/sites?removed=x.lychee.land");
+    assert.equal(noticeText(), REMOVED);
+    await waitFor(() => assert.equal(document.querySelector("main h2")?.textContent, "Sites"), TIMEOUT);
+  });
+
+  test("?removed= on / shows none", async () => {
     mount("/?removed=x.lychee.land");
+    await waitFor(() => assert.equal(document.querySelector("main h2")?.textContent, "Overview"), TIMEOUT);
+    assert.ok(!document.getElementById("page-notice"), "a removed notice on the overview");
+  });
+
+  test("?removed renders the removed notice, and the URL loses the parameter", async () => {
+    mount("/sites?removed=x.lychee.land");
     assert.equal(noticeText(), REMOVED);
     assert.equal(window.location.search, "");
     const notice = document.getElementById("page-notice");
@@ -518,7 +535,7 @@ describe("the page notice", () => {
   });
 
   test("its close removes it", async () => {
-    mount("/?removed=x.lychee.land");
+    mount("/sites?removed=x.lychee.land");
     const close = document.getElementById("page-notice-close");
     assert.ok(close);
     act(() => {
@@ -528,13 +545,13 @@ describe("the page notice", () => {
   });
 
   test("the first in-app move away removes it, and coming back does not bring it back", async () => {
-    mount("/?removed=x.lychee.land");
+    mount("/sites?removed=x.lychee.land");
     assert.equal(noticeText(), REMOVED);
-    await act(async () => void (await router!.navigate("/#top")));
+    await act(async () => void (await router!.navigate("/sites#top")));
     assert.equal(noticeText(), REMOVED, "a move that stays on the page removed it");
     await act(async () => void (await router!.navigate("/services")));
     assert.ok(!document.getElementById("page-notice"), "still there after moving away");
-    await act(async () => void (await router!.navigate("/")));
+    await act(async () => void (await router!.navigate("/sites")));
     assert.ok(!document.getElementById("page-notice"), "back after returning");
   });
 });
@@ -564,7 +581,8 @@ describe("writes", () => {
 
 describe("titles on a document load", () => {
   const CASES: Array<[string, string]> = [
-    ["/", "Sites"],
+    ["/", "overview · lychee admin"],
+    ["/sites", "Sites"],
     ["/services", GROUP_LABELS.service],
     ["/reconciler", GROUP_LABELS.reconciler],
     ["/infrastructure", GROUP_LABELS.infrastructure],

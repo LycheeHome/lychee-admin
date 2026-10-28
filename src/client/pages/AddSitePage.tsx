@@ -7,7 +7,7 @@ import { ADD_SITE_TITLE } from "../../views/siteListModel";
 import { composeHostname, headlineParts, portMessage, resultMarks, skipMarks, type StepMark } from "../addSiteModel";
 import { hostnameMessage } from "../../lib/siteNames";
 import { addSiteQueryKey, fetchAddSite } from "../api";
-import { RailLink, useClientNav } from "../clientNav";
+import { RailLink, SITES_ROUTE, useClientNav } from "../clientNav";
 import { BOARD_ALERT } from "../components/BoardRows";
 import { hideToast, showToast } from "../toast";
 import { AddSiteForm } from "../components/AddSiteForm";
@@ -441,7 +441,7 @@ function AddSiteEditor({ payload, headingRef, go }: Required<AddSiteBodyProps>) 
       <div className="flex flex-col gap-3">
         {/* A block nav: the server's indentation rendered as a word space each side of the slash. */}
         <nav className="font-mono text-[0.72rem] text-stone-400 m-0" aria-label="Breadcrumb">
-          <RailLink href="/" className={`text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}`}>
+          <RailLink href={SITES_ROUTE} className={`text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}`}>
             sites
           </RailLink>{" "}
           <span className="text-stone-600 mx-1.5" aria-hidden="true">

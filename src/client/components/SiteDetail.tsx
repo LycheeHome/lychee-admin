@@ -43,7 +43,7 @@ import {
   TONE_TEXT,
   statePhrase,
 } from "../../views/shared";
-import { RailLink } from "../clientNav";
+import { RailLink, SITES_ROUTE } from "../clientNav";
 import { CommandBlock, CopyButton, FailureLine, Icon } from "./CommandBlock";
 import { RemoveDialog, type RemoveDialogHandle } from "./RemoveDialog";
 import { RepositoryCard, type SiteWrites } from "./RepositoryCard";
@@ -116,7 +116,7 @@ function Header({ payload, headingRef }: { payload: DetailPayload; headingRef?: 
           indentation between them rendered as a word space each side of the
           slash, on top of its mx-1.5, and the explicit spaces keep that. */}
       <nav className="font-mono text-[0.72rem] text-stone-400 m-0" aria-label="Breadcrumb">
-        <RailLink href="/" className={`text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}`}>
+        <RailLink href={SITES_ROUTE} className={`text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}`}>
           sites
         </RailLink>{" "}
         <span className="text-stone-600 mx-1.5" aria-hidden="true">
@@ -509,7 +509,7 @@ export function SiteNotFound({ hostname }: { hostname: string }) {
         {`No managed site found for "${hostname}".`}
       </p>
       <p className="m-0">
-        <RailLink href="/" className={`${FOCUS_RING} text-rose-400 no-underline font-mono text-[0.85rem] hover:underline`}>
+        <RailLink href={SITES_ROUTE} className={`${FOCUS_RING} text-rose-400 no-underline font-mono text-[0.85rem] hover:underline`}>
           {"← Back to sites"}
         </RailLink>
       </p>
@@ -527,7 +527,7 @@ export function CaddyfileError({ message }: { message: string }) {
       <p className={ERROR_BOX}>{message}</p>
       <p className="m-0">
         <RailLink
-          href="/"
+          href={SITES_ROUTE}
           className={`text-stone-400 no-underline font-mono text-[0.72rem] hover:text-stone-50 hover:underline ${FOCUS_RING}`}
         >
           {"← sites"}

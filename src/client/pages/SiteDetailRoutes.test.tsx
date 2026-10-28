@@ -189,7 +189,7 @@ describe("the site page route", () => {
   });
 
   test("list → site loads no document; title, row and focus follow; the arrival reads with ?refresh=1", async () => {
-    load("/");
+    load("/sites");
     await railLive();
     const row = await waitFor(() => document.querySelector('main a[href="/sites/app.lychee.land"]') ?? assert.fail("no row"), TIMEOUT);
     assert.equal(clickCancelled(row), true, "the click was left to the browser");
@@ -341,11 +341,11 @@ describe("the site page route", () => {
       load("/sites/app.lychee.land");
       await railLive();
       await showing("app");
-      const crumb = document.querySelector('main nav[aria-label="Breadcrumb"] a[href="/"]');
+      const crumb = document.querySelector('main nav[aria-label="Breadcrumb"] a[href="/sites"]');
       assert.ok(crumb, "no breadcrumb link");
       assert.equal(clickCancelled(crumb), true, "the click was left to the browser");
       await waitFor(() => assert.ok(document.querySelector('main a[href="/sites/blog.lychee.land"]')), TIMEOUT);
-      assert.equal(window.location.pathname, "/");
+      assert.equal(window.location.pathname, "/sites");
       assert.equal(document.title, "Sites");
       assert.deepEqual(marked(), ["/"]);
       assert.deepEqual(assigned, []);
@@ -377,7 +377,7 @@ describe("the site page route", () => {
       load("/sites/nope.lychee.land");
       await railLive();
       const back = await waitFor(
-        () => document.querySelector('main a[href="/"]') ?? assert.fail("no back link"),
+        () => document.querySelector('main a[href="/sites"]') ?? assert.fail("no back link"),
         TIMEOUT,
       );
       assert.equal(back.textContent, "← Back to sites");
@@ -393,7 +393,7 @@ describe("the site page route", () => {
         load("/sites/err.lychee.land");
         await railLive();
         const back = await waitFor(
-          () => document.querySelector('main a[href="/"]') ?? assert.fail("no back link"),
+          () => document.querySelector('main a[href="/sites"]') ?? assert.fail("no back link"),
           TIMEOUT,
         );
         assert.ok(document.querySelector("main")?.textContent?.includes("cannot read"));
