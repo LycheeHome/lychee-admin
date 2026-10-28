@@ -33,5 +33,7 @@ export interface UnitHealth {
 export interface HealthPayload {
   sites: SiteHealth[];
   units: UnitHealth[] | null;
+  /** The inventory's write time (the reconciler's last tick), or null when the inventory is unavailable. */
+  generated: string | null;
   now: string;
 }

@@ -88,6 +88,19 @@ describe("GET /api/health", () => {
     assert.equal(body.units.find((u) => u.name === "palsave-api")?.site, null);
   });
 
+  test("generated is the inventory's write time", async () => {
+    const s = await start();
+    const body = (await (await fetch(`${s.base}/api/health`, { headers: { Authorization: AUTH } })).json()) as HealthPayload;
+    assert.equal(typeof body.generated, "string");
+    assert.ok(!Number.isNaN(Date.parse(body.generated as string)));
+  });
+
+  test("generated is null without an inventory", async () => {
+    const s = await start({ inventory: false });
+    const body = (await (await fetch(`${s.base}/api/health`, { headers: { Authorization: AUTH } })).json()) as HealthPayload;
+    assert.equal(body.generated, null);
+  });
+
   test("a missing inventory gives units: null", async () => {
     const s = await start({ inventory: false });
     const body = (await (await fetch(`${s.base}/api/health`, { headers: { Authorization: AUTH } })).json()) as HealthPayload;

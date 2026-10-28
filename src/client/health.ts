@@ -19,7 +19,7 @@ export async function fetchHealth(): Promise<HealthPayload> {
     const reason = body && body.ok === false && typeof body.reason === "string" ? body.reason : undefined;
     throw new Error(reason ?? `HTTP ${res.status}`);
   }
-  return { sites: body.sites, units: body.units, now: body.now };
+  return { sites: body.sites, units: body.units, generated: body.generated, now: body.now };
 }
 
 /**

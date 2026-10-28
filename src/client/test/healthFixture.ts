@@ -21,6 +21,7 @@ const unit = (name: string, group: UnitHealth["group"], extra: Partial<UnitHealt
 export function seedHealth(): HealthPayload {
   return {
     now: "2026-10-22T12:00:00.000Z",
+    generated: null,
     sites: [
       { hostname: "lychee.land", tone: "none", label: "", attention: false },
       { hostname: "blog.lychee.land", tone: "none", label: "", attention: false },

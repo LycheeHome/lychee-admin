@@ -131,7 +131,7 @@ describe("buildHealth", () => {
 
 describe("attentionCounts", () => {
   test("null per group when units is null; the total is the sites alone", () => {
-    const h = { sites: [{ hostname: "a", tone: "bad" as const, label: "failed", attention: true }], units: null, now: "" };
+    const h = { sites: [{ hostname: "a", tone: "bad" as const, label: "failed", attention: true }], units: null, generated: null, now: "" };
     assert.deepEqual(attentionCounts(h, ["a"]), {
       sites: { bad: 1, unknown: 0 },
       service: null,
@@ -150,6 +150,7 @@ describe("attentionCounts", () => {
     const h = {
       sites: [{ hostname: "app.lychee.land", tone: "ok" as const, label: "running", attention: false }],
       units: [blocked],
+      generated: null,
       now: "",
     };
     assert.deepEqual(attentionCounts(h, ["app.lychee.land"]).total, { bad: 1, unknown: 0 });
@@ -159,6 +160,7 @@ describe("attentionCounts", () => {
     const h = {
       sites: [{ hostname: "broken.lychee.land", tone: "bad" as const, label: "failed", attention: true }],
       units: [broken, unitHealth(row({ status: "unknown" }), "service")],
+      generated: null,
       now: "",
     };
     const c = attentionCounts(h, ["broken.lychee.land"]);
@@ -168,12 +170,12 @@ describe("attentionCounts", () => {
   });
   test("sites the rail does not list are not counted", () => {
     const bad = { tone: "bad" as const, label: "failed", attention: true };
-    const h = { sites: [{ hostname: "a", ...bad }, { hostname: "new", ...bad }], units: null, now: "" };
+    const h = { sites: [{ hostname: "a", ...bad }, { hostname: "new", ...bad }], units: null, generated: null, now: "" };
     assert.deepEqual(attentionCounts(h, ["a", "b"]).sites, { bad: 1, unknown: 0 });
   });
   test("counts per group", () => {
     const u = unitHealth(row({ status: "exited" }), "service");
-    const h = { sites: [], units: [u, unitHealth(row({}), "service")], now: "" };
+    const h = { sites: [], units: [u, unitHealth(row({}), "service")], generated: null, now: "" };
     assert.deepEqual(attentionCounts(h, []), {
       sites: { bad: 0, unknown: 0 },
       service: { bad: 1, unknown: 0 },
@@ -200,6 +202,7 @@ describe("attentionCounts", () => {
     const h = {
       sites: [{ hostname: "a", tone: "neutral" as const, label: "unknown", attention: false }],
       units: [unknownUnit, unitHealth(row({ status: "exited" }), "service"), unitHealth(row({ status: "unknown" }), "service")],
+      generated: null,
       now: "",
     };
     assert.deepEqual(attentionCounts(h, ["a"]), {

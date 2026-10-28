@@ -88,7 +88,12 @@ export function buildHealth(
         }),
       )
     : null;
-  return { sites: sites.map((s) => siteHealth(s, statuses[s.hostname])), units, now: now.toISOString() };
+  return {
+    sites: sites.map((s) => siteHealth(s, statuses[s.hostname])),
+    units,
+    generated: board.inventoryAvailable ? board.generated : null,
+    now: now.toISOString(),
+  };
 }
 
 /**
