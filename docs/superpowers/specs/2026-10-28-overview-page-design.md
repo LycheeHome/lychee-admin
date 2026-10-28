@@ -99,7 +99,7 @@ Every toned outcome leads with a word, so a tone never appears without one (the 
 | `detach-site` | remove | `retired` |
 | `change-repository` | repository | `repository changed` |
 | `prune-declaration` | prune | `pruned` |
-| `refused-cross-site` | attach | `refused` (bad) |
+| `refused-cross-site` | (not shown in v1) | its `hostname` is the request's Host header, not the subject of any action |
 | `host-action` | host | `<hostAction> started`, or `<hostAction> refused` (bad) when `outcome` begins `refused` |
 
 A successful `deploy-service` is logged with the tag as its whole `detail` (`src/routes/services.ts`), so its outcome reads `<tag> requested`. The `-failed` variant's `detail` is free text (`<tag>: <reason>` or an error string) and is never shown. An unknown audit action is dropped, so new actions do not render as raw strings.
@@ -161,7 +161,7 @@ Each shows its total and noun (`9 sites`, `6 units`), then its bad count (Scorch
 
 **Needs attention.** Present only when `total.bad + total.unknown > 0`:
 - One row per thing, counted as `total` counts: a site and its container are one row, bad if either is.
-- Each row is a link (the site's page, or the unit's board row), with the subject, its state word and where it lives (`sites`, `services`, `reconciler`, `infrastructure`: the page names, as the tiles say them).
+- Each row is a link (the site's page, or the unit's board row), with the subject, its state word and where it lives (`sites`, `services`, `reconciler`, `infrastructure`: the page names, as the tiles say them). A site is filed under `sites` when its own state is the bad (or unknown) part, and under its container's page when only the container is; either way it links to the site's page and, in the second case, reads the container's word.
 - Bad rows first, then unknown rows under a neutral subheading, in Caddyfile order for sites and inventory order for units.
 - The state words come from the health payload's `label`, which is the boards' and the site pages' vocabulary, except that a unit with `trouble` set reads `deploy blocked` or `deploy failed`, as the board's deploy line does. Its `label` there is often `running`, which would hide why it is listed.
 - When the poll fails, this block is replaced by `health unavailable · last read <age>`, or `health unavailable` before any successful read.
