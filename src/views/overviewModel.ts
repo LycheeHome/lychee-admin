@@ -3,8 +3,8 @@
 // No node imports: Vite bundles this file into the client.
 import type { ActivityEvent } from "../shared/activity";
 import type { HealthPayload, UnitHealth } from "../shared/health";
-import { attentionCounts } from "./railModel";
-import { CARD, CARD_LABEL_BASE, FOCUS_RING, formatAge } from "./shared";
+import { attentionCounts, isUnknown } from "./railModel";
+import { CARD, CARD_LABEL_BASE, FOCUS_RING, FRAME_WIDTH, formatAge } from "./shared";
 
 export type OverviewPage = "sites" | "services" | "reconciler" | "infrastructure";
 
@@ -62,7 +62,6 @@ const PAGE_OF: Record<UnitHealth["group"], OverviewPage> = {
 };
 
 const unitWord = (u: UnitHealth) => (u.trouble ? `deploy ${u.trouble}` : u.label);
-const isUnknown = (e: { label: string; attention: boolean }) => !e.attention && e.label === "unknown";
 
 export function attentionRows(h: HealthPayload): { bad: AttentionRow[]; unknown: AttentionRow[] } {
   const bad: AttentionRow[] = [];
@@ -110,8 +109,18 @@ export function overviewSignal(h: HealthPayload | null, failed: boolean): Overvi
 
 /** The strip: the card's ground and edge with no padding, one flat card of four cells. */
 export const STRIP = `${CARD.replace(" p-5", "")} grid grid-cols-2 sm:grid-cols-4 overflow-hidden`;
-/** One cell: a padded router link, hairline-ruled from the one before it. */
-export const STRIP_CELL = `px-5 py-4 grid gap-1.5 content-start no-underline [&:nth-child(n+2)]:border-l [&:nth-child(n+2)]:border-stone-700 hover:bg-stone-700/40 ${FOCUS_RING}`;
+/**
+ * One cell: a padded router link, hairline-ruled from its neighbours. Below
+ * `sm` the strip is 2×2: a left rule on the 2nd and 4th cells and a top rule
+ * on the 3rd and 4th, so no rule doubles the card's edge. From `sm` it is one
+ * row: a left rule on cells 2–4 and no top rule.
+ */
+export const STRIP_CELL =
+  "px-5 py-4 grid gap-1.5 content-start no-underline border-stone-700 " +
+  "[&:nth-child(even)]:border-l [&:nth-child(n+3)]:border-t " +
+  "sm:[&:nth-child(n+2)]:border-l sm:[&:nth-child(n+3)]:border-t-0 " +
+  // The ring is drawn inside the cell: the strip clips its overflow.
+  "hover:bg-stone-700/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:-outline-offset-2";
 export const STRIP_LABEL = `${CARD_LABEL_BASE} text-stone-300 m-0`;
 export const STRIP_TOTAL = "font-mono text-[0.95rem] text-stone-50 flex items-center gap-2 flex-wrap";
 /** Keeps its line's height when empty so the cells stay level. */
@@ -120,12 +129,30 @@ export const STRIP_NOTE = "font-mono text-[0.75rem] text-stone-400 min-h-[1lh]";
 /** The needs-attention heading, a section label in Scorch. */
 export const ATTENTION_HEADING = `${CARD_LABEL_BASE} text-red-300 m-0 mb-2`;
 /** The unknown rows' neutral subheading. */
-export const ATTENTION_SUBHEAD = `${CARD_LABEL_BASE} text-stone-300 m-0 mt-4 mb-2`;
+export const ATTENTION_SUBHEAD = `${CARD_LABEL_BASE} text-stone-300 m-0 mb-2 [&:not(:first-child)]:mt-4`;
+export const ATTENTION_LIST = "m-0 p-0 list-none";
+/** The pill keeps its own width at the start of its 150px column. */
+export const ATTENTION_PILL = "justify-self-start";
 /** Pill column fixed at 150px so every pill's left edge lines up, then the subject, then where. */
 export const ATTENTION_ROW =
-  "grid grid-cols-[150px_minmax(0,1fr)_auto] gap-4 items-center py-2 border-b border-stone-700";
+  "grid grid-cols-[150px_minmax(0,1fr)_auto] gap-4 items-center py-2 border-b border-stone-700 " +
+  `no-underline hover:bg-stone-700/40 ${FOCUS_RING}`;
+/** The row's subject: a hostname or unit name, wrapping rather than widening the row. */
+export const ATTENTION_SUBJECT = "font-mono text-[0.85rem] text-stone-50 [overflow-wrap:anywhere]";
 export const ATTENTION_WHERE = "font-mono text-[0.75rem] text-stone-400 text-right";
+/** The block's one line when the health poll has failed: neutral, never Scorch. */
+export const ATTENTION_UNAVAILABLE = "m-0 font-mono text-[0.8rem] text-stone-400";
 
+/** The page: the frame's width, its blocks stacked as a board page's are. */
+export const OVERVIEW_PAGE = `${FRAME_WIDTH} flex flex-col gap-8`;
+/** The `Overview` eyebrow: BoardRows' page heading, letter for letter. */
+export const OVERVIEW_HEADING = "font-mono text-[0.85rem] font-medium uppercase tracking-[0.08em] text-stone-400 m-0";
+
+export const ACTIVITY_HEADING = `${CARD_LABEL_BASE} text-stone-300 m-0 mb-2`;
+/** A sentence under (or instead of) the table: sans, neutral. */
+export const ACTIVITY_NOTE = "m-0 mt-3 text-[0.8rem] leading-snug text-stone-400 max-w-[25rem]";
+/** Spaces a failed re-read's alert from the table it sits under. */
+export const ACTIVITY_ALERT_SLOT = "mt-3";
 export const ACTIVITY_TABLE = "w-full border-collapse text-left";
 export const ACTIVITY_TH = `${CARD_LABEL_BASE} text-stone-300 font-medium py-2 pr-4 border-b border-stone-700`;
 export const ACTIVITY_TD = "font-mono text-[0.8rem] text-stone-400 py-2 pr-4 border-b border-stone-700 align-top";
@@ -139,6 +166,7 @@ export const ACTIVITY_OUTCOME: Record<ActivityEvent["tone"], string> = {
 };
 /** A 63-character label must wrap inside its cell, not widen the page. */
 export const ACTIVITY_SUBJECT = "font-mono text-[0.8rem] text-stone-50 [overflow-wrap:anywhere]";
+export const ACTIVITY_SUBJECT_LINK = `${ACTIVITY_SUBJECT} no-underline hover:underline ${FOCUS_RING}`;
 
 /** The overview row's signal slot in the rail: the dot, then the count. */
 export const RAIL_SIGNAL = "ml-auto inline-flex items-center gap-1.5 shrink-0";

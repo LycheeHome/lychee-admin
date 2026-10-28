@@ -105,7 +105,7 @@ export function buildHealth(
 export type GroupCount = { bad: number; unknown: number };
 
 /** A neutral `unknown` that is not already counted as needing attention. */
-const isUnknown = (e: { label: string; attention: boolean }) => !e.attention && e.label === "unknown";
+export const isUnknown = (e: { label: string; attention: boolean }) => !e.attention && e.label === "unknown";
 
 export function attentionCounts(
   h: HealthPayload,
