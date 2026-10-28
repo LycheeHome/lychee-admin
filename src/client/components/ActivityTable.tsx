@@ -24,10 +24,8 @@ const HEADING_ID = "recent-activity";
 
 /** The one line under the table when exactly one source could not be read. */
 function sourceLine(sources: ActivityPayload["sources"]): string | null {
-  if (!sources.reconciler)
-    return "Reconciler history couldn't be read; showing app actions only.";
-  if (!sources.app)
-    return "The audit log couldn't be read; showing reconciler events only.";
+  if (!sources.reconciler) return "Reconciler history couldn't be read; showing app actions only.";
+  if (!sources.app) return "The audit log couldn't be read; showing reconciler events only.";
   return null;
 }
 
@@ -37,13 +35,7 @@ function sourceLine(sources: ActivityPayload["sources"]): string | null {
  * to tabulate) and a line naming what is missing. `alert` is a failed
  * re-read's line, shown under the last good table until the next good read.
  */
-export function ActivityTable({
-  payload,
-  alert,
-}: {
-  payload: ActivityPayload | null;
-  alert: string | null;
-}) {
+export function ActivityTable({ payload, alert }: { payload: ActivityPayload | null; alert: string | null }) {
   const alertLine = alert ? (
     <div className={ACTIVITY_ALERT_SLOT}>
       <p role="alert" className={BOARD_ALERT}>
@@ -77,10 +69,7 @@ export function ActivityTable({
                   {events.map((e, i) => (
                     <tr key={`${e.at}:${e.who}:${e.subject}:${i}`}>
                       <td className={ACTIVITY_TD}>
-                        <time
-                          dateTime={e.at}
-                          title={new Date(e.at).toLocaleString()}
-                        >
+                        <time dateTime={e.at} title={new Date(e.at).toLocaleString()}>
                           {shortAge(e.at, now)}
                         </time>
                       </td>
@@ -90,10 +79,7 @@ export function ActivityTable({
                       </td>
                       <td className={ACTIVITY_TD}>
                         {e.href ? (
-                          <RailLink
-                            href={e.href}
-                            className={ACTIVITY_SUBJECT_LINK}
-                          >
+                          <RailLink href={e.href} className={ACTIVITY_SUBJECT_LINK}>
                             {e.subject}
                           </RailLink>
                         ) : (
@@ -101,9 +87,7 @@ export function ActivityTable({
                         )}
                       </td>
                       <td className={ACTIVITY_TD}>
-                        <span className={ACTIVITY_OUTCOME[e.tone]}>
-                          {e.outcome}
-                        </span>
+                        <span className={ACTIVITY_OUTCOME[e.tone]}>{e.outcome}</span>
                       </td>
                     </tr>
                   ))}
