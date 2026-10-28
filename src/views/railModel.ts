@@ -23,6 +23,11 @@ const GROUP_PAGE: Record<ServiceGroup, string> = {
   infrastructure: "/infrastructure",
 };
 
+/** A unit's board row: the page for its group, at the row's anchor. */
+export function unitHref(name: string, group: ServiceGroup): string {
+  return `${GROUP_PAGE[group]}#service-${name}`;
+}
+
 const NOTHING_SHOWN: RowShownContext = { prunable: new Set(), retiring: new Set(), domain: "", run: undefined };
 
 /** What the board page knows beyond the rows themselves: the retired sets and each row's last host action. */
@@ -52,7 +57,7 @@ export function unitHealth(
     tone,
     label: pill,
     trouble,
-    href: `${GROUP_PAGE[group]}#service-${row.name}`,
+    href: unitHref(row.name, group),
     attention: tone === "bad" || trouble !== null,
     site,
   };
