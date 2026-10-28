@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { loadContractJson } from "../dev/contract";
-import { CLIENTS_FILE, clientSocketPath, HOST_ACTIONS, opResultPath, opUnitName, FLOATING_TAGS, IMAGE_PREFIX, isValidTag, MAX_RESOURCE_NAME_LENGTH, PATHS, RESERVED_PORTS, SITE_MIN_PORT } from "./platform";
+import { loadContractJson, loadContractText } from "../dev/contract";
+import { CLIENTS_FILE, EVENTS_PATH, clientSocketPath, HOST_ACTIONS, opResultPath, opUnitName, FLOATING_TAGS, IMAGE_PREFIX, isValidTag, MAX_RESOURCE_NAME_LENGTH, PATHS, RESERVED_PORTS, SITE_MIN_PORT } from "./platform";
 import { SITE_TAGLESS_IMAGE_RE } from "./declarationWriter";
 import { siteNamePatternFor, siteSuffixFor } from "./siteValidation";
 import { SUDO } from "./sudoCommands";
@@ -157,4 +157,11 @@ describe("host operations constants", () => {
     const expected = constants.op_sudo_argv.map((a) => a.replace("{op_unit}", opUnitName("swee", "restart")));
     assert.deepEqual(SUDO.startOp("swee", "restart"), expected);
   });
+});
+
+test("EVENTS_PATH is the path A-HIST-1 states", () => {
+  const agreements = loadContractText("AGREEMENTS.md");
+  const start = agreements.indexOf("## A-HIST-1");
+  const section = agreements.slice(start, agreements.indexOf("\n## ", start + 1));
+  assert.ok(section.includes(`\`${EVENTS_PATH}\``));
 });
