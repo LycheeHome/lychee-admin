@@ -212,7 +212,7 @@ const RAIL_CASES: Record<string, Partial<RailData>> = {
 function navigation(rail: RailData): HTMLElement {
   let container: HTMLElement | null = null;
   act(() => {
-    container = render(<Navigation rail={rail} health={null} healthError={false} lastRead={null} />).container;
+    container = render(<Navigation rail={rail} health={null} healthError={false} />).container;
   });
   return container as unknown as HTMLElement;
 }

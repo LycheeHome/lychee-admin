@@ -1,15 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
 import { splitHostnameForDisplay } from "../../lib/siteDisplay";
-import type { HealthPayload, Tone } from "../../shared/health";
+import type { HealthPayload } from "../../shared/health";
 import {
   RAIL_ASIDE,
-  RAIL_DOT,
   RAIL_HEADING,
   RAIL_HEADING_LINK,
   RAIL_DRAWER,
-  RAIL_COUNT_BAD,
-  RAIL_COUNT_PAIR,
-  RAIL_COUNT_UNKNOWN,
   RAIL_HINT,
   RAIL_HOSTNAME,
   RAIL_MENU,
@@ -17,19 +13,29 @@ import {
   RAIL_ROW,
   RAIL_WIDE_QUERY,
   TOP_BAR,
-  attentionCounts,
-  type GroupCount,
 } from "../../views/railModel";
-import { FOCUS_RING, ICONS, formatAge } from "../../views/shared";
+import { MENU_BADGE, RAIL_SIGNAL, RAIL_SIGNAL_COUNT, RAIL_SIGNAL_DOT, overviewSignal } from "../../views/overviewModel";
+import { FOCUS_RING, ICONS } from "../../views/shared";
 import type { RailCurrent, RailData } from "../../shared/rail";
 import { FindPanel } from "./FindPanel";
-import { ADD_SITE_ROUTE, RailLink, SITES_ROUTE, boardRouteOf, siteOf, useClientNav, type BoardRoute } from "../clientNav";
+import {
+  ADD_SITE_ROUTE,
+  OVERVIEW_ROUTE,
+  RailLink,
+  SITES_ROUTE,
+  boardRouteOf,
+  siteOf,
+  useClientNav,
+  type BoardRoute,
+} from "../clientNav";
 
 /*
  * The rail's children in JSX. With `health: null` its render equals the
  * retired server rail's, element for element, frozen in
  * src/dev/fixtures/rail/ and pinned by Rail.test.tsx and
- * AppFrameParity.test.tsx. Navigation (below) renders the aside around it.
+ * AppFrameParity.test.tsx, through the declared redesigns (the `rail-*`
+ * entries in test/redesigns.ts): no dots or count slots, the overview row,
+ * and `sites` on /sites. Navigation (below) renders the aside around it.
  *
  * Every link goes through RailLink (clientNav.tsx): a router link only
  * between two client routes, otherwise a plain anchor, which is all the
@@ -42,12 +48,8 @@ export interface RailProps {
   health: HealthPayload | null;
   /** The latest poll failed. Old data is never shown as current when it did. */
   healthError: boolean;
-  /** When health was last read successfully (ISO), for the unavailable line. */
-  lastRead: string | null;
   /** The find box's printed shortcut: `⌘K` (the default) or `Ctrl K`. */
   findHint?: string;
-  /** The reference time for "last read …"; now by default. */
-  now?: Date;
   /** How the find box starts: the drawer's opens empty, focused when opened on find. */
   findInitial?: { query: string; focused: boolean };
   /** Opens a find result; by default the router between client routes, `location.assign` otherwise. */
@@ -96,48 +98,28 @@ function Icon({ name }: { name: keyof typeof ICONS }) {
 }
 
 /**
- * A count slot. Null renders the server's empty slot (no reading, or a failed
- * one), and so does nothing to count: a row with nothing to report carries no
- * mark, seen or spoken. Otherwise what is bad is a Scorch chip
- * and what could not be read a neutral one beside it, never summed into one
- * Scorch number (critique 2026-10-27 P1), each saying what it counts. `lead`
- * is spoken before it, so a link reads "services, 4 need attention".
+ * The whole host's one signal, on the overview row (spec 2026-10-28-overview-page):
+ * a dot and the worst tone's count, seen but hidden from assistive tech, which
+ * hears the spoken phrase instead. Nothing at all when overviewSignal says so
+ * (before the first answer, or with nothing to report).
  */
-function Count({ name, value, lead = ", " }: { name: string; value: GroupCount | null; lead?: string }) {
-  if (value === null || (value.bad === 0 && value.unknown === 0)) return <span data-count={name} />;
-  const spoken = lead ? <span className="sr-only">{lead}</span> : null;
+function Signal({ signal }: { signal: ReturnType<typeof overviewSignal> }) {
+  if (!signal) return null;
   return (
     <>
-      {spoken}
-      <span data-count={name} className={RAIL_COUNT_PAIR}>
-        {value.bad > 0 ? (
-          <span data-count-bad="" className={RAIL_COUNT_BAD}>
-            {value.bad}
-            <span className="sr-only">{value.bad === 1 ? " needs attention" : " need attention"}</span>
-          </span>
-        ) : null}
-        {value.bad > 0 && value.unknown > 0 ? <span className="sr-only">, </span> : null}
-        {value.unknown > 0 ? (
-          <span data-count-unknown="" className={RAIL_COUNT_UNKNOWN}>
-            {value.unknown}
-            <span className="sr-only"> unknown</span>
-          </span>
-        ) : null}
+      <span data-signal="" aria-hidden="true" className={RAIL_SIGNAL}>
+        <span className={RAIL_SIGNAL_DOT[signal.tone]} />
+        {signal.count === null ? null : <span className={RAIL_SIGNAL_COUNT[signal.tone]}>{signal.count}</span>}
       </span>
+      <span className="sr-only">{signal.spoken}</span>
     </>
   );
 }
 
-interface DotState {
-  tone: Tone;
-  /** The status phrase a screen reader hears in place of the dot's colour. */
-  label: string;
-}
-
 const HOST_LINKS = [
-  { href: "/services", label: "services", page: "services", count: "service" },
-  { href: "/reconciler", label: "reconciler", page: "reconciler", count: "reconciler" },
-  { href: "/infrastructure", label: "infrastructure", page: "infrastructure", count: "infrastructure" },
+  { href: "/services", label: "services", page: "services" },
+  { href: "/reconciler", label: "reconciler", page: "reconciler" },
+  { href: "/infrastructure", label: "infrastructure", page: "infrastructure" },
 ] as const;
 
 /** Each board route's rail item. */
@@ -151,9 +133,7 @@ export function Rail({
   rail,
   health,
   healthError,
-  lastRead,
   findHint = "⌘K",
-  now,
   findInitial,
   navigate,
   inDrawer,
@@ -168,29 +148,20 @@ export function Rail({
   const site = nav ? siteOf(nav.pathname) : null;
   const current: RailCurrent = route
     ? { page: ROUTE_PAGE[route] }
-    : nav?.pathname === SITES_ROUTE
-      ? { page: "sites" }
-      : nav?.pathname === ADD_SITE_ROUTE
-        ? null
-        : site
-          ? { site }
-          : rail.current;
+    : nav?.pathname === OVERVIEW_ROUTE
+      ? { page: "overview" }
+      : nav?.pathname === SITES_ROUTE
+        ? { page: "sites" }
+        : nav?.pathname === ADD_SITE_ROUTE
+          ? null
+          : site
+            ? { site }
+            : rail.current;
 
   // A failed poll shows nothing it remembers: TanStack keeps the last data,
-  // and a green dot from it would be a lie about now.
+  // and anything drawn from it would be a lie about now.
   const live = healthError ? null : health;
-  const counts = live ? attentionCounts(live, (rail.sites ?? []).map((s) => s.hostname)) : null;
-  const byHost = new Map((live?.sites ?? []).map((s) => [s.hostname, s]));
-
-  // The rail's own list decides the rows; the payload only colours them. A
-  // site the payload lacks stays hollow, and one it adds gets no row.
-  const dotFor = (hostname: string, hint: string): DotState => {
-    if (healthError) return hint === "static" ? { tone: "none", label: "" } : { tone: "neutral", label: "unknown" };
-    const entry = byHost.get(hostname);
-    return entry ? { tone: entry.tone, label: entry.label } : { tone: "none", label: "" };
-  };
-
-  const age = healthError && lastRead ? formatAge(lastRead, now ?? new Date()) : null;
+  const signal = overviewSignal(health, healthError);
 
   return (
     <>
@@ -209,8 +180,18 @@ export function Rail({
           inDrawer={inDrawer}
           onNarrowShortcut={onNarrowShortcut}
         />
+        <nav aria-label="Overview" className="flex flex-col gap-0.5">
+          <RailLink
+            href={OVERVIEW_ROUTE}
+            className={`${RAIL_ROW} justify-between`}
+            aria-current={ariaCurrent(isPage(current, "overview"))}
+          >
+            overview
+            <Signal signal={signal} />
+          </RailLink>
+        </nav>
         <nav aria-label="Sites" className="flex flex-col gap-0.5">
-          <RailLink href="/" className={RAIL_HEADING_LINK} aria-current={ariaCurrent(isPage(current, "sites"))}>
+          <RailLink href={SITES_ROUTE} className={RAIL_HEADING_LINK} aria-current={ariaCurrent(isPage(current, "sites"))}>
             {/* The domain is said once here, so a row can show its label alone. */}
             <span>
               sites
@@ -220,7 +201,6 @@ export function Rail({
                 </span>
               ) : null}
             </span>
-            <Count name="sites" value={counts ? counts.sites : null} />
           </RailLink>
           {rail.sites === null ? (
             <p className={RAIL_NOTE}>Can&apos;t read the Caddyfile</p>
@@ -228,7 +208,6 @@ export function Rail({
             <ul className="list-none m-0 p-0 flex flex-col gap-0.5">
               {rail.sites.map((site) => {
                 const { lead, dimmed } = splitHostnameForDisplay(site.hostname, rail.domain);
-                const dot = dotFor(site.hostname, site.hint);
                 return (
                   <li key={site.hostname}>
                     <RailLink
@@ -237,7 +216,6 @@ export function Rail({
                       data-site={site.hostname}
                       aria-current={ariaCurrent(isSite(current, site.hostname))}
                     >
-                      <span className={RAIL_DOT[dot.tone]} data-dot="" aria-hidden="true" />
                       <span className={RAIL_HOSTNAME}>
                         <span className="text-stone-50">{lead}</span>
                         {/* Heard, not shown: the heading names the domain. */}
@@ -245,18 +223,12 @@ export function Rail({
                       </span>
                       <span className="sr-only">, </span>
                       <span className={RAIL_HINT}>{site.hint}</span>
-                      {dot.label ? <span className="sr-only">, {dot.label}</span> : null}
                     </RailLink>
                   </li>
                 );
               })}
             </ul>
           )}
-          {healthError ? (
-            <p className={RAIL_NOTE} data-health-unavailable="">
-              {age ? `health unavailable · last read ${age}` : "health unavailable"}
-            </p>
-          ) : null}
         </nav>
         <nav aria-label="Host" className="flex flex-col gap-0.5">
           <p className={`${RAIL_HEADING} m-0`}>host</p>
@@ -268,7 +240,6 @@ export function Rail({
               aria-current={ariaCurrent(isPage(current, link.page))}
             >
               {link.label}
-              {rail.hostAvailable ? <Count name={link.count} value={counts ? counts[link.count] : null} /> : null}
             </RailLink>
           ))}
           {rail.hostAvailable ? null : <p className={RAIL_NOTE}>Inventory unavailable</p>}
@@ -280,8 +251,6 @@ export function Rail({
 
 export interface TopBarProps {
   health: HealthPayload | null;
-  /** The hostnames the rail lists; health entries for any other are not counted. */
-  hostnames: readonly string[];
   healthError: boolean;
   /** Open the rail as a drawer, from `opener`; on find when `focusFind`. */
   onOpen: (opener: HTMLElement, focusFind: boolean) => void;
@@ -290,19 +259,19 @@ export interface TopBarProps {
 /**
  * The narrow-screen top bar's children, the retired server top bar's element
  * for element (frozen in src/dev/fixtures/rail/top-bar.html, which the parity
- * tests pin): the wordmark h1, the overall attention count (sites plus
- * units), a find button and the menu button.
+ * tests pin, less its empty count slot): the wordmark h1, a find button and
+ * the menu button, which carries the overview row's signal as a badge, since
+ * it opens the drawer holding that row. The signal counts the payload's own
+ * sites, as the overview page does.
  */
-export function TopBar({ health, hostnames, healthError, onOpen }: TopBarProps) {
-  const counts = !healthError && health ? attentionCounts(health, hostnames) : null;
-  const total: GroupCount | null = counts ? counts.total : null;
+export function TopBar({ health, healthError, onOpen }: TopBarProps) {
+  const signal = overviewSignal(health, healthError);
   return (
     <>
       <h1 className="m-0 text-base font-normal leading-none">
         <Wordmark />
       </h1>
       <div className="flex items-center gap-2">
-        <Count name="all" value={total} lead="" />
         <button
           type="button"
           id="rail-find"
@@ -315,12 +284,18 @@ export function TopBar({ health, hostnames, healthError, onOpen }: TopBarProps) 
         <button
           type="button"
           id="rail-menu"
-          aria-label="Open navigation"
+          aria-label={signal ? `Open navigation${signal.spoken}` : "Open navigation"}
           aria-haspopup="dialog"
-          className={RAIL_MENU}
+          // `relative` only with a badge to place: without one the button is the server's.
+          className={signal ? `${RAIL_MENU} relative` : RAIL_MENU}
           onClick={(e) => onOpen(e.currentTarget, false)}
         >
           <Icon name="menu" />
+          {signal ? (
+            <span data-signal="" aria-hidden="true" className={MENU_BADGE[signal.tone]}>
+              {signal.count === null ? "●" : `● ${signal.count}`}
+            </span>
+          ) : null}
         </button>
       </div>
     </>
@@ -465,7 +440,7 @@ export function Navigation(props: NavigationProps) {
   return (
     <>
       <header id="top-bar" className={TOP_BAR}>
-        <TopBar health={props.health} hostnames={(props.rail.sites ?? []).map((s) => s.hostname)} healthError={props.healthError} onOpen={open} />
+        <TopBar health={props.health} healthError={props.healthError} onOpen={open} />
         {drawer ? (
           <Drawer onClose={close} dialogRef={dialogRef}>
             {rail}

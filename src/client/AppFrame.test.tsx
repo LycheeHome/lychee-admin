@@ -10,7 +10,7 @@ import type { SiteDetailPayload } from "../shared/siteDetail";
 import type { SitesPayload } from "../shared/sites";
 import { SEEDED_RAIL_SITES, seedSiteDetailPayload } from "../dev/testHelpers";
 import { GROUP_LABELS } from "../views/boardRowModel";
-import { RAIL_DOT } from "../views/railModel";
+import { RAIL_SIGNAL_DOT } from "../views/overviewModel";
 import { addedNotice } from "../views/siteDetailModel";
 import { RAIL_QUERY_KEY } from "./api";
 import { readInitialNotice, type InitialNotice } from "./AppFrame";
@@ -177,6 +177,17 @@ function mount(url: string, s: Stub = stubFetch()): void {
 
 const rail = () => document.getElementById("rail");
 const rows = () => Array.from(document.querySelectorAll("#rail [data-site]")).map((a) => a.getAttribute("data-site"));
+/** The rail's overview row, and its one signal: the dot's class, the visible count, and what a screen reader hears. */
+const overviewRow = () => document.querySelector('#rail nav[aria-label="Overview"] > a');
+const signalDot = () => overviewRow()?.querySelector("[data-signal] > span")?.getAttribute("class") ?? "";
+const signalText = () => overviewRow()?.querySelector("[data-signal]")?.textContent ?? null;
+function overviewName(): string | null {
+  const row = overviewRow();
+  if (!row) return null;
+  const copy = row.cloneNode(true) as Element;
+  for (const hidden of Array.from(copy.querySelectorAll('[aria-hidden="true"]'))) hidden.remove();
+  return copy.textContent;
+}
 const count = (url: string) => stub.fetched.filter((u) => u === url).length;
 const noticeText = () => document.getElementById("page-notice-message")?.textContent;
 
@@ -193,7 +204,7 @@ function assertFixedParts(within: Element | null): void {
 function assertNoRowsNoError(within: Element | null): void {
   assert.ok(within);
   assert.ok(!within.querySelector("[data-site]"), "site rows before /api/rail answered");
-  assert.ok(!within.querySelector("[data-health-unavailable]"), "a health error line");
+  assert.ok(!(within.textContent ?? "").includes("health unavailable"), "a health error signal");
   assert.ok(!(within.textContent ?? "").includes("Can't read the Caddyfile"), "a Caddyfile error line");
   assert.ok(!(within.textContent ?? "").includes("Inventory unavailable"), "an inventory error line");
 }
@@ -239,16 +250,14 @@ describe("the rail's data", () => {
     assert.equal(count("/api/rail"), 1);
   });
 
-  test("health failing: the rows stay listed, with neutral dots and health unavailable", async () => {
+  test("health failing: the rows stay listed, and overview's signal says health is unavailable", async () => {
     const s = stubFetch();
     s.health = async () => json(500, { ok: false, reason: "boom" });
     mount("/sites", s);
-    await waitFor(() => assert.ok(rail()?.querySelector("[data-health-unavailable]")), TIMEOUT);
+    await waitFor(() => assert.equal(overviewName(), "overview, health unavailable"), TIMEOUT);
     assert.deepEqual(rows(), SEED_RAIL.sites!.map((x) => x.hostname));
-    const dot = (host: string) => rail()?.querySelector(`[data-site="${host}"] [data-dot]`)?.getAttribute("class");
-    assert.equal(dot("api.lychee.land"), RAIL_DOT.neutral);
-    assert.equal(dot("blog.lychee.land"), RAIL_DOT.none);
-    assert.match(rail()?.querySelector("[data-health-unavailable]")?.textContent ?? "", /^health unavailable/);
+    assert.equal(signalDot(), RAIL_SIGNAL_DOT.neutral);
+    assert.ok(!rail()?.querySelector("[data-dot]"), "a site row carries a dot");
   });
 
   test("RF1: a failed /api/rail raises nothing and keeps the fixed parts; the next good read fills the rows", async () => {
@@ -257,7 +266,7 @@ describe("the rail's data", () => {
     s.rail = async () => (failing ? json(500, { ok: false, reason: "boom" }) : json(200, { ok: true, ...SEED_RAIL }));
     mount("/sites", s);
     await waitFor(() => assert.ok(client!.getQueryState(RAIL_QUERY_KEY)?.status === "error"), TIMEOUT);
-    // Health answers too, so its own dots and counts are in by now.
+    // Health answers too, so overview's signal is in by now.
     await waitFor(() => assert.ok(count("/api/health") >= 1), TIMEOUT);
     await act(async () => {});
     assertFixedParts(rail());
@@ -324,8 +333,7 @@ describe("the rail's data", () => {
 // server rail with the island portalled over it; here they hold AppFrame,
 // which reads the same poll through useRailHealth.
 describe("the rail's health", () => {
-  const dot = (host: string) => rail()?.querySelector(`[data-site="${host}"] [data-dot]`)?.getAttribute("class") ?? "";
-  const unavailable = () => rail()?.querySelector("[data-health-unavailable]")?.textContent ?? null;
+  const unavailable = () => overviewName() === "overview, health unavailable";
   const failing = async () => json(500, { ok: false, reason: "boom" });
   const good = async () => json(200, { ok: true, ...seedHealth() });
   const refetchHealth = () =>
@@ -333,32 +341,32 @@ describe("the rail's health", () => {
       await client!.refetchQueries({ queryKey: HEALTH_QUERY.queryKey });
     });
 
-  test("the poll fills in the rows' dots and the counts", async () => {
+  test("the poll fills in overview's signal, on the rail and the menu button, and nothing else", async () => {
     mount("/sites");
-    await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), TIMEOUT);
-    assert.equal(dot("app.lychee.land"), RAIL_DOT.ok);
-    assert.equal(dot("blog.lychee.land"), RAIL_DOT.none);
+    await waitFor(() => assert.equal(signalText(), "5"), TIMEOUT);
+    assert.equal(signalDot(), RAIL_SIGNAL_DOT.bad);
+    assert.equal(overviewName(), "overview, 5 need attention");
     assert.equal(document.querySelectorAll("#rail [data-site]").length, 8);
-    assert.equal(document.querySelector('#rail [data-count="sites"] [data-count-bad]')?.firstChild?.textContent, "2");
-    await waitFor(() => assert.equal(document.querySelector('#top-bar [data-count="all"] [data-count-bad]')?.firstChild?.textContent, "5"), TIMEOUT);
+    assert.ok(!document.querySelector("#rail [data-dot], #rail [data-count], #top-bar [data-count]"), "a per-item mark");
+    await waitFor(() => assert.equal(document.querySelector("#top-bar #rail-menu [data-signal]")?.textContent, "● 5"), TIMEOUT);
   });
 
-  test("a failed poll after a good one never shows the remembered green", async () => {
+  test("a failed poll after a good one never shows the remembered count", async () => {
     const s = stubFetch();
     mount("/sites", s);
-    await waitFor(() => assert.equal(dot("app.lychee.land"), RAIL_DOT.ok), TIMEOUT);
+    await waitFor(() => assert.equal(signalText(), "5"), TIMEOUT);
     s.health = failing;
     await refetchHealth();
-    await waitFor(() => assert.equal(dot("app.lychee.land"), RAIL_DOT.neutral), TIMEOUT);
-    assert.match(unavailable() ?? "", /^health unavailable · last read (just now|\d+ seconds? ago)$/);
-    assert.equal(document.querySelector('#rail [data-count="sites"]')?.textContent, "");
+    await waitFor(() => assert.ok(unavailable()), TIMEOUT);
+    assert.equal(signalDot(), RAIL_SIGNAL_DOT.neutral);
+    assert.equal(signalText(), "");
   });
 
   test("a failed first poll stays unavailable while the next poll is in flight", async () => {
     const s = stubFetch();
     s.health = failing;
     mount("/sites", s);
-    await waitFor(() => assert.equal(unavailable(), "health unavailable"), TIMEOUT);
+    await waitFor(() => assert.ok(unavailable()), TIMEOUT);
     await waitFor(() => assert.ok(rows().length > 0), TIMEOUT);
     // The next poll is held open. TanStack resets a data-less errored query
     // to pending while it refetches; the rail must still say unavailable.
@@ -367,8 +375,8 @@ describe("the rail's health", () => {
     const refetch = client!.refetchQueries({ queryKey: HEALTH_QUERY.queryKey });
     try {
       await waitFor(() => assert.equal(client!.getQueryState(HEALTH_QUERY.queryKey)?.fetchStatus, "fetching"), TIMEOUT);
-      assert.equal(unavailable(), "health unavailable");
-      assert.equal(dot("api.lychee.land"), RAIL_DOT.neutral);
+      assert.ok(unavailable(), "the signal stopped saying unavailable");
+      assert.equal(signalDot(), RAIL_SIGNAL_DOT.neutral);
     } finally {
       // Settle the held poll so nothing is left in flight.
       held.open(json(500, { ok: false, reason: "boom" }));
@@ -378,20 +386,19 @@ describe("the rail's health", () => {
     }
   });
 
-  test("an errored poll between two good ones clears: the dots show their tones again", async () => {
+  test("an errored poll between two good ones clears: the signal shows its tone again", async () => {
     const s = stubFetch();
     mount("/sites", s);
-    await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), TIMEOUT);
+    await waitFor(() => assert.equal(signalDot(), RAIL_SIGNAL_DOT.bad), TIMEOUT);
     s.health = failing;
     await refetchHealth();
-    await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.neutral), TIMEOUT);
-    assert.ok(unavailable() !== null, "the error state did not show");
+    await waitFor(() => assert.equal(signalDot(), RAIL_SIGNAL_DOT.neutral), TIMEOUT);
+    assert.ok(unavailable(), "the error state did not show");
     s.health = good;
     await refetchHealth();
-    await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), TIMEOUT);
-    assert.equal(dot("app.lychee.land"), RAIL_DOT.ok);
-    assert.ok(unavailable() === null, "the error state stayed");
-    assert.equal(document.querySelector('#rail [data-count="sites"] [data-count-bad]')?.firstChild?.textContent, "2");
+    await waitFor(() => assert.equal(signalDot(), RAIL_SIGNAL_DOT.bad), TIMEOUT);
+    assert.ok(!unavailable(), "the error state stayed");
+    assert.equal(signalText(), "5");
   });
 
   for (const [platform, hint] of [
@@ -402,7 +409,7 @@ describe("the rail's health", () => {
       Object.defineProperty(navigator, "platform", { value: platform, configurable: true });
       try {
         mount("/sites");
-        await waitFor(() => assert.equal(dot("api.lychee.land"), RAIL_DOT.bad), TIMEOUT);
+        await waitFor(() => assert.equal(signalDot(), RAIL_SIGNAL_DOT.bad), TIMEOUT);
         assert.equal(document.querySelector("#rail [data-find-hint]")?.textContent, hint);
       } finally {
         delete (navigator as unknown as Record<string, unknown>).platform;

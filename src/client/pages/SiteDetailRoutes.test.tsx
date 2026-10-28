@@ -7,7 +7,7 @@ import type { BoardPayload, BoardRow, ServiceGroup } from "../../shared/board";
 import type { SiteDetailPayload } from "../../shared/siteDetail";
 import type { SitesPayload } from "../../shared/sites";
 import { SEEDED_RAIL_SITES, seedSiteDetailPayload } from "../../dev/testHelpers";
-import { RAIL_DOT } from "../../views/railModel";
+import { RAIL_SIGNAL_DOT } from "../../views/overviewModel";
 import { addedNotice } from "../../views/siteDetailModel";
 import { seedHealth } from "../test/healthFixture";
 import { loadStaticDocument, railPayload } from "../test/staticDocument";
@@ -141,8 +141,12 @@ const label = (el: Element | null | undefined) =>
 function assertFocus(el: Element | null | undefined) {
   assert.ok(document.activeElement === el, `focus is on ${label(document.activeElement)}, not ${label(el)}`);
 }
+/** The rail is live once its rows are in and health has landed on overview's signal. */
 const railLive = () =>
-  waitFor(() => assert.equal(document.querySelector('#rail [data-site="api.lychee.land"] [data-dot]')?.getAttribute("class"), RAIL_DOT.bad), TIMEOUT);
+  waitFor(() => {
+    assert.ok(document.querySelector('#rail [data-site="api.lychee.land"]'), "no rows yet");
+    assert.equal(document.querySelector("#rail [data-signal] > span")?.getAttribute("class"), RAIL_SIGNAL_DOT.bad);
+  }, TIMEOUT);
 /** Waits for the page of `<label>.lychee.land` (the heading dims the domain, so its text is the whole hostname). */
 const showing = (label: string) =>
   waitFor(() => assert.equal(hostHeading()?.textContent, `${label}.lychee.land`), TIMEOUT);
@@ -347,7 +351,7 @@ describe("the site page route", () => {
       await waitFor(() => assert.ok(document.querySelector('main a[href="/sites/blog.lychee.land"]')), TIMEOUT);
       assert.equal(window.location.pathname, "/sites");
       assert.equal(document.title, "Sites");
-      assert.deepEqual(marked(), ["/"]);
+      assert.deepEqual(marked(), ["/sites"]);
       assert.deepEqual(assigned, []);
     });
 

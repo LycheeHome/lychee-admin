@@ -18,7 +18,7 @@ export interface RailPayload {
  * page; and any URL no route owns).
  */
 export type RailCurrent =
-  | { page: "sites" | "services" | "reconciler" | "infrastructure" }
+  | { page: "overview" | "sites" | "services" | "reconciler" | "infrastructure" }
   | { site: string }
   | null;
 
@@ -26,7 +26,7 @@ export type RailCurrent =
 export interface RailData {
   /** Managed sites in Caddyfile order, `hint` being `static` or `:<port>`; null when the Caddyfile is unreadable. */
   sites: Array<{ hostname: string; hint: string }> | null;
-  /** Whether the inventory could be read. Without it the host links carry no counts. */
+  /** Whether the inventory could be read. Without it the host links carry a note saying so. */
   hostAvailable: boolean;
   current: RailCurrent;
   domain: string;

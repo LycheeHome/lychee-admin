@@ -8,7 +8,7 @@ import { QueryClient } from "@tanstack/react-query";
 import type { AddSitePayload } from "../../shared/addSite";
 import type { SitesPayload } from "../../shared/sites";
 import { SEEDED_RAIL_SITES, seedAddSitePayload } from "../../dev/testHelpers";
-import { RAIL_DOT } from "../../views/railModel";
+import { RAIL_SIGNAL_DOT } from "../../views/overviewModel";
 import { seedHealth } from "../test/healthFixture";
 import { loadStaticDocument, railPayload } from "../test/staticDocument";
 import { siteOf } from "../clientNav";
@@ -136,8 +136,12 @@ const label = (el: Element | null | undefined) =>
 function assertFocus(el: Element | null | undefined) {
   assert.ok(document.activeElement === el, `focus is on ${label(document.activeElement)}, not ${label(el)}`);
 }
+/** The rail is live once its rows are in and health has landed on overview's signal. */
 const railLive = () =>
-  waitFor(() => assert.equal(document.querySelector('#rail [data-site="api.lychee.land"] [data-dot]')?.getAttribute("class"), RAIL_DOT.bad), TIMEOUT);
+  waitFor(() => {
+    assert.ok(document.querySelector('#rail [data-site="api.lychee.land"]'), "no rows yet");
+    assert.equal(document.querySelector("#rail [data-signal] > span")?.getAttribute("class"), RAIL_SIGNAL_DOT.bad);
+  }, TIMEOUT);
 const showingForm = () => waitFor(() => assert.ok(form(), "no add form"), TIMEOUT);
 const showingList = () => waitFor(() => assert.ok(document.querySelector('main a[href="/sites/blog.lychee.land"]'), "no list"), TIMEOUT);
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -390,7 +394,7 @@ describe("the add page route", () => {
       assert.ok(!form());
       assert.equal(window.location.pathname, "/sites");
       assert.equal(document.title, "Sites");
-      assert.deepEqual(marked(), ["/"]);
+      assert.deepEqual(marked(), ["/sites"]);
       await waitFor(() => assertFocus(listHeading()), TIMEOUT);
       assert.deepEqual(assigned, []);
     });

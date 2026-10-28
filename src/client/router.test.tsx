@@ -7,7 +7,7 @@ import type { BoardPayload, BoardRow, ServiceGroup } from "../shared/board";
 import type { SiteDetailPayload } from "../shared/siteDetail";
 import type { SitesPayload } from "../shared/sites";
 import { SEEDED_RAIL_SITES, seedSiteDetailPayload } from "../dev/testHelpers";
-import { RAIL_DOT } from "../views/railModel";
+import { RAIL_SIGNAL_DOT } from "../views/overviewModel";
 import { seedHealth } from "./test/healthFixture";
 import { STATIC_TITLE, loadStaticDocument, railPayload } from "./test/staticDocument";
 import { BOARD_ROUTES, isClientRoute, mountApp } from "./router";
@@ -148,9 +148,12 @@ const row = (name: string) => document.querySelector(`[data-service="${name}"]`)
 const focused = () => `focus is on ${document.activeElement?.outerHTML.slice(0, 80) ?? "nothing"}`;
 const railLink = (href: string) => document.querySelector<HTMLAnchorElement>(`#rail a[href="${href}"]`);
 const marked = () => Array.from(document.querySelectorAll("#rail a[aria-current=\"page\"]")).map((a) => a.getAttribute("href"));
-/** The rail's dots are coloured once its rows are in and health has landed. */
+/** The rail is live once its rows are in and health has landed on overview's signal. */
 const railLive = () =>
-  waitFor(() => assert.equal(document.querySelector('#rail [data-site="api.lychee.land"] [data-dot]')?.getAttribute("class"), RAIL_DOT.bad), TIMEOUT);
+  waitFor(() => {
+    assert.ok(document.querySelector('#rail [data-site="api.lychee.land"]'), "no rows yet");
+    assert.equal(document.querySelector("#rail [data-signal] > span")?.getAttribute("class"), RAIL_SIGNAL_DOT.bad);
+  }, TIMEOUT);
 
 describe("isClientRoute", () => {
   test("is true for the overview, the sites list, the three board pages and the add page, with or without a hash or query", () => {
@@ -202,7 +205,7 @@ describe("the sites list route", () => {
     await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
     assert.ok(!document.getElementById("app-root"), "a server mount point is back");
     assert.equal(document.title, "Sites");
-    assert.deepEqual(marked(), ["/"]);
+    assert.deepEqual(marked(), ["/sites"]);
     assert.ok(fetched.includes("/api/sites"));
   });
 
@@ -228,22 +231,20 @@ describe("the sites list route", () => {
     assert.equal(fetched.filter((u) => u === "/api/sites").length, reads);
     assert.equal(window.location.pathname, "/sites");
     assert.equal(document.title, "Sites");
-    assert.deepEqual(marked(), ["/"]);
+    assert.deepEqual(marked(), ["/sites"]);
   });
 
-  // The rail's sites heading still links to / until it moves to /sites with
-  // its rail-fixture redesigns; until then the move is the router's own.
-  test("an in-app move from /services to /sites lands focus on the Sites heading", async () => {
+  test("the rail's sites heading is a router link: from /services it lands focus on the Sites heading", async () => {
     load("/services");
     await railLive();
     await waitFor(() => assert.ok(row("swee")), TIMEOUT);
-    await act(async () => void (await app!.router.navigate("/sites")));
+    assert.equal(clickCancelled(railLink("/sites") as HTMLAnchorElement), true, "the click was left to the browser");
     await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
     await waitFor(() => assert.equal(document.activeElement?.textContent, "Sites"), TIMEOUT);
     assert.equal(document.activeElement?.tagName, "H2");
     assert.equal(document.activeElement?.getAttribute("tabindex"), "-1");
     assert.equal(document.title, "Sites");
-    assert.deepEqual(marked(), ["/"]);
+    assert.deepEqual(marked(), ["/sites"]);
   });
 
   // Critique 2026-10-26: a document load of a board page took focus and drew
@@ -295,7 +296,9 @@ describe("the sites list route", () => {
     await waitFor(() => assert.ok(row("swee")), TIMEOUT);
     assert.ok(!document.getElementById("page-notice"));
 
-    await act(async () => void (await app!.router.navigate("/sites")));
+    act(() => {
+      fireEvent.click(railLink("/sites") as HTMLAnchorElement);
+    });
     await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
     assert.ok(!document.getElementById("page-notice"));
   });

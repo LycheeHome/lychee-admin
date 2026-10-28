@@ -1,3 +1,4 @@
+import { RAIL_ROW } from "../../views/railModel";
 import { BODY, CAPTION, CAPTION_FILE, CAPTION_KEEP, SKIP_LINK } from "../../views/shared";
 
 /*
@@ -28,6 +29,8 @@ export type Redesign = {
 };
 
 const FOCUS = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
+
+const RAIL_WHY = "The rail is navigation plus one whole-host signal on overview (spec 2026-10-28-overview-page).";
 
 /** A fixture link to the sites list, by its exact class string, moved from / to /sites. */
 function sitesLink(id: string, className: string): Redesign {
@@ -277,6 +280,43 @@ export const REDESIGNS: Redesign[] = [
     "sites-link:add-cancel",
     `font-sans font-semibold text-sm bg-stone-600 text-stone-50 border-none rounded-md min-h-10 px-4 py-2.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-stone-700 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px ${FOCUS} disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-transparent disabled:hover:bg-transparent no-underline`,
   ),
+  // The rail: navigation plus one whole-host signal on overview. These come
+  // after rail-heading-domain, whose output still carries the sites slot.
+  {
+    id: "rail-no-count",
+    since: "2026-10-28",
+    why: RAIL_WHY,
+    from: /\s*<span data-count="[a-z]+"><\/span>/g,
+    to: "",
+    anchor: '<span data-count="',
+  },
+  {
+    id: "rail-no-dot",
+    since: "2026-10-28",
+    why: RAIL_WHY,
+    // The frozen markup writes the empty attribute bare.
+    from: /<span class="inline-block size-2 shrink-0 rounded-full border border-stone-600 bg-transparent" data-dot aria-hidden="true"><\/span>/g,
+    to: "",
+    anchor: 'data-dot aria-hidden="true"',
+  },
+  {
+    id: "rail-sites-href",
+    since: "2026-10-28",
+    why: RAIL_WHY,
+    from: /<a href="\/" class="flex items-center justify-between font-mono text-\[0\.75rem\]/g,
+    to: '<a href="/sites" class="flex items-center justify-between font-mono text-[0.75rem]',
+    anchor: '<a href="/" class="flex items-center justify-between font-mono text-[0.75rem]',
+  },
+  {
+    id: "rail-overview-row",
+    since: "2026-10-28",
+    why: RAIL_WHY,
+    // With health null the row carries no signal, so it is fixed text.
+    from: /<nav aria-label="Sites"/g,
+    // The row is a site row's RAIL_ROW, which the fixtures' own rows hold to its literal text.
+    to: `<nav aria-label="Overview" class="flex flex-col gap-0.5"><a href="/" class="${RAIL_ROW} justify-between">overview</a></nav><nav aria-label="Sites"`,
+    anchor: '<nav aria-label="Sites"',
+  },
 ];
 
 export function applyWith(html: string, entries: readonly Redesign[]): string {
