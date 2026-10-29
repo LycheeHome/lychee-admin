@@ -1,4 +1,4 @@
-import { RAIL_ROW } from "../../views/railModel";
+import { RAIL_HEADING_DOMAIN, RAIL_PLACE, RAIL_ROW } from "../../views/railModel";
 import { SITE_HEADER_ACTIONS } from "../../views/siteDetailModel";
 import { BODY, BUTTON_SECONDARY, CAPTION, CAPTION_FILE, CAPTION_KEEP, SKIP_LINK } from "../../views/shared";
 
@@ -33,6 +33,10 @@ const FOCUS = "focus-visible:outline focus-visible:outline-2 focus-visible:outli
 
 const RAIL_WHY = "The rail is navigation plus one whole-host signal on overview (spec 2026-10-28-overview-page).";
 
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /** A fixture link to the sites list, by its exact class string, moved from / to /sites. */
 function sitesLink(id: string, className: string): Redesign {
   const old = `href="/" class="${className}"`;
@@ -40,7 +44,7 @@ function sitesLink(id: string, className: string): Redesign {
     id,
     since: "2026-10-28",
     why: "The sites list moved to /sites when / became the overview (spec 2026-10-28-overview-page).",
-    from: new RegExp(old.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
+    from: new RegExp(escapeRegExp(old), "g"),
     to: `href="/sites" class="${className}"`,
     anchor: old,
   };
@@ -174,7 +178,8 @@ export const REDESIGNS: Redesign[] = [
     since: "2026-10-27",
     why: "The sites heading names the domain once, hidden from assistive tech, since each row's name still carries it.",
     from: />sites<span data-count="sites"/g,
-    to: '><span>sites<span data-rail-domain aria-hidden="true"> · lychee.land</span></span><span data-count="sites"',
+    // The domain's mono class since 2026-10-29, when the heading around it went sans (rail-place-sans).
+    to: `><span>sites<span class="${RAIL_HEADING_DOMAIN}" data-rail-domain aria-hidden="true"> · lychee.land</span></span><span data-count="sites"`,
     anchor: '>sites<span data-count="sites"',
   },
   {
@@ -314,8 +319,8 @@ export const REDESIGNS: Redesign[] = [
     why: RAIL_WHY,
     // With health null the row carries no signal, so it is fixed text. The nav also holds the plain activity row (spec 2026-10-28-activity-page).
     from: /<nav aria-label="Sites"/g,
-    // The row is a site row's RAIL_ROW, which the fixtures' own rows hold to its literal text.
-    to: `<nav aria-label="Overview" class="flex flex-col gap-0.5"><a href="/" class="${RAIL_ROW} justify-between">overview</a><a href="/activity" class="${RAIL_ROW}">activity</a></nav><nav aria-label="Sites"`,
+    // The rows are place rows, sans since 2026-10-29 (rail-place-sans).
+    to: `<nav aria-label="Overview" class="flex flex-col gap-0.5"><a href="/" class="${RAIL_PLACE} justify-between">overview</a><a href="/activity" class="${RAIL_PLACE}">activity</a></nav><nav aria-label="Sites"`,
     anchor: '<nav aria-label="Sites"',
   },
   {
@@ -326,6 +331,24 @@ export const REDESIGNS: Redesign[] = [
     from: /(<a href="https:\/\/([^"]+)" target="_blank" rel="noopener noreferrer" class="[^"]*">Visit [\s\S]*?<\/a>)/g,
     to: `<div class="${SITE_HEADER_ACTIONS}"><a href="/activity?subject=$2" class="${BUTTON_SECONDARY} no-underline shrink-0">Activity</a>$1</div>`,
     anchor: ">Visit ",
+  },
+  // The rail's place words are words, not machine facts: sans, while site rows,
+  // hints, counts and the find box stay mono.
+  {
+    id: "rail-place-sans:links",
+    since: "2026-10-29",
+    why: "A host link names a place, so sans; site rows stay mono (rail place words, 2026-10-29).",
+    from: new RegExp(escapeRegExp(`class="${RAIL_ROW} justify-between"`), "g"),
+    to: `class="${RAIL_PLACE} justify-between"`,
+    anchor: `class="${RAIL_ROW} justify-between"`,
+  },
+  {
+    id: "rail-place-sans:headings",
+    since: "2026-10-29",
+    why: "The `sites` and `host` headings are place words, so sans (rail place words, 2026-10-29).",
+    from: /class="flex items-center justify-between font-mono text-\[0\.75rem\] text-stone-400 px-2 py-1/g,
+    to: 'class="flex items-center justify-between font-sans text-[0.75rem] text-stone-400 px-2 py-1',
+    anchor: 'class="flex items-center justify-between font-mono text-[0.75rem] text-stone-400 px-2 py-1',
   },
 ];
 

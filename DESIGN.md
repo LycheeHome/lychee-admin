@@ -222,7 +222,8 @@ components:
 A console you would choose to sit in. Nearly every fact on screen is set in DM
 Mono — hostnames, ports, paths, commands, service names, status words, even the
 section labels — because nearly every fact came from a machine and will be
-pasted back into one. Nunito carries only the sentences a person wrote. The
+pasted back into one. Nunito carries the sentences a person wrote, and the
+rail's place words. The
 ground is Hearth (`oklch(21.6% 0.006 56.043)`), a warm near-black with a trace
 of brown in it, never `#000`: this is a room with a lamp in it, not a void.
 Against that, exactly one chromatic voice — Ember — marks everything you can
@@ -250,7 +251,7 @@ costume.
 
 - Warm near-black ground; no pure black, no pure white — Chalk, not `#fff`.
 - One accent, Ember, reserved for what is interactive.
-- Mono for machine facts, sans for human sentences; the split is absolute.
+- Mono for machine facts, sans for human sentences and the rail's place words.
 - Flat tonal layering at rest; shadow only as a response to state or float.
 - Uppercase letterspaced micro-labels as the structural device.
 - Nothing folded, capped, or truncated — one operator, one wide viewport.
@@ -462,8 +463,11 @@ says its own name and names a site.
 
 **The Mono-Carries-Facts Rule.** If a machine produced it or will consume it —
 hostname, port, path, command, service name, status word, framework name — it is
-DM Mono. If a person wrote it as a sentence, it is Nunito. There is no third
-case, and no sentence sets a path in Nunito: a fact inside a sentence is a mono
+DM Mono. If a person wrote it as a sentence, it is Nunito. The one other case
+is a word naming a place in the app — the rail's `overview`, `activity`,
+`sites`, `host`, `services`, `reconciler` and `infrastructure` — which is
+Nunito too, since it is a word and not a fact (since 2026-10-29). No sentence
+sets a path in Nunito: a fact inside a sentence is a mono
 span in Chalk, within the sentence's Nunito. A line that pairs a status word
 with a reason (`● deploy waiting · <reason>`, `● retiring · <reason>`) sets the
 word in mono and the reason in Nunito.
@@ -833,8 +837,11 @@ content by a `1px` Hairline rule. Top to bottom, at 20px gaps:
 The rail is navigation only and carries no action: Add site lives beside the
 site list's heading as that page's Primary.
 
-Rows and links are 0.85rem mono in Smoke, going Chalk on hover; headings are
-0.75rem mono in Smoke. `aria-current="page"` is both the accessibility signal
+Rows and links are 0.85rem in Smoke, going Chalk on hover; headings are 0.75rem
+in Smoke. A site row is mono, like every hostname and port. A place word
+(`overview`, `activity`, the `sites` and `host` headings and the three host
+links) is Nunito, while the `· lychee.land` beside `sites` stays mono. Until
+2026-10-29 the whole rail was mono. `aria-current="page"` is both the accessibility signal
 and the styling hook (the arbitrary `aria-[current=page]:` variant): Chalk text
 on a Hairline fill with a 2px Ember Edge left rule. It marks `overview` on `/`, `activity` on `/activity`, a site's own row on
 its page, the `sites` heading on the list, and a board's link on its page;

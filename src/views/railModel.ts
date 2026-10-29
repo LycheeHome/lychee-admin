@@ -161,7 +161,20 @@ export const RAIL_ROW =
   `flex items-center gap-2 font-mono text-[0.85rem] no-underline text-stone-400 rounded-md px-2 py-1 ` +
   `hover:text-stone-50 ${RAIL_CURRENT} ${FOCUS_RING}`;
 
-export const RAIL_HEADING = `flex items-center justify-between font-mono text-[0.75rem] text-stone-400 px-2 py-1`;
+/**
+ * A row naming a place (`overview`, `activity`, the host links): a site row's
+ * shape in sans, since a place word is a word and not a machine fact. Site
+ * rows stay mono, as every hostname and port does.
+ */
+export const RAIL_PLACE =
+  `flex items-center gap-2 font-sans text-[0.85rem] no-underline text-stone-400 rounded-md px-2 py-1 ` +
+  `hover:text-stone-50 ${RAIL_CURRENT} ${FOCUS_RING}`;
+
+/** A section heading, `sites` or `host`: a place word, so sans; the domain beside `sites` sets its own mono. */
+export const RAIL_HEADING = `flex items-center justify-between font-sans text-[0.75rem] text-stone-400 px-2 py-1`;
+
+/** The `· lychee.land` beside the `sites` heading: a machine fact inside a sans heading. */
+export const RAIL_HEADING_DOMAIN = "font-mono";
 
 /** A section heading that is also a link (`sites`): the heading's type, a row's current and focus treatment. */
 export const RAIL_HEADING_LINK = `${RAIL_HEADING} no-underline rounded-md hover:text-stone-50 ${RAIL_CURRENT} ${FOCUS_RING}`;

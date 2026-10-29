@@ -4,12 +4,14 @@ import type { HealthPayload } from "../../shared/health";
 import {
   RAIL_ASIDE,
   RAIL_HEADING,
+  RAIL_HEADING_DOMAIN,
   RAIL_HEADING_LINK,
   RAIL_DRAWER,
   RAIL_HINT,
   RAIL_HOSTNAME,
   RAIL_MENU,
   RAIL_NOTE,
+  RAIL_PLACE,
   RAIL_ROW,
   RAIL_WIDE_QUERY,
   TOP_BAR,
@@ -186,13 +188,13 @@ export function Rail({
         <nav aria-label="Overview" className="flex flex-col gap-0.5">
           <RailLink
             href={OVERVIEW_ROUTE}
-            className={`${RAIL_ROW} justify-between`}
+            className={`${RAIL_PLACE} justify-between`}
             aria-current={ariaCurrent(isPage(current, "overview"))}
           >
             overview
             <Signal signal={signal} />
           </RailLink>
-          <RailLink href={ACTIVITY_ROUTE} className={RAIL_ROW} aria-current={ariaCurrent(isPage(current, "activity"))}>
+          <RailLink href={ACTIVITY_ROUTE} className={RAIL_PLACE} aria-current={ariaCurrent(isPage(current, "activity"))}>
             activity
           </RailLink>
         </nav>
@@ -202,7 +204,7 @@ export function Rail({
             <span>
               sites
               {rail.domain ? (
-                <span data-rail-domain="" aria-hidden="true">
+                <span className={RAIL_HEADING_DOMAIN} data-rail-domain="" aria-hidden="true">
                   {` · ${rail.domain}`}
                 </span>
               ) : null}
@@ -242,7 +244,7 @@ export function Rail({
             <RailLink
               key={link.href}
               href={link.href}
-              className={`${RAIL_ROW} justify-between`}
+              className={`${RAIL_PLACE} justify-between`}
               aria-current={ariaCurrent(isPage(current, link.page))}
             >
               {link.label}
