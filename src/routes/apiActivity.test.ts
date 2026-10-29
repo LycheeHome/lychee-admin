@@ -235,7 +235,7 @@ describe("GET /api/activity", () => {
     assert.equal(expected.length, 8);
     const { body } = await get(base, "?limit=8");
     // hrefs depend on the Caddyfile and inventory the route reads; the order and facts must match.
-    const bare = (events: typeof expected) => events.map(({ href: _href, ...rest }) => rest);
+    const bare = (events: typeof expected) => events.map((e) => ({ ...e, href: null }));
     assert.deepEqual(bare(body.events), bare(expected));
     assert.ok(body.next);
   });
