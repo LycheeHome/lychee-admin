@@ -7,8 +7,8 @@ import { EVENTS_PATH } from "./platform";
  * events the reconciler observed. Read defensively, like the inventory: a
  * missing or unreadable file is no history (null), a lifetime or event that
  * does not fit is dropped on its own, and a field this app does not use is
- * never carried. `gate` is dropped because nothing may branch on it (readers
- * use `gate_code`), and `last` is never read.
+ * never carried. `gate` is kept on a blocked event only to be displayed, since
+ * nothing may branch on it (readers use `gate_code`), and `last` is never read.
  */
 export type ReconcilerEvent =
   | { at: string; type: "added" }
@@ -16,7 +16,7 @@ export type ReconcilerEvent =
   | { at: string; type: "stopped" }
   | { at: string; type: "down"; from: string }
   | { at: string; type: "failed"; failed_step: string }
-  | { at: string; type: "blocked"; gate_code: string }
+  | { at: string; type: "blocked"; gate_code: string; gate?: string }
   | { at: string; type: "awaiting-image" }
   | { at: string; type: "recovered"; from: string; from_gate_code: string | null; attempts: number }
   | { at: string; type: "removed" };
@@ -55,7 +55,9 @@ function parseEvent(raw: unknown): ReconcilerEvent | null {
     case "failed":
       return isStr(raw.failed_step) ? { at, type: "failed", failed_step: raw.failed_step } : null;
     case "blocked":
-      return isStr(raw.gate_code) ? { at, type: "blocked", gate_code: raw.gate_code } : null;
+      return isStr(raw.gate_code)
+        ? { at, type: "blocked", gate_code: raw.gate_code, ...(isStr(raw.gate) ? { gate: raw.gate } : {}) }
+        : null;
     case "recovered":
       return isStr(raw.from) && isStrOrNull(raw.from_gate_code) && typeof raw.attempts === "number" && Number.isFinite(raw.attempts)
         ? { at, type: "recovered", from: raw.from, from_gate_code: raw.from_gate_code, attempts: raw.attempts }

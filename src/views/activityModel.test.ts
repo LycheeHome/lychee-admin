@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { AuditLine } from "../lib/auditLog";
 import type { Lifetime, ReconcilerEvent } from "../lib/reconcilerEvents";
-import { buildActivity, shortAge, type ActivityContext } from "./activityModel";
+import type { ActivityEvent } from "../shared/activity";
+import { ActivityCursorError, buildActivity, pageActivity, shortAge, type ActivityContext } from "./activityModel";
 
 const ctx: ActivityContext = {
   domain: "lychee.land",
@@ -178,5 +179,119 @@ describe("shortAge", () => {
     assert.equal(shortAge("2026-10-28T11:54:50Z", now), "5m");
     assert.equal(shortAge("2026-10-28T09:00:00Z", now), "3h");
     assert.equal(shortAge("2026-10-27T10:00:00Z", now), "1d");
+  });
+});
+
+describe("detail", () => {
+  it("carries the error text of a failed, refused or blocked row", () => {
+    assert.equal(app({ action: "add-site-failed", detail: "caddy validate: boom" }).detail, "caddy validate: boom");
+    assert.equal(app({ action: "add-site-rollback-failed", detail: "restore: boom" }).detail, "restore: boom");
+    assert.equal(app({ action: "prune-declaration-refused", detail: "not down" }).detail, "not down");
+    assert.equal(app({ action: "add-site-failed" }).detail, null);
+    assert.equal(app({ action: "host-action", hostAction: "restart", outcome: "refused: unit is busy" }).detail, "unit is busy");
+    const failed = "Start the container: unhealthy";
+    assert.equal(rec({ type: "failed", failed_step: failed }).detail, failed);
+    assert.equal(rec({ type: "blocked", gate_code: "ci-failed", gate: "job test concluded: failure" }).detail, "job test concluded: failure");
+    assert.equal(rec({ type: "blocked", gate_code: "ci-failed", gate: "" }).detail, null);
+    assert.equal(rec({ type: "blocked", gate_code: "ci-failed" }).detail, null);
+  });
+
+  it("is null on every neutral and ok row", () => {
+    assert.equal(app({ action: "add-site", detail: "x" }).detail, null);
+    assert.equal(app({ action: "deploy-service", detail: "0.2.0" }).detail, null);
+    assert.equal(app({ action: "add-site-rolled-back", detail: "x" }).detail, null);
+    assert.equal(app({ action: "host-action", hostAction: "restart", outcome: "started" }).detail, null);
+    for (const e of [
+      { type: "deployed", from: null, to: "1" },
+      { type: "awaiting-image" },
+      { type: "recovered", from: "x", from_gate_code: null, attempts: 1 },
+      { type: "stopped" },
+      { type: "down", from: "1" },
+      { type: "added" },
+      { type: "removed" },
+    ] as const) {
+      assert.equal(rec(e).detail, null);
+    }
+  });
+});
+
+const ALL = Number.POSITIVE_INFINITY;
+const NONE = { subject: null, who: null, kind: null, before: null } as const;
+
+function ev(at: string, who: "app" | "reconciler", subject = "app.lychee.land", kind: ActivityEvent["kind"] = "deploy"): ActivityEvent {
+  return { at, who, kind, subject, href: null, outcome: `${who}-${at}`, tone: "neutral", detail: null };
+}
+
+describe("order within one at", () => {
+  it("puts the reconciler before the app, then the later file position first", () => {
+    const events = buildActivity(
+      [{ timestamp: T, action: "add-site", hostname: "app.lychee.land" }],
+      [life("swee", [{ at: T, type: "added" }, { at: T, type: "stopped" }])],
+      ctx,
+      ALL,
+    );
+    assert.deepEqual(events.map((e) => [e.who, e.outcome]), [["reconciler", "stopped"], ["reconciler", "declared"], ["app", "added"]]);
+  });
+});
+
+describe("pageActivity", () => {
+  const list = [
+    ev("2026-10-28T10:05:00Z", "app", "app.lychee.land", "add"),
+    ev("2026-10-28T10:04:00Z", "reconciler", "swee", "stop"),
+    ev("2026-10-28T10:03:00Z", "reconciler", "app.lychee.land", "deploy"),
+    ev("2026-10-28T10:03:00Z", "reconciler", "blog.lychee.land", "deploy"),
+    ev("2026-10-28T10:03:00Z", "app", "app.lychee.land", "deploy"),
+    ev("2026-10-28T10:01:00Z", "reconciler", "swee", "deploy"),
+  ];
+
+  it("filters by subject case-insensitively, who and kind", () => {
+    assert.deepEqual(pageActivity(list, { ...NONE, subject: "APP.lychee.land", limit: ALL }).events, [list[0], list[2], list[4]]);
+    assert.deepEqual(pageActivity(list, { ...NONE, who: "app", limit: ALL }).events, [list[0], list[4]]);
+    assert.deepEqual(pageActivity(list, { ...NONE, kind: "deploy", limit: ALL }).events, [list[2], list[3], list[4], list[5]]);
+    assert.deepEqual(pageActivity(list, { ...NONE, subject: "app.lychee.land", who: "reconciler", kind: "deploy", limit: ALL }).events, [list[2]]);
+  });
+
+  it("pages across a split tick without a duplicate or a gap", () => {
+    const five = [list[0], list[2], list[3], list[4], list[5]];
+    const p1 = pageActivity(five, { ...NONE, limit: 2 });
+    assert.deepEqual(p1.events, five.slice(0, 2));
+    assert.notEqual(p1.next, null);
+    const p2 = pageActivity(five, { ...NONE, before: p1.next, limit: 2 });
+    assert.deepEqual(p2.events, five.slice(2, 4));
+    assert.notEqual(p2.next, null);
+    const p3 = pageActivity(five, { ...NONE, before: p2.next, limit: 2 });
+    assert.deepEqual(p3.events, [five[4]]);
+    assert.equal(p3.next, null);
+    assert.deepEqual([...p1.events, ...p2.events, ...p3.events], five);
+  });
+
+  it("next is null exactly when the page reaches the last event", () => {
+    assert.equal(pageActivity(list, { ...NONE, limit: 5 }).next === null, false);
+    assert.equal(pageActivity(list, { ...NONE, limit: 6 }).next, null);
+    assert.equal(pageActivity(list, { ...NONE, limit: 7 }).next, null);
+  });
+
+  it("applies the cursor after the filters", () => {
+    const seen: ActivityEvent[] = [];
+    let before: string | null = null;
+    do {
+      const page = pageActivity(list, { ...NONE, who: "reconciler", before, limit: 1 });
+      seen.push(...page.events);
+      before = page.next;
+    } while (before !== null);
+    assert.deepEqual(seen, list.filter((e) => e.who === "reconciler"));
+  });
+
+  it("rejects a malformed cursor", () => {
+    const enc = (v: unknown) => btoa(JSON.stringify(v)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    for (const before of ["garbage", enc({ t: "x", n: 1 }), enc({ t: 1, n: 0 }), enc({ t: 1.5, n: 1 }), enc(null)]) {
+      assert.throws(() => pageActivity(list, { ...NONE, before, limit: 2 }), ActivityCursorError);
+    }
+  });
+
+  it("lists every distinct subject, sorted, whatever the filters", () => {
+    const all = ["app.lychee.land", "blog.lychee.land", "swee"];
+    assert.deepEqual(pageActivity(list, { ...NONE, limit: 1 }).subjects, all);
+    assert.deepEqual(pageActivity(list, { ...NONE, who: "app", kind: "add", subject: "swee", limit: 1 }).subjects, all);
   });
 });

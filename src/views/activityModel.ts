@@ -1,7 +1,7 @@
 import type { AuditLine } from "../lib/auditLog";
 import type { Lifetime, ReconcilerEvent } from "../lib/reconcilerEvents";
 import { hostnameForResource } from "../lib/siteNames";
-import type { ActivityEvent, ActivityKind } from "../shared/activity";
+import type { ActivityEvent, ActivityFilters, ActivityKind } from "../shared/activity";
 
 export interface ActivityContext {
   domain: string;
@@ -11,17 +11,17 @@ export interface ActivityContext {
   units: ReadonlyMap<string, string>;
 }
 
-type Outcome = { kind: ActivityKind; outcome: string; tone: ActivityEvent["tone"] };
+type Outcome = { kind: ActivityKind; outcome: string; tone: ActivityEvent["tone"]; detail: string | null };
 
-const ok = (kind: ActivityKind, outcome: string): Outcome => ({ kind, outcome, tone: "ok" });
-const bad = (kind: ActivityKind, outcome: string): Outcome => ({ kind, outcome, tone: "bad" });
-const neutral = (kind: ActivityKind, outcome: string): Outcome => ({ kind, outcome, tone: "neutral" });
+const ok = (kind: ActivityKind, outcome: string): Outcome => ({ kind, outcome, tone: "ok", detail: null });
+const bad = (kind: ActivityKind, outcome: string, detail: string | null = null): Outcome => ({ kind, outcome, tone: "bad", detail });
+const neutral = (kind: ActivityKind, outcome: string): Outcome => ({ kind, outcome, tone: "neutral", detail: null });
 
 /** Every event type has a row, so a type the feed gains is a type error here. */
 const RECONCILER: { [T in ReconcilerEvent["type"]]: (e: Extract<ReconcilerEvent, { type: T }>) => Outcome } = {
   deployed: (e) => ok("deploy", e.from === null ? `deployed ${e.to}` : `deployed ${e.from} → ${e.to}`),
-  failed: (e) => bad("deploy", `failed at ${e.failed_step.split(": ")[0]}`),
-  blocked: (e) => bad("deploy", `blocked · ${e.gate_code}`),
+  failed: (e) => bad("deploy", `failed at ${e.failed_step.split(": ")[0]}`, e.failed_step),
+  blocked: (e) => bad("deploy", `blocked · ${e.gate_code}`, e.gate || null),
   "awaiting-image": () => neutral("deploy", "awaiting image"),
   recovered: (e) => ok("deploy", `recovered after ${e.attempts} ${e.attempts === 1 ? "attempt" : "attempts"}`),
   stopped: () => neutral("stop", "stopped"),
@@ -71,11 +71,13 @@ function auditOutcome(line: AuditLine): Outcome | null {
   const entry = AUDIT[base];
   if (entry === null) return null;
   const { kind, outcome } = entry;
-  if (variant) return bad(kind, variant);
+  if (variant) return bad(kind, variant, variant === "rolled back" ? null : (line.detail ?? null));
   if (base === "deploy-service") return neutral(kind, line.detail ? `${line.detail} requested` : outcome);
   if (base === "host-action") {
     const action = line.hostAction ?? "action";
-    return line.outcome?.startsWith("refused") ? bad(kind, `${action} refused`) : neutral(kind, `${action} started`);
+    return line.outcome?.startsWith("refused")
+      ? bad(kind, `${action} refused`, line.outcome.replace(/^refused:?\s*/, "") || null)
+      : neutral(kind, `${action} started`);
   }
   return neutral(kind, outcome);
 }
@@ -139,6 +141,67 @@ export function buildActivity(
       b.seq - a.seq,
   );
   return ranked.slice(0, Math.max(0, limit)).map((r) => r.event);
+}
+
+/** A cursor that does not decode to a position; the route answers it with a 400. */
+export class ActivityCursorError extends Error {}
+
+const b64urlEncode = (text: string) => btoa(text).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+function decodeCursor(cursor: string): { t: number; n: number } {
+  try {
+    const padded = cursor.replace(/-/g, "+").replace(/_/g, "/");
+    const parsed: unknown = JSON.parse(atob(padded + "=".repeat((4 - (padded.length % 4)) % 4)));
+    if (typeof parsed === "object" && parsed !== null) {
+      const { t, n } = parsed as { t?: unknown; n?: unknown };
+      if (typeof t === "number" && Number.isInteger(t) && typeof n === "number" && Number.isInteger(n) && n > 0) return { t, n };
+    }
+  } catch {
+    // falls through to the typed error
+  }
+  throw new ActivityCursorError("malformed cursor");
+}
+
+/**
+ * One page of `events` (`buildActivity`'s full ordered output): filtered, then
+ * everything up to the cursor skipped, then `limit` taken. The cursor is the
+ * last returned event's time in milliseconds plus how many events at exactly
+ * that time have been returned so far, so a tick a page boundary splits
+ * resumes in the middle instead of repeating or dropping its rest. `subjects`
+ * is every distinct subject of the unfiltered list.
+ */
+export function pageActivity(
+  events: ActivityEvent[],
+  query: ActivityFilters & { before: string | null; limit: number },
+): { events: ActivityEvent[]; next: string | null; subjects: string[] } {
+  const subjects = [...new Set(events.map((e) => e.subject))].sort((a, b) => a.localeCompare(b));
+  const subject = query.subject?.toLowerCase() ?? null;
+  const matched = events.filter(
+    (e) =>
+      (subject === null || e.subject.toLowerCase() === subject) &&
+      (query.who === null || e.who === query.who) &&
+      (query.kind === null || e.kind === query.kind),
+  );
+
+  let start = 0;
+  if (query.before !== null) {
+    const { t, n } = decodeCursor(query.before);
+    while (start < matched.length && Date.parse(matched[start].at) > t) start += 1;
+    let skipped = 0;
+    while (skipped < n && start < matched.length && Date.parse(matched[start].at) === t) {
+      start += 1;
+      skipped += 1;
+    }
+  }
+
+  const end = Math.min(matched.length, start + Math.max(0, query.limit));
+  const page = matched.slice(start, end);
+  if (end >= matched.length || page.length === 0) return { events: page, next: null, subjects };
+  const t = Date.parse(page[page.length - 1].at);
+  // Events at this time already returned: earlier pages' share of it plus this page's.
+  let n = 0;
+  for (let i = end - 1; i >= 0 && Date.parse(matched[i].at) === t; i -= 1) n += 1;
+  return { events: page, next: b64urlEncode(JSON.stringify({ t, n })), subjects };
 }
 
 /** `now`, `<n>m`, `<n>h` or `<n>d`; a future time reads `now`, never a negative age. */

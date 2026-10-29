@@ -97,9 +97,9 @@ describe("parseReconcilerEvents", () => {
     assert.equal("last" in parsed[0], false);
   });
 
-  test("blocked keeps gate_code and drops gate", () => {
+  test("blocked keeps gate_code and gate", () => {
     const raw = file(life({ events: [{ at: AT, type: "blocked", gate_code: "ci-pending", gate: "CI is still running" }] }));
-    assert.deepEqual(parseReconcilerEvents(raw)![0].events[0], { at: AT, type: "blocked", gate_code: "ci-pending" });
+    assert.deepEqual(parseReconcilerEvents(raw)![0].events[0], { at: AT, type: "blocked", gate_code: "ci-pending", gate: "CI is still running" });
   });
 
   test("every event type keeps exactly its fields", () => {

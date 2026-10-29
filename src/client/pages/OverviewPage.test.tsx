@@ -69,6 +69,7 @@ const event = (extra: Partial<ActivityEvent>): ActivityEvent => ({
   href: "/sites/app.lychee.land",
   outcome: "deployed 0.1.0 → 0.2.0",
   tone: "ok",
+  detail: null,
   ...extra,
 });
 
