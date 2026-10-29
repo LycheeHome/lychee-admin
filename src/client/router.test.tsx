@@ -7,7 +7,7 @@ import type { BoardPayload, BoardRow, ServiceGroup } from "../shared/board";
 import type { SiteDetailPayload } from "../shared/siteDetail";
 import type { SitesPayload } from "../shared/sites";
 import { SEEDED_RAIL_SITES, seedSiteDetailPayload } from "../dev/testHelpers";
-import { RAIL_DOT } from "../views/railModel";
+import { RAIL_SIGNAL_DOT } from "../views/overviewModel";
 import { seedHealth } from "./test/healthFixture";
 import { STATIC_TITLE, loadStaticDocument, railPayload } from "./test/staticDocument";
 import { BOARD_ROUTES, isClientRoute, mountApp } from "./router";
@@ -102,6 +102,7 @@ function stubFetch(): void {
       return json({ ok: true, ...railPayload(SEEDED_RAIL_SITES.map((s) => ({ ...s }))) });
     }
     if (url === "/api/sites") return json({ ok: true, ...SITES });
+    if (url.startsWith("/api/activity")) return json({ ok: true, events: [], sources: { app: true, reconciler: true }, now: "2026-10-22T12:00:00Z" });
     if (url.startsWith("/api/sites/")) {
       const host = decodeURIComponent(url.slice("/api/sites/".length).split("?")[0] ?? "");
       const found = details.get(host);
@@ -147,20 +148,42 @@ const row = (name: string) => document.querySelector(`[data-service="${name}"]`)
 const focused = () => `focus is on ${document.activeElement?.outerHTML.slice(0, 80) ?? "nothing"}`;
 const railLink = (href: string) => document.querySelector<HTMLAnchorElement>(`#rail a[href="${href}"]`);
 const marked = () => Array.from(document.querySelectorAll("#rail a[aria-current=\"page\"]")).map((a) => a.getAttribute("href"));
-/** The rail's dots are coloured once its rows are in and health has landed. */
+/** The rail is live once its rows are in and health has landed on overview's signal. */
 const railLive = () =>
-  waitFor(() => assert.equal(document.querySelector('#rail [data-site="api.lychee.land"] [data-dot]')?.getAttribute("class"), RAIL_DOT.bad), TIMEOUT);
+  waitFor(() => {
+    assert.ok(document.querySelector('#rail [data-site="api.lychee.land"]'), "no rows yet");
+    assert.equal(document.querySelector("#rail [data-signal] > span")?.getAttribute("class"), RAIL_SIGNAL_DOT.bad);
+  }, TIMEOUT);
 
 describe("isClientRoute", () => {
-  test("is true for the sites list, the three board pages and the add page, with or without a hash or query", () => {
+  test("is true for the overview, the sites list, the three board pages and the add page, with or without a hash or query", () => {
     assert.deepEqual(Object.keys(BOARD_ROUTES).sort(), ["/infrastructure", "/reconciler", "/services"]);
-    for (const path of ["/", "/?removed=blog.lychee.land", "/#x", "/services", "/reconciler", "/infrastructure", "/reconciler#service-lychee-watch", "/services?x=1", "/sites/new", "/sites/new#x"]) {
+    for (const path of ["/", "/#x", "/sites", "/sites?x=1", "/sites?removed=blog.lychee.land", "/sites#x", "/activity", "/activity?who=app", "/services", "/reconciler", "/infrastructure", "/reconciler#service-lychee-watch", "/services?x=1", "/sites/new", "/sites/new#x"]) {
       assert.equal(isClientRoute(path), true, path);
     }
     // "/" matches exactly, never as a prefix of every path.
-    for (const path of ["", "//", SERVER_PAGE, "/sites/new/x", "/sites/x/y", "/services/swee/deploy", "/servicesx", "https://example.com/services", "https://example.com/"]) {
+    for (const path of ["", "//", SERVER_PAGE, "/sitesx", "/sites/new/x", "/activityx", "/activity/x", "/sites/x/y", "/services/swee/deploy", "/servicesx", "https://example.com/services", "https://example.com/"]) {
       assert.equal(isClientRoute(path), false, path);
     }
+  });
+});
+
+describe("the activity route", () => {
+  test("/activity renders the page and reads its first page for the URL's filters", async () => {
+    load("/activity?who=app");
+    await waitFor(() => assert.equal(document.querySelector("main h2")?.textContent, "Activity"), TIMEOUT);
+    assert.equal(document.title, "activity · lychee admin");
+    await waitFor(() => assert.ok(fetched.some((u) => u.startsWith("/api/activity?") && u.includes("who=app"))), TIMEOUT);
+  });
+});
+
+describe("the overview route", () => {
+  test("/ renders the overview", async () => {
+    load("/");
+    await waitFor(() => assert.equal(document.querySelector("main h2")?.textContent, "Overview"), TIMEOUT);
+    assert.equal(document.title, "overview · lychee admin");
+    await waitFor(() => assert.ok(fetched.some((u) => u.startsWith("/api/activity"))), TIMEOUT);
+    assert.ok(!fetched.includes("/api/sites"), "the list was read at /");
   });
 });
 
@@ -186,17 +209,17 @@ describe("the sites list route", () => {
     return cancelled === true;
   }
 
-  test("a direct visit renders the list into <main>, titled Sites, with the sites heading current", async () => {
-    load("/");
+  test("/sites renders the sites list", async () => {
+    load("/sites");
     await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
     assert.ok(!document.getElementById("app-root"), "a server mount point is back");
     assert.equal(document.title, "Sites");
-    assert.deepEqual(marked(), ["/"]);
+    assert.deepEqual(marked(), ["/sites"]);
     assert.ok(fetched.includes("/api/sites"));
   });
 
-  test("/ to /services and back makes no document load, and the list shows at once from cache (Review Focus 5)", async () => {
-    load("/");
+  test("/sites to /services and back makes no document load, and the list shows at once from cache (Review Focus 5)", async () => {
+    load("/sites");
     await railLive();
     await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
     const entry = window.history.state as unknown;
@@ -209,28 +232,28 @@ describe("the sites list route", () => {
 
     const reads = fetched.filter((u) => u === "/api/sites").length;
     await act(async () => {
-      window.history.replaceState(entry, "", "/");
+      window.history.replaceState(entry, "", "/sites");
       window.dispatchEvent(new PopStateEvent("popstate", { state: entry }));
     });
     // From cache: in the same turn, with no new read of the list behind it.
     assert.ok(listRow("api.lychee.land"), "the list was not shown at once");
     assert.equal(fetched.filter((u) => u === "/api/sites").length, reads);
-    assert.equal(window.location.pathname, "/");
+    assert.equal(window.location.pathname, "/sites");
     assert.equal(document.title, "Sites");
-    assert.deepEqual(marked(), ["/"]);
+    assert.deepEqual(marked(), ["/sites"]);
   });
 
-  test("the rail's sites heading from /services is a router link, and focus lands on the Sites heading", async () => {
+  test("the rail's sites heading is a router link: from /services it lands focus on the Sites heading", async () => {
     load("/services");
     await railLive();
     await waitFor(() => assert.ok(row("swee")), TIMEOUT);
-    assert.equal(clickCancelled(railLink("/") as HTMLAnchorElement), true, "the click was left to the browser");
+    assert.equal(clickCancelled(railLink("/sites") as HTMLAnchorElement), true, "the click was left to the browser");
     await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
     await waitFor(() => assert.equal(document.activeElement?.textContent, "Sites"), TIMEOUT);
     assert.equal(document.activeElement?.tagName, "H2");
     assert.equal(document.activeElement?.getAttribute("tabindex"), "-1");
     assert.equal(document.title, "Sites");
-    assert.deepEqual(marked(), ["/"]);
+    assert.deepEqual(marked(), ["/sites"]);
   });
 
   // Critique 2026-10-26: a document load of a board page took focus and drew
@@ -244,7 +267,7 @@ describe("the sites list route", () => {
   });
 
   test("a direct visit takes no focus, so the list at rest is the server's markup", async () => {
-    load("/");
+    load("/sites");
     await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
     await act(async () => {});
     assert.ok(document.activeElement === document.body, focused());
@@ -255,7 +278,7 @@ describe("the sites list route", () => {
   // and AddSiteRoutes.test.tsx follow them.
 
   test("on load, ?removed leaves the URL; other parameters and the hash stay (Review Focus 3)", async () => {
-    load("/?removed=a%26b.lychee.land&x=1#h");
+    load("/sites?removed=a%26b.lychee.land&x=1#h");
     assert.equal(window.location.search, "?x=1");
     assert.equal(window.location.hash, "#h");
     await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
@@ -264,14 +287,14 @@ describe("the sites list route", () => {
   });
 
   test("?removed alone leaves a bare path", async () => {
-    load("/?removed=blog.lychee.land");
-    assert.equal(window.location.href, "http://localhost/");
+    load("/sites?removed=blog.lychee.land");
+    assert.equal(window.location.href, "http://localhost/sites");
     // Settled before teardown: unmounting mid-load leaves a timer behind.
     await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
   });
 
-  test("the first client navigation away removes #page-notice, and returning to / does not bring it back", async () => {
-    load("/?removed=a%26b.lychee.land");
+  test("the first client navigation away removes #page-notice, and returning to /sites does not bring it back", async () => {
+    load("/sites?removed=a%26b.lychee.land");
     await railLive();
     await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
     assert.ok(document.getElementById("page-notice"));
@@ -283,7 +306,7 @@ describe("the sites list route", () => {
     assert.ok(!document.getElementById("page-notice"));
 
     act(() => {
-      fireEvent.click(railLink("/") as HTMLAnchorElement);
+      fireEvent.click(railLink("/sites") as HTMLAnchorElement);
     });
     await waitFor(() => assert.ok(listRow("api.lychee.land")), TIMEOUT);
     assert.ok(!document.getElementById("page-notice"));

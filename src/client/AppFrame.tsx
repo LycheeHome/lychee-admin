@@ -28,7 +28,7 @@ export type InitialNotice = { kind: "removed"; host: string } | { kind: "created
 
 /**
  * What the server shell drew a #page-notice for: `?removed=<host>` on the list
- * (`/`), `?created=1` on a site's page, each given exactly once, as Express
+ * (`/sites`), `?created=1` on a site's page, each given exactly once, as Express
  * reads them (a repeated parameter is an array there, and no notice).
  */
 export function readInitialNotice(win: Window): InitialNotice {

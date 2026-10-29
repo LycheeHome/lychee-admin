@@ -1,4 +1,6 @@
-import { BODY, CAPTION, CAPTION_FILE, CAPTION_KEEP, SKIP_LINK } from "../../views/shared";
+import { RAIL_ROW } from "../../views/railModel";
+import { SITE_HEADER_ACTIONS } from "../../views/siteDetailModel";
+import { BODY, BUTTON_SECONDARY, CAPTION, CAPTION_FILE, CAPTION_KEEP, SKIP_LINK } from "../../views/shared";
 
 /*
  * Declared redesigns of the frozen parity fixtures (src/dev/fixtures/).
@@ -26,6 +28,23 @@ export type Redesign = {
   /** A plain substring every match contains, and whose every occurrence is matched. */
   anchor: string;
 };
+
+const FOCUS = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
+
+const RAIL_WHY = "The rail is navigation plus one whole-host signal on overview (spec 2026-10-28-overview-page).";
+
+/** A fixture link to the sites list, by its exact class string, moved from / to /sites. */
+function sitesLink(id: string, className: string): Redesign {
+  const old = `href="/" class="${className}"`;
+  return {
+    id,
+    since: "2026-10-28",
+    why: "The sites list moved to /sites when / became the overview (spec 2026-10-28-overview-page).",
+    from: new RegExp(old.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
+    to: `href="/sites" class="${className}"`,
+    anchor: old,
+  };
+}
 
 export const REDESIGNS: Redesign[] = [
   {
@@ -249,6 +268,65 @@ export const REDESIGNS: Redesign[] = [
       anchor: `id="${id}"`,
     }),
   ),
+  // The links back to the sites list, each anchored on its own exact class
+  // string so the wordmark's and the rail heading's href="/" never match.
+  // The breadcrumb's sites link, on a site's page and on the add page.
+  sitesLink("sites-link:breadcrumb", `text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS}`),
+  // The not-found body's "← Back to sites".
+  sitesLink("sites-link:not-found", `${FOCUS} text-rose-400 no-underline font-mono text-[0.85rem] hover:underline`),
+  // The Caddyfile error's "← sites".
+  sitesLink("sites-link:caddyfile-error", `text-stone-400 no-underline font-mono text-[0.72rem] hover:text-stone-50 hover:underline ${FOCUS}`),
+  // The add form's Cancel.
+  sitesLink(
+    "sites-link:add-cancel",
+    `font-sans font-semibold text-sm bg-stone-600 text-stone-50 border-none rounded-md min-h-10 px-4 py-2.5 cursor-pointer inline-flex items-center gap-1.5 hover:bg-stone-700 motion-safe:transition-colors motion-safe:duration-150 motion-safe:active:translate-y-px ${FOCUS} disabled:cursor-not-allowed disabled:text-stone-500 disabled:bg-transparent disabled:hover:bg-transparent no-underline`,
+  ),
+  // The rail: navigation plus one whole-host signal on overview. These come
+  // after rail-heading-domain, whose output still carries the sites slot.
+  {
+    id: "rail-no-count",
+    since: "2026-10-28",
+    why: RAIL_WHY,
+    from: /\s*<span data-count="[a-z]+"><\/span>/g,
+    to: "",
+    anchor: '<span data-count="',
+  },
+  {
+    id: "rail-no-dot",
+    since: "2026-10-28",
+    why: RAIL_WHY,
+    // The frozen markup writes the empty attribute bare.
+    from: /<span class="inline-block size-2 shrink-0 rounded-full border border-stone-600 bg-transparent" data-dot aria-hidden="true"><\/span>/g,
+    to: "",
+    anchor: 'data-dot aria-hidden="true"',
+  },
+  {
+    id: "rail-sites-href",
+    since: "2026-10-28",
+    why: RAIL_WHY,
+    from: /<a href="\/" class="flex items-center justify-between font-mono text-\[0\.75rem\]/g,
+    to: '<a href="/sites" class="flex items-center justify-between font-mono text-[0.75rem]',
+    anchor: '<a href="/" class="flex items-center justify-between font-mono text-[0.75rem]',
+  },
+  {
+    id: "rail-overview-row",
+    since: "2026-10-28",
+    why: RAIL_WHY,
+    // With health null the row carries no signal, so it is fixed text. The nav also holds the plain activity row (spec 2026-10-28-activity-page).
+    from: /<nav aria-label="Sites"/g,
+    // The row is a site row's RAIL_ROW, which the fixtures' own rows hold to its literal text.
+    to: `<nav aria-label="Overview" class="flex flex-col gap-0.5"><a href="/" class="${RAIL_ROW} justify-between">overview</a><a href="/activity" class="${RAIL_ROW}">activity</a></nav><nav aria-label="Sites"`,
+    anchor: '<nav aria-label="Sites"',
+  },
+  {
+    id: "site-activity-link",
+    since: "2026-10-28",
+    why: "A site's page links to its own history: a Secondary Activity button before Visit, in one group in the header's action slot (spec 2026-10-28-activity-page).",
+    // Captures the hostname and the whole Visit anchor, which keeps its own markup.
+    from: /(<a href="https:\/\/([^"]+)" target="_blank" rel="noopener noreferrer" class="[^"]*">Visit [\s\S]*?<\/a>)/g,
+    to: `<div class="${SITE_HEADER_ACTIONS}"><a href="/activity?subject=$2" class="${BUTTON_SECONDARY} no-underline shrink-0">Activity</a>$1</div>`,
+    anchor: ">Visit ",
+  },
 ];
 
 export function applyWith(html: string, entries: readonly Redesign[]): string {

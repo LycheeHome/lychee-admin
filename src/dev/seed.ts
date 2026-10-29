@@ -2,6 +2,7 @@ import path from "node:path";
 import { config } from "../config";
 import type { ContainerStatus } from "../lib/containerStatus";
 import type { FileSystem } from "../lib/fileSystem";
+import { EVENTS_PATH } from "../lib/platform";
 import { INVENTORY_PATH } from "../lib/serviceInventory";
 import type { DeclarationSummary } from "../lib/siteResource";
 import type { TimerSchedule, UnitState } from "../lib/unitState";
@@ -270,9 +271,90 @@ export const seededResourceContainers: Record<string, ContainerStatus> = {
  */
 const SEEDED_SITE_DIRS = ["lychee.land", "blog.lychee.land", "legacy.lychee.land"];
 
+/** Relative to process start, like SEEDED_INVENTORY.generated; reconciler times have no milliseconds. */
+const ago = (minutes: number, ms = false): string => {
+  const iso = new Date(Date.now() - minutes * 60_000).toISOString();
+  return ms ? iso : iso.replace(/\.\d{3}Z$/, "Z");
+};
+
+const BROKEN_FAILED_STEP = "Start the container: dependency failed to start: container broken-lychee-land is unhealthy";
+
+const lifetime = (name: string, kind: "unit" | "container", addedAgo: number, events: object[], removedAgo?: number) => ({
+  id: `00000000-0000-5000-8000-${String(Math.abs([...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7))).padStart(12, "0").slice(0, 12)}`,
+  name,
+  kind,
+  added_at: ago(addedAgo),
+  removed_at: removedAgo === undefined ? null : ago(removedAgo),
+  last: { result: "", version: "", gate_code: "", failed_step: "", state: "", failed_attempts: 0 },
+  events,
+});
+
+/**
+ * The reconciler's history feed (A-HIST-1) agreeing with SEEDED_INVENTORY: one
+ * event of every type, one closed lifetime, and one tick (lychee-notes) where
+ * a recovery and a deploy share an `at`.
+ */
+export const SEEDED_EVENTS = JSON.stringify(
+  {
+    lifetimes: [
+      lifetime("swee", "unit", 3000, [
+        { at: ago(3000), type: "added" },
+        { at: ago(190), type: "deployed", from: "v2.10.0", to: "v2.11.4" },
+        { at: ago(12), type: "blocked", gate_code: "ci-failed", gate: "job test concluded: failure" },
+      ]),
+      lifetime("broken-lychee-land", "container", 400, [
+        { at: ago(400), type: "added" },
+        { at: ago(45), type: "failed", failed_step: BROKEN_FAILED_STEP },
+      ]),
+      lifetime("lychee-notes", "container", 2000, [
+        { at: ago(130), type: "blocked", gate_code: "ci-pending", gate: "CI is still running on the release commit" },
+        { at: ago(70), type: "deployed", from: "1.3.0", to: "1.4.0" },
+        { at: ago(70), type: "recovered", from: "blocked", from_gate_code: "ci-pending", attempts: 2 },
+      ]),
+      lifetime("gone-lychee-land", "container", 1500, [
+        { at: ago(600), type: "deployed", from: null, to: "0.4.2" },
+        { at: ago(240), type: "down", from: "0.4.2" },
+      ]),
+      lifetime("preview-lychee-land", "container", 300, [{ at: ago(30), type: "awaiting-image" }]),
+      lifetime("lychee-docs", "container", 900, [{ at: ago(500), type: "stopped" }]),
+      lifetime("app-lychee-land", "container", 1200, [{ at: ago(1000), type: "deployed", from: "0.1.0", to: "0.2.0" }]),
+      lifetime(
+        "old-lychee-land",
+        "container",
+        4000,
+        [
+          { at: ago(4000), type: "added" },
+          { at: ago(3500), type: "removed" },
+        ],
+        3500,
+      ),
+    ],
+  },
+  null,
+  2,
+);
+
+const auditLine = (minutes: number, entry: object): string =>
+  JSON.stringify({ timestamp: ago(minutes, true), ...entry });
+
+/** What createLogger writes, oldest first. */
+export const SEEDED_AUDIT_LOG =
+  [
+    auditLine(2000, { action: "add-site", hostname: "blog.lychee.land" }),
+    auditLine(300, { action: "remove-site-failed", hostname: "legacy.lychee.land", detail: "caddy validate: Error: adapting config using caddyfile: ambiguous site definition: http://legacy.lychee.land" }),
+    auditLine(50, { action: "deploy-service", hostname: "broken-lychee-land", detail: "0.1.0" }),
+    auditLine(20, { action: "host-action", caller: "operator", unit: "palworld-palchuds", hostAction: "restart", outcome: "started" }),
+    // Logged with the request's Host header as hostname; the feed drops it.
+    auditLine(5, { action: "refused-cross-site", hostname: "admin.lychee.land" }),
+  ].join("\n") + "\n";
+
 export function applySeed(fs: FileSystem): void {
   for (const hostname of SEEDED_SITE_DIRS) fs.mkdir(path.posix.join(config.sitesRoot, hostname));
   fs.writeFile(config.caddyfilePath, SEED_CADDYFILE);
   fs.writeFile(config.tunnelConfigPath, SEED_TUNNEL_CONFIG);
   fs.writeFile(INVENTORY_PATH, SEEDED_INVENTORY);
+  fs.mkdir(path.posix.dirname(EVENTS_PATH));
+  fs.writeFile(EVENTS_PATH, SEEDED_EVENTS);
+  fs.mkdir(path.posix.dirname(config.logFile));
+  fs.writeFile(config.logFile, SEEDED_AUDIT_LOG);
 }

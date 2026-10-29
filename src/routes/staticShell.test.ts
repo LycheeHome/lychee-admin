@@ -27,7 +27,7 @@ const ROOT = path.join(__dirname, "..", "..");
 const DOCUMENT = "<!doctype html><title>lychee admin</title><!-- marker:static-shell -->";
 const MISSING = "client bundle missing; run npm run build";
 
-const CLIENT_ROUTES = ["/", "/services", "/reconciler", "/infrastructure", "/sites/new", "/sites/blog.lychee.land", "/sites/api.lychee.land"];
+const CLIENT_ROUTES = ["/", "/sites", "/services", "/reconciler", "/infrastructure", "/sites/new", "/sites/blog.lychee.land", "/sites/api.lychee.land"];
 
 describe("the client routes serve the static document", () => {
   const open: Array<() => Promise<void>> = [];
@@ -74,9 +74,23 @@ describe("the client routes serve the static document", () => {
     }
   });
 
+  test("GET /sites serves the client document with 200", async () => {
+    const app = await start(() => DOCUMENT);
+    const res = await app.get("/sites");
+    assert.equal(res.status, 200);
+    assert.equal(await res.text(), DOCUMENT);
+  });
+
+  test("GET /sites/ redirects 308 to /sites", async () => {
+    const app = await start(() => DOCUMENT);
+    const res = await app.get("/sites/", { redirect: "manual" });
+    assert.equal(res.status, 308);
+    assert.equal(res.headers.get("location"), "/sites");
+  });
+
   test("a query string changes nothing: ?removed and ?created=1 are the client's to read", async () => {
     const app = await start(() => DOCUMENT);
-    for (const route of ["/?removed=blog.lychee.land", "/sites/blog.lychee.land?created=1", "/sites/BLOG.lychee.land"]) {
+    for (const route of ["/sites?removed=blog.lychee.land", "/sites/blog.lychee.land?created=1", "/sites/BLOG.lychee.land"]) {
       const res = await app.get(route);
       assert.equal(res.status, 200, route);
       assert.equal(await res.text(), DOCUMENT, route);

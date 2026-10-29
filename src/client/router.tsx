@@ -12,11 +12,17 @@ import {
   type RouteObject,
 } from "react-router";
 import { RouterProvider } from "react-router/dom";
-import { ADD_SITE_ROUTE, BOARD_ROUTES, ClientNavContext, SITE_ROUTE, SITES_ROUTE, isClientRoute, type ClientNav } from "./clientNav";
+import { ACTIVITY_ROUTE, ADD_SITE_ROUTE, BOARD_ROUTES, ClientNavContext, OVERVIEW_ROUTE, SITE_ROUTE, SITES_ROUTE, isClientRoute, type ClientNav } from "./clientNav";
 import { AppFrame, readInitialNotice, type InitialNotice } from "./AppFrame";
+import { ACTIVITY_QUERY } from "./activity";
 import { addSiteQueryKey, fetchAddSite, fetchSiteDetail, siteDetailQueryKey } from "./api";
+import { HEALTH_QUERY } from "./health";
 import { AddSitePage } from "./pages/AddSitePage";
 import { BoardPage, boardQuery } from "./pages/BoardPage";
+import { OverviewPage } from "./pages/OverviewPage";
+import { ActivityPage } from "./pages/ActivityPage";
+import { activityPageQuery } from "./activity";
+import { filtersFromSearch } from "../views/activityPageModel";
 import { SiteDetailRoute } from "./pages/SiteDetailPage";
 import { SitesPage, sitesQuery } from "./pages/SitesPage";
 import { installSharedBindings } from "./sharedBindings";
@@ -28,7 +34,8 @@ export { BOARD_ROUTES, isClientRoute } from "./clientNav";
  * the same static document, whose body is only `#react-root`; the root
  * renders AppFrame into it (the top bar, the rail, and <main> with the toast
  * host, the copy-status region and the page notice) around the routed page:
- * the sites list, the three board pages, the add page and a site's page. On
+ * the overview, the sites list, the three board pages, the add page and a
+ * site's page. On
  * any other URL the route renders nothing inside the frame and the rail's
  * links stay plain anchors.
  */
@@ -80,12 +87,13 @@ function documentScrollKey(): (location: Location) => string {
 }
 
 /**
- * The routes: one layout, the three board pages, the sites list, a site's
- * page, the add page, and a catch-all rendering nothing. Each board
- * route's loader primes its group's board, so a move between pages shows the
- * cached board at once (then refreshes it), and the rows exist by the time the
- * router scrolls to a `#service-` hash. A failed read is not the loader's to
- * report: the page shows it, above the last good board or alone.
+ * The routes: one layout, the overview at `/`, the sites list at `/sites`, a
+ * site's page, the add page, the three board pages, and a catch-all rendering
+ * nothing. Each board route's loader primes its group's board, so a move
+ * between pages shows the cached board at once (then refreshes it), and the
+ * rows exist by the time the router scrolls to a `#service-` hash. A failed
+ * read is not the loader's to report: the page shows it, above the last good
+ * board or alone.
  *
  * `notice` is what the document load's URL asked for (readInitialNotice),
  * read before stripNoticeParams dropped it; AppFrame shows it.
@@ -110,6 +118,31 @@ export function appRoutes(client: QueryClient, notice: InitialNotice = null): Ro
           // heading focus and its host-action state are its own.
           element: <BoardPage key={group} group={group} />,
         })),
+        {
+          path: OVERVIEW_ROUTE,
+          // Both of the overview's reads, primed together. Each failure is
+          // the page's to show, and one never holds the other back.
+          loader: async () => {
+            await Promise.all([
+              client.ensureQueryData(HEALTH_QUERY).catch(() => undefined),
+              client.ensureQueryData(ACTIVITY_QUERY).catch(() => undefined),
+            ]);
+            return null;
+          },
+          HydrateFallback: Nothing,
+          element: <OverviewPage />,
+        },
+        {
+          path: ACTIVITY_ROUTE,
+          // The first page for the URL's filters; a failure is the page's to show.
+          loader: async ({ request }) => {
+            const filters = filtersFromSearch(new URL(request.url).searchParams);
+            await client.ensureInfiniteQueryData(activityPageQuery(filters)).catch(() => undefined);
+            return null;
+          },
+          HydrateFallback: Nothing,
+          element: <ActivityPage />,
+        },
         {
           path: SITES_ROUTE,
           // The board's loader, for the list: cached data shows at once on a

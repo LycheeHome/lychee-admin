@@ -1,6 +1,6 @@
 import type { ChangeEvent, FormEvent, Ref } from "react";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, FOCUS_RING, FORM_LABEL, INPUT } from "../../views/shared";
-import { RailLink } from "../clientNav";
+import { RailLink, SITES_ROUTE } from "../clientNav";
 
 /**
  * A type option, checked or not: both share one neutral "checked", a Hairline
@@ -206,7 +206,7 @@ export function AddSiteForm(props: AddSiteFormProps) {
       </p>
 
       <div className="flex items-center justify-end gap-2.5">
-        <RailLink href="/" className={`${BUTTON_SECONDARY} no-underline`}>
+        <RailLink href={SITES_ROUTE} className={`${BUTTON_SECONDARY} no-underline`}>
           Cancel
         </RailLink>
         <button

@@ -43,6 +43,9 @@ export const PATHS = {
   appReleaseRoot: "/usr/local/lib/lychee-admin",
 } as const;
 
+/** The reconciler's history feed (A-HIST-1): lifetimes with their events. */
+export const EVENTS_PATH = "/var/lib/lychee-inventory/events.json";
+
 export const HOST_ACTIONS = ["start", "stop", "restart", "update"] as const;
 export type HostAction = (typeof HOST_ACTIONS)[number];
 

@@ -564,7 +564,7 @@ describe("review focus", () => {
       assert.ok(root);
       assert.ok(!root.querySelector("#add-site-form"));
       assert.equal(root.querySelector("p")?.textContent, "Command failed: cat\nno such file");
-      assert.equal(root.querySelector("a")?.getAttribute("href"), "/");
+      assert.equal(root.querySelector("a")?.getAttribute("href"), "/sites");
     } finally {
       teardown();
       document.body.innerHTML = "";

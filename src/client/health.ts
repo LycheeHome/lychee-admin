@@ -19,16 +19,19 @@ export async function fetchHealth(): Promise<HealthPayload> {
     const reason = body && body.ok === false && typeof body.reason === "string" ? body.reason : undefined;
     throw new Error(reason ?? `HTTP ${res.status}`);
   }
-  return { sites: body.sites, units: body.units, now: body.now };
+  return { sites: body.sites, units: body.units, generated: body.generated, now: body.now };
 }
 
 /**
  * The rail's poll: one batched read every 15s, paused while the tab is
- * hidden, and again whenever the window regains focus.
+ * hidden, and again whenever the window regains focus. The overview's route
+ * loader primes it, and without a stale time the observers mounting after it
+ * would fetch it again at once; 2s covers that, as the board's query does.
  */
 export const HEALTH_QUERY = {
   queryKey: ["health"],
   queryFn: fetchHealth,
+  staleTime: 2_000,
   refetchInterval: 15_000,
   refetchIntervalInBackground: false,
   refetchOnWindowFocus: true,

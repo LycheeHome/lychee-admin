@@ -5,8 +5,10 @@ import path from "node:path";
 import { afterEach, describe, test } from "node:test";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { RAIL_COUNT_BAD, RAIL_COUNT_PAIR, RAIL_COUNT_UNKNOWN, RAIL_DOT } from "../../views/railModel";
+import { MemoryRouter } from "react-router";
+import { MENU_BADGE, RAIL_SIGNAL_COUNT, RAIL_SIGNAL_DOT } from "../../views/overviewModel";
 import { BUTTON_PRIMARY, FOCUS_RING } from "../../views/shared";
+import { ClientNavContext } from "../clientNav";
 import type { RailData } from "../../shared/rail";
 import type { HealthPayload } from "../../shared/health";
 import { SEEDED_RAIL_SITES } from "../../dev/testHelpers";
@@ -54,22 +56,40 @@ function fixtureInner(name: string, selector: string): string {
 const serverInner = (name: string): string => fixtureInner(name, "aside#rail");
 
 function assertParity(rail: RailData, name: string): void {
-  const client = renderToStaticMarkup(<Rail rail={rail} health={null} healthError={false} lastRead={null} />);
+  const client = renderToStaticMarkup(<Rail rail={rail} health={null} healthError={false} />);
   assert.equal(canonical(client), canonical(serverInner(name)), name);
 }
 
-const dotClass = (container: HTMLElement, hostname: string): string => {
-  const dot = container.querySelector(`[data-site="${hostname}"] [data-dot]`);
-  assert.ok(dot, `no dot for ${hostname}`);
-  return dot.getAttribute("class") ?? "";
-};
+/** The seed's health (5 bad: two sites, three services) plus `unknown` units that could not be read. */
+function healthWith(unknown: number, bad = true): HealthPayload {
+  const h = seedHealth();
+  const base = (h.units ?? [])[0]!;
+  const units = bad
+    ? [...(h.units ?? [])]
+    : (h.units ?? []).map((u) => ({ ...u, tone: "ok" as const, label: "running", attention: false, trouble: null }));
+  for (let i = 0; i < unknown; i++) {
+    units.push({ ...base, name: `unread-${i}`, tone: "neutral", label: "unknown", attention: false, trouble: null });
+  }
+  const sites = bad ? h.sites : h.sites.map((s) => (s.attention ? { ...s, tone: "ok" as const, label: "running", attention: false } : s));
+  return { ...h, sites, units };
+}
 
-const count = (container: HTMLElement, name: string): Element | null => container.querySelector(`[data-count="${name}"]`);
-/** A count's two chips: what is bad, in Scorch, and what could not be read, neutral. */
-const chip = (container: ParentNode, name: string, kind: "bad" | "unknown"): Element | null =>
-  container.querySelector(`[data-count="${name}"] [data-count-${kind}]`);
-/** A chip's visible number, without its screen-reader words. */
-const shown = (el: Element | null): string | undefined => el?.firstChild?.textContent ?? undefined;
+/** Nothing bad and nothing unread. */
+const cleanHealth = (): HealthPayload => healthWith(0, false);
+
+/** What a screen reader hears for `el`: its text, less anything aria-hidden. */
+function accessibleName(el: Element): string {
+  const copy = el.cloneNode(true) as Element;
+  for (const hidden of Array.from(copy.querySelectorAll('[aria-hidden="true"]'))) hidden.remove();
+  return copy.textContent ?? "";
+}
+
+/** The rail's overview row. */
+const overviewRow = (root: ParentNode): HTMLAnchorElement => {
+  const row = root.querySelector<HTMLAnchorElement>('nav[aria-label="Overview"] > a');
+  assert.ok(row, "no overview row");
+  return row;
+};
 
 describe("Rail parity with the frozen server rail", () => {
   test("the seeded sites", () => {
@@ -101,7 +121,7 @@ describe("Rail parity with the frozen server rail", () => {
   test("the find box is a closed combobox, in React and in the frozen rail", () => {
     const rail = railData();
     const client = document.createElement("div");
-    client.innerHTML = renderToStaticMarkup(<Rail rail={rail} health={null} healthError={false} lastRead={null} />);
+    client.innerHTML = renderToStaticMarkup(<Rail rail={rail} health={null} healthError={false} />);
     const server = document.createElement("div");
     server.innerHTML = serverInner("seeded-sites");
     for (const [side, root] of [
@@ -120,7 +140,7 @@ describe("Rail parity with the frozen server rail", () => {
 
   test("a mismatch is caught", () => {
     const client = renderToStaticMarkup(
-      <Rail rail={railData({ current: { site: "api.lychee.land" } })} health={null} healthError={false} lastRead={null} />,
+      <Rail rail={railData({ current: { site: "api.lychee.land" } })} health={null} healthError={false} />,
     );
     assert.notEqual(canonical(client), canonical(serverInner("seeded-sites")));
   });
@@ -132,7 +152,7 @@ describe("Rail parity with the frozen server rail", () => {
   // itself, since every row uses the same hint span.
   test("the current row states its port at readable contrast", () => {
     const { container } = render(
-      <Rail rail={railData({ current: { site: "app.lychee.land" } })} health={null} healthError={false} lastRead={null} />,
+      <Rail rail={railData({ current: { site: "app.lychee.land" } })} health={null} healthError={false} />,
     );
     const rows = container.querySelectorAll('a[aria-current="page"]');
     assert.equal(rows.length, 1);
@@ -144,7 +164,7 @@ describe("Rail parity with the frozen server rail", () => {
   // Moved from the retired src/views/rail.test.ts, which held it of the
   // server rail; carried over from the breadcrumb dropdown the rail replaced.
   test("never truncates a hostname, and never dims a row below Smoke", () => {
-    const html = renderToStaticMarkup(<Rail rail={railData()} health={seedHealth()} healthError={false} lastRead={null} />);
+    const html = renderToStaticMarkup(<Rail rail={railData()} health={seedHealth()} healthError={false} />);
     const rows = html.match(/<ul[\s\S]*?<\/ul>/)?.[0] ?? "";
     assert.ok(rows.includes("data-site="), "no site rows");
     assert.doesNotMatch(rows, /truncate/);
@@ -153,91 +173,143 @@ describe("Rail parity with the frozen server rail", () => {
 });
 
 describe("Rail with health", () => {
-  test("a payload fills dots and counts, and nothing to count shows nothing", () => {
-    const { container } = render(<Rail rail={railData()} health={seedHealth()} healthError={false} lastRead={null} />);
-    assert.equal(dotClass(container, "api.lychee.land"), RAIL_DOT.bad);
-    assert.equal(dotClass(container, "app.lychee.land"), RAIL_DOT.ok);
-    assert.equal(dotClass(container, "preview.lychee.land"), RAIL_DOT.neutral);
-    assert.equal(dotClass(container, "blog.lychee.land"), RAIL_DOT.none);
-
-    for (const [name, n] of [["sites", "2"], ["service", "3"]] as const) {
-      assert.equal(count(container, name)?.getAttribute("class"), RAIL_COUNT_PAIR, name);
-      assert.equal(shown(chip(container, name, "bad")), n, name);
-      assert.equal(chip(container, name, "bad")?.getAttribute("class"), RAIL_COUNT_BAD, name);
-      assert.equal(chip(container, name, "unknown"), null, `${name} shows an unknown chip over nothing unknown`);
-    }
-    // Nothing to report says nothing: no 0, seen or spoken, and the link's
-    // name is its label alone.
-    for (const [zero, href] of [["reconciler", "/reconciler"], ["infrastructure", "/infrastructure"]] as const) {
-      assert.equal(count(container, zero)?.textContent, "", zero);
-      assert.equal(count(container, zero)?.getAttribute("class"), null, zero);
-      assert.equal(container.querySelector(`a[href="${href}"]`)?.textContent, zero);
+  // The rail is navigation plus one whole-host signal, on overview (spec
+  // 2026-10-28-overview-page): no row or host link carries a mark of its own.
+  test("site rows carry no dot", () => {
+    for (const [health, healthError] of [
+      [null, false],
+      [seedHealth(), false],
+      [healthWith(3), false],
+      [cleanHealth(), false],
+      [seedHealth(), true],
+      [null, true],
+    ] as Array<[HealthPayload | null, boolean]>) {
+      const { container, unmount } = render(<Rail rail={railData()} health={health} healthError={healthError} />);
+      assert.equal(container.querySelectorAll("[data-site]").length, 8);
+      // By identity: assert.equal on a DOM node stalls the runner printing it.
+      assert.ok(container.querySelector("[data-dot]") === null, "a site row carries a dot");
+      unmount();
     }
   });
 
-  test("a dot's status is spoken, since its colour is not", () => {
-    const { container } = render(<Rail rail={railData()} health={seedHealth()} healthError={false} lastRead={null} />);
-    const row = container.querySelector('[data-site="api.lychee.land"]');
-    assert.match(row?.textContent ?? "", /not responding/);
+  test("host links carry no count", () => {
+    for (const healthError of [false, true]) {
+      const { container, unmount } = render(<Rail rail={railData()} health={healthWith(3)} healthError={healthError} />);
+      assert.ok(container.querySelector("[data-count]") === null, "a count slot");
+      assert.ok(container.querySelector("[data-health-unavailable]") === null, "the unavailable line");
+      for (const label of ["services", "reconciler", "infrastructure"]) {
+        assert.equal(container.querySelector(`a[href="/${label}"]`)?.textContent, label);
+      }
+      unmount();
+    }
   });
 
-  test("an errored poll shows no remembered green: neutral dots, no counts, the unavailable line", () => {
-    const now = new Date("2026-10-22T12:00:00Z");
-    const lastRead = new Date(now.getTime() - 2 * 60_000).toISOString();
+  test("overview sits above sites and links to /", () => {
+    const { container } = render(<Rail rail={railData()} health={null} healthError={false} />);
+    const navs = Array.from(container.querySelectorAll("nav")).map((n) => n.getAttribute("aria-label"));
+    assert.deepEqual(navs, ["Overview", "Sites", "Host"]);
+    const row = overviewRow(container);
+    assert.equal(row.getAttribute("href"), "/");
+    assert.equal(row.textContent, "overview");
+  });
+
+  test("sites links to /sites", () => {
+    const { container } = render(<Rail rail={railData()} health={null} healthError={false} />);
+    const heading = container.querySelector('nav[aria-label="Sites"] > a');
+    assert.equal(heading?.getAttribute("href"), "/sites");
+  });
+
+  test("before the first answer the overview row has no signal", () => {
+    const { container } = render(<Rail rail={railData()} health={null} healthError={false} />);
+    assert.ok(container.querySelector("[data-signal]") === null, "a signal before any answer");
+    assert.equal(accessibleName(overviewRow(container)), "overview");
+  });
+
+  test("bad: a Scorch dot and the bad count, spoken as need attention", () => {
+    const { container } = render(<Rail rail={railData()} health={healthWith(3)} healthError={false} />);
+    const signal = overviewRow(container).querySelector("[data-signal]");
+    assert.ok(signal);
+    assert.equal(signal.getAttribute("aria-hidden"), "true");
+    assert.equal(signal.textContent, "5");
+    assert.equal(signal.querySelector(".bg-red-300")?.getAttribute("class"), RAIL_SIGNAL_DOT.bad);
+    assert.equal(signal.querySelector(".font-mono")?.getAttribute("class"), RAIL_SIGNAL_COUNT.bad);
+    assert.equal(accessibleName(overviewRow(container)), "overview, 5 need attention");
+    // The signal is the overview row's alone: nothing else in the rail is marked.
+    assert.equal(container.querySelectorAll("[data-signal]").length, 1);
+  });
+
+  test("unknown only: a neutral dot and the unknown count", () => {
+    const { container } = render(<Rail rail={railData()} health={healthWith(3, false)} healthError={false} />);
+    const signal = overviewRow(container).querySelector("[data-signal]");
+    assert.ok(signal);
+    assert.equal(signal.textContent, "3");
+    assert.equal(signal.querySelector(".bg-stone-400")?.getAttribute("class"), RAIL_SIGNAL_DOT.neutral);
+    assert.equal(signal.querySelector(".font-mono")?.getAttribute("class"), RAIL_SIGNAL_COUNT.neutral);
+    assert.equal(accessibleName(overviewRow(container)), "overview, 3 couldn't be read");
+  });
+
+  test("clean: nothing", () => {
+    const { container } = render(<Rail rail={railData()} health={cleanHealth()} healthError={false} />);
+    assert.ok(container.querySelector("[data-signal]") === null, "a signal over nothing");
+    assert.equal(accessibleName(overviewRow(container)), "overview");
+  });
+
+  test("a failed poll: a neutral dot and no number, even with old data", () => {
+    for (const health of [healthWith(3), null]) {
+      const { container, unmount } = render(<Rail rail={railData()} health={health} healthError={true} />);
+      const signal = overviewRow(container).querySelector("[data-signal]");
+      assert.ok(signal);
+      assert.equal(signal.querySelector("span")?.getAttribute("class"), RAIL_SIGNAL_DOT.neutral);
+      assert.ok(signal.querySelector(".bg-red-300") === null, "a remembered Scorch");
+      assert.doesNotMatch(signal.textContent ?? "", /\d/);
+      assert.equal(accessibleName(overviewRow(container)), "overview, health unavailable");
+      unmount();
+    }
+  });
+
+  test("overview is current on /, activity on /activity, sites on /sites", () => {
+    for (const [pathname, href] of [
+      ["/", "/"],
+      ["/activity", "/activity"],
+      ["/sites", "/sites"],
+    ] as const) {
+      const { container, unmount } = render(
+        <MemoryRouter initialEntries={[pathname]}>
+          <ClientNavContext.Provider value={{ pathname, locationKey: "k", navigate: () => {}, documentLoad: true }}>
+            <Rail rail={railData()} health={null} healthError={false} />
+          </ClientNavContext.Provider>
+        </MemoryRouter>,
+      );
+      const current = Array.from(container.querySelectorAll('a[aria-current="page"]')).map((a) => a.getAttribute("href"));
+      assert.deepEqual(current, [href], pathname);
+      unmount();
+    }
+  });
+
+  test("an activity row follows overview as a plain router link with no mark", () => {
     const { container } = render(
-      <Rail rail={railData()} health={seedHealth()} healthError={true} lastRead={lastRead} now={now} />,
+      <MemoryRouter initialEntries={["/"]}>
+        <ClientNavContext.Provider value={{ pathname: "/", locationKey: "k", navigate: () => {}, documentLoad: true }}>
+          <Rail rail={railData()} health={seedHealth()} healthError={false} />
+        </ClientNavContext.Provider>
+      </MemoryRouter>,
     );
-    for (const host of ["api.lychee.land", "app.lychee.land", "preview.lychee.land", "broken.lychee.land", "legacy.lychee.land"]) {
-      assert.equal(dotClass(container, host), RAIL_DOT.neutral, `${host} is not neutral`);
-    }
-    for (const host of ["lychee.land", "blog.lychee.land"]) {
-      assert.equal(dotClass(container, host), RAIL_DOT.none, `static ${host} is not hollow`);
-    }
-    for (const name of ["sites", "service", "reconciler", "infrastructure"]) {
-      assert.equal(count(container, name)?.textContent, "", `${name} still shows a count`);
-    }
-    assert.match(container.textContent ?? "", /health unavailable · last read 2 minutes ago/);
-    assert.doesNotMatch(container.textContent ?? "", /not responding/);
-  });
-
-  test("an errored poll before any read says only that health is unavailable", () => {
-    const { container } = render(<Rail rail={railData()} health={null} healthError={true} lastRead={null} />);
-    assert.match(container.textContent ?? "", /health unavailable/);
-    assert.doesNotMatch(container.textContent ?? "", /last read/);
-    assert.equal(dotClass(container, "api.lychee.land"), RAIL_DOT.neutral);
-  });
-
-  test("the rail's list wins where the payload disagrees", () => {
-    const health: HealthPayload = seedHealth();
-    health.sites = health.sites.filter((s) => s.hostname !== "legacy.lychee.land");
-    health.sites.push({ hostname: "removed.lychee.land", tone: "bad", label: "failed", attention: true });
-    const { container } = render(<Rail rail={railData()} health={health} healthError={false} lastRead={null} />);
-    assert.equal(dotClass(container, "legacy.lychee.land"), RAIL_DOT.none);
-    assert.equal(container.querySelector('[data-site="removed.lychee.land"]'), null);
-    assert.equal(container.querySelectorAll("[data-site]").length, 8);
-    // The unlisted entry is ignored by the count as well: only the seed's two listed sites need attention.
-    assert.equal(shown(chip(container, "sites", "bad")), "2");
-  });
-
-  test("units unavailable: the sites count shows and the host counts are absent", () => {
-    const health: HealthPayload = { ...seedHealth(), units: null };
-    const { container } = render(<Rail rail={railData()} health={health} healthError={false} lastRead={null} />);
-    assert.equal(shown(chip(container, "sites", "bad")), "2");
-    for (const name of ["service", "reconciler", "infrastructure"]) {
-      assert.equal(count(container, name)?.textContent ?? "", "", `${name} shows a count`);
-    }
+    const links = Array.from(container.querySelectorAll('nav[aria-label="Overview"] > a'));
+    assert.deepEqual(links.map((a) => a.getAttribute("href")), ["/", "/activity"]);
+    assert.equal(links[1]?.textContent, "activity");
+    assert.equal(links[1]?.children.length, 0, "the activity row carries a mark");
   });
 
   test("the find hint is the one it is given", () => {
     const { container } = render(
-      <Rail rail={railData()} health={null} healthError={false} lastRead={null} findHint="Ctrl K" />,
+      <Rail rail={railData()} health={null} healthError={false} findHint="Ctrl K" />,
     );
     assert.equal(container.querySelector("[data-find-hint]")?.textContent, "Ctrl K");
   });
 
   // Task 3 broke a hostname that fits mid-word; it wraps only when it cannot fit.
   test("a hostname wraps only where it cannot fit, as the server's does", () => {
-    const { container } = render(<Rail rail={railData()} health={null} healthError={false} lastRead={null} />);
+    const { container } = render(<Rail rail={railData()} health={null} healthError={false} />);
     const name = container.querySelector('[data-site="preview.lychee.land"] .min-w-0');
     assert.equal(name?.getAttribute("class"), "min-w-0 [overflow-wrap:anywhere]");
   });
@@ -254,7 +326,7 @@ describe("rail rows show the label only", () => {
   };
 
   test("a subdomain's row shows its label, with the domain as screen-reader text", () => {
-    const { container } = render(<Rail rail={railData()} health={null} healthError={false} lastRead={null} />);
+    const { container } = render(<Rail rail={railData()} health={null} healthError={false} />);
     const row = rowOf(container, "preview.lychee.land");
     const name = row.querySelector(".min-w-0");
     assert.equal(name?.querySelector(".text-stone-50")?.textContent, "preview");
@@ -265,15 +337,15 @@ describe("rail rows show the label only", () => {
   });
 
   test("the apex row shows the whole name and hides nothing", () => {
-    const { container } = render(<Rail rail={railData()} health={null} healthError={false} lastRead={null} />);
+    const { container } = render(<Rail rail={railData()} health={null} healthError={false} />);
     const name = rowOf(container, "lychee.land").querySelector(".min-w-0");
     assert.equal(name?.textContent, "lychee.land");
     assert.equal(name?.querySelector(".sr-only"), null);
   });
 
   test("the sites heading names the domain once, hidden from assistive tech", () => {
-    const { container } = render(<Rail rail={railData()} health={null} healthError={false} lastRead={null} />);
-    const heading = container.querySelector('nav[aria-label="Sites"] > a[href="/"]');
+    const { container } = render(<Rail rail={railData()} health={null} healthError={false} />);
+    const heading = container.querySelector('nav[aria-label="Sites"] > a[href="/sites"]');
     assert.ok(heading);
     const domain = heading.querySelector("[data-rail-domain]");
     assert.equal(domain?.textContent, " · lychee.land");
@@ -286,12 +358,12 @@ const serverTopBarInner = (): string => fixtureInner("top-bar", "header#top-bar"
 
 describe("TopBar parity with the frozen server top bar", () => {
   test("before any health, React's top bar is the server's", () => {
-    const client = renderToStaticMarkup(<TopBar health={null} healthError={false} hostnames={[]} onOpen={() => {}} />);
+    const client = renderToStaticMarkup(<TopBar health={null} healthError={false} onOpen={() => {}} />);
     assert.equal(canonical(client), canonical(serverTopBarInner()));
   });
 
-  test("an errored poll renders the server's empty count slot", () => {
-    const client = renderToStaticMarkup(<TopBar health={seedHealth()} healthError={true} hostnames={[]} onOpen={() => {}} />);
+  test("with nothing to report, the menu button is the server's", () => {
+    const client = renderToStaticMarkup(<TopBar health={cleanHealth()} healthError={false} onOpen={() => {}} />);
     assert.equal(canonical(client), canonical(serverTopBarInner()));
   });
 });
@@ -305,7 +377,7 @@ function mountNavigation(health: HealthPayload | null = seedHealth(), healthErro
   document.body.innerHTML = `<textarea id="elsewhere"></textarea>`;
   const visits: string[] = [];
   render(
-    <Navigation rail={rail} health={health} healthError={healthError} lastRead={null} navigate={(href) => visits.push(href)} />,
+    <Navigation rail={rail} health={health} healthError={healthError} navigate={(href) => visits.push(href)} />,
   );
   const aside = document.querySelector<HTMLElement>("aside#rail");
   const header = document.querySelector<HTMLElement>("header#top-bar");
@@ -345,75 +417,42 @@ describe("the top bar and its drawer", () => {
     assert.equal(header.querySelectorAll("#rail-find").length, 1);
   });
 
-  // Each thing once: a site's container counts as its site, so the overall
-  // count can be less than the rail's chips added up (critique 2026-10-27 P1).
-  test("the overall count is everything once, bad and unknown apart", () => {
-    const h = seedHealth();
-    h.units?.push({ ...(h.units ?? [])[0]!, name: "broken-lychee-land", tone: "bad", label: "failed", attention: true, site: "broken.lychee.land" });
-    const { header } = mountNavigation(h);
-    assert.equal(shown(chip(header, "all", "bad")), "5");
-    assert.equal(chip(header, "all", "unknown"), null);
-    assert.equal(chip(header, "all", "bad")?.querySelector(".sr-only")?.textContent, " need attention");
+  // The same signal as the rail's overview row, on the button that opens the
+  // drawer holding it.
+  test("the menu button carries the same signal", () => {
+    const { header } = mountNavigation(healthWith(3));
+    const menu = header.querySelector("#rail-menu");
+    assert.ok(menu);
+    const badge = menu.querySelector("[data-signal]");
+    assert.equal(badge?.textContent, "● 5");
+    assert.equal(badge?.getAttribute("aria-hidden"), "true");
+    assert.equal(badge?.getAttribute("class"), MENU_BADGE.bad);
+    assert.equal(menu.getAttribute("aria-label"), "Open navigation, 5 need attention");
+    assert.ok((menu.getAttribute("class") ?? "").split(" ").includes("relative"), "the badge has no box to sit in");
+    // The top bar carries no other mark.
+    assert.ok(header.querySelector("[data-count]") === null, "the top bar's count");
+    assert.equal(header.querySelectorAll("[data-signal]").length, 1);
+    cleanup();
+
+    const { header: quiet } = mountNavigation(cleanHealth());
+    const plain = quiet.querySelector("#rail-menu");
+    assert.equal(plain?.getAttribute("aria-label"), "Open navigation");
+    assert.ok(plain?.querySelector("[data-signal]") === null, "a badge over nothing");
   });
 
-  test("the overall count shows nothing when nothing needs attention", () => {
-    const h = seedHealth();
-    const quiet = {
-      ...h,
-      sites: h.sites.map((s) => ({ ...s, tone: s.tone === "none" ? ("none" as const) : ("ok" as const), attention: false })),
-      units: (h.units ?? []).map((u) => ({ ...u, tone: "ok" as const, label: "running", attention: false, trouble: null })),
-    };
-    const { header } = mountNavigation(quiet);
-    const slot = header.querySelector('[data-count="all"]');
-    assert.ok(slot !== null, "the slot stays, empty");
-    assert.equal(slot?.textContent, "");
-  });
+  test("the menu button: unknown only, and a failed poll", () => {
+    const { header } = mountNavigation(healthWith(3, false));
+    const badge = header.querySelector("#rail-menu [data-signal]");
+    assert.equal(badge?.textContent, "● 3");
+    assert.equal(badge?.getAttribute("class"), MENU_BADGE.neutral);
+    assert.equal(header.querySelector("#rail-menu")?.getAttribute("aria-label"), "Open navigation, 3 couldn't be read");
+    cleanup();
 
-  // Critique 2026-10-27 P1: a Scorch number never carries an unknown. What is
-  // bad is a Scorch chip, what could not be read a neutral one beside it, and
-  // each says what it counts to a listener.
-  test("bad and unknown are two chips, never one sum", () => {
-    const h = seedHealth();
-    const units = (h.units ?? []).map((u) => (u.name === "lychee-watch" ? { ...u, tone: "neutral" as const, label: "unknown" } : u));
-    units.push({ ...units[0]!, name: "lychee-notes", group: "service", tone: "neutral", label: "unknown", attention: false, trouble: null });
-    const { container } = render(<Rail rail={railData()} health={{ ...h, units }} healthError={false} lastRead={null} />);
-    assert.equal(chip(container, "reconciler", "bad"), null);
-    assert.equal(shown(chip(container, "reconciler", "unknown")), "1");
-    assert.equal(chip(container, "reconciler", "unknown")?.getAttribute("class"), RAIL_COUNT_UNKNOWN);
-    assert.equal(shown(chip(container, "service", "bad")), "3");
-    assert.equal(shown(chip(container, "service", "unknown")), "1");
-    assert.equal(count(container, "service")?.textContent, "3 need attention, 1 unknown");
-    assert.equal(count(container, "reconciler")?.textContent, "1 unknown");
-    // The link's text is its accessible name: the label, then what it counts.
-    assert.equal(container.querySelector('a[href="/reconciler"]')?.textContent, "reconciler, 1 unknown");
-    // A group with nothing to count shows nothing.
-    assert.equal(count(container, "infrastructure")?.textContent, "");
-  });
-
-  // Review 2026-10-27: one is singular, as the board's summary line says it.
-  test("one bad thing is spoken in the singular", () => {
-    const h = seedHealth();
-    const units = (h.units ?? []).map((u) => (u.name === "lychee-watch" ? { ...u, tone: "bad" as const, label: "exited", attention: true } : u));
-    const { container } = render(<Rail rail={railData()} health={{ ...h, units }} healthError={false} lastRead={null} />);
-    assert.equal(container.querySelector('a[href="/reconciler"]')?.textContent, "reconciler, 1 needs attention");
-  });
-
-  test("the overall count shows unknowns as their own neutral chip", () => {
-    const h = seedHealth();
-    const quiet = {
-      ...h,
-      sites: h.sites.map((s) => ({ ...s, tone: s.tone === "bad" ? ("ok" as const) : s.tone, attention: false })),
-      units: [{ ...(h.units ?? [])[0]!, name: "lychee-watch", group: "reconciler" as const, tone: "neutral" as const, label: "unknown", attention: false, trouble: null }],
-    };
-    const { header } = mountNavigation(quiet);
-    assert.equal(chip(header, "all", "bad"), null);
-    assert.equal(shown(chip(header, "all", "unknown")), "1");
-    assert.equal(header.querySelector('[data-count="all"]')?.textContent, "1 unknown");
-  });
-
-  test("an errored poll empties the overall count", () => {
-    const { header } = mountNavigation(seedHealth(), true);
-    assert.equal(header.querySelector('[data-count="all"]')?.textContent, "");
+    const { header: failed } = mountNavigation(healthWith(3), true);
+    const mark = failed.querySelector("#rail-menu [data-signal]");
+    assert.equal(mark?.textContent, "●");
+    assert.equal(mark?.getAttribute("class"), MENU_BADGE.neutral);
+    assert.equal(failed.querySelector("#rail-menu")?.getAttribute("aria-label"), "Open navigation, health unavailable");
   });
 
   test("the menu button opens a modal dialog holding the rail's site rows", () => {
@@ -585,9 +624,9 @@ describe("the rail's design rules, in states the fixtures cannot hold", () => {
 
   test("with health filled in, trouble on a site and a unit, a site current", () => {
     const { container } = render(
-      <Rail rail={railData({ current: { site: "broken.lychee.land" } })} health={seedHealth()} healthError={false} lastRead={null} />,
+      <Rail rail={railData({ current: { site: "broken.lychee.land" } })} health={seedHealth()} healthError={false} />,
     );
-    assert.equal(shown(chip(container, "sites", "bad")), "2", "the state has no site trouble");
+    assert.ok(container.querySelector("[data-signal]"), "the state has no trouble");
     assertRules(container, "health");
   });
 
@@ -597,7 +636,6 @@ describe("the rail's design rules, in states the fixtures cannot hold", () => {
         rail={railData({ current: { page: "services" } })}
         health={seedHealth()}
         healthError={false}
-        lastRead={null}
         findInitial={{ query: "lychee", focused: true }}
       />,
     );
@@ -608,7 +646,7 @@ describe("the rail's design rules, in states the fixtures cannot hold", () => {
   test("each rule fails when it is broken", () => {
     // A detached copy, never React's own DOM, which the breaks would corrupt.
     const clean = renderToStaticMarkup(
-      <Rail rail={railData({ current: { site: "broken.lychee.land" } })} health={seedHealth()} healthError={false} lastRead={null} />,
+      <Rail rail={railData({ current: { site: "broken.lychee.land" } })} health={seedHealth()} healthError={false} />,
     );
     const container = document.createElement("div");
     container.innerHTML = clean;

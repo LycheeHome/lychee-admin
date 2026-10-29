@@ -133,7 +133,7 @@ describe("renderSiteDetail header", () => {
   test("replaces the back link with a breadcrumb to the site list", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     assert.match(html, /aria-label="Breadcrumb"/);
-    assert.match(html, /<a href="\/"[^>]*>sites<\/a>/);
+    assert.match(html, /<a href="\/sites"[^>]*>sites<\/a>/);
     assert.doesNotMatch(html, /Back to sites/);
   });
 
@@ -207,6 +207,24 @@ describe("renderSiteDetail header", () => {
       assert.ok(tag.includes('target="_blank"'));
       assert.doesNotMatch(tag, /\s(aria-)?disabled[=\s>]/);
     }
+  });
+
+  test("Activity sits immediately before Visit, Secondary whatever Visit is", () => {
+    const cases: [Site, Partial<SiteDetailOptions>][] = [
+      [STATIC_SITE, {}],
+      [PROXY_SITE, { status: { kind: "tcp", responding: false } }],
+    ];
+    for (const [site, extra] of cases) {
+      const html = renderSiteDetail(site, { ...OPTS, ...extra });
+      const m = html.match(/<a [^>]*>Activity<\/a><a [^>]*>Visit /);
+      assert.ok(m, `Activity not directly before Visit for ${site.hostname}`);
+      assert.ok(m[0].startsWith(`<a href="/activity?subject=${site.hostname}" class="${BUTTON_SECONDARY} no-underline shrink-0">Activity</a>`));
+    }
+  });
+
+  test("not-found and Caddyfile-error bodies have no Activity link", () => {
+    assert.doesNotMatch(renderSiteNotFound("nope.lychee.land"), />Activity</);
+    assert.doesNotMatch(renderToStaticMarkup(<CaddyfileError message="x" />), />Activity</);
   });
 
   test("wires the hostname copy button to the existing generic handler", () => {
@@ -295,7 +313,7 @@ describe("the site detail breadcrumb", () => {
 
   test("is plain location text: sites / <hostname>", () => {
     const block = breadcrumb(renderSiteDetail(STATIC_SITE, OPTS));
-    assert.match(block, /<a href="\/"[^>]*>sites<\/a>\s*<span[^>]*aria-hidden="true">\/<\/span>\s*<span class="text-stone-50">blog\.lychee\.land<\/span>/);
+    assert.match(block, /<a href="\/sites"[^>]*>sites<\/a>\s*<span[^>]*aria-hidden="true">\/<\/span>\s*<span class="text-stone-50">blog\.lychee\.land<\/span>/);
   });
 
   test("carries no dropdown and lists no other site", () => {
@@ -887,7 +905,7 @@ describe("hardening: browser defaults never carry the design", () => {
   // The add page's half of this test is in AddSiteMarkup.test.tsx.
   test("every interactive element the design draws gets the project focus ring", () => {
     const notFound = renderSiteNotFound("nope.lychee.land");
-    const back = notFound.match(/<a href="\/"[^>]*>/);
+    const back = notFound.match(/<a href="\/sites"[^>]*>/);
     assert.ok(back, "no back link rendered");
     assert.match(back[0], /focus-visible:outline-rose-400/);
   });
@@ -1894,6 +1912,6 @@ describe("the unreadable-Caddyfile body", () => {
     const html = body("boom");
     assert.doesNotMatch(html, /<h2[^>]*>\s*Sites\s*<\/h2>/);
     assert.doesNotMatch(html, /id="empty-state"/);
-    assert.match(html, /<a href="\/"[^>]*>← sites<\/a>/);
+    assert.match(html, /<a href="\/sites"[^>]*>← sites<\/a>/);
   });
 });

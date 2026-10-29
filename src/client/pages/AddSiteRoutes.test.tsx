@@ -8,7 +8,7 @@ import { QueryClient } from "@tanstack/react-query";
 import type { AddSitePayload } from "../../shared/addSite";
 import type { SitesPayload } from "../../shared/sites";
 import { SEEDED_RAIL_SITES, seedAddSitePayload } from "../../dev/testHelpers";
-import { RAIL_DOT } from "../../views/railModel";
+import { RAIL_SIGNAL_DOT } from "../../views/overviewModel";
 import { seedHealth } from "../test/healthFixture";
 import { loadStaticDocument, railPayload } from "../test/staticDocument";
 import { siteOf } from "../clientNav";
@@ -136,8 +136,12 @@ const label = (el: Element | null | undefined) =>
 function assertFocus(el: Element | null | undefined) {
   assert.ok(document.activeElement === el, `focus is on ${label(document.activeElement)}, not ${label(el)}`);
 }
+/** The rail is live once its rows are in and health has landed on overview's signal. */
 const railLive = () =>
-  waitFor(() => assert.equal(document.querySelector('#rail [data-site="api.lychee.land"] [data-dot]')?.getAttribute("class"), RAIL_DOT.bad), TIMEOUT);
+  waitFor(() => {
+    assert.ok(document.querySelector('#rail [data-site="api.lychee.land"]'), "no rows yet");
+    assert.equal(document.querySelector("#rail [data-signal] > span")?.getAttribute("class"), RAIL_SIGNAL_DOT.bad);
+  }, TIMEOUT);
 const showingForm = () => waitFor(() => assert.ok(form(), "no add form"), TIMEOUT);
 const showingList = () => waitFor(() => assert.ok(document.querySelector('main a[href="/sites/blog.lychee.land"]'), "no list"), TIMEOUT);
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -162,7 +166,7 @@ function clickCancelled(link: Element): boolean {
 
 /** From the list to the add page by its Add site button, in-app. */
 async function arriveFromList(): Promise<void> {
-  load("/");
+  load("/sites");
   await railLive();
   await showingList();
   const add = document.querySelector('main a[href="/sites/new"]');
@@ -172,7 +176,7 @@ async function arriveFromList(): Promise<void> {
 }
 
 const cancelLink = () =>
-  Array.from(document.querySelectorAll<HTMLAnchorElement>('#add-site-form a[href="/"]')).find((a) => a.textContent === "Cancel") ?? null;
+  Array.from(document.querySelectorAll<HTMLAnchorElement>('#add-site-form a[href="/sites"]')).find((a) => a.textContent === "Cancel") ?? null;
 
 function type(hostname: string): void {
   const field = document.getElementById("hostname-field") as HTMLInputElement;
@@ -342,7 +346,7 @@ describe("the add page route", () => {
   });
 
   test("the empty state's Add your first site loads no document", async () => {
-    load("/", { ...SITES, sites: [], statuses: {} });
+    load("/sites", { ...SITES, sites: [], statuses: {} });
     const cta = await waitFor(() => document.getElementById("empty-state-cta") ?? assert.fail("no empty state"), TIMEOUT);
     assert.equal(clickCancelled(cta), true, "the click was left to the browser");
     await showingForm();
@@ -352,7 +356,7 @@ describe("the add page route", () => {
   });
 
   test("an arrival keeps focus in a wide-screen #find", async () => {
-    load("/");
+    load("/sites");
     await railLive();
     await showingList();
     const find = document.querySelector<HTMLInputElement>("#find") as HTMLInputElement;
@@ -377,7 +381,7 @@ describe("the add page route", () => {
 
   for (const [name, find] of [
     ["Cancel", () => cancelLink()],
-    ["the breadcrumb's sites link", () => document.querySelector('main nav[aria-label="Breadcrumb"] a[href="/"]')],
+    ["the breadcrumb's sites link", () => document.querySelector('main nav[aria-label="Breadcrumb"] a[href="/sites"]')],
   ] as const) {
     test(`${name} returns to the list in-app`, async () => {
       load("/sites/new");
@@ -388,9 +392,9 @@ describe("the add page route", () => {
       assert.equal(clickCancelled(link), true, "the click was left to the browser");
       await showingList();
       assert.ok(!form());
-      assert.equal(window.location.pathname, "/");
+      assert.equal(window.location.pathname, "/sites");
       assert.equal(document.title, "Sites");
-      assert.deepEqual(marked(), ["/"]);
+      assert.deepEqual(marked(), ["/sites"]);
       await waitFor(() => assertFocus(listHeading()), TIMEOUT);
       assert.deepEqual(assigned, []);
     });
@@ -421,7 +425,7 @@ describe("RF3: leaving mid-preview and mid-submit", () => {
       await sleep(400);
     });
     assert.equal(previews(), before, "a preview went out after the page had gone");
-    assert.equal(window.location.pathname, "/");
+    assert.equal(window.location.pathname, "/sites");
   });
 
   // The page is gone as of the commit that removes it. An answer that lands
@@ -518,7 +522,7 @@ describe("RF3: leaving mid-preview and mid-submit", () => {
           assert.ok(!document.getElementById("flash-banner-close")?.classList.contains("hidden"), "no close button");
         }
         assert.deepEqual(assigned, []);
-        assert.equal(window.location.pathname, "/");
+        assert.equal(window.location.pathname, "/sites");
         assert.ok(document.querySelector('main a[href="/sites/blog.lychee.land"]'), "the list went");
         assert.deepEqual(failures, []);
       } finally {

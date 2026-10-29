@@ -231,7 +231,7 @@ describe("the remove chain", () => {
     assert.equal(d.dialog.getAttribute("aria-busy"), "true");
     assert.ok(d.submit.disabled && d.cancel.disabled);
     await act(async () => detach.resolve(json(200, { ok: true })));
-    await waitFor(() => assert.deepEqual(d.go, ["/?removed=app.lychee.land"]), TIMEOUT);
+    await waitFor(() => assert.deepEqual(d.go, ["/sites?removed=app.lychee.land"]), TIMEOUT);
     assert.equal(d.mark("declaration"), "✓");
     assert.deepEqual(urls(), ["/sites/app.lychee.land/delete", "/sites/app.lychee.land/detach"]);
   });
@@ -241,7 +241,7 @@ describe("the remove chain", () => {
     const d = await openDialog(await propsFor("legacy.lychee.land"));
     assert.ok(!d.dialog.hasAttribute("data-attached"));
     fireEvent.click(d.submit);
-    await waitFor(() => assert.deepEqual(d.go, ["/?removed=legacy.lychee.land"]), TIMEOUT);
+    await waitFor(() => assert.deepEqual(d.go, ["/sites?removed=legacy.lychee.land"]), TIMEOUT);
     assert.deepEqual(urls(), ["/sites/legacy.lychee.land/delete"]);
   });
 
@@ -271,7 +271,7 @@ describe("the remove chain", () => {
     assert.equal(calls[0].body, "deleteFiles=on");
 
     fireEvent.click(ACTION());
-    await waitFor(() => assert.deepEqual(d.go, ["/?removed=app.lychee.land"]), TIMEOUT);
+    await waitFor(() => assert.deepEqual(d.go, ["/sites?removed=app.lychee.land"]), TIMEOUT);
     assert.deepEqual(urls(), [
       "/sites/app.lychee.land/delete",
       "/sites/app.lychee.land/detach",

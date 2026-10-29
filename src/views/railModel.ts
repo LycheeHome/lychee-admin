@@ -5,7 +5,7 @@ import type { Site } from "../lib/caddyfile";
 import { describeStatus, type SiteStatus } from "../lib/siteDisplay";
 import { hostnameForResource } from "../lib/siteNames";
 import type { BoardRow, ServiceBoard, ServiceGroup } from "../shared/board";
-import type { HealthPayload, SiteHealth, Tone, UnitHealth } from "../shared/health";
+import type { HealthPayload, SiteHealth, UnitHealth } from "../shared/health";
 import type { ActionState } from "../lib/hostOperations";
 import { rowShown, type RowShownContext } from "./boardRowModel";
 import { FOCUS_RING, INPUT } from "./shared";
@@ -22,6 +22,11 @@ const GROUP_PAGE: Record<ServiceGroup, string> = {
   reconciler: "/reconciler",
   infrastructure: "/infrastructure",
 };
+
+/** A unit's board row: the page for its group, at the row's anchor. */
+export function unitHref(name: string, group: ServiceGroup): string {
+  return `${GROUP_PAGE[group]}#service-${name}`;
+}
 
 const NOTHING_SHOWN: RowShownContext = { prunable: new Set(), retiring: new Set(), domain: "", run: undefined };
 
@@ -52,7 +57,7 @@ export function unitHealth(
     tone,
     label: pill,
     trouble,
-    href: `${GROUP_PAGE[group]}#service-${row.name}`,
+    href: unitHref(row.name, group),
     attention: tone === "bad" || trouble !== null,
     site,
   };
@@ -83,7 +88,12 @@ export function buildHealth(
         }),
       )
     : null;
-  return { sites: sites.map((s) => siteHealth(s, statuses[s.hostname])), units, now: now.toISOString() };
+  return {
+    sites: sites.map((s) => siteHealth(s, statuses[s.hostname])),
+    units,
+    generated: board.inventoryAvailable ? board.generated : null,
+    now: now.toISOString(),
+  };
 }
 
 /**
@@ -95,7 +105,7 @@ export function buildHealth(
 export type GroupCount = { bad: number; unknown: number };
 
 /** A neutral `unknown` that is not already counted as needing attention. */
-const isUnknown = (e: { label: string; attention: boolean }) => !e.attention && e.label === "unknown";
+export const isUnknown = (e: { label: string; attention: boolean }) => !e.attention && e.label === "unknown";
 
 export function attentionCounts(
   h: HealthPayload,
@@ -204,13 +214,6 @@ export const RAIL_NOTE = "m-0 px-2 py-1 font-sans text-[0.8rem] leading-snug tex
  */
 export const RAIL_HINT = "ml-auto shrink-0 text-[0.72rem] text-stone-300";
 
-export const RAIL_DOT: Record<Tone, string> = {
-  ok: "inline-block size-2 shrink-0 rounded-full bg-green-300",
-  bad: "inline-block size-2 shrink-0 rounded-full bg-red-300",
-  neutral: "inline-block size-2 shrink-0 rounded-full bg-stone-400",
-  none: "inline-block size-2 shrink-0 rounded-full border border-stone-600 bg-transparent",
-};
-
 /**
  * The ⌘K find panel. It floats above the page beside the rail, so it takes
  * the Overlay shadow (true float), on the rail's own Hearth with a Hairline,
@@ -238,8 +241,6 @@ export const FIND_EMPTY = RAIL_NOTE;
 export const FIND_TROUBLE = "font-mono text-[0.72rem] text-red-300";
 
 export const RAIL_COUNT_BAD ="font-mono text-[0.75rem] rounded-full px-1.5 bg-red-950/60 text-red-300";
-/** The slot holding a count's chips, Scorch first, side by side. */
-export const RAIL_COUNT_PAIR = "inline-flex items-center gap-1";
 /** A count of units nobody could read: the neutral pill's colours on the bad chip's shape. Never Scorch. */
 // The inset ring is its edge on the current row, whose ground is the same stone-700.
 export const RAIL_COUNT_UNKNOWN =

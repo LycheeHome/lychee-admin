@@ -3,7 +3,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import Ajv2020 from "ajv/dist/2020";
 import { loadContractJson } from "./contract";
-import { SEEDED_INVENTORY } from "./seed";
+import { config } from "../config";
+import { readAuditTail } from "../lib/auditLog";
+import { EVENTS_PATH } from "../lib/platform";
+import { readReconcilerEvents } from "../lib/reconcilerEvents";
+import { buildActivity } from "../views/activityModel";
+import { createInMemoryFileSystem } from "./fakes";
+import { applySeed, SEEDED_EVENTS, SEEDED_INVENTORY } from "./seed";
 
 // The inventory schema uses no `format` keywords (timestamps are patterns), so
 // ajv-formats is deliberately not a dependency.
@@ -16,6 +22,17 @@ function compile() {
 test("the seeded inventory validates against the contract's inventory schema", () => {
   const { ajv, validate } = compile();
   const ok = validate(JSON.parse(SEEDED_INVENTORY));
+  assert.ok(ok, ajv.errorsText(validate.errors, { separator: "\n" }));
+});
+
+test("the seeded feed validates against the contract's events schema", () => {
+  const ajv = new Ajv2020({ allErrors: true, strict: true, strictRequired: false });
+  // The events schema's one `format` is the lifetime id's uuid; checked by shape
+  // here rather than by adding ajv-formats as a dependency.
+  ajv.addFormat("uuid", /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  ajv.addSchema(loadContractJson<object>("schemas/common.schema.json"));
+  const validate = ajv.compile(loadContractJson<object>("schemas/events.schema.json"));
+  const ok = validate(JSON.parse(SEEDED_EVENTS));
   assert.ok(ok, ajv.errorsText(validate.errors, { separator: "\n" }));
 });
 
@@ -32,4 +49,66 @@ test("container rows carry release tags in the contract's form", () => {
       if (typeof v === "string" && v !== "") assert.match(v, pattern, `${row.name}.${key}`);
     }
   }
+});
+
+function seeded() {
+  const fs = createInMemoryFileSystem();
+  applySeed(fs);
+  return fs;
+}
+
+test("the seeded feed parses and holds every event type", () => {
+  const lifetimes = readReconcilerEvents(seeded(), EVENTS_PATH);
+  assert.ok(lifetimes);
+  const types = new Set(lifetimes.flatMap((l) => l.events.map((e) => e.type)));
+  assert.deepEqual(
+    [...types].sort(),
+    ["added", "awaiting-image", "blocked", "deployed", "down", "failed", "recovered", "removed", "stopped"],
+  );
+});
+
+test("the seeded feed has a closed lifetime and a shared tick", () => {
+  const lifetimes = readReconcilerEvents(seeded(), EVENTS_PATH) ?? [];
+  const closed = lifetimes.filter((l) => !l.open);
+  assert.equal(closed.length, 1);
+  assert.equal(closed[0].name, "old-lychee-land");
+  assert.ok(closed[0].removed_at);
+  const notes = lifetimes.find((l) => l.name === "lychee-notes");
+  const events = notes?.events ?? [];
+  const recIdx = events.findIndex((e) => e.type === "recovered");
+  const depIdx = events.findIndex((e) => e.type === "deployed");
+  assert.ok(recIdx >= 0 && depIdx >= 0);
+  assert.equal(events[recIdx].at, events[depIdx].at);
+  assert.ok(depIdx < recIdx, "A-HIST-1: deployed comes before recovered within a tick");
+});
+
+test("the seeded audit log reads back in full", () => {
+  assert.equal(readAuditTail(seeded(), 50, config.logFile)?.length, 5);
+});
+
+test("seeded activity has both sources and fills the page", () => {
+  const fs = seeded();
+  const events = buildActivity(
+    readAuditTail(fs, 50, config.logFile),
+    readReconcilerEvents(fs, EVENTS_PATH),
+    { domain: config.domain, sites: new Set(), units: new Map() },
+    8,
+  );
+  assert.equal(events.length, 8);
+  assert.deepEqual([...new Set(events.map((e) => e.who))].sort(), ["app", "reconciler"]);
+});
+
+test("the seeded failed remove carries the app's error as its detail", () => {
+  const fs = seeded();
+  const events = buildActivity(
+    readAuditTail(fs, 50, config.logFile),
+    readReconcilerEvents(fs, EVENTS_PATH),
+    { domain: config.domain, sites: new Set(), units: new Map() },
+    50,
+  );
+  const failed = events.find((e) => e.subject === "legacy.lychee.land" && e.who === "app");
+  assert.equal(
+    failed?.detail,
+    "caddy validate: Error: adapting config using caddyfile: ambiguous site definition: http://legacy.lychee.land",
+  );
 });

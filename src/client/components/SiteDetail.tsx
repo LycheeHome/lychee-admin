@@ -15,6 +15,7 @@ import {
   unitPhrase,
   UNIT_FIX_COMMANDS,
   DETAIL_KEY,
+  SITE_HEADER_ACTIONS,
   DETAIL_ROW,
   HOP_LABEL,
   HOP_VALUE,
@@ -43,7 +44,7 @@ import {
   TONE_TEXT,
   statePhrase,
 } from "../../views/shared";
-import { RailLink } from "../clientNav";
+import { ACTIVITY_ROUTE, RailLink, SITES_ROUTE } from "../clientNav";
 import { CommandBlock, CopyButton, FailureLine, Icon } from "./CommandBlock";
 import { RemoveDialog, type RemoveDialogHandle } from "./RemoveDialog";
 import { RepositoryCard, type SiteWrites } from "./RepositoryCard";
@@ -116,7 +117,7 @@ function Header({ payload, headingRef }: { payload: DetailPayload; headingRef?: 
           indentation between them rendered as a word space each side of the
           slash, on top of its mx-1.5, and the explicit spaces keep that. */}
       <nav className="font-mono text-[0.72rem] text-stone-400 m-0" aria-label="Breadcrumb">
-        <RailLink href="/" className={`text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}`}>
+        <RailLink href={SITES_ROUTE} className={`text-stone-400 no-underline hover:text-stone-50 hover:underline ${FOCUS_RING}`}>
           sites
         </RailLink>{" "}
         <span className="text-stone-600 mx-1.5" aria-hidden="true">
@@ -147,15 +148,20 @@ function Header({ payload, headingRef }: { payload: DetailPayload; headingRef?: 
             </div>
           ) : null}
         </div>
-        <a
-          href={`https://${site.hostname}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`${visitIsForward(status) ? BUTTON_PRIMARY : BUTTON_SECONDARY} no-underline shrink-0`}
-        >
-          {"Visit "}
-          <Icon name="externalLink" />
-        </a>
+        <div className={SITE_HEADER_ACTIONS}>
+          <RailLink href={`${ACTIVITY_ROUTE}?subject=${encodeURIComponent(site.hostname)}`} className={`${BUTTON_SECONDARY} no-underline shrink-0`}>
+            Activity
+          </RailLink>
+          <a
+            href={`https://${site.hostname}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`${visitIsForward(status) ? BUTTON_PRIMARY : BUTTON_SECONDARY} no-underline shrink-0`}
+          >
+            {"Visit "}
+            <Icon name="externalLink" />
+          </a>
+        </div>
       </div>
     </>
   );
@@ -509,7 +515,7 @@ export function SiteNotFound({ hostname }: { hostname: string }) {
         {`No managed site found for "${hostname}".`}
       </p>
       <p className="m-0">
-        <RailLink href="/" className={`${FOCUS_RING} text-rose-400 no-underline font-mono text-[0.85rem] hover:underline`}>
+        <RailLink href={SITES_ROUTE} className={`${FOCUS_RING} text-rose-400 no-underline font-mono text-[0.85rem] hover:underline`}>
           {"← Back to sites"}
         </RailLink>
       </p>
@@ -527,7 +533,7 @@ export function CaddyfileError({ message }: { message: string }) {
       <p className={ERROR_BOX}>{message}</p>
       <p className="m-0">
         <RailLink
-          href="/"
+          href={SITES_ROUTE}
           className={`text-stone-400 no-underline font-mono text-[0.72rem] hover:text-stone-50 hover:underline ${FOCUS_RING}`}
         >
           {"← sites"}

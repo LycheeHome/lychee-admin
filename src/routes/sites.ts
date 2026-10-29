@@ -324,13 +324,18 @@ export function createSitesRouter(deps: Deps): Router {
   const { backupFile } = deps.backup;
   const { logAction } = deps.logger;
 
-  // The list is the client's, and so is everything around it: the static
-  // document, whose React frame reads the rail from /api/rail, the list from
-  // /api/sites and the `?removed` notice off the URL. Always 200: an
-  // unreadable Caddyfile is the page's to show.
+  // The overview at / and the list at /sites are the client's, and so is
+  // everything around them: the static document, whose React frame reads the
+  // rail from /api/rail, the overview from /api/health and /api/activity, the
+  // list from /api/sites and, on /sites, the `?removed` notice off the URL.
+  // Always 200: an unreadable Caddyfile is the page's to show.
   sitesRouter.get("/", (_req, res) => {
     sendClientDocument(res, deps);
   });
+
+  // The sites list moved here when / became the overview. The same document,
+  // always 200, for the same reason.
+  sitesRouter.get("/sites", (_req, res) => sendClientDocument(res, deps));
 
   // The sites list's data for the client. Always 200: an unreadable Caddyfile
   // is a field, not a status, so the page can keep its last good list.

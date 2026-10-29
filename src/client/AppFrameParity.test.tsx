@@ -69,8 +69,8 @@ interface ShellCase {
 }
 
 const SHELL_CASES: Record<string, ShellCase> = {
-  sites: { path: "/", current: { page: "sites" }, page: "sites" },
-  "sites-removed": { path: "/", current: { page: "sites" }, page: "sites", notice: { kind: "removed", host: removed } },
+  sites: { path: "/sites", current: { page: "sites" }, page: "sites" },
+  "sites-removed": { path: "/sites", current: { page: "sites" }, page: "sites", notice: { kind: "removed", host: removed } },
   services: { path: "/services", current: { page: "services" }, page: "services" },
   reconciler: { path: "/reconciler", current: { page: "reconciler" }, page: "reconciler" },
   infrastructure: { path: "/infrastructure", current: { page: "infrastructure" }, page: "infrastructure" },
@@ -91,7 +91,7 @@ const SHELL_CASES: Record<string, ShellCase> = {
   },
   "add-site": { path: "/sites/new", current: null, page: "add-site" },
   "site-unknown": { path: "/sites/unknown.lychee.land", current: null, page: "site" },
-  "caddyfile-unreadable": { path: "/", current: { page: "sites" }, page: "sites", rail: { sites: null } },
+  "caddyfile-unreadable": { path: "/sites", current: { page: "sites" }, page: "sites", rail: { sites: null } },
   "inventory-unavailable": { path: "/services", current: { page: "services" }, page: "services", rail: { hostAvailable: false } },
 };
 
@@ -212,7 +212,7 @@ const RAIL_CASES: Record<string, Partial<RailData>> = {
 function navigation(rail: RailData): HTMLElement {
   let container: HTMLElement | null = null;
   act(() => {
-    container = render(<Navigation rail={rail} health={null} healthError={false} lastRead={null} />).container;
+    container = render(<Navigation rail={rail} health={null} healthError={false} />).container;
   });
   return container as unknown as HTMLElement;
 }
