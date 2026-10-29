@@ -151,15 +151,24 @@ export function attentionCounts(
   };
 }
 
-// The rail's class strings: the retired server rail's exactly, which the frozen rail fixtures pin.
-// The current-item treatment is the old header's: Chalk on Hairline with a 2px Ember Edge rule.
+// The rail's class strings: the retired server rail's, which the frozen rail fixtures pin, less
+// the changes declared in src/client/test/redesigns.ts. The current-item treatment is the old
+// header's: Chalk on Hairline with a 2px Ember Edge rule.
 const RAIL_CURRENT =
   `aria-[current=page]:text-stone-50 aria-[current=page]:bg-stone-700 ` +
   `aria-[current=page]:border-l-2 aria-[current=page]:border-l-rose-800`;
 
+/**
+ * A row's hover: the ground goes Hearth Lift, as a sites-list row's does, so
+ * pointing at a site row (whose label is already Chalk) visibly lands. The
+ * current row's Hairline fill wins over it, since `aria-*` variants follow
+ * `hover:` in the generated CSS.
+ */
+const RAIL_HOVER = "motion-safe:transition-colors motion-safe:duration-150 hover:bg-stone-800";
+
 export const RAIL_ROW =
   `flex items-center gap-2 font-mono text-[0.85rem] no-underline text-stone-400 rounded-md px-2 py-1 ` +
-  `hover:text-stone-50 ${RAIL_CURRENT} ${FOCUS_RING}`;
+  `hover:text-stone-50 ${RAIL_HOVER} ${RAIL_CURRENT} ${FOCUS_RING}`;
 
 /**
  * A row naming a place (`overview`, `activity`, the host links): a site row's
@@ -169,7 +178,7 @@ export const RAIL_ROW =
  */
 export const RAIL_PLACE =
   `flex items-center gap-2 font-sans capitalize text-[0.85rem] no-underline text-stone-400 rounded-md px-2 py-1 ` +
-  `hover:text-stone-50 ${RAIL_CURRENT} ${FOCUS_RING}`;
+  `hover:text-stone-50 ${RAIL_HOVER} ${RAIL_CURRENT} ${FOCUS_RING}`;
 
 /**
  * A section heading, `sites` or `host`: structure, so uppercase and tracked

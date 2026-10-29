@@ -31,6 +31,12 @@ export type Redesign = {
 
 const FOCUS = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
 
+/** A site row's class exactly as the retired server rail wrote it, which every frozen rail fixture holds. */
+const FROZEN_RAIL_ROW =
+  "flex items-center gap-2 font-mono text-[0.85rem] no-underline text-stone-400 rounded-md px-2 py-1 " +
+  `hover:text-stone-50 aria-[current=page]:text-stone-50 aria-[current=page]:bg-stone-700 ` +
+  `aria-[current=page]:border-l-2 aria-[current=page]:border-l-rose-800 ${FOCUS}`;
+
 const RAIL_WHY = "The rail is navigation plus one whole-host signal on overview (spec 2026-10-28-overview-page).";
 
 function escapeRegExp(text: string): string {
@@ -337,9 +343,17 @@ export const REDESIGNS: Redesign[] = [
     id: "rail-place-sans:links",
     since: "2026-10-29",
     why: "A host link names a place, so sans; site rows stay mono (rail place words, 2026-10-29).",
-    from: new RegExp(escapeRegExp(`class="${RAIL_ROW} justify-between"`), "g"),
+    from: new RegExp(escapeRegExp(`class="${FROZEN_RAIL_ROW} justify-between"`), "g"),
     to: `class="${RAIL_PLACE} justify-between"`,
-    anchor: `class="${RAIL_ROW} justify-between"`,
+    anchor: `class="${FROZEN_RAIL_ROW} justify-between"`,
+  },
+  {
+    id: "rail-row-hover",
+    since: "2026-10-29",
+    why: "A rail row's ground goes Hearth Lift on hover, as a sites-list row's does, so pointing at a site row visibly lands (rail hover comparison, \"01 Lift\").",
+    from: new RegExp(escapeRegExp(`class="${FROZEN_RAIL_ROW}"`), "g"),
+    to: `class="${RAIL_ROW}"`,
+    anchor: `class="${FROZEN_RAIL_ROW}"`,
   },
   {
     id: "rail-place-sans:headings",

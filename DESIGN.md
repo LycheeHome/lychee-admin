@@ -837,8 +837,12 @@ content by a `1px` Hairline rule. Top to bottom, at 20px gaps:
 The rail is navigation only and carries no action: Add site lives beside the
 site list's heading as that page's Primary.
 
-Rows and links are 0.85rem in Smoke, going Chalk on hover; headings are 0.75rem
-in Smoke. A site row is mono, like every hostname and port. A place word
+Rows and links are 0.85rem in Smoke; on hover a row goes Chalk on a Hearth Lift
+ground, as a sites-list row does, over a 150ms color transition gated behind
+`motion-safe:` (a site row's label is already Chalk, so before 2026-10-29, when
+hover only changed the text, pointing at one showed nearly nothing). The
+current row keeps its Hairline fill under the pointer, and the `sites` heading
+link changes only its text. Headings are 0.75rem in Smoke. A site row is mono, like every hostname and port. A place word
 (`overview`, `activity`, the `sites` and `host` headings and the three host
 links) is Nunito. The rows are shown capitalized (`Overview`, `Services`) by
 CSS `capitalize`; the two headings, being structure, are uppercase at 0.1em
