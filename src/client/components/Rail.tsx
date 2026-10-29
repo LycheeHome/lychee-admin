@@ -4,7 +4,6 @@ import type { HealthPayload } from "../../shared/health";
 import {
   RAIL_ASIDE,
   RAIL_HEADING,
-  RAIL_HEADING_DOMAIN,
   RAIL_HEADING_LINK,
   RAIL_DRAWER,
   RAIL_HINT,
@@ -200,15 +199,7 @@ export function Rail({
         </nav>
         <nav aria-label="Sites" className="flex flex-col gap-0.5">
           <RailLink href={SITES_ROUTE} className={RAIL_HEADING_LINK} aria-current={ariaCurrent(isPage(current, "sites"))}>
-            {/* The domain is said once here, so a row can show its label alone. */}
-            <span>
-              sites
-              {rail.domain ? (
-                <span className={RAIL_HEADING_DOMAIN} data-rail-domain="" aria-hidden="true">
-                  {` · ${rail.domain}`}
-                </span>
-              ) : null}
-            </span>
+            <span>sites</span>
           </RailLink>
           {rail.sites === null ? (
             <p className={RAIL_NOTE}>Can&apos;t read the Caddyfile</p>
@@ -226,7 +217,7 @@ export function Rail({
                     >
                       <span className={RAIL_HOSTNAME}>
                         <span className="text-stone-50">{lead}</span>
-                        {/* Heard, not shown: the heading names the domain. */}
+                        {/* Heard, not shown: every row shares the domain, so a row shows its label alone. */}
                         {dimmed ? <span className="sr-only">{dimmed}</span> : null}
                       </span>
                       <span className="sr-only">, </span>

@@ -825,8 +825,8 @@ content by a `1px` Hairline rule. Top to bottom, at 20px gaps:
   (below), and under it **activity**, a plain row linking to `/activity`;
 - **sites**, a heading link to the list at `/sites`, then every managed site in
   Caddyfile order: the label and a right-aligned `static` or `:<port>` hint in
-  Smoke Light, with no status mark. The label is Chalk; the domain is said once, as `· lychee.land`
-  beside the heading (hidden from assistive tech), and each row keeps it as
+  Smoke Light, with no status mark. The label is Chalk; the domain is not shown (it was, as `· lychee.land`
+  beside the heading, from 2026-10-27 to 2026-10-29), and each row keeps it as
   screen-reader text, so a row's accessible name is still its full hostname.
   The apex row is `lychee.land` whole. Until 2026-10-27 each row showed
   `.lychee.land` in Smoke and three seed rows wrapped to two lines;
@@ -843,8 +843,7 @@ in Smoke. A site row is mono, like every hostname and port. A place word
 links) is Nunito. The rows are shown capitalized (`Overview`, `Services`) by
 CSS `capitalize`; the two headings, being structure, are uppercase at 0.1em
 tracking (`SITES`, `HOST`), per The Uppercase-Is-Structural Rule. Either way the
-markup and the accessible name keep the plain word, and the `· lychee.land`
-beside `sites` stays mono, untracked and as written. Until 2026-10-29
+markup and the accessible name keep the plain word. Until 2026-10-29
 the whole rail was mono and lowercase. `aria-current="page"` is both the accessibility signal
 and the styling hook (the arbitrary `aria-[current=page]:` variant): Chalk text
 on a Hairline fill with a 2px Ember Edge left rule. It marks `overview` on `/`, `activity` on `/activity`, a site's own row on

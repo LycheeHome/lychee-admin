@@ -174,12 +174,10 @@ export const RAIL_PLACE =
 /**
  * A section heading, `sites` or `host`: structure, so uppercase and tracked
  * (The Uppercase-Is-Structural Rule's 0.75rem/0.1em step), in sans like the
- * place words under it; the domain beside `sites` sets its own mono.
+ * place words under it.
  */
 export const RAIL_HEADING = `flex items-center justify-between font-sans uppercase tracking-[0.1em] text-[0.75rem] text-stone-400 px-2 py-1`;
 
-/** The `· lychee.land` beside the `sites` heading: a machine fact inside a sans heading, so mono and never capitalized. */
-export const RAIL_HEADING_DOMAIN = "font-mono normal-case tracking-normal";
 
 /** A section heading that is also a link (`sites`): the heading's type, a row's current and focus treatment. */
 export const RAIL_HEADING_LINK = `${RAIL_HEADING} no-underline rounded-md hover:text-stone-50 ${RAIL_CURRENT} ${FOCUS_RING}`;

@@ -1,4 +1,4 @@
-import { RAIL_HEADING, RAIL_HEADING_DOMAIN, RAIL_PLACE, RAIL_ROW } from "../../views/railModel";
+import { RAIL_HEADING, RAIL_PLACE, RAIL_ROW } from "../../views/railModel";
 import { SITE_HEADER_ACTIONS } from "../../views/siteDetailModel";
 import { BODY, BUTTON_SECONDARY, CAPTION, CAPTION_FILE, CAPTION_KEEP, SKIP_LINK } from "../../views/shared";
 
@@ -176,10 +176,9 @@ export const REDESIGNS: Redesign[] = [
   {
     id: "rail-heading-domain",
     since: "2026-10-27",
-    why: "The sites heading names the domain once, hidden from assistive tech, since each row's name still carries it.",
+    why: "The sites heading named the domain once from 2026-10-27, and since 2026-10-29 is the word alone: every row's name still carries the domain as screen-reader text.",
     from: />sites<span data-count="sites"/g,
-    // The domain's mono class since 2026-10-29, when the heading around it went sans (rail-place-sans).
-    to: `><span>sites<span class="${RAIL_HEADING_DOMAIN}" data-rail-domain aria-hidden="true"> · lychee.land</span></span><span data-count="sites"`,
+    to: '><span>sites</span><span data-count="sites"',
     anchor: '>sites<span data-count="sites"',
   },
   {

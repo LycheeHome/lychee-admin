@@ -315,9 +315,10 @@ describe("Rail with health", () => {
   });
 });
 
-// A row shows the label alone; the domain is said once, beside the heading
-// (critique 2026-10-26 minors, "01 Label only"). The full hostname stays the
-// row's text for assistive tech, as sr-only text, so its name is unchanged.
+// A row shows the label alone (critique 2026-10-26 minors, "01 Label only"),
+// and since 2026-10-29 the heading no longer names the domain either. The
+// full hostname stays the row's text for assistive tech, as sr-only text, so
+// its name is unchanged.
 describe("rail rows show the label only", () => {
   const rowOf = (container: HTMLElement, hostname: string): HTMLElement => {
     const row = container.querySelector<HTMLElement>(`[data-site="${hostname}"]`);
@@ -343,13 +344,12 @@ describe("rail rows show the label only", () => {
     assert.equal(name?.querySelector(".sr-only"), null);
   });
 
-  test("the sites heading names the domain once, hidden from assistive tech", () => {
+  test("the sites heading is the word alone, with no domain beside it", () => {
     const { container } = render(<Rail rail={railData()} health={null} healthError={false} />);
     const heading = container.querySelector('nav[aria-label="Sites"] > a[href="/sites"]');
     assert.ok(heading);
-    const domain = heading.querySelector("[data-rail-domain]");
-    assert.equal(domain?.textContent, " · lychee.land");
-    assert.equal(domain?.getAttribute("aria-hidden"), "true");
+    assert.equal(heading.textContent, "sites");
+    assert.equal(heading.querySelector("[data-rail-domain]"), null);
   });
 });
 
