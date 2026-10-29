@@ -61,7 +61,9 @@ export const SPOKEN_COMMA_CLASS = "sr-only";
 export const SPOKEN_COMMA_TEXT = ", ";
 
 export const SITE_ROW_TEXT = "flex flex-col gap-1.5 min-w-0";
-export const SITE_HOSTNAME = "font-display text-base leading-relaxed text-stone-50 break-words";
+export const SITE_HOSTNAME = "font-mono text-base font-medium leading-relaxed text-stone-50 break-words";
+/** The subdomain label as one unit, so a narrow row breaks before the domain and never inside the label. */
+export const SITE_HOSTNAME_LABEL = "inline-block max-w-full";
 export const SITE_HOSTNAME_DIMMED = "text-stone-400";
 export const SITE_ADDRESS = "font-mono text-stone-400 text-[0.8rem] leading-relaxed break-all";
 export const SITE_ROW_SIDE = "flex items-center gap-3 shrink-0";

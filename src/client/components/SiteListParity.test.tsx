@@ -9,6 +9,7 @@ import { flushSync } from "react-dom";
 import type { HostProblem, SitesPayload, SiteStatus, SiteSummary } from "../../shared/sites";
 import { SiteList } from "./SiteList";
 import { canonical } from "../test/canonical";
+import { applyRedesigns } from "../test/redesigns";
 
 /*
  * The React sites list against what the server's list renderer rendered, for
@@ -35,11 +36,12 @@ const read = new Set<string>();
  * so there is no #page-notice in it). They were generated from the live
  * renderer and asserted byte-equal to it before it was deleted; they are
  * never regenerated, because there is nothing left to generate them from. A
- * fixture's payload is the one its test builds.
+ * fixture's payload is the one its test builds. Declared redesigns
+ * (test/redesigns.ts) are applied before comparing.
  */
 function serverRegion(name: string): string {
   read.add(`${name}.html`);
-  return readFileSync(path.join(FIXTURES, `${name}.html`), "utf8");
+  return applyRedesigns(readFileSync(path.join(FIXTURES, `${name}.html`), "utf8"));
 }
 
 function clientMarkup(p: SitesPayload): string {
@@ -142,7 +144,7 @@ describe("SiteList parity with the frozen server list", () => {
     assertParity(
       "apex-hostname",
       payload({ sites: [{ hostname: DOMAIN, type: "static", target: `/var/www/${DOMAIN}` }] }),
-      [`data-hostname>${DOMAIN}</span>`],
+      [`>${DOMAIN}</span></span>`],
     );
   });
 

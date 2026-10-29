@@ -21,6 +21,7 @@ import {
   SITE_ADDRESS,
   SITE_HOSTNAME,
   SITE_HOSTNAME_DIMMED,
+  SITE_HOSTNAME_LABEL,
   SITE_ROW,
   SITE_ROW_SIDE,
   SITE_ROW_TEXT,
@@ -100,7 +101,7 @@ function SiteRow({ site, payload }: { site: SiteSummary; payload: SitesPayload }
     <RailLink href={siteHref(site.hostname)} className={SITE_ROW}>
       <span className={SITE_ROW_TEXT}>
         <span className={SITE_HOSTNAME} data-hostname="">
-          {lead}
+          <span className={SITE_HOSTNAME_LABEL}>{lead}</span>
           {dimmed ? <span className={SITE_HOSTNAME_DIMMED}>{dimmed}</span> : null}
         </span>
         <SpokenComma />
