@@ -3,8 +3,6 @@ import { splitHostnameForDisplay } from "../../lib/siteDisplay";
 import type { HealthPayload } from "../../shared/health";
 import {
   RAIL_ASIDE,
-  RAIL_HEADING,
-  RAIL_HEADING_LINK,
   RAIL_DRAWER,
   RAIL_HINT,
   RAIL_HOSTNAME,
@@ -198,8 +196,8 @@ export function Rail({
           </RailLink>
         </nav>
         <nav aria-label="Sites" className="flex flex-col gap-0.5">
-          <RailLink href={SITES_ROUTE} className={RAIL_HEADING_LINK} aria-current={ariaCurrent(isPage(current, "sites"))}>
-            <span>sites</span>
+          <RailLink href={SITES_ROUTE} className={RAIL_PLACE} aria-current={ariaCurrent(isPage(current, "sites"))}>
+            sites
           </RailLink>
           {rail.sites === null ? (
             <p className={RAIL_NOTE}>Can&apos;t read the Caddyfile</p>
@@ -230,7 +228,6 @@ export function Rail({
           )}
         </nav>
         <nav aria-label="Host" className="flex flex-col gap-0.5">
-          <p className={`${RAIL_HEADING} m-0`}>host</p>
           {HOST_LINKS.map((link) => (
             <RailLink
               key={link.href}

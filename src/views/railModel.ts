@@ -166,8 +166,9 @@ const RAIL_CURRENT =
  */
 const RAIL_HOVER = "motion-safe:transition-colors motion-safe:duration-150 hover:bg-stone-800";
 
+/** A site row: indented 12px past the `Sites` row it sits under, so the nesting shows without a heading. */
 export const RAIL_ROW =
-  `flex items-center gap-2 font-mono text-[0.85rem] no-underline text-stone-400 rounded-md px-2 py-1 ` +
+  `flex items-center gap-2 font-mono text-[0.85rem] no-underline text-stone-400 rounded-md pl-5 pr-2 py-1 ` +
   `hover:text-stone-50 ${RAIL_HOVER} ${RAIL_CURRENT} ${FOCUS_RING}`;
 
 /**
@@ -180,16 +181,6 @@ export const RAIL_PLACE =
   `flex items-center gap-2 font-sans capitalize text-[0.85rem] no-underline text-stone-400 rounded-md px-2 py-1 ` +
   `hover:text-stone-50 ${RAIL_HOVER} ${RAIL_CURRENT} ${FOCUS_RING}`;
 
-/**
- * A section heading, `sites` or `host`: structure, so uppercase and tracked
- * (The Uppercase-Is-Structural Rule's 0.75rem/0.1em step), in sans like the
- * place words under it.
- */
-export const RAIL_HEADING = `flex items-center justify-between font-sans uppercase tracking-[0.1em] text-[0.75rem] text-stone-400 px-2 py-1`;
-
-
-/** A section heading that is also a link (`sites`): the heading's type, a row's current and focus treatment. */
-export const RAIL_HEADING_LINK = `${RAIL_HEADING} no-underline rounded-md hover:text-stone-50 ${RAIL_CURRENT} ${FOCUS_RING}`;
 
 
 /**
@@ -256,7 +247,7 @@ export const FIND_PANEL =
 /** The listbox, scrolling inside the panel once it is taller than the viewport allows. */
 export const FIND_LIST = "max-h-[calc(100vh-8rem)] overflow-y-auto p-1.5 flex flex-col gap-2";
 
-/** A group's label (`sites`, `services`, …): structure, so sans, uppercase and tracked like the rail's headings, at their size. */
+/** A group's label (`sites`, `services`, …): structure, so sans, uppercase and tracked, at 0.72rem. */
 export const FIND_HEADING = "m-0 px-2 pt-1 pb-0.5 font-sans uppercase tracking-[0.1em] text-[0.72rem] text-stone-400";
 
 /** One option. The highlight is the rail's current fill, Chalk on Hairline. */

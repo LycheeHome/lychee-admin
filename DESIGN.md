@@ -465,7 +465,7 @@ says its own name and names a site.
 hostname, port, path, command, service name, status word, framework name — it is
 DM Mono. If a person wrote it as a sentence, it is Nunito. The one other case
 is a word naming a place in the app — the rail's `overview`, `activity`,
-`sites`, `host`, `services`, `reconciler` and `infrastructure`, and the find
+`sites`, `services`, `reconciler` and `infrastructure`, and the find
 panel's group headings — which is Nunito too, since it is a word and not a fact (since 2026-10-29). No sentence
 sets a path in Nunito: a fact inside a sentence is a mono
 span in Chalk, within the sentence's Nunito. A line that pairs a status word
@@ -823,16 +823,20 @@ content by a `1px` Hairline rule. Top to bottom, at 20px gaps:
 - the find box (below);
 - **overview**, a row linking to `/`, carrying the rail's one health mark
   (below), and under it **activity**, a plain row linking to `/activity`;
-- **sites**, a heading link to the list at `/sites`, then every managed site in
-  Caddyfile order: the label and a right-aligned `static` or `:<port>` hint in
+- **Sites**, a row linking to the list at `/sites` like the two above it, then
+  every managed site in Caddyfile order, indented 12px under it: the label and a right-aligned `static` or `:<port>` hint in
   Smoke Light, with no status mark. The label is Chalk; the domain is not shown (it was, as `· lychee.land`
   beside the heading, from 2026-10-27 to 2026-10-29), and each row keeps it as
   screen-reader text, so a row's accessible name is still its full hostname.
   The apex row is `lychee.land` whole. Until 2026-10-27 each row showed
   `.lychee.land` in Smoke and three seed rows wrapped to two lines;
-- **host**, a plain heading over three links, `services`, `reconciler` and
-  `infrastructure`: the services board's three pages, peers of one another,
-  with no chip beside them.
+- **Services**, **Reconciler** and **Infrastructure**: the services board's
+  three pages, peers of one another, with no chip beside them and no heading
+  over them (their `<nav>` keeps `aria-label="Host"`, so assistive tech still
+  hears the group). Until 2026-10-29 `sites` and `host` were headings, in
+  tracked caps for a day before that, and the site rows sat flush under
+  `sites`; once Sites read as the page it links to, the indent carried the
+  nesting and `host` named nothing the three words do not.
 
 The rail is navigation only and carries no action: Add site lives beside the
 site list's heading as that page's Primary.
@@ -841,17 +845,15 @@ Rows and links are 0.85rem in Smoke; on hover a row goes Chalk on a Hearth Lift
 ground, as a sites-list row does, over a 150ms color transition gated behind
 `motion-safe:` (a site row's label is already Chalk, so before 2026-10-29, when
 hover only changed the text, pointing at one showed nearly nothing). The
-current row keeps its Hairline fill under the pointer, and the `sites` heading
-link changes only its text. Headings are 0.75rem in Smoke. A site row is mono, like every hostname and port. A place word
-(`overview`, `activity`, the `sites` and `host` headings and the three host
-links) is Nunito. The rows are shown capitalized (`Overview`, `Services`) by
-CSS `capitalize`; the two headings, being structure, are uppercase at 0.1em
-tracking (`SITES`, `HOST`), per The Uppercase-Is-Structural Rule. Either way the
-markup and the accessible name keep the plain word. Until 2026-10-29
+current row keeps its Hairline fill under the pointer. The rail has no
+headings. A site row is mono, like every hostname and port. A place word
+(`overview`, `activity`, `sites` and the three board links) is Nunito, shown
+capitalized (`Overview`, `Services`) by CSS `capitalize`, so the markup and the
+accessible name keep the plain word. Until 2026-10-29
 the whole rail was mono and lowercase. `aria-current="page"` is both the accessibility signal
 and the styling hook (the arbitrary `aria-[current=page]:` variant): Chalk text
 on a Hairline fill with a 2px Ember Edge left rule. It marks `overview` on `/`, `activity` on `/activity`, a site's own row on
-its page, the `sites` heading on the list, and a board's link on its page;
+its page, `Sites` on the list, and a board's link on its page;
 `/sites/new` marks nothing, since its breadcrumb carries the location. A rail
 item's destination never changes with location.
 

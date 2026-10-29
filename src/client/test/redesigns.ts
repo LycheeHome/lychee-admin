@@ -1,4 +1,4 @@
-import { RAIL_FIND, RAIL_FIND_PLACEHOLDER, RAIL_HEADING, RAIL_PLACE, RAIL_ROW } from "../../views/railModel";
+import { RAIL_FIND, RAIL_FIND_PLACEHOLDER, RAIL_PLACE, RAIL_ROW } from "../../views/railModel";
 import { SITE_HEADER_ACTIONS } from "../../views/siteDetailModel";
 import { BODY, BUTTON_SECONDARY, CAPTION, CAPTION_FILE, CAPTION_KEEP, SKIP_LINK } from "../../views/shared";
 
@@ -179,13 +179,17 @@ export const REDESIGNS: Redesign[] = [
     to: "</span>",
     anchor: "<wbr></span>",
   },
+  // The sites heading, from its frozen markup to a place row in one step. It
+  // replaced two entries: rail-heading-domain (2026-10-27, the domain said
+  // once beside the heading, dropped 2026-10-29) and rail-sites-href
+  // (2026-10-28, the list's move to /sites).
   {
-    id: "rail-heading-domain",
-    since: "2026-10-27",
-    why: "The sites heading named the domain once from 2026-10-27, and since 2026-10-29 is the word alone: every row's name still carries the domain as screen-reader text.",
-    from: />sites<span data-count="sites"/g,
-    to: '><span>sites</span><span data-count="sites"',
-    anchor: '>sites<span data-count="sites"',
+    id: "rail-sites-place",
+    since: "2026-10-29",
+    why: "Sites is a page, so its heading becomes a place row like Overview, at /sites since the list moved there (2026-10-28), with its site rows indented beneath it and no domain beside it (rail structure, 2026-10-29).",
+    from: /<a href="\/" class="flex items-center justify-between font-mono text-\[0\.75rem\][^"]*"([^>]*)>sites<span data-count="sites"><\/span><\/a>/g,
+    to: `<a href="/sites" class="${RAIL_PLACE}"$1>sites</a>`,
+    anchor: '>sites<span data-count="sites"></span></a>',
   },
   {
     id: "type-option-static",
@@ -311,14 +315,6 @@ export const REDESIGNS: Redesign[] = [
     anchor: 'data-dot aria-hidden="true"',
   },
   {
-    id: "rail-sites-href",
-    since: "2026-10-28",
-    why: RAIL_WHY,
-    from: /<a href="\/" class="flex items-center justify-between font-mono text-\[0\.75rem\]/g,
-    to: '<a href="/sites" class="flex items-center justify-between font-mono text-[0.75rem]',
-    anchor: '<a href="/" class="flex items-center justify-between font-mono text-[0.75rem]',
-  },
-  {
     id: "rail-overview-row",
     since: "2026-10-28",
     why: RAIL_WHY,
@@ -350,18 +346,18 @@ export const REDESIGNS: Redesign[] = [
   {
     id: "rail-row-hover",
     since: "2026-10-29",
-    why: "A rail row's ground goes Hearth Lift on hover, as a sites-list row's does, so pointing at a site row visibly lands (rail hover comparison, \"01 Lift\").",
+    why: "A rail row's ground goes Hearth Lift on hover, as a sites-list row's does, so pointing at a site row visibly lands (rail hover comparison, \"01 Lift\"); the same row is indented 12px under Sites (rail structure, the same day).",
     from: new RegExp(escapeRegExp(`class="${FROZEN_RAIL_ROW}"`), "g"),
     to: `class="${RAIL_ROW}"`,
     anchor: `class="${FROZEN_RAIL_ROW}"`,
   },
   {
-    id: "rail-place-sans:headings",
+    id: "rail-no-host-heading",
     since: "2026-10-29",
-    why: "The `sites` and `host` headings are structure, so sans, uppercase and tracked (rail place words, 2026-10-29).",
-    from: /class="flex items-center justify-between font-mono text-\[0\.75rem\] text-stone-400 px-2 py-1/g,
-    to: `class="${RAIL_HEADING}`,
-    anchor: 'class="flex items-center justify-between font-mono text-[0.75rem] text-stone-400 px-2 py-1',
+    why: "The host heading is gone: Services, Reconciler and Infrastructure name themselves, and their nav keeps aria-label=\"Host\" (rail structure, 2026-10-29).",
+    from: /\s*<p class="flex items-center justify-between font-mono text-\[0\.75rem\] text-stone-400 px-2 py-1 m-0">host<\/p>/g,
+    to: "",
+    anchor: ">host</p>",
   },
   {
     id: "find-placeholder-sans",
