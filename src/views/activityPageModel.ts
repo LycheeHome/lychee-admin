@@ -61,5 +61,7 @@ export const ACTIVITY_FILTER_CAPTION = `${CARD_LABEL_BASE} text-stone-300`;
 export const ACTIVITY_SELECT = `${INPUT} min-w-[150px] text-[0.8rem]`;
 export const ACTIVITY_DAY_TH = `${ACTIVITY_TH} pt-6 text-left`;
 export const ACTIVITY_DETAIL = "block font-mono text-[0.75rem] text-stone-300 break-words whitespace-normal mt-1";
+/** Under the table: Show older (or the end-of-history line) with a failed page's alert beside it. */
+export const ACTIVITY_PAGER = "mt-4 flex flex-wrap items-center gap-3";
 export const ACTIVITY_END = "font-mono text-[0.75rem] text-stone-400";
 export const ACTIVITY_SEE_ALL = `font-mono text-[0.75rem] text-stone-300 underline decoration-stone-600 underline-offset-4 ${FOCUS_RING}`;

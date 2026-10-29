@@ -60,7 +60,14 @@ const json = (status: number, body: unknown) =>
 
 let requested: string[];
 /** What the stub answers for /api/activity; a function so a test can vary it per call. */
-let answer: (url: URL) => Response;
+let answer: (url: URL) => Response | Promise<Response>;
+
+/** A promise and the function that settles it. */
+function gate<T>(): { promise: Promise<T>; open: (value: T) => void } {
+  let open!: (value: T) => void;
+  const promise = new Promise<T>((r) => (open = r));
+  return { promise, open };
+}
 let client: QueryClient;
 let router: DataRouter;
 
@@ -224,8 +231,69 @@ describe("ActivityPage", () => {
     await loaded();
     fireEvent.click(olderButton()!);
     assert.equal((await screen.findByRole("alert", undefined, TIMEOUT)).textContent, "Couldn't load older activity: nope");
-    assert.ok(olderButton(), "the button went");
+    assert.ok(olderButton(), "Show older is missing");
     assert.equal(dataRows().length, 3);
+  });
+
+  test("a first-load alert survives a retry in flight", async () => {
+    answer = () => json(500, { ok: false, reason: "audit gone" });
+    mount();
+    await screen.findByRole("alert", undefined, TIMEOUT);
+    const g = gate<Response>();
+    answer = () => g.promise;
+    let retry!: Promise<unknown>;
+    act(() => {
+      retry = client.refetchQueries({ queryKey: ["activity-page"] });
+    });
+    await waitFor(() => assert.ok(requested.length >= 2), TIMEOUT);
+    assert.equal(document.querySelector("[role=alert]")?.textContent, "Couldn't refresh activity: audit gone");
+    await act(async () => {
+      g.open(json(200, { ok: true, ...payload() }));
+      await retry;
+    });
+    await waitFor(() => assert.ok(document.querySelector("[role=alert]") === null), TIMEOUT);
+    assert.equal(dataRows().length, 3);
+  });
+
+  test("a re-read landing after a failed Show older never relabels its alert", async () => {
+    const first = payload({ next: "c1" });
+    answer = (url) => (url.searchParams.get("before") ? json(500, { ok: false, reason: "nope" }) : json(200, { ok: true, ...first }));
+    mount();
+    await loaded();
+    fireEvent.click(olderButton()!);
+    await screen.findByText("Couldn't load older activity: nope", undefined, TIMEOUT);
+    const g = gate<Response>();
+    answer = () => g.promise;
+    let retry!: Promise<unknown>;
+    act(() => {
+      retry = client.refetchQueries({ queryKey: ["activity-page"] });
+    });
+    await waitFor(() => assert.ok(requested.length >= 3), TIMEOUT);
+    const alerts = Array.from(document.querySelectorAll("[role=alert]")).map((a) => a.textContent);
+    assert.deepEqual(alerts, ["Couldn't load older activity: nope"]);
+    await act(async () => {
+      g.open(json(200, { ok: true, ...first }));
+      await retry;
+    });
+    await waitFor(() => assert.ok(document.querySelector("[role=alert]") === null), TIMEOUT);
+  });
+
+  test("returning to a cached filter set starts from one page again", async () => {
+    const first = payload({ next: "c1", events: [event({}), FAILED] });
+    const second = payload({ next: null, events: [event({ at: "2026-10-27T11:00:00.000Z", subject: "old.lychee.land", href: null })] });
+    answer = (url) => json(200, { ok: true, ...(url.searchParams.get("before") === "c1" ? second : first) });
+    mount();
+    await loaded();
+    fireEvent.click(olderButton()!);
+    await waitFor(() => assert.equal(dataRows().length, 3), TIMEOUT);
+    fireEvent.change(select("who"), { target: { value: "app" } });
+    await waitFor(() => assert.equal(router.state.location.search, "?who=app"), TIMEOUT);
+    await waitFor(() => assert.ok(olderButton() !== null && dataRows().length === 2), TIMEOUT);
+    fireEvent.click(await screen.findByText("clear filters"));
+    await waitFor(() => assert.equal(router.state.location.search, ""), TIMEOUT);
+    await waitFor(() => assert.ok(screen.queryByText("clear filters") === null), TIMEOUT);
+    assert.equal(dataRows().length, 2, "the cached second page came back");
+    assert.ok(olderButton());
   });
 
   test("a 400 shows the server's reason and a clear filters link", async () => {

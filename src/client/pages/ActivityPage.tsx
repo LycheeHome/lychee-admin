@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useLayoutEffect, useRef } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
 import { ACTIVITY_KINDS, ACTIVITY_WHO, type ActivityPayload } from "../../shared/activity";
 import { activityPageQuery } from "../activity";
@@ -13,6 +13,7 @@ import {
   ACTIVITY_FILTER_LABEL,
   ACTIVITY_FILTERS,
   ACTIVITY_PAGE,
+  ACTIVITY_PAGER,
   ACTIVITY_SEE_ALL,
   ACTIVITY_SELECT,
   dayKey,
@@ -83,8 +84,21 @@ export function ActivityPage() {
   const query = useInfiniteQuery(activityPageQuery(filters));
   const heading = useRef<HTMLHeadingElement>(null);
 
-  const change = (patch: Partial<ActivityUrlFilters>) =>
+  const qc = useQueryClient();
+  const [older, setOlder] = useState<{ reason: string; errorAt: number; dataAt: number } | null>(null);
+
+  // Every filter change starts from page one: the other views' cached pages go.
+  const restart = () => qc.removeQueries({ queryKey: ["activity-page"], type: "inactive" });
+  const change = (patch: Partial<ActivityUrlFilters>) => {
+    restart();
     setSearch(new URLSearchParams(searchFromFilters({ ...filters, ...patch })), { replace: true });
+  };
+
+  const showOlder = async () => {
+    setOlder(null);
+    const r = await query.fetchNextPage();
+    if (r.isError) setOlder({ reason: r.error.message, errorAt: r.errorUpdatedAt, dataAt: r.dataUpdatedAt });
+  };
 
   useLayoutEffect(() => {
     document.title = "activity · lychee admin";
@@ -115,9 +129,22 @@ export function ActivityPage() {
   const now = new Date(newest?.now ?? Date.now());
   const filtered = hasFilters(filters);
 
-  const olderFailed = query.isFetchNextPageError;
-  const refreshAlert = query.isError && !olderFailed ? `Couldn't refresh activity: ${query.error.message}` : null;
-  const olderAlert = olderFailed ? `Couldn't load older activity: ${query.error?.message ?? ""}` : null;
+  // A failure is a newer error than the last data, by timestamps: a retry
+  // clears TanStack's own error on a query with no data, and the reason is
+  // kept across that gap, as OverviewPage does.
+  const failed = query.errorUpdatedAt > query.dataUpdatedAt;
+  const lastReason = useRef<string | null>(null);
+  useEffect(() => {
+    if (query.error) lastReason.current = query.error.message;
+  }, [query.error]);
+  const reason = query.error?.message ?? lastReason.current;
+
+  // A failed "Show older" is told apart by the error it left: a re-read that
+  // starts afterwards keeps that error until it settles, and must not read
+  // as a refresh failure. It clears on the next good read.
+  const olderFailed = older !== null && older.errorAt === query.errorUpdatedAt && older.dataAt === query.dataUpdatedAt;
+  const refreshAlert = failed && !olderFailed && reason !== null ? `Couldn't refresh activity: ${reason}` : null;
+  const olderAlert = olderFailed && older ? `Couldn't load older activity: ${older.reason}` : null;
 
   const bothDown = newest !== null && !newest.sources.app && !newest.sources.reconciler;
   const missing = newest ? sourceLine(newest.sources) : null;
@@ -151,7 +178,7 @@ export function ActivityPage() {
         <Filter name="who" emptyLabel="all" options={ACTIVITY_WHO} value={filters.who} onChange={(who) => change({ who })} />
         <Filter name="kind" emptyLabel="all" options={ACTIVITY_KINDS} value={filters.kind} onChange={(kind) => change({ kind })} />
         {filtered ? (
-          <RailLink href={ACTIVITY_ROUTE} className={ACTIVITY_SEE_ALL}>
+          <RailLink href={ACTIVITY_ROUTE} className={ACTIVITY_SEE_ALL} onClick={restart}>
             clear filters
           </RailLink>
         ) : null}
@@ -184,16 +211,16 @@ export function ActivityPage() {
           ) : null}
           {missing ? <p className={ACTIVITY_NOTE}>{missing}</p> : null}
           {events.length > 0 || query.hasNextPage ? (
-            <div className="mt-4 flex flex-wrap items-center gap-3">
+            <div className={ACTIVITY_PAGER}>
               {query.hasNextPage ? (
-                <button type="button" className={BUTTON_SECONDARY} disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>
+                <button type="button" className={BUTTON_SECONDARY} disabled={query.isFetchingNextPage} onClick={() => void showOlder()}>
                   Show older
                 </button>
               ) : (
                 <span className={ACTIVITY_END}>Start of history</span>
               )}
               {olderAlert ? (
-                <p role="alert" className={`${BOARD_ALERT} m-0`}>
+                <p role="alert" className={BOARD_ALERT}>
                   {olderAlert}
                 </p>
               ) : null}
