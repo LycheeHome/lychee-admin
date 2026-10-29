@@ -20,6 +20,7 @@ import type { RailCurrent, RailData } from "../../shared/rail";
 import { FindPanel } from "./FindPanel";
 import {
   ADD_SITE_ROUTE,
+  ACTIVITY_ROUTE,
   OVERVIEW_ROUTE,
   RailLink,
   SITES_ROUTE,
@@ -150,7 +151,9 @@ export function Rail({
     ? { page: ROUTE_PAGE[route] }
     : nav?.pathname === OVERVIEW_ROUTE
       ? { page: "overview" }
-      : nav?.pathname === SITES_ROUTE
+      : nav?.pathname === ACTIVITY_ROUTE
+        ? { page: "activity" }
+        : nav?.pathname === SITES_ROUTE
         ? { page: "sites" }
         : nav?.pathname === ADD_SITE_ROUTE
           ? null
@@ -188,6 +191,9 @@ export function Rail({
           >
             overview
             <Signal signal={signal} />
+          </RailLink>
+          <RailLink href={ACTIVITY_ROUTE} className={RAIL_ROW} aria-current={ariaCurrent(isPage(current, "activity"))}>
+            activity
           </RailLink>
         </nav>
         <nav aria-label="Sites" className="flex flex-col gap-0.5">

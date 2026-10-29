@@ -18,7 +18,7 @@ export interface RailPayload {
  * page; and any URL no route owns).
  */
 export type RailCurrent =
-  | { page: "overview" | "sites" | "services" | "reconciler" | "infrastructure" }
+  | { page: "overview" | "activity" | "sites" | "services" | "reconciler" | "infrastructure" }
   | { site: string }
   | null;
 

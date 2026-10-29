@@ -12,7 +12,7 @@ import {
   type RouteObject,
 } from "react-router";
 import { RouterProvider } from "react-router/dom";
-import { ADD_SITE_ROUTE, BOARD_ROUTES, ClientNavContext, OVERVIEW_ROUTE, SITE_ROUTE, SITES_ROUTE, isClientRoute, type ClientNav } from "./clientNav";
+import { ACTIVITY_ROUTE, ADD_SITE_ROUTE, BOARD_ROUTES, ClientNavContext, OVERVIEW_ROUTE, SITE_ROUTE, SITES_ROUTE, isClientRoute, type ClientNav } from "./clientNav";
 import { AppFrame, readInitialNotice, type InitialNotice } from "./AppFrame";
 import { ACTIVITY_QUERY } from "./activity";
 import { addSiteQueryKey, fetchAddSite, fetchSiteDetail, siteDetailQueryKey } from "./api";
@@ -20,6 +20,9 @@ import { HEALTH_QUERY } from "./health";
 import { AddSitePage } from "./pages/AddSitePage";
 import { BoardPage, boardQuery } from "./pages/BoardPage";
 import { OverviewPage } from "./pages/OverviewPage";
+import { ActivityPage } from "./pages/ActivityPage";
+import { activityPageQuery } from "./activity";
+import { filtersFromSearch } from "../views/activityPageModel";
 import { SiteDetailRoute } from "./pages/SiteDetailPage";
 import { SitesPage, sitesQuery } from "./pages/SitesPage";
 import { installSharedBindings } from "./sharedBindings";
@@ -128,6 +131,17 @@ export function appRoutes(client: QueryClient, notice: InitialNotice = null): Ro
           },
           HydrateFallback: Nothing,
           element: <OverviewPage />,
+        },
+        {
+          path: ACTIVITY_ROUTE,
+          // The first page for the URL's filters; a failure is the page's to show.
+          loader: async ({ request }) => {
+            const filters = filtersFromSearch(new URL(request.url).searchParams);
+            await client.ensureInfiniteQueryData(activityPageQuery(filters)).catch(() => undefined);
+            return null;
+          },
+          HydrateFallback: Nothing,
+          element: <ActivityPage />,
         },
         {
           path: SITES_ROUTE,

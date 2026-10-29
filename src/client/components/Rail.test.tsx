@@ -267,9 +267,10 @@ describe("Rail with health", () => {
     }
   });
 
-  test("overview is current on /, sites on /sites", () => {
+  test("overview is current on /, activity on /activity, sites on /sites", () => {
     for (const [pathname, href] of [
       ["/", "/"],
+      ["/activity", "/activity"],
       ["/sites", "/sites"],
     ] as const) {
       const { container, unmount } = render(
@@ -283,6 +284,20 @@ describe("Rail with health", () => {
       assert.deepEqual(current, [href], pathname);
       unmount();
     }
+  });
+
+  test("an activity row follows overview as a plain router link with no mark", () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={["/"]}>
+        <ClientNavContext.Provider value={{ pathname: "/", locationKey: "k", navigate: () => {}, documentLoad: true }}>
+          <Rail rail={railData()} health={seedHealth()} healthError={false} />
+        </ClientNavContext.Provider>
+      </MemoryRouter>,
+    );
+    const links = Array.from(container.querySelectorAll('nav[aria-label="Overview"] > a'));
+    assert.deepEqual(links.map((a) => a.getAttribute("href")), ["/", "/activity"]);
+    assert.equal(links[1]?.textContent, "activity");
+    assert.equal(links[1]?.children.length, 0, "the activity row carries a mark");
   });
 
   test("the find hint is the one it is given", () => {

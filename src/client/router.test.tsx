@@ -158,13 +158,22 @@ const railLive = () =>
 describe("isClientRoute", () => {
   test("is true for the overview, the sites list, the three board pages and the add page, with or without a hash or query", () => {
     assert.deepEqual(Object.keys(BOARD_ROUTES).sort(), ["/infrastructure", "/reconciler", "/services"]);
-    for (const path of ["/", "/#x", "/sites", "/sites?x=1", "/sites?removed=blog.lychee.land", "/sites#x", "/services", "/reconciler", "/infrastructure", "/reconciler#service-lychee-watch", "/services?x=1", "/sites/new", "/sites/new#x"]) {
+    for (const path of ["/", "/#x", "/sites", "/sites?x=1", "/sites?removed=blog.lychee.land", "/sites#x", "/activity", "/activity?who=app", "/services", "/reconciler", "/infrastructure", "/reconciler#service-lychee-watch", "/services?x=1", "/sites/new", "/sites/new#x"]) {
       assert.equal(isClientRoute(path), true, path);
     }
     // "/" matches exactly, never as a prefix of every path.
-    for (const path of ["", "//", SERVER_PAGE, "/sitesx", "/sites/new/x", "/sites/x/y", "/services/swee/deploy", "/servicesx", "https://example.com/services", "https://example.com/"]) {
+    for (const path of ["", "//", SERVER_PAGE, "/sitesx", "/sites/new/x", "/activityx", "/activity/x", "/sites/x/y", "/services/swee/deploy", "/servicesx", "https://example.com/services", "https://example.com/"]) {
       assert.equal(isClientRoute(path), false, path);
     }
+  });
+});
+
+describe("the activity route", () => {
+  test("/activity renders the page and reads its first page for the URL's filters", async () => {
+    load("/activity?who=app");
+    await waitFor(() => assert.equal(document.querySelector("main h2")?.textContent, "Activity"), TIMEOUT);
+    assert.equal(document.title, "activity · lychee admin");
+    await waitFor(() => assert.ok(fetched.some((u) => u.startsWith("/api/activity?") && u.includes("who=app"))), TIMEOUT);
   });
 });
 

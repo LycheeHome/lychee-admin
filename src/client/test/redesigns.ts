@@ -311,10 +311,10 @@ export const REDESIGNS: Redesign[] = [
     id: "rail-overview-row",
     since: "2026-10-28",
     why: RAIL_WHY,
-    // With health null the row carries no signal, so it is fixed text.
+    // With health null the row carries no signal, so it is fixed text. The nav also holds the plain activity row (spec 2026-10-28-activity-page).
     from: /<nav aria-label="Sites"/g,
     // The row is a site row's RAIL_ROW, which the fixtures' own rows hold to its literal text.
-    to: `<nav aria-label="Overview" class="flex flex-col gap-0.5"><a href="/" class="${RAIL_ROW} justify-between">overview</a></nav><nav aria-label="Sites"`,
+    to: `<nav aria-label="Overview" class="flex flex-col gap-0.5"><a href="/" class="${RAIL_ROW} justify-between">overview</a><a href="/activity" class="${RAIL_ROW}">activity</a></nav><nav aria-label="Sites"`,
     anchor: '<nav aria-label="Sites"',
   },
 ];

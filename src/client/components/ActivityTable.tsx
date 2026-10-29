@@ -1,18 +1,12 @@
 import type { ReactNode } from "react";
 import type { ActivityPayload } from "../../shared/activity";
-import { RailLink } from "../clientNav";
-import { shortAge } from "../../views/activityModel";
+import { ActivityRow } from "./ActivityRow";
 import {
   ACTIVITY_ALERT_SLOT,
   ACTIVITY_HEADING,
-  ACTIVITY_KIND_TAG,
   ACTIVITY_NOTE,
-  ACTIVITY_OUTCOME,
   ACTIVITY_SCROLL,
-  ACTIVITY_SUBJECT,
-  ACTIVITY_SUBJECT_LINK,
   ACTIVITY_TABLE,
-  ACTIVITY_TD,
   ACTIVITY_TH,
 } from "../../views/overviewModel";
 import { BOARD_ALERT } from "./BoardRows";
@@ -67,29 +61,7 @@ export function ActivityTable({ payload, alert }: { payload: ActivityPayload | n
                 </thead>
                 <tbody>
                   {events.map((e, i) => (
-                    <tr key={`${e.at}:${e.who}:${e.subject}:${i}`}>
-                      <td className={ACTIVITY_TD}>
-                        <time dateTime={e.at} title={new Date(e.at).toLocaleString()}>
-                          {shortAge(e.at, now)}
-                        </time>
-                      </td>
-                      <td className={ACTIVITY_TD}>{e.who}</td>
-                      <td className={ACTIVITY_TD}>
-                        <span className={ACTIVITY_KIND_TAG}>{e.kind}</span>
-                      </td>
-                      <td className={ACTIVITY_TD}>
-                        {e.href ? (
-                          <RailLink href={e.href} className={ACTIVITY_SUBJECT_LINK}>
-                            {e.subject}
-                          </RailLink>
-                        ) : (
-                          <span className={ACTIVITY_SUBJECT}>{e.subject}</span>
-                        )}
-                      </td>
-                      <td className={ACTIVITY_TD}>
-                        <span className={ACTIVITY_OUTCOME[e.tone]}>{e.outcome}</span>
-                      </td>
-                    </tr>
+                    <ActivityRow key={`${e.at}:${e.who}:${e.subject}:${i}`} event={e} now={now} showDetail={false} />
                   ))}
                 </tbody>
               </table>

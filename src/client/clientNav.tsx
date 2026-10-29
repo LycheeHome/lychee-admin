@@ -25,6 +25,9 @@ export type BoardRoute = keyof typeof BOARD_ROUTES;
 /** The overview's path. Matched exactly, like every route here: never as a prefix of every path. */
 export const OVERVIEW_ROUTE = "/";
 
+/** The activity page's path. Matched exactly. */
+export const ACTIVITY_ROUTE = "/activity";
+
 /** The sites list's path. Matched exactly, like every route here: never as a prefix of `/sites/…`. */
 export const SITES_ROUTE = "/sites";
 
@@ -64,7 +67,7 @@ export function isClientRoute(href: string): boolean {
   const path = pathOf(href);
   return (
     path !== null &&
-    (path === OVERVIEW_ROUTE || path === SITES_ROUTE || path === ADD_SITE_ROUTE || Object.hasOwn(BOARD_ROUTES, path) || siteOf(path) !== null)
+    (path === OVERVIEW_ROUTE || path === ACTIVITY_ROUTE || path === SITES_ROUTE || path === ADD_SITE_ROUTE || Object.hasOwn(BOARD_ROUTES, path) || siteOf(path) !== null)
   );
 }
 
