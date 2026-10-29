@@ -1,4 +1,4 @@
-import { RAIL_HEADING, RAIL_PLACE, RAIL_ROW } from "../../views/railModel";
+import { RAIL_FIND, RAIL_FIND_PLACEHOLDER, RAIL_HEADING, RAIL_PLACE, RAIL_ROW } from "../../views/railModel";
 import { SITE_HEADER_ACTIONS } from "../../views/siteDetailModel";
 import { BODY, BUTTON_SECONDARY, CAPTION, CAPTION_FILE, CAPTION_KEEP, SKIP_LINK } from "../../views/shared";
 
@@ -348,6 +348,14 @@ export const REDESIGNS: Redesign[] = [
     from: /class="flex items-center justify-between font-mono text-\[0\.75rem\] text-stone-400 px-2 py-1/g,
     to: `class="${RAIL_HEADING}`,
     anchor: 'class="flex items-center justify-between font-mono text-[0.75rem] text-stone-400 px-2 py-1',
+  },
+  {
+    id: "find-placeholder-sans",
+    since: "2026-10-29",
+    why: "The find box's placeholder is an instruction, not an example value, so it reads `Find` in Nunito; what is typed stays mono.",
+    from: /placeholder="find"([^>]*) class="[^"]*w-full pr-10 text-\[0\.8rem\]"/g,
+    to: `placeholder="${RAIL_FIND_PLACEHOLDER}"$1 class="${RAIL_FIND}"`,
+    anchor: 'placeholder="find"',
   },
 ];
 

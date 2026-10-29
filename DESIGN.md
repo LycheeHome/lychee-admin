@@ -869,7 +869,8 @@ site), every page link two attention chips, and the top bar an overall count:
 the rail was doing a dashboard's job in 250px. That job is the overview page's
 now (see Overview, below), and the rail is navigation plus one signal.
 
-**The find panel** opens from the find box: a mono input with its shortcut
+**The find panel** opens from the find box: a mono input, its placeholder
+`Find` in Nunito (an instruction, not an example value), with its shortcut
 (`⌘K`, or `Ctrl K` off Apple platforms) printed inside it at its right edge in a
 Smoke `kbd`. ⌘K focuses it from anywhere. The panel is a 10px-radius Hearth
 surface with a `1px` Hairline edge on the shared Overlay shadow, anchored beside the rail over the

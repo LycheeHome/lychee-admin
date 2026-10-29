@@ -183,8 +183,13 @@ export const RAIL_HEADING = `flex items-center justify-between font-sans upperca
 export const RAIL_HEADING_LINK = `${RAIL_HEADING} no-underline rounded-md hover:text-stone-50 ${RAIL_CURRENT} ${FOCUS_RING}`;
 
 
-/** The find box: the shared input, full width, with room on the right for the printed shortcut. */
-export const RAIL_FIND = `${INPUT} w-full pr-10 text-[0.8rem]`;
+/**
+ * The find box: the shared input, full width, with room on the right for the
+ * printed shortcut. Its placeholder, `Find`, is an instruction and not an
+ * example value, so it is Nunito; what is typed stays mono, like the results.
+ */
+export const RAIL_FIND = `${INPUT} w-full pr-10 text-[0.8rem] placeholder:font-sans`;
+export const RAIL_FIND_PLACEHOLDER = "Find";
 
 /** The shortcut printed inside the find box, `⌘K` or `Ctrl K`. */
 export const RAIL_FIND_HINT =

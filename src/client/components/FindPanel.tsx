@@ -9,6 +9,7 @@ import {
   FIND_PANEL,
   FIND_TROUBLE,
   RAIL_FIND,
+  RAIL_FIND_PLACEHOLDER,
   RAIL_FIND_HINT,
   RAIL_WIDE_QUERY,
 } from "../../views/railModel";
@@ -298,7 +299,7 @@ export function FindPanel({
         type="text"
         autoComplete="off"
         spellCheck={false}
-        placeholder="find"
+        placeholder={RAIL_FIND_PLACEHOLDER}
         aria-label="Find a site or unit"
         role="combobox"
         aria-expanded={open}
