@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
 import { ACTIVITY_KINDS, ACTIVITY_WHO, type ActivityPayload } from "../../shared/activity";
@@ -89,15 +89,30 @@ export function ActivityPage() {
 
   // Every filter change starts from page one: the other views' cached pages go.
   const restart = () => qc.removeQueries({ queryKey: ["activity-page"], type: "inactive" });
+  // A filter change is the page's own move: the select keeps focus.
+  const selfMove = useRef(false);
   const change = (patch: Partial<ActivityUrlFilters>) => {
     restart();
+    selfMove.current = true;
     setSearch(new URLSearchParams(searchFromFilters({ ...filters, ...patch })), { replace: true });
   };
 
+  // After a good "Show older", focus follows the new rows (see the effect below).
+  const olderButton = useRef<HTMLButtonElement>(null);
+  const endLine = useRef<HTMLSpanElement>(null);
+  const table = useRef<HTMLTableElement>(null);
+  const [focusAfter, setFocusAfter] = useState<{ from: number; need: number } | null>(null);
   const showOlder = async () => {
+    if (query.isFetchingNextPage) return;
     setOlder(null);
+    const before = query.data?.pages.flatMap((p) => p.events).length ?? 0;
     const r = await query.fetchNextPage();
-    if (r.isError) setOlder({ reason: r.error.message, errorAt: r.errorUpdatedAt, dataAt: r.dataUpdatedAt });
+    if (r.isError) {
+      setOlder({ reason: r.error.message, errorAt: r.errorUpdatedAt, dataAt: r.dataUpdatedAt });
+      return;
+    }
+    const after = r.data?.pages.flatMap((p) => p.events).length ?? before;
+    setFocusAfter({ from: before, need: after });
   };
 
   useLayoutEffect(() => {
@@ -120,12 +135,29 @@ export function ActivityPage() {
   useEffect(() => {
     if (locationKey === shownKey.current) return;
     shownKey.current = locationKey;
+    if (selfMove.current) {
+      selfMove.current = false;
+      return;
+    }
     focusHeading(heading.current);
   }, [locationKey]);
 
   const pages = query.data?.pages ?? [];
   const newest = pages[0] ?? null;
   const events = pages.flatMap((p) => p.events);
+
+  // The pager's button blurs nothing while fetching (it is aria-disabled), but
+  // when the page lands focus goes to the first new row's link, else stays on
+  // the button, or lands on the end-of-history line that replaces it.
+  useEffect(() => {
+    if (!focusAfter || events.length < focusAfter.need) return;
+    const rows = Array.from(table.current?.querySelectorAll("tbody tr") ?? []).filter((r) => !r.querySelector("th"));
+    const link = rows.slice(focusAfter.from).map((r) => r.querySelector<HTMLAnchorElement>("a")).find((a) => a);
+    if (link) link.focus();
+    else if (olderButton.current) olderButton.current.focus();
+    else endLine.current?.focus();
+    setFocusAfter(null);
+  }, [focusAfter, events.length]);
   const now = new Date(newest?.now ?? Date.now());
   const filtered = hasFilters(filters);
 
@@ -149,24 +181,26 @@ export function ActivityPage() {
   const bothDown = newest !== null && !newest.sources.app && !newest.sources.reconciler;
   const missing = newest ? sourceLine(newest.sources) : null;
 
-  let days: string | null = null;
-  const rows = events.map((e, i) => {
+  // One `<tbody>` per local day, headed by a rowgroup header.
+  const groups: Array<{ key: string; label: string; items: Array<{ e: (typeof events)[number]; i: number }> }> = [];
+  events.forEach((e, i) => {
     const key = dayKey(e.at);
-    const heading = key !== days ? dayLabel(e.at, now) : null;
-    days = key;
-    return (
-      <Fragment key={`${e.at}:${e.who}:${e.subject}:${i}`}>
-        {heading ? (
-          <tr>
-            <th colSpan={COLUMNS.length} scope="colgroup" className={ACTIVITY_DAY_TH}>
-              {heading}
-            </th>
-          </tr>
-        ) : null}
-        <ActivityRow event={e} now={now} showDetail />
-      </Fragment>
-    );
+    const last = groups[groups.length - 1];
+    if (last && last.key === key) last.items.push({ e, i });
+    else groups.push({ key, label: dayLabel(e.at, now), items: [{ e, i }] });
   });
+  const bodies = groups.map((g) => (
+    <tbody key={g.key}>
+      <tr>
+        <th colSpan={COLUMNS.length} scope="rowgroup" className={ACTIVITY_DAY_TH}>
+          {g.label}
+        </th>
+      </tr>
+      {g.items.map(({ e, i }) => (
+        <ActivityRow key={`${e.at}:${e.who}:${e.subject}:${i}`} event={e} now={now} showDetail />
+      ))}
+    </tbody>
+  ));
 
   return (
     <div className={ACTIVITY_PAGE}>
@@ -193,7 +227,7 @@ export function ActivityPage() {
         <div>
           {events.length > 0 ? (
             <div className={ACTIVITY_SCROLL}>
-              <table className={ACTIVITY_TABLE} aria-labelledby={HEADING_ID}>
+              <table ref={table} className={ACTIVITY_TABLE} aria-labelledby={HEADING_ID}>
                 <thead>
                   <tr>
                     {COLUMNS.map((c) => (
@@ -203,7 +237,7 @@ export function ActivityPage() {
                     ))}
                   </tr>
                 </thead>
-                <tbody>{rows}</tbody>
+                {bodies}
               </table>
             </div>
           ) : missing === null ? (
@@ -213,11 +247,19 @@ export function ActivityPage() {
           {events.length > 0 || query.hasNextPage ? (
             <div className={ACTIVITY_PAGER}>
               {query.hasNextPage ? (
-                <button type="button" className={BUTTON_SECONDARY} disabled={query.isFetchingNextPage} onClick={() => void showOlder()}>
+                <button
+                  ref={olderButton}
+                  type="button"
+                  className={BUTTON_SECONDARY}
+                  aria-disabled={query.isFetchingNextPage}
+                  onClick={() => void showOlder()}
+                >
                   Show older
                 </button>
               ) : (
-                <span className={ACTIVITY_END}>Start of history</span>
+                <span ref={endLine} tabIndex={-1} className={ACTIVITY_END}>
+                  Start of history
+                </span>
               )}
               {olderAlert ? (
                 <p role="alert" className={BOARD_ALERT}>

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { after, afterEach, beforeEach, describe, test } from "node:test";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { RouterProvider, createMemoryRouter, type DataRouter } from "react-router";
+import { RouterProvider, createMemoryRouter, useLocation, type DataRouter } from "react-router";
 import type { ActivityEvent, ActivityPayload } from "../../shared/activity";
 import { ClientNavContext } from "../clientNav";
 import { ActivityPage } from "./ActivityPage";
@@ -91,6 +91,26 @@ afterEach(() => {
 after(() => {
   globalThis.fetch = originalFetch;
 });
+
+/** The page under a nav context whose locationKey follows the router, as the app's does. */
+function Live({ documentLoad }: { documentLoad: boolean }) {
+  const l = useLocation();
+  return (
+    <ClientNavContext.Provider value={{ pathname: l.pathname, locationKey: l.key, navigate: () => {}, documentLoad }}>
+      <ActivityPage />
+    </ClientNavContext.Provider>
+  );
+}
+
+function mountLive(url = "/activity"): void {
+  client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { gcTime: 0 } } });
+  router = createMemoryRouter([{ path: "/activity", element: <Live documentLoad /> }], { initialEntries: [url] });
+  render(
+    <QueryClientProvider client={client}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
+}
 
 function mount(url = "/activity", documentLoad = true): void {
   client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { gcTime: 0 } } });
@@ -344,5 +364,58 @@ describe("ActivityPage", () => {
     mount("/activity", false);
     await loaded();
     assert.equal(document.activeElement, screen.getByRole("heading", { name: "Activity" }));
+  });
+
+  test("changing a filter leaves focus on the select, with a live location key", async () => {
+    mountLive();
+    await loaded();
+    const who = select("who");
+    who.focus();
+    const key = router.state.location.key;
+    fireEvent.change(who, { target: { value: "app" } });
+    await waitFor(() => assert.equal(router.state.location.search, "?who=app"), TIMEOUT);
+    assert.notEqual(router.state.location.key, key, "the move must change the location key");
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(document.activeElement, select("who"));
+  });
+
+  test("each day's rows are their own tbody under a rowgroup header", async () => {
+    mount();
+    await loaded();
+    const bodies = Array.from(document.querySelectorAll("tbody"));
+    assert.equal(bodies.length, 2);
+    assert.ok(bodies.every((b) => b.querySelector("th")?.getAttribute("scope") === "rowgroup"));
+    assert.equal(document.querySelector("th[scope=colgroup]"), null);
+  });
+
+  test("Show older keeps focus usable: aria-disabled while fetching, then the first new row's link", async () => {
+    const first = payload({ next: "c1", events: [event({}), FAILED] });
+    const second = payload({ next: "c2", events: [event({ at: "2026-10-27T10:00:00.000Z", subject: "new.lychee.land", href: "/sites/new.lychee.land" })] });
+    const g = gate<Response>();
+    answer = (url) => (url.searchParams.get("before") === "c1" ? g.promise : json(200, { ok: true, ...first }));
+    mount();
+    await loaded();
+    const btn = olderButton()!;
+    btn.focus();
+    fireEvent.click(btn);
+    await waitFor(() => assert.equal(btn.getAttribute("aria-disabled"), "true"), TIMEOUT);
+    assert.equal(btn.hasAttribute("disabled"), false);
+    assert.equal(document.activeElement, btn);
+    g.open(json(200, { ok: true, ...second }));
+    await waitFor(() => assert.equal(dataRows().length, 3), TIMEOUT);
+    await waitFor(() => assert.equal(document.activeElement?.textContent, "new.lychee.land"), TIMEOUT);
+  });
+
+  test("Show older onto the last page with no link lands focus on Start of history", async () => {
+    const first = payload({ next: "c1", events: [event({}), FAILED] });
+    const second = payload({ next: null, events: [event({ at: "2026-10-27T10:00:00.000Z", subject: "plain.lychee.land", href: null })] });
+    answer = (url) => json(200, { ok: true, ...(url.searchParams.get("before") === "c1" ? second : first) });
+    mount();
+    await loaded();
+    const btn = olderButton()!;
+    btn.focus();
+    fireEvent.click(btn);
+    const end = await screen.findByText("Start of history", undefined, TIMEOUT);
+    await waitFor(() => assert.equal(document.activeElement, end), TIMEOUT);
   });
 });

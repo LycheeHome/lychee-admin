@@ -1,7 +1,7 @@
 import type { ActivityEvent } from "../../shared/activity";
 import { RailLink } from "../clientNav";
 import { shortAge } from "../../views/activityModel";
-import { ACTIVITY_DETAIL } from "../../views/activityPageModel";
+import { ACTIVITY_DETAIL, ACTIVITY_PAGE_SUBJECT, ACTIVITY_PAGE_SUBJECT_LINK } from "../../views/activityPageModel";
 import { ACTIVITY_KIND_TAG, ACTIVITY_OUTCOME, ACTIVITY_SUBJECT, ACTIVITY_SUBJECT_LINK, ACTIVITY_TD } from "../../views/overviewModel";
 
 /**
@@ -23,11 +23,11 @@ export function ActivityRow({ event: e, now, showDetail }: { event: ActivityEven
       </td>
       <td className={ACTIVITY_TD}>
         {e.href ? (
-          <RailLink href={e.href} className={ACTIVITY_SUBJECT_LINK}>
+          <RailLink href={e.href} className={showDetail ? ACTIVITY_PAGE_SUBJECT_LINK : ACTIVITY_SUBJECT_LINK}>
             {e.subject}
           </RailLink>
         ) : (
-          <span className={ACTIVITY_SUBJECT}>{e.subject}</span>
+          <span className={showDetail ? ACTIVITY_PAGE_SUBJECT : ACTIVITY_SUBJECT}>{e.subject}</span>
         )}
       </td>
       <td className={ACTIVITY_TD}>

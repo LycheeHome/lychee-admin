@@ -60,7 +60,16 @@ export const ACTIVITY_FILTER_LABEL = "grid gap-1";
 export const ACTIVITY_FILTER_CAPTION = `${CARD_LABEL_BASE} text-stone-300`;
 export const ACTIVITY_SELECT = `${INPUT} min-w-[150px] text-[0.8rem]`;
 export const ACTIVITY_DAY_TH = `${ACTIVITY_TH} pt-6 text-left`;
-export const ACTIVITY_DETAIL = "block font-mono text-[0.75rem] text-stone-300 break-words whitespace-normal mt-1";
+export const ACTIVITY_DETAIL = "block max-w-[60ch] font-mono text-[0.75rem] text-stone-300 break-words whitespace-normal mt-1";
+/**
+ * The page's subject: a hostname breaks only when it cannot fit its column
+ * (`break-word` leaves min-content at the whole word, where the overview's
+ * `anywhere` cuts it to one character and let a long detail line squeeze it).
+ */
+export const ACTIVITY_PAGE_SUBJECT = "font-mono text-[0.8rem] text-stone-50 [overflow-wrap:break-word]";
+export const ACTIVITY_PAGE_SUBJECT_LINK = `${ACTIVITY_PAGE_SUBJECT} no-underline hover:underline ${FOCUS_RING}`;
+/** The paragraph holding the table's "see all activity" link. */
+export const ACTIVITY_SEE_ALL_ROW = "m-0 mt-3";
 /** Under the table: Show older (or the end-of-history line) with a failed page's alert beside it. */
 export const ACTIVITY_PAGER = "mt-4 flex flex-wrap items-center gap-3";
 export const ACTIVITY_END = "font-mono text-[0.75rem] text-stone-400";

@@ -66,7 +66,9 @@ export const HOP_LABEL =
   "font-mono text-[0.6875rem] font-medium uppercase tracking-[0.09em] text-stone-400 m-0 mb-1.5";
 export const HOP_VALUE = "font-mono text-[0.8rem] text-stone-50 m-0 mb-0.5 break-all";
 export const DETAIL_ROW = "font-mono text-[0.8rem] m-0 mb-1 flex gap-3 last:mb-0";
-export const DETAIL_KEY = "text-stone-400 min-w-[7.5rem] shrink-0";
+/** The header's action slot: the Activity button and Visit, side by side. */
+export const SITE_HEADER_ACTIONS = "flex items-center gap-2.5 shrink-0";
+export const DETAIL_KEY ="text-stone-400 min-w-[7.5rem] shrink-0";
 export const STEP_NUMBER =
   "font-mono text-[0.6875rem] text-rose-400 border border-rose-400/40 rounded-full w-[1.2rem] h-[1.2rem] flex items-center justify-center shrink-0 mt-0.5";
 export const STEP_TEXT = `text-stone-400 text-[0.8rem] leading-snug m-0 mb-1.5 ${PROSE_MEASURE}`;

@@ -15,6 +15,7 @@ import {
   unitPhrase,
   UNIT_FIX_COMMANDS,
   DETAIL_KEY,
+  SITE_HEADER_ACTIONS,
   DETAIL_ROW,
   HOP_LABEL,
   HOP_VALUE,
@@ -147,8 +148,8 @@ function Header({ payload, headingRef }: { payload: DetailPayload; headingRef?: 
             </div>
           ) : null}
         </div>
-        <div className="flex items-center gap-2.5 shrink-0">
-          <RailLink href={`${ACTIVITY_ROUTE}?subject=${site.hostname}`} className={`${BUTTON_SECONDARY} no-underline shrink-0`}>
+        <div className={SITE_HEADER_ACTIONS}>
+          <RailLink href={`${ACTIVITY_ROUTE}?subject=${encodeURIComponent(site.hostname)}`} className={`${BUTTON_SECONDARY} no-underline shrink-0`}>
             Activity
           </RailLink>
           <a
