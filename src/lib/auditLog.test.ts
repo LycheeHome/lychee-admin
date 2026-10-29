@@ -35,6 +35,15 @@ describe("readAuditTail", () => {
     assert.equal(readAuditTail(fs, 50, LOG)?.length, 2);
   });
 
+  test("an infinite n returns every good line", async () => {
+    const { fs, readAuditTail } = await load();
+    fs.writeFile(LOG, [line("A"), "junk", line("B"), line("C")].join("\n") + "\n");
+    assert.deepEqual(
+      readAuditTail(fs, Number.POSITIVE_INFINITY, LOG)?.map((l) => l.action),
+      ["A", "B", "C"],
+    );
+  });
+
   test("a missing file is null", async () => {
     const { fs, readAuditTail } = await load();
     assert.equal(readAuditTail(fs, 8, LOG), null);

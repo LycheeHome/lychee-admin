@@ -76,6 +76,8 @@ const event = (extra: Partial<ActivityEvent>): ActivityEvent => ({
 function activity(extra: Partial<ActivityPayload> = {}): ActivityPayload {
   return {
     now: NOW,
+    next: null,
+    subjects: [],
     sources: { app: true, reconciler: true },
     events: [
       event({}),

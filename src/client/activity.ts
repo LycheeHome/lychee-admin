@@ -22,7 +22,7 @@ export async function fetchActivity(limit: number = ACTIVITY_LIMIT): Promise<Act
     const reason = body && body.ok === false && typeof body.reason === "string" ? body.reason : undefined;
     throw new Error(reason ?? `HTTP ${res.status}`);
   }
-  return { events: body.events, sources: body.sources, now: body.now };
+  return { events: body.events, next: body.next, subjects: body.subjects, sources: body.sources, now: body.now };
 }
 
 /**

@@ -31,6 +31,10 @@ export interface ActivityEvent {
 
 export interface ActivityPayload {
   events: ActivityEvent[];
+  /** Opaque cursor for the next older page, or null at the end. */
+  next: string | null;
+  /** Every distinct subject of the unfiltered history, for the subject filter. */
+  subjects: string[];
   sources: { app: boolean; reconciler: boolean };
   now: string;
 }
