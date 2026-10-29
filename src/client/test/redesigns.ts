@@ -345,7 +345,7 @@ export const REDESIGNS: Redesign[] = [
   {
     id: "rail-place-sans:headings",
     since: "2026-10-29",
-    why: "The `sites` and `host` headings are place words, so sans and capitalized (rail place words, 2026-10-29).",
+    why: "The `sites` and `host` headings are structure, so sans, uppercase and tracked (rail place words, 2026-10-29).",
     from: /class="flex items-center justify-between font-mono text-\[0\.75rem\] text-stone-400 px-2 py-1/g,
     to: `class="${RAIL_HEADING}`,
     anchor: 'class="flex items-center justify-between font-mono text-[0.75rem] text-stone-400 px-2 py-1',
