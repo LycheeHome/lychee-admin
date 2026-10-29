@@ -544,8 +544,9 @@ holds its label whole and breaks before the domain, and a rail row shows the
 label alone; either breaks inside a label only when that label alone is wider
 than its line. Two surfaces scroll inside themselves because nothing else can reach
 their content: the rail, once its sites outgrow the viewport, and the find
-panel's result list, once it does. The overview's activity table scrolls
-sideways in its own box, and only below the width its five columns need; at
+panel's result list, once it does. The activity tables — the
+overview's and `/activity`'s — scroll sideways in their own box, and only below
+the width their five columns need; at
 the desktop width it never does, and the page itself never scrolls sideways. Two more are named. A finished host action's
 log folds at rest; it is open while the action runs and open after a failure,
 so the log that explains something is never behind a click. A finished runbook
@@ -817,7 +818,7 @@ content by a `1px` Hairline rule. Top to bottom, at 20px gaps:
 - the `lychee` `admin` wordmark as a home link at Display 1.5rem, the page's h1;
 - the find box (below);
 - **overview**, a row linking to `/`, carrying the rail's one health mark
-  (below);
+  (below), and under it **activity**, a plain row linking to `/activity`;
 - **sites**, a heading link to the list at `/sites`, then every managed site in
   Caddyfile order: the label and a right-aligned `static` or `:<port>` hint in
   Smoke Light, with no status mark. The label is Chalk; the domain is said once, as `· lychee.land`
@@ -835,7 +836,7 @@ site list's heading as that page's Primary.
 Rows and links are 0.85rem mono in Smoke, going Chalk on hover; headings are
 0.75rem mono in Smoke. `aria-current="page"` is both the accessibility signal
 and the styling hook (the arbitrary `aria-[current=page]:` variant): Chalk text
-on a Hairline fill with a 2px Ember Edge left rule. It marks `overview` on `/`, a site's own row on
+on a Hairline fill with a 2px Ember Edge left rule. It marks `overview` on `/`, `activity` on `/activity`, a site's own row on
 its page, the `sites` heading on the list, and a board's link on its page;
 `/sites/new` marks nothing, since its breadcrumb carries the location. A rail
 item's destination never changes with location.
@@ -946,13 +947,53 @@ Smoke Light. No zebra striping, no row hover. A source that could not be read
 gets one Nunito Smoke sentence under the table rather than reading as an empty
 history; with nothing recorded and both sources read, the sentence is
 `Nothing recorded yet.` Below the width the table needs, it scrolls sideways in
-its own box (The Show-It Rule), so the page never does.
+its own box (The Show-It Rule), so the page never does. Under it, `see all
+activity` is a quiet 0.75rem mono Smoke Light link with a Hairline Strong
+underline, to the full history.
 
 **The kind tag.** The `kind` column is the row's one shaped element: the kind
 word (`deploy`, `add`, `remove`, `attach`, `prune`, …) in 0.72rem mono Smoke
 Light inside a fully round chip with a `1px` Hairline Strong edge and no fill,
 so the eye can run down the column by kind. It is a category, not a verdict,
 and never takes a tone — the outcome carries the tone, always with its word.
+
+### Activity
+
+The page at `/activity`: the whole history behind the overview's eight rows,
+under an `Activity` eyebrow, in the frame like every other page. It is the
+overview's table carried on, not a new component — the same columns, cells,
+kind tag and outcome colours — with three additions.
+
+**Filters.** One line of three native selects above the table's left edge,
+`subject`, `who` and `kind`, each under a Section Label caption in Smoke Light,
+in the shared input style at 0.8rem. When any is set, a `clear filters` link in
+the overview's `see all activity` style follows them. Nothing else on the page
+filters, and nothing is a chip.
+
+**Day headings.** Rows are grouped by the browser's local day, each group its
+own row group opened by a Section Label heading row spanning the table —
+`today · wed 28 oct`, `yesterday · tue 27 oct`, then `mon 26 oct` (a year only
+when it differs) — with extra space above it so a day reads as a break. `when`
+stays an age, as on the overview, with the exact local time in its title, so
+the two pages never describe one event two ways.
+
+**The detail line.** A failed, refused or blocked row carries the error that
+explains it — a `caddy validate` message, a reconciler's failed step, a gate
+sentence — as a second line in the outcome cell: 0.75rem mono Smoke Light,
+wrapping at a 60ch measure, never cut, never toned (the outcome word above it
+carries the tone). On this page a subject breaks only when the hostname alone
+is wider than its column; until 2026-10-28 an unbounded detail line let the
+outcome column take the width and hostnames broke mid-label.
+
+**Show older.** A Secondary button under the table loads the next 50 below;
+at the start of history it gives way to a quiet `Start of history` line in
+0.75rem mono Smoke. Older rows are added, never paged away.
+
+**Ways in.** The rail's `activity` row; the overview's `see all activity`; and
+on a site's page, `Activity` — a Secondary button beside Visit, before it,
+opening that site's history. It is never Primary and never outlined: Visit (or
+nothing) keeps the page's one Ember action, and an outline at Hairline Strong is
+invisible as an edge.
 
 ### Command Block (signature component)
 
@@ -1392,7 +1433,7 @@ stops the container, and when.
   operator might read. One operator, one wide viewport. The two named folds
   are The Show-It Rule's: a finished host action's log, and a finished
   runbook step, at rest; its named scroll boxes are the rail, the find
-  panel's list, and the activity table below its width.
+  panel's list, and the activity tables below their width.
 - **Don't** use Poetsen One anywhere except the wordmark and a list row's
   hostname, and never above 1.5rem or at a weight it doesn't ship.
 - **Don't** fill a destructive button with Ember or make it the largest control
