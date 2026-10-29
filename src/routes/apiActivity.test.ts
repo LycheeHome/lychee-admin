@@ -202,13 +202,50 @@ describe("GET /api/activity", () => {
     assert.equal(oldest, "2026-10-01T00:00:00.000Z");
   });
 
-  test("the overview's limit=8 read pages on when more exist", async () => {
-    const lines = Array.from({ length: 10 }, (_, n) =>
-      JSON.stringify({ timestamp: `2026-10-20T10:00:0${n}.000Z`, action: "add-site", hostname: "app.lychee.land" }),
+  test("the overview's limit=8 read is the newest 8 of the whole order", async () => {
+    const { buildActivity } = await import("../views/activityModel");
+    const { config } = await import("../config");
+    const ts = (n: number) => `2026-10-20T10:00:0${n}.123Z`;
+    const auditLines = [0, 1, 2, 3, 4, 5].map((n) => ({
+      timestamp: ts(n),
+      action: n === 5 ? "remove-site" : "add-site",
+      hostname: `s${n}.lychee.land`,
+    }));
+    const lifetimes = [
+      {
+        id: "a",
+        name: "swee",
+        kind: "container",
+        added_at: "2026-10-01T00:00:00Z",
+        removed_at: null,
+        events: [ts(2), ts(3), ts(4), ts(6), ts(7)].map((at) => ({ at, type: "stopped" })),
+      },
+    ];
+    const base = await start({
+      audit: auditLines.map((l) => JSON.stringify(l)).join("\n"),
+      events: JSON.stringify({ lifetimes }),
+    });
+    const { parseReconcilerEvents } = await import("../lib/reconcilerEvents");
+    const expected = buildActivity(
+      auditLines,
+      parseReconcilerEvents(JSON.stringify({ lifetimes })),
+      { domain: config.domain, sites: null, units: new Map() },
+      8,
     );
-    const { body } = await get(await start({ audit: lines.join("\n") }), "?limit=8");
-    assert.equal(body.events.length, 8);
+    assert.equal(expected.length, 8);
+    const { body } = await get(base, "?limit=8");
+    // hrefs depend on the Caddyfile and inventory the route reads; the order and facts must match.
+    const bare = (events: typeof expected) => events.map(({ href: _href, ...rest }) => rest);
+    assert.deepEqual(bare(body.events), bare(expected));
     assert.ok(body.next);
+  });
+
+  test("an empty before is the same as no cursor", async () => {
+    const base = await start({ audit: AUDIT_LINE, events: feed("2026-10-21T00:00:00Z") });
+    const plain = await get(base, "?limit=8");
+    const empty = await get(base, "?limit=8&before=");
+    assert.equal(empty.res.status, 200);
+    assert.deepEqual(empty.body.events, plain.body.events);
   });
 
   test("GET /activity answers the client document", async () => {
