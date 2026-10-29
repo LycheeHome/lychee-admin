@@ -139,6 +139,21 @@ const table = () => document.querySelector("table");
 const bodyRows = () => Array.from(document.querySelectorAll("tbody tr"));
 
 describe("OverviewPage", () => {
+  test("see all activity follows the table and links to /activity", () => {
+    mount();
+    const link = screen.getByRole("link", { name: "see all activity" });
+    assert.equal(link.getAttribute("href"), "/activity");
+    const tbl = table();
+    assert.ok(tbl);
+    assert.ok(tbl.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING, "link precedes the table");
+  });
+
+  test("see all activity is absent when activity couldn't be read", () => {
+    act_ = activity({ events: [], sources: { app: false, reconciler: false } });
+    mount();
+    assert.ok(!screen.queryByRole("link", { name: "see all activity" }));
+  });
+
   test("title and heading", async () => {
     mount();
     assert.equal(document.title, "overview · lychee admin");

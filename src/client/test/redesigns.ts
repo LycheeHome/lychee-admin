@@ -1,5 +1,5 @@
 import { RAIL_ROW } from "../../views/railModel";
-import { BODY, CAPTION, CAPTION_FILE, CAPTION_KEEP, SKIP_LINK } from "../../views/shared";
+import { BODY, BUTTON_SECONDARY, CAPTION, CAPTION_FILE, CAPTION_KEEP, SKIP_LINK } from "../../views/shared";
 
 /*
  * Declared redesigns of the frozen parity fixtures (src/dev/fixtures/).
@@ -316,6 +316,15 @@ export const REDESIGNS: Redesign[] = [
     // The row is a site row's RAIL_ROW, which the fixtures' own rows hold to its literal text.
     to: `<nav aria-label="Overview" class="flex flex-col gap-0.5"><a href="/" class="${RAIL_ROW} justify-between">overview</a><a href="/activity" class="${RAIL_ROW}">activity</a></nav><nav aria-label="Sites"`,
     anchor: '<nav aria-label="Sites"',
+  },
+  {
+    id: "site-activity-link",
+    since: "2026-10-28",
+    why: "A site's page links to its own history: a Secondary Activity button before Visit, in one group in the header's action slot (spec 2026-10-28-activity-page).",
+    // Captures the hostname and the whole Visit anchor, which keeps its own markup.
+    from: /(<a href="https:\/\/([^"]+)" target="_blank" rel="noopener noreferrer" class="[^"]*">Visit [\s\S]*?<\/a>)/g,
+    to: `<div class="flex items-center gap-2.5 shrink-0"><a href="/activity?subject=$2" class="${BUTTON_SECONDARY} no-underline shrink-0">Activity</a>$1</div>`,
+    anchor: ">Visit ",
   },
 ];
 

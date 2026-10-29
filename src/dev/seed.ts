@@ -341,7 +341,7 @@ const auditLine = (minutes: number, entry: object): string =>
 export const SEEDED_AUDIT_LOG =
   [
     auditLine(2000, { action: "add-site", hostname: "blog.lychee.land" }),
-    auditLine(300, { action: "remove-site-failed", hostname: "legacy.lychee.land" }),
+    auditLine(300, { action: "remove-site-failed", hostname: "legacy.lychee.land", detail: "caddy validate: Error: adapting config using caddyfile: ambiguous site definition: http://legacy.lychee.land" }),
     auditLine(50, { action: "deploy-service", hostname: "broken-lychee-land", detail: "0.1.0" }),
     auditLine(20, { action: "host-action", caller: "operator", unit: "palworld-palchuds", hostAction: "restart", outcome: "started" }),
     // Logged with the request's Host header as hostname; the feed drops it.

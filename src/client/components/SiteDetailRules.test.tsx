@@ -209,6 +209,24 @@ describe("renderSiteDetail header", () => {
     }
   });
 
+  test("Activity sits immediately before Visit, Secondary whatever Visit is", () => {
+    const cases: [Site, Partial<SiteDetailOptions>][] = [
+      [STATIC_SITE, {}],
+      [PROXY_SITE, { status: { kind: "tcp", responding: false } }],
+    ];
+    for (const [site, extra] of cases) {
+      const html = renderSiteDetail(site, { ...OPTS, ...extra });
+      const m = html.match(/<a [^>]*>Activity<\/a><a [^>]*>Visit /);
+      assert.ok(m, `Activity not directly before Visit for ${site.hostname}`);
+      assert.ok(m[0].startsWith(`<a href="/activity?subject=${site.hostname}" class="${BUTTON_SECONDARY} no-underline shrink-0">Activity</a>`));
+    }
+  });
+
+  test("not-found and Caddyfile-error bodies have no Activity link", () => {
+    assert.doesNotMatch(renderSiteNotFound("nope.lychee.land"), />Activity</);
+    assert.doesNotMatch(renderToStaticMarkup(<CaddyfileError message="x" />), />Activity</);
+  });
+
   test("wires the hostname copy button to the existing generic handler", () => {
     const html = renderSiteDetail(STATIC_SITE, OPTS);
     assert.match(html, /data-copy-target="site-hostname"/);

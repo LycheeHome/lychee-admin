@@ -43,7 +43,7 @@ import {
   TONE_TEXT,
   statePhrase,
 } from "../../views/shared";
-import { RailLink, SITES_ROUTE } from "../clientNav";
+import { ACTIVITY_ROUTE, RailLink, SITES_ROUTE } from "../clientNav";
 import { CommandBlock, CopyButton, FailureLine, Icon } from "./CommandBlock";
 import { RemoveDialog, type RemoveDialogHandle } from "./RemoveDialog";
 import { RepositoryCard, type SiteWrites } from "./RepositoryCard";
@@ -147,15 +147,20 @@ function Header({ payload, headingRef }: { payload: DetailPayload; headingRef?: 
             </div>
           ) : null}
         </div>
-        <a
-          href={`https://${site.hostname}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`${visitIsForward(status) ? BUTTON_PRIMARY : BUTTON_SECONDARY} no-underline shrink-0`}
-        >
-          {"Visit "}
-          <Icon name="externalLink" />
-        </a>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <RailLink href={`${ACTIVITY_ROUTE}?subject=${site.hostname}`} className={`${BUTTON_SECONDARY} no-underline shrink-0`}>
+            Activity
+          </RailLink>
+          <a
+            href={`https://${site.hostname}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`${visitIsForward(status) ? BUTTON_PRIMARY : BUTTON_SECONDARY} no-underline shrink-0`}
+          >
+            {"Visit "}
+            <Icon name="externalLink" />
+          </a>
+        </div>
       </div>
     </>
   );

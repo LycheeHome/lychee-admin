@@ -9,6 +9,8 @@ import {
   ACTIVITY_TABLE,
   ACTIVITY_TH,
 } from "../../views/overviewModel";
+import { ACTIVITY_SEE_ALL } from "../../views/activityPageModel";
+import { ACTIVITY_ROUTE, RailLink } from "../clientNav";
 import { BOARD_ALERT } from "./BoardRows";
 
 const COLUMNS = ["when", "who", "kind", "subject", "outcome"] as const;
@@ -70,6 +72,11 @@ export function ActivityTable({ payload, alert }: { payload: ActivityPayload | n
             <p className={ACTIVITY_NOTE}>Nothing recorded yet.</p>
           ) : null}
           {missing ? <p className={ACTIVITY_NOTE}>{missing}</p> : null}
+          <p className="m-0 mt-3">
+            <RailLink href={ACTIVITY_ROUTE} className={ACTIVITY_SEE_ALL}>
+              see all activity
+            </RailLink>
+          </p>
         </>
       );
     }

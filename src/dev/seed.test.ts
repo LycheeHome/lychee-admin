@@ -97,3 +97,18 @@ test("seeded activity has both sources and fills the page", () => {
   assert.equal(events.length, 8);
   assert.deepEqual([...new Set(events.map((e) => e.who))].sort(), ["app", "reconciler"]);
 });
+
+test("the seeded failed remove carries the app's error as its detail", () => {
+  const fs = seeded();
+  const events = buildActivity(
+    readAuditTail(fs, 50, config.logFile),
+    readReconcilerEvents(fs, EVENTS_PATH),
+    { domain: config.domain, sites: new Set(), units: new Map() },
+    50,
+  );
+  const failed = events.find((e) => e.subject === "legacy.lychee.land" && e.who === "app");
+  assert.equal(
+    failed?.detail,
+    "caddy validate: Error: adapting config using caddyfile: ambiguous site definition: http://legacy.lychee.land",
+  );
+});
