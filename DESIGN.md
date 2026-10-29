@@ -840,8 +840,10 @@ site list's heading as that page's Primary.
 Rows and links are 0.85rem in Smoke, going Chalk on hover; headings are 0.75rem
 in Smoke. A site row is mono, like every hostname and port. A place word
 (`overview`, `activity`, the `sites` and `host` headings and the three host
-links) is Nunito, while the `· lychee.land` beside `sites` stays mono. Until
-2026-10-29 the whole rail was mono. `aria-current="page"` is both the accessibility signal
+links) is Nunito, shown capitalized (`Overview`, `Services`) by CSS
+`capitalize`, so the markup and the accessible name keep the plain word, while
+the `· lychee.land` beside `sites` stays mono and as written. Until 2026-10-29
+the whole rail was mono and lowercase. `aria-current="page"` is both the accessibility signal
 and the styling hook (the arbitrary `aria-[current=page]:` variant): Chalk text
 on a Hairline fill with a 2px Ember Edge left rule. It marks `overview` on `/`, `activity` on `/activity`, a site's own row on
 its page, the `sites` heading on the list, and a board's link on its page;
@@ -873,7 +875,7 @@ surface with a `1px` Hairline edge on the shared Overlay shadow, anchored beside
 content's top-left, at most 420px wide, listing places and never actions. With
 nothing typed it lists what needs attention, sites first; typing narrows every
 site and unit by a literal substring under four group headings — Sites, then
-services, reconciler, infrastructure, in Nunito since they are place words — each row a hostname or unit name, its
+services, reconciler, infrastructure, in Nunito and capitalized like the rail's place words — each row a hostname or unit name, its
 status pill at a shared right edge, and `deploy blocked` or `deploy failed` in
 Scorch mono before the pill when that is why it is listed. Rows are 0.8rem mono
 in Smoke; the highlighted row goes Chalk on a Hairline fill, without the Ember

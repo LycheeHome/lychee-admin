@@ -163,18 +163,19 @@ export const RAIL_ROW =
 
 /**
  * A row naming a place (`overview`, `activity`, the host links): a site row's
- * shape in sans, since a place word is a word and not a machine fact. Site
- * rows stay mono, as every hostname and port does.
+ * shape in sans, since a place word is a word and not a machine fact, shown
+ * capitalized (`Overview`) by CSS so the text and accessible name stay the
+ * word itself. Site rows stay mono, as every hostname and port does.
  */
 export const RAIL_PLACE =
-  `flex items-center gap-2 font-sans text-[0.85rem] no-underline text-stone-400 rounded-md px-2 py-1 ` +
+  `flex items-center gap-2 font-sans capitalize text-[0.85rem] no-underline text-stone-400 rounded-md px-2 py-1 ` +
   `hover:text-stone-50 ${RAIL_CURRENT} ${FOCUS_RING}`;
 
-/** A section heading, `sites` or `host`: a place word, so sans; the domain beside `sites` sets its own mono. */
-export const RAIL_HEADING = `flex items-center justify-between font-sans text-[0.75rem] text-stone-400 px-2 py-1`;
+/** A section heading, `sites` or `host`: a place word, so sans and capitalized; the domain beside `sites` sets its own mono. */
+export const RAIL_HEADING = `flex items-center justify-between font-sans capitalize text-[0.75rem] text-stone-400 px-2 py-1`;
 
-/** The `· lychee.land` beside the `sites` heading: a machine fact inside a sans heading. */
-export const RAIL_HEADING_DOMAIN = "font-mono";
+/** The `· lychee.land` beside the `sites` heading: a machine fact inside a sans heading, so mono and never capitalized. */
+export const RAIL_HEADING_DOMAIN = "font-mono normal-case";
 
 /** A section heading that is also a link (`sites`): the heading's type, a row's current and focus treatment. */
 export const RAIL_HEADING_LINK = `${RAIL_HEADING} no-underline rounded-md hover:text-stone-50 ${RAIL_CURRENT} ${FOCUS_RING}`;
@@ -239,8 +240,8 @@ export const FIND_PANEL =
 /** The listbox, scrolling inside the panel once it is taller than the viewport allows. */
 export const FIND_LIST = "max-h-[calc(100vh-8rem)] overflow-y-auto p-1.5 flex flex-col gap-2";
 
-/** A group's label (`sites`, `services`, …): a place word, so sans like the rail's, at the rail heading's size. */
-export const FIND_HEADING = "m-0 px-2 pt-1 pb-0.5 font-sans text-[0.72rem] text-stone-400";
+/** A group's label (`sites`, `services`, …): a place word, so sans and capitalized like the rail's, at the rail heading's size. */
+export const FIND_HEADING = "m-0 px-2 pt-1 pb-0.5 font-sans capitalize text-[0.72rem] text-stone-400";
 
 /** One option. The highlight is the rail's current fill, Chalk on Hairline. */
 export const FIND_OPTION =
