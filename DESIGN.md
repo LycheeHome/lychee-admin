@@ -465,8 +465,8 @@ says its own name and names a site.
 hostname, port, path, command, service name, status word, framework name — it is
 DM Mono. If a person wrote it as a sentence, it is Nunito. The one other case
 is a word naming a place in the app — the rail's `overview`, `activity`,
-`sites`, `host`, `services`, `reconciler` and `infrastructure` — which is
-Nunito too, since it is a word and not a fact (since 2026-10-29). No sentence
+`sites`, `host`, `services`, `reconciler` and `infrastructure`, and the find
+panel's group headings — which is Nunito too, since it is a word and not a fact (since 2026-10-29). No sentence
 sets a path in Nunito: a fact inside a sentence is a mono
 span in Chalk, within the sentence's Nunito. A line that pairs a status word
 with a reason (`● deploy waiting · <reason>`, `● retiring · <reason>`) sets the
@@ -873,7 +873,7 @@ surface with a `1px` Hairline edge on the shared Overlay shadow, anchored beside
 content's top-left, at most 420px wide, listing places and never actions. With
 nothing typed it lists what needs attention, sites first; typing narrows every
 site and unit by a literal substring under four group headings — Sites, then
-services, reconciler, infrastructure — each row a hostname or unit name, its
+services, reconciler, infrastructure, in Nunito since they are place words — each row a hostname or unit name, its
 status pill at a shared right edge, and `deploy blocked` or `deploy failed` in
 Scorch mono before the pill when that is why it is listed. Rows are 0.8rem mono
 in Smoke; the highlighted row goes Chalk on a Hairline fill, without the Ember

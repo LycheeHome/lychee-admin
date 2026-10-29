@@ -239,8 +239,8 @@ export const FIND_PANEL =
 /** The listbox, scrolling inside the panel once it is taller than the viewport allows. */
 export const FIND_LIST = "max-h-[calc(100vh-8rem)] overflow-y-auto p-1.5 flex flex-col gap-2";
 
-/** A group's label (`sites`, `services`, …): mono, the rail heading's size. */
-export const FIND_HEADING = "m-0 px-2 pt-1 pb-0.5 font-mono text-[0.72rem] text-stone-400";
+/** A group's label (`sites`, `services`, …): a place word, so sans like the rail's, at the rail heading's size. */
+export const FIND_HEADING = "m-0 px-2 pt-1 pb-0.5 font-sans text-[0.72rem] text-stone-400";
 
 /** One option. The highlight is the rail's current fill, Chalk on Hairline. */
 export const FIND_OPTION =
