@@ -619,7 +619,7 @@ describe("the rail's design rules, in states the fixtures cannot hold", () => {
     assert.equal(current.length, 1, `${state}: ${current.length} current rows`);
     const cls = current[0]?.getAttribute("class") ?? "";
     assert.ok(cls.includes("aria-[current=page]:bg-stone-700"), `${state}: the current row is not on Hairline`);
-    assert.ok(cls.includes("aria-[current=page]:border-l-rose-800"), `${state}: the current row has no Ember Edge`);
+    assert.doesNotMatch(cls, /\bborder-l/, `${state}: the current row has a left rule`);
   }
 
   test("with health filled in, trouble on a site and a unit, a site current", () => {
@@ -668,9 +668,9 @@ describe("the rail's design rules, in states the fixtures cannot hold", () => {
         const row = root.querySelector('a[aria-current="page"]');
         row?.setAttribute("class", (row.getAttribute("class") ?? "").replace("aria-[current=page]:bg-stone-700", ""));
       }],
-      ["a current row without its Ember Edge", (root) => {
+      ["a current row with a left rule", (root) => {
         const row = root.querySelector('a[aria-current="page"]');
-        row?.setAttribute("class", (row.getAttribute("class") ?? "").replace("aria-[current=page]:border-l-rose-800", ""));
+        row?.setAttribute("class", `${row.getAttribute("class") ?? ""} aria-[current=page]:border-l-2 aria-[current=page]:border-l-rose-800`);
       }],
     ];
     for (const [name, breakIt] of broken) {

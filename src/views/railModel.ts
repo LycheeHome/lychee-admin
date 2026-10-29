@@ -152,11 +152,9 @@ export function attentionCounts(
 }
 
 // The rail's class strings: the retired server rail's, which the frozen rail fixtures pin, less
-// the changes declared in src/client/test/redesigns.ts. The current-item treatment is the old
-// header's: Chalk on Hairline with a 2px Ember Edge rule.
-const RAIL_CURRENT =
-  `aria-[current=page]:text-stone-50 aria-[current=page]:bg-stone-700 ` +
-  `aria-[current=page]:border-l-2 aria-[current=page]:border-l-rose-800`;
+// the changes declared in src/client/test/redesigns.ts. The current-item treatment is Chalk on
+// Hairline, the ground alone: the 2px Ember Edge left rule it carried until 2026-10-29 went.
+const RAIL_CURRENT = `aria-[current=page]:text-stone-50 aria-[current=page]:bg-stone-700`;
 
 /**
  * A row's hover: the ground goes Hearth Lift, as a sites-list row's does, so

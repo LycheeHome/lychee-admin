@@ -270,8 +270,11 @@ carry a verdict.
   type option's radio, and the "back to sites" link on the not-found page.
 - **Ember Light** (`rose-300`): Ember's hover state on filled buttons, and the
   offer button's text.
-- **Ember Edge** (`rose-800`): Structural Ember — the 2px left rule on the
-  current rail item. Never a form's: it sits a percent of lightness from Scorch
+- **Ember Edge** (`rose-800`): Structural Ember — the border of a success or
+  info flash banner. It was also the 2px left rule on the current rail item
+  until 2026-10-29, when that rule went: a coloured left stripe on the selected
+  row is the stock sidebar's mark, and the Hairline ground already says which
+  row is current. Never a form's: it sits a percent of lightness from Scorch
   Border, so beside an invalid field's ring the checked type option's border
   and the port branch's rule both read as a second error, and both left it on
   2026-10-27.
@@ -852,7 +855,8 @@ capitalized (`Overview`, `Services`) by CSS `capitalize`, so the markup and the
 accessible name keep the plain word. Until 2026-10-29
 the whole rail was mono and lowercase. `aria-current="page"` is both the accessibility signal
 and the styling hook (the arbitrary `aria-[current=page]:` variant): Chalk text
-on a Hairline fill with a 2px Ember Edge left rule. It marks `overview` on `/`, `activity` on `/activity`, a site's own row on
+on a Hairline fill, the ground alone, with no left rule (a 2px Ember Edge one
+until 2026-10-29). It marks `overview` on `/`, `activity` on `/activity`, a site's own row on
 its page, `Sites` on the list, and a board's link on its page;
 `/sites/new` marks nothing, since its breadcrumb carries the location. A rail
 item's destination never changes with location.
