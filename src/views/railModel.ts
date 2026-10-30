@@ -164,10 +164,100 @@ const RAIL_CURRENT = `aria-[current=page]:text-stone-50 aria-[current=page]:bg-s
  */
 const RAIL_HOVER = "motion-safe:transition-colors motion-safe:duration-150 hover:bg-stone-800";
 
-/** A site row: indented 12px past the `Sites` row it sits under, so the nesting shows without a heading. */
+/**
+ * A site row: indented 32px, past the 16px icon and 8px gap that open each
+ * place row, so a hostname lines up under the place words (`Sites`) rather
+ * than under their icons, and the nesting shows without a heading.
+ */
 export const RAIL_ROW =
-  `flex items-center gap-2 font-mono text-[0.85rem] no-underline text-stone-400 rounded-md pl-5 pr-2 py-1 ` +
+  `flex items-center gap-2 font-mono text-[0.85rem] no-underline text-stone-400 rounded-md pl-8 pr-2 py-1 ` +
   `hover:text-stone-50 ${RAIL_HOVER} ${RAIL_CURRENT} ${FOCUS_RING}`;
+
+/** A place row's icon, one 16px square the row's text colour paints (`currentColor`), never shrunk by flex. */
+export const RAIL_ICON = "w-4 h-4 shrink-0";
+
+/** The expanded rail's top line: the wordmark and the collapse toggle, a space apart. */
+export const RAIL_HEAD = "flex items-center justify-between gap-2 px-2";
+
+/** The collapse and expand button: a 32px square in Smoke, lit to Chalk on a Hearth Lift ground on hover. */
+export const RAIL_TOGGLE =
+  `inline-flex items-center justify-center size-8 rounded-md bg-transparent border-0 text-stone-400 cursor-pointer ` +
+  `hover:text-stone-50 hover:bg-stone-800 ${RAIL_HOVER} ${FOCUS_RING}`;
+
+/** The expanded rail's rule between its groups: 1px Hairline, inset 8px each side. */
+export const RAIL_DIVIDER = "h-px bg-stone-700 mx-2";
+
+/** The strip's rule between its groups: 24px of Hairline, centred in the 56px column. */
+export const RAIL_STRIP_DIVIDER = "h-px w-6 bg-stone-700 mx-auto my-0.5";
+
+/** The strip's inner column: its cells centred and scrolling inside the rail when the viewport is short. */
+export const RAIL_STRIP = "flex-1 min-h-0 overflow-y-auto flex flex-col items-center gap-4 px-2 py-5";
+
+/** One strip cell, 40x36: an icon alone, so its tooltip and screen-reader word carry the name. Current is Chalk on Hairline. */
+export const RAIL_CELL =
+  `group relative flex items-center justify-center w-10 h-9 rounded-md text-stone-400 no-underline hover:text-stone-50 ` +
+  `${RAIL_HOVER} ${RAIL_CURRENT} ${FOCUS_RING}`;
+
+/** A strip cell's icon: 18px, two more than an expanded row's, since it has no word beside it. */
+export const RAIL_CELL_ICON = "w-[18px] h-[18px]";
+
+/**
+ * A strip cell's tooltip, to the cell's right. It shows on hover and keyboard
+ * focus through the cell's `group`, is `aria-hidden` (the cell's `sr-only`
+ * word is its name), and takes the Overlay shadow since it floats.
+ */
+export const RAIL_TIP =
+  `bg-stone-800 border border-stone-700 rounded-md text-[0.8rem] font-sans text-stone-50 px-2 py-1 shadow-lg shadow-black/40 ` +
+  `pointer-events-none absolute left-[calc(100%+10px)] top-1/2 -translate-y-1/2 z-40 whitespace-nowrap hidden ` +
+  `group-hover:block group-focus-visible:block`;
+
+/** A strip cell's attention badge: the overview signal's dot and count, pinned to the cell's top right corner. */
+export const RAIL_BADGE =
+  "pointer-events-none absolute top-0.5 right-px inline-flex items-center gap-0.5 font-mono text-[0.6rem] leading-none";
+
+/** The strip's wordmark: the `l` monogram in Display, standing for `lychee admin` when there is no room for it. */
+export const RAIL_MONOGRAM = `font-display text-2xl leading-none text-stone-50 no-underline ${FOCUS_RING}`;
+
+/**
+ * The collapsed rail's peek: the full rail floated over the page on pointer or
+ * focus, 250px wide, with the Overlay shadow since it covers content. Fixed,
+ * so the strip's own width (and the page grid) never changes under it.
+ */
+export const RAIL_PEEK =
+  "fixed inset-y-0 left-0 z-40 w-[250px] flex flex-col bg-stone-900 border-r border-stone-700 shadow-lg shadow-black/40";
+
+export type RailPlace = "overview" | "activity" | "sites" | "services" | "reconciler" | "infrastructure";
+
+/** The rail's places in order, with where each goes and the group it sits in (a divider falls between groups). */
+export const RAIL_PLACES: readonly { place: RailPlace; href: string; group: "app" | "host" }[] = [
+  { place: "overview", href: "/", group: "app" },
+  { place: "activity", href: "/activity", group: "app" },
+  { place: "sites", href: "/sites", group: "app" },
+  { place: "services", href: "/services", group: "host" },
+  { place: "reconciler", href: "/reconciler", group: "host" },
+  { place: "infrastructure", href: "/infrastructure", group: "host" },
+];
+
+/** Where the collapse choice is kept: per browser, and only ever the words below. */
+export const RAIL_STORAGE_KEY = "lychee-admin:rail";
+
+/** Collapsed only when the stored word says so; anything else, a missing or throwing store included, is expanded. */
+export function readRailCollapsed(storage: { getItem(key: string): string | null } | undefined): boolean {
+  try {
+    return storage?.getItem(RAIL_STORAGE_KEY) === "collapsed";
+  } catch {
+    return false;
+  }
+}
+
+/** Remembers the choice. A store that is missing, full or blocked loses it silently: the rail still toggles. */
+export function writeRailCollapsed(storage: { setItem(key: string, value: string): void } | undefined, collapsed: boolean): void {
+  try {
+    storage?.setItem(RAIL_STORAGE_KEY, collapsed ? "collapsed" : "expanded");
+  } catch {
+    // Not persisted; nothing else depends on it.
+  }
+}
 
 /**
  * A row naming a place (`overview`, `activity`, the host links): a site row's

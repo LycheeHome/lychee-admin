@@ -214,3 +214,66 @@ describe("attentionCounts", () => {
     });
   });
 });
+
+describe("the rail's stored collapse state", () => {
+  const { readRailCollapsed, writeRailCollapsed, RAIL_STORAGE_KEY } = railModel;
+  const reading = (value: string | null) => ({ getItem: () => value });
+
+  test("only the word `collapsed` reads as collapsed", () => {
+    assert.equal(readRailCollapsed(reading("collapsed")), true);
+    for (const v of ["expanded", null, "yes"]) assert.equal(readRailCollapsed(reading(v)), false, String(v));
+    assert.equal(readRailCollapsed(undefined), false);
+    assert.equal(
+      readRailCollapsed({
+        getItem: () => {
+          throw new Error("blocked");
+        },
+      }),
+      false,
+    );
+  });
+
+  test("writing stores the word under the key, and never throws", () => {
+    const seen: [string, string][] = [];
+    const store = { setItem: (k: string, v: string) => void seen.push([k, v]) };
+    writeRailCollapsed(store, true);
+    writeRailCollapsed(store, false);
+    assert.deepEqual(seen, [
+      [RAIL_STORAGE_KEY, "collapsed"],
+      [RAIL_STORAGE_KEY, "expanded"],
+    ]);
+    assert.doesNotThrow(() =>
+      writeRailCollapsed(
+        {
+          setItem: () => {
+            throw new Error("full");
+          },
+        },
+        true,
+      ),
+    );
+    assert.doesNotThrow(() => writeRailCollapsed(undefined, true));
+  });
+});
+
+describe("the rail's places", () => {
+  test("six places in order, the app's three then the host's", () => {
+    assert.deepEqual(
+      railModel.RAIL_PLACES.map((p) => p.place),
+      ["overview", "activity", "sites", "services", "reconciler", "infrastructure"],
+    );
+    assert.deepEqual(
+      railModel.RAIL_PLACES.map((p) => p.group),
+      ["app", "app", "app", "host", "host", "host"],
+    );
+    assert.deepEqual(
+      railModel.RAIL_PLACES.map((p) => p.href),
+      ["/", "/activity", "/sites", "/services", "/reconciler", "/infrastructure"],
+    );
+  });
+
+  test("a site row sits 32px in, past the place icons", () => {
+    assert.match(railModel.RAIL_ROW, /(^|\s)pl-8(\s|$)/);
+    assert.doesNotMatch(railModel.RAIL_ROW, /(^|\s)pl-5(\s|$)/);
+  });
+});
