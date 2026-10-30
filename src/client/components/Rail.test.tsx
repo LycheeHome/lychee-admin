@@ -968,6 +968,211 @@ describe("the rail's collapse state", () => {
 });
 
 /*
+ * The peek (spec 2026-10-29-collapsible-rail): find while collapsed. The
+ * expanded rail in a fixed overlay, find focused, the stored state untouched.
+ */
+describe("the find peek", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem(RAIL_STORAGE_KEY, "collapsed");
+    setViewport(1280);
+  });
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  const peek = (): HTMLElement | null => document.querySelector<HTMLElement>("#rail-peek");
+  const findOpen = (): HTMLButtonElement | null => document.querySelector<HTMLButtonElement>("#rail-find-open");
+  const stored = (): string | null => localStorage.getItem(RAIL_STORAGE_KEY);
+
+  function assertOpen(when: string): HTMLInputElement {
+    const root = peek();
+    assert.ok(root, `${when}: no peek`);
+    assert.equal(root.getAttribute("role"), "dialog");
+    assert.equal(root.getAttribute("aria-modal"), "false");
+    assert.equal(root.getAttribute("aria-label"), "Navigation");
+    assert.equal(finds().length, 1, `${when}: not exactly one #find`);
+    const input = finds()[0];
+    assert.ok(input && root.contains(input), `${when}: find is not in the peek`);
+    assert.ok(document.activeElement === input, `${when}: find is not focused`);
+    assert.equal(stored(), "collapsed", `${when}: the stored state changed`);
+    return input;
+  }
+
+  test("the find button opens the peek with find focused", () => {
+    const { aside } = mountNavigation();
+    click(findOpen());
+    assertOpen("after the click");
+    // The aside still holds the strip, and the peek holds the expanded rail.
+    assert.ok(aside.querySelector("#rail-find-open"), "the strip left the aside");
+    assert.ok(!aside.contains(peek()), "the peek sits inside the strip");
+    assert.equal(peek()?.querySelectorAll("[data-site]").length, 8);
+    assert.ok(document.body.querySelectorAll("[inert]").length === 0, "the peek made the page inert");
+  });
+
+  test("⌘K while collapsed and wide opens the peek, not the drawer, and Escape closes it", () => {
+    mountNavigation();
+    const elsewhere = document.querySelector<HTMLTextAreaElement>("#elsewhere");
+    assert.ok(elsewhere);
+    act(() => elsewhere.focus());
+    const event = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true, cancelable: true });
+    act(() => {
+      elsewhere.dispatchEvent(event);
+    });
+    assert.ok(event.defaultPrevented, "⌘K kept the browser's own shortcut");
+    assert.ok(drawer() === null, "⌘K opened the drawer");
+    const input = assertOpen("after ⌘K");
+
+    press(input, "Escape");
+    press(input, "Escape");
+    assert.ok(peek() === null, "Escape left the peek open");
+    assert.ok(document.activeElement === elsewhere, "focus did not go back to what had it before ⌘K");
+    assert.equal(stored(), "collapsed");
+  });
+
+  test("Escape closes find's panel first, then the peek", () => {
+    mountNavigation();
+    click(findOpen());
+    const input = assertOpen("open");
+    act(() => {
+      fireEvent.change(input, { target: { value: "api" } });
+    });
+    assert.equal(input.getAttribute("aria-expanded"), "true");
+
+    press(input, "Escape");
+    assert.ok(peek(), "the first Escape closed the peek");
+    assert.equal(input.getAttribute("aria-expanded"), "false");
+
+    press(input, "Escape");
+    assert.ok(peek() === null, "the second Escape left the peek open");
+    assert.ok(document.activeElement === findOpen(), "focus did not go back to the find button");
+  });
+
+  test("a rail link inside the peek closes it on the move", () => {
+    render(
+      <MemoryRouter initialEntries={["/sites"]}>
+        <RoutedNav>
+          <Navigation rail={railData()} health={seedHealth()} healthError={false} />
+        </RoutedNav>
+      </MemoryRouter>,
+    );
+    click(findOpen());
+    const root = peek();
+    assert.ok(root);
+    click(root.querySelector('a[href="/services"]'), { button: 0 });
+    assert.ok(peek() === null, "the move left the peek open");
+    const cell = document.querySelector('aside#rail a[href="/services"]');
+    assert.equal(cell?.getAttribute("aria-current"), "page");
+    assert.ok(document.activeElement !== findOpen(), "focus went back to the find button after a move");
+    assert.equal(stored(), "collapsed");
+  });
+
+  test("a pointer down outside closes it; one inside does not", () => {
+    mountNavigation();
+    click(findOpen());
+    const root = peek();
+    assert.ok(root);
+    act(() => {
+      root.querySelector("nav")?.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    });
+    assert.ok(peek(), "a pointer down inside closed the peek");
+    act(() => {
+      document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    });
+    assert.ok(peek() === null, "a pointer down outside left the peek open");
+  });
+
+  test("focus leaving it closes it; a window blur does not", () => {
+    mountNavigation();
+    click(findOpen());
+    const input = assertOpen("open");
+    act(() => {
+      input.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: null }));
+    });
+    assert.ok(peek(), "a focusout to nowhere closed the peek");
+    const elsewhere = document.querySelector<HTMLTextAreaElement>("#elsewhere");
+    act(() => {
+      input.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: elsewhere }));
+    });
+    assert.ok(peek() === null, "focus leaving left the peek open");
+  });
+
+  test("the peek's collapse button closes it and keeps the stored state", () => {
+    mountNavigation();
+    click(findOpen());
+    const toggle = peek()?.querySelector<HTMLButtonElement>("#rail-toggle");
+    assert.equal(toggle?.getAttribute("aria-label"), "Collapse sidebar");
+    click(toggle ?? null);
+    assert.ok(peek() === null, "the collapse button left the peek open");
+    assert.equal(stored(), "collapsed");
+    assert.equal(document.body.dataset.rail, "collapsed");
+    assert.ok(findOpen(), "the strip is gone");
+  });
+
+  // happy-dom's MediaQueryList starts its change tracking at `false`, so a
+  // wide-to-narrow resize never fires `change`: the query is stubbed instead.
+  test("narrowing closes the peek", () => {
+    const real = window.matchMedia;
+    const listeners = new Set<() => void>();
+    let matches = true;
+    window.matchMedia = ((media: string) => ({
+      media,
+      get matches() {
+        return matches;
+      },
+      addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+      removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
+    })) as unknown as typeof window.matchMedia;
+    try {
+      mountNavigation();
+      click(findOpen());
+      assert.ok(peek());
+      assert.ok(listeners.size > 0, "nothing listens for the width");
+      matches = false;
+      act(() => {
+        for (const fn of Array.from(listeners)) fn();
+      });
+      assert.ok(peek() === null, "narrowing left the peek open");
+      assert.equal(stored(), "collapsed");
+    } finally {
+      window.matchMedia = real;
+    }
+  });
+
+  test("keeps exactly one document keydown listener through the peek", () => {
+    const live = new Set<EventListenerOrEventListenerObject>();
+    const add = document.addEventListener.bind(document);
+    const remove = document.removeEventListener.bind(document);
+    let peak = 0;
+    document.addEventListener = ((type: string, fn: EventListenerOrEventListenerObject, opts?: unknown) => {
+      if (type === "keydown") live.add(fn);
+      peak = Math.max(peak, live.size);
+      add(type, fn, opts as AddEventListenerOptions);
+    }) as typeof document.addEventListener;
+    document.removeEventListener = ((type: string, fn: EventListenerOrEventListenerObject, opts?: unknown) => {
+      if (type === "keydown") live.delete(fn);
+      remove(type, fn, opts as EventListenerOptions);
+    }) as typeof document.removeEventListener;
+    try {
+      mountNavigation();
+      assert.equal(live.size, 1);
+      click(findOpen());
+      assert.equal(live.size, 1, "the peek's find and the collapsed listener both live");
+      const input = finds()[0];
+      assert.ok(input);
+      press(input, "Escape");
+      press(input, "Escape");
+      assert.ok(peek() === null);
+      assert.equal(live.size, 1, "the collapsed listener did not come back");
+      assert.equal(peak, 1);
+    } finally {
+      document.addEventListener = add;
+      document.removeEventListener = remove;
+    }
+  });
+});
+
+/*
  * DESIGN.md's rules for the rail, asserted by name. The frozen fixtures pin
  * them only for a health-free rail with nothing open; these hold them in the
  * states the fixtures cannot express, and say what each rule is, so a

@@ -42,10 +42,16 @@ export interface FindPanelProps {
   initialFocused?: boolean;
   /**
    * This box is inside the narrow-screen drawer. The panel then opens below
-   * the box rather than beside the rail, and Escape on a closed panel is left
-   * to the drawer, so a first Escape closes find and a second the drawer.
+   * the box rather than beside the rail.
    */
   inDrawer?: boolean;
+  /**
+   * This box is inside a container that closes on Escape (the drawer, the
+   * peek). An open panel takes the first Escape and keeps focus in the box;
+   * Escape on a closed panel is left to the container, so a first Escape
+   * closes find and a second the container.
+   */
+  escapeToContainer?: boolean;
   /**
    * Below 900px the rail, and this box with it, is collapsed: ⌘K calls this
    * with whatever had focus, and Navigation opens the rail as a drawer on find.
@@ -130,6 +136,7 @@ export function FindPanel({
   initialQuery = "",
   initialFocused = false,
   inDrawer = false,
+  escapeToContainer = false,
   onNarrowShortcut,
 }: FindPanelProps) {
   // A row in another board group (`/reconciler#service-…`) opens in-app from
@@ -217,7 +224,8 @@ export function FindPanel({
       setPlace({ top: box.bottom + 6, left: box.left });
       return;
     }
-    const rail = input.closest("aside")?.getBoundingClientRect();
+    // The peek is the rail's box while it is open; otherwise the aside.
+    const rail = input.closest("#rail-peek, aside")?.getBoundingClientRect();
     setPlace({ top: box.top, left: rail ? rail.right + 8 : box.left });
   }, [open, inDrawer]);
 
@@ -254,10 +262,10 @@ export function FindPanel({
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Escape") {
-      if (inDrawer) {
-        // A closed panel leaves Escape to the drawer, which closes on it.
+      if (escapeToContainer) {
+        // A closed panel leaves Escape to the drawer or peek, which closes on it.
         if (!open) return;
-        // An open one closes and keeps focus in the box, inside the drawer.
+        // An open one closes and keeps focus in the box, inside its container.
         e.preventDefault();
         setOpen(false);
         clearQuery();

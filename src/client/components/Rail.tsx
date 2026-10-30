@@ -18,6 +18,7 @@ import {
   RAIL_ICON,
   RAIL_MENU,
   RAIL_NOTE,
+  RAIL_PEEK,
   RAIL_PLACE,
   RAIL_PLACES,
   RAIL_ROW,
@@ -71,7 +72,9 @@ export interface RailProps {
   navigate?: (href: string) => void;
   /** This rail is the narrow-screen drawer's, not the aside's. */
   inDrawer?: boolean;
-  /** ⌘K while the rail is collapsed (below 900px): open the drawer on find. */
+  /** This rail is in the peek, which closes on an Escape find leaves to it (the drawer's rail does this already). */
+  escapeToContainer?: boolean;
+  /** ⌘K below 900px, where the aside, and the expanded rail's find with it, is hidden: open the drawer on find. */
   onNarrowShortcut?: (previous: Element | null) => void;
   /** The wide rail is the icon strip (spec 2026-10-29-collapsible-rail). */
   collapsed?: boolean;
@@ -210,6 +213,7 @@ export function Rail({
   findInitial,
   navigate,
   inDrawer,
+  escapeToContainer,
   onNarrowShortcut,
   collapsed,
   onToggle,
@@ -331,6 +335,7 @@ export function Rail({
           initialQuery={findInitial?.query}
           initialFocused={findInitial?.focused}
           inDrawer={inDrawer}
+          escapeToContainer={inDrawer || escapeToContainer}
           onNarrowShortcut={onNarrowShortcut}
         />
         <nav aria-label="Overview" className="flex flex-col gap-0.5">
@@ -489,10 +494,62 @@ function Drawer({
   );
 }
 
-/** The rail's props, less the ones Navigation decides itself (where find starts, the drawer, and the collapse). */
+/**
+ * The peek (spec 2026-10-29-collapsible-rail): the expanded rail over the
+ * content while the rail is collapsed, for a quick find. Not modal, so the
+ * page stays live behind it. It closes on an Escape find leaves to it, a
+ * pointer down outside it, and focus leaving it (but not a window blur, whose
+ * `relatedTarget` is null). `onClose(restore)` is told whether focus should go
+ * back to the opener: an Escape or its collapse button, yes; a pointer or
+ * focus that has gone elsewhere, no, since it has somewhere to be already.
+ */
+function Peek({ onClose, children }: { onClose: (restore: boolean) => void; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // The document listener is registered once; it reads the latest callback here.
+  const close = useRef(onClose);
+  useEffect(() => {
+    close.current = onClose;
+  });
+
+  useEffect(() => {
+    const onPointerDown = (e: PointerEvent) => {
+      const root = ref.current;
+      if (root && e.target instanceof Node && root.contains(e.target)) return;
+      close.current(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      id="rail-peek"
+      role="dialog"
+      aria-modal="false"
+      aria-label="Navigation"
+      className={RAIL_PEEK}
+      onKeyDown={(e) => {
+        // Find's own Escape (closing its open panel) comes first and is prevented.
+        if (e.key !== "Escape" || e.defaultPrevented) return;
+        e.preventDefault();
+        onClose(true);
+      }}
+      onBlur={(e) => {
+        const next = e.relatedTarget;
+        if (next === null || e.currentTarget.contains(next)) return;
+        onClose(false);
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** The rail's props, less the ones Navigation decides itself (where find starts, the drawer, the peek and the collapse). */
 export type NavigationProps = Omit<
   RailProps,
-  "findInitial" | "inDrawer" | "onNarrowShortcut" | "collapsed" | "onToggle" | "onFindOpen"
+  "findInitial" | "inDrawer" | "escapeToContainer" | "onNarrowShortcut" | "collapsed" | "onToggle" | "onFindOpen"
 >;
 
 /** The browser's store, or none where touching it throws (a sandbox, blocked site data). */
@@ -510,6 +567,15 @@ interface DrawerState {
   /** Open on find (⌘K, the find button) rather than on the rail's first link. */
   focusFind: boolean;
 }
+
+interface PeekState {
+  /** The strip's find button, or what had focus before ⌘K: it gets focus back on an Escape. */
+  opener: HTMLElement | null;
+}
+
+/** A focus target worth returning to: an element, and not the body (nothing had focus). */
+const focusTarget = (el: Element | null): HTMLElement | null =>
+  el instanceof HTMLElement && el !== document.body ? el : null;
 
 /**
  * The narrow-screen `<header id="top-bar">` and the rail's
@@ -558,8 +624,28 @@ export function Navigation(props: NavigationProps) {
   }, [collapsed]);
 
   const open = (opener: Element | null, focusFind: boolean) => {
-    setDrawer({ opener: opener instanceof HTMLElement && opener !== document.body ? opener : null, focusFind });
+    setDrawer({ opener: focusTarget(opener), focusFind });
   };
+
+  // The peek never touches the stored state: it is a look, not a flip.
+  const [peek, setPeek] = useState<PeekState | null>(null);
+  const peekRestoreTo = useRef<HTMLElement | null>(null);
+  const openPeek = (opener: Element | null) => {
+    setPeek({ opener: focusTarget(opener) });
+  };
+  const closePeek = (restore: boolean) => {
+    if (!peek) return;
+    peekRestoreTo.current = restore ? peek.opener : null;
+    setPeek(null);
+  };
+
+  // Focus goes back to the peek's opener when the close asked for it.
+  useEffect(() => {
+    if (peek) return;
+    const target = peekRestoreTo.current;
+    peekRestoreTo.current = null;
+    if (target?.isConnected) target.focus();
+  }, [peek]);
 
   // Idempotent: Escape's cancel and a native `close` event can both arrive.
   // A close because the router moved returns focus nowhere: the new page's
@@ -584,6 +670,7 @@ export function Navigation(props: NavigationProps) {
   // layout effect, so the page is no longer inert by the time the new page's
   // own effect moves focus to its heading; then in state.
   const isOpen = drawer !== null;
+  const peekOpen = peek !== null;
   const dialogRef = useRef<HTMLDialogElement>(null);
   const navigatedAway = useRef(false);
   const locationKey = useClientNav()?.locationKey;
@@ -591,11 +678,29 @@ export function Navigation(props: NavigationProps) {
   useLayoutEffect(() => {
     if (locationKey === seenKey.current) return;
     seenKey.current = locationKey;
+    // The peek closes on a move the same way, returning focus nowhere.
+    if (peekOpen) {
+      peekRestoreTo.current = null;
+      setPeek(null);
+    }
     if (!isOpen) return;
     navigatedAway.current = true;
     dialogRef.current?.close();
     setDrawer(null);
-  }, [locationKey, isOpen]);
+  }, [locationKey, isOpen, peekOpen]);
+
+  // Narrowing below 900px hides the strip: the peek goes, and its opener with it.
+  useEffect(() => {
+    if (!peekOpen || typeof window.matchMedia !== "function") return;
+    const wide = window.matchMedia(RAIL_WIDE_QUERY);
+    const onChange = () => {
+      if (wide.matches) return;
+      peekRestoreTo.current = null;
+      setPeek(null);
+    };
+    wide.addEventListener("change", onChange);
+    return () => wide.removeEventListener("change", onChange);
+  }, [peekOpen]);
 
   // Widening past 900px brings the rail back beside the content: the drawer goes.
   useEffect(() => {
@@ -608,18 +713,24 @@ export function Navigation(props: NavigationProps) {
     return () => wide.removeEventListener("change", onChange);
   }, [isOpen]);
 
-  // The strip renders no FindPanel, so while collapsed with no drawer open this
-  // is the document's one ⌘K listener. From 900px it does nothing yet (the
-  // peek, Task 5), and does not prevent the browser's own shortcut.
-  const stripShortcut = collapsed && !isOpen;
+  // The strip renders no FindPanel, so while collapsed with neither the drawer
+  // nor the peek open this is the document's one ⌘K listener: from 900px it
+  // opens the peek, below it the drawer on find. While either is open, the
+  // FindPanel inside it owns ⌘K. The callbacks are read through a ref, so the
+  // listener never calls a stale render's.
+  const openers = useRef({ open, openPeek });
+  useEffect(() => {
+    openers.current = { open, openPeek };
+  });
+  const stripShortcut = collapsed && !isOpen && !peekOpen;
   useEffect(() => {
     if (!stripShortcut) return;
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (!isFindShortcut(e)) return;
-      const wide = typeof window.matchMedia === "function" && window.matchMedia(RAIL_WIDE_QUERY).matches;
-      if (wide) return;
       e.preventDefault();
-      open(document.activeElement, true);
+      const wide = typeof window.matchMedia === "function" && window.matchMedia(RAIL_WIDE_QUERY).matches;
+      if (wide) openers.current.openPeek(document.activeElement);
+      else openers.current.open(document.activeElement, true);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -627,17 +738,20 @@ export function Navigation(props: NavigationProps) {
 
   const rail = drawer ? (
     <Rail {...props} inDrawer findInitial={{ query: "", focused: drawer.focusFind }} />
+  ) : collapsed ? (
+    // The strip, unchanged under the peek, though its find button does nothing while the peek is open.
+    <Rail {...props} collapsed onToggle={toggle} onFindOpen={peekOpen ? undefined : openPeek} />
   ) : (
-    <Rail
-      {...props}
-      collapsed={collapsed}
-      onToggle={toggle}
-      onFindOpen={() => {
-        // The peek (Task 5) opens here.
-      }}
-      onNarrowShortcut={(previous) => open(previous, true)}
-    />
+    <Rail {...props} onToggle={toggle} onNarrowShortcut={(previous) => open(previous, true)} />
   );
+
+  // The peek holds the expanded rail, with find focused; its collapse button only closes it.
+  const peekRail =
+    peek && collapsed && !drawer ? (
+      <Peek onClose={closePeek}>
+        <Rail {...props} escapeToContainer findInitial={{ query: "", focused: true }} onToggle={() => closePeek(true)} />
+      </Peek>
+    ) : null;
 
   return (
     <>
@@ -652,6 +766,7 @@ export function Navigation(props: NavigationProps) {
       <aside ref={asideRef} id="rail" data-rail="" aria-label="Navigation" className={RAIL_ASIDE}>
         {drawer ? null : rail}
       </aside>
+      {peekRail}
     </>
   );
 }
