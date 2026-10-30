@@ -24,12 +24,14 @@ import {
   RAIL_TOGGLE,
   RAIL_WIDE_QUERY,
   TOP_BAR,
+  readRailCollapsed,
+  writeRailCollapsed,
   type RailPlace,
 } from "../../views/railModel";
 import { MENU_BADGE, RAIL_SIGNAL, RAIL_SIGNAL_COUNT, RAIL_SIGNAL_DOT, overviewSignal } from "../../views/overviewModel";
 import { FOCUS_RING, ICON_CLASS, ICONS } from "../../views/shared";
 import type { RailCurrent, RailData } from "../../shared/rail";
-import { FindPanel } from "./FindPanel";
+import { FindPanel, isFindShortcut } from "./FindPanel";
 import {
   ADD_SITE_ROUTE,
   ACTIVITY_ROUTE,
@@ -487,8 +489,20 @@ function Drawer({
   );
 }
 
-/** The rail's props, less the ones Navigation decides itself (where find starts, and the drawer). */
-export type NavigationProps = Omit<RailProps, "findInitial" | "inDrawer" | "onNarrowShortcut">;
+/** The rail's props, less the ones Navigation decides itself (where find starts, the drawer, and the collapse). */
+export type NavigationProps = Omit<
+  RailProps,
+  "findInitial" | "inDrawer" | "onNarrowShortcut" | "collapsed" | "onToggle" | "onFindOpen"
+>;
+
+/** The browser's store, or none where touching it throws (a sandbox, blocked site data). */
+function safeLocalStorage(): Storage | undefined {
+  try {
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
+}
 
 interface DrawerState {
   /** What opened the drawer, which gets focus back when it closes. */
@@ -502,13 +516,46 @@ interface DrawerState {
  * `<aside id="rail">`, with the drawer inside the header. AppFrame renders
  * it first in the body, so the two are the body grid's first items.
  *
- * The drawer holds the rail itself: while it is open the rail renders inside
- * the dialog and not in the aside, so there is only ever one rail, one `#find`
- * and one ⌘K listener in the document.
+ * There is only ever one rail, one `#find` and one ⌘K listener in the
+ * document, across the aside, the drawer and the peek. The drawer holds the
+ * rail itself: while it is open the rail renders inside the dialog and not in
+ * the aside. Collapsed (from 900px, the stored choice), the aside holds the
+ * icon strip, which has no find: then Navigation holds the ⌘K listener
+ * itself, with FindPanel's own predicate, opening the drawer on find below
+ * 900px (the peek from 900px, spec 2026-10-29-collapsible-rail). The drawer
+ * always renders the expanded rail, whatever is stored.
  */
 export function Navigation(props: NavigationProps) {
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const restoreTo = useRef<HTMLElement | null>(null);
+
+  // Read synchronously, so the first paint is already in the stored state.
+  const [collapsed, setCollapsed] = useState(() => readRailCollapsed(safeLocalStorage()));
+  const asideRef = useRef<HTMLElement>(null);
+  const focusToggle = useRef(false);
+
+  const toggle = () => {
+    const next = !collapsed;
+    writeRailCollapsed(safeLocalStorage(), next);
+    focusToggle.current = true;
+    setCollapsed(next);
+  };
+
+  // The body grid narrows to the strip from 900px (index.html's data-[rail] variant).
+  useLayoutEffect(() => {
+    if (collapsed) document.body.dataset.rail = "collapsed";
+    else delete document.body.dataset.rail;
+    return () => {
+      delete document.body.dataset.rail;
+    };
+  }, [collapsed]);
+
+  // After a flip focus moves to the other state's button, so a keyboard user keeps their place.
+  useEffect(() => {
+    if (!focusToggle.current) return;
+    focusToggle.current = false;
+    asideRef.current?.querySelector<HTMLElement>("#rail-toggle")?.focus();
+  }, [collapsed]);
 
   const open = (opener: Element | null, focusFind: boolean) => {
     setDrawer({ opener: opener instanceof HTMLElement && opener !== document.body ? opener : null, focusFind });
@@ -561,10 +608,35 @@ export function Navigation(props: NavigationProps) {
     return () => wide.removeEventListener("change", onChange);
   }, [isOpen]);
 
+  // The strip renders no FindPanel, so while collapsed with no drawer open this
+  // is the document's one ⌘K listener. From 900px it does nothing yet (the
+  // peek, Task 5), and does not prevent the browser's own shortcut.
+  const stripShortcut = collapsed && !isOpen;
+  useEffect(() => {
+    if (!stripShortcut) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (!isFindShortcut(e)) return;
+      const wide = typeof window.matchMedia === "function" && window.matchMedia(RAIL_WIDE_QUERY).matches;
+      if (wide) return;
+      e.preventDefault();
+      open(document.activeElement, true);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [stripShortcut]);
+
   const rail = drawer ? (
     <Rail {...props} inDrawer findInitial={{ query: "", focused: drawer.focusFind }} />
   ) : (
-    <Rail {...props} onNarrowShortcut={(previous) => open(previous, true)} />
+    <Rail
+      {...props}
+      collapsed={collapsed}
+      onToggle={toggle}
+      onFindOpen={() => {
+        // The peek (Task 5) opens here.
+      }}
+      onNarrowShortcut={(previous) => open(previous, true)}
+    />
   );
 
   return (
@@ -577,7 +649,7 @@ export function Navigation(props: NavigationProps) {
           </Drawer>
         ) : null}
       </header>
-      <aside id="rail" data-rail="" aria-label="Navigation" className={RAIL_ASIDE}>
+      <aside ref={asideRef} id="rail" data-rail="" aria-label="Navigation" className={RAIL_ASIDE}>
         {drawer ? null : rail}
       </aside>
     </>

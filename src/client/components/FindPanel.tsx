@@ -83,7 +83,7 @@ export const optionId = (href: string): string =>
 const headingId = (key: FindGroupKey): string => `find-group-${key}`;
 
 /** ⌘K on Apple platforms, Ctrl+K elsewhere: either opens find, from anywhere. */
-const isFindShortcut = (e: globalThis.KeyboardEvent): boolean =>
+export const isFindShortcut = (e: globalThis.KeyboardEvent): boolean =>
   (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k";
 
 function Pill({ item }: { item: FindItem }) {

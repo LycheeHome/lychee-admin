@@ -2,7 +2,7 @@ import "../test/setup";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, describe, test } from "node:test";
+import { afterEach, beforeEach, describe, test } from "node:test";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -16,6 +16,7 @@ import {
   RAIL_ICON,
   RAIL_MONOGRAM,
   RAIL_PLACES,
+  RAIL_STORAGE_KEY,
   RAIL_STRIP,
   RAIL_STRIP_DIVIDER,
   RAIL_TIP,
@@ -820,6 +821,149 @@ describe("the top bar and its drawer", () => {
       document.addEventListener = add;
       document.removeEventListener = remove;
     }
+  });
+});
+
+/*
+ * The collapse state (spec 2026-10-29-collapsible-rail): Navigation owns it,
+ * reads it from storage on its first render, writes every flip, and marks the
+ * body so its grid narrows from 900px.
+ */
+describe("the rail's collapse state", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  const toggle = (): HTMLButtonElement | null => document.querySelector<HTMLButtonElement>("#rail-toggle");
+
+  test("a stored collapse renders the strip on the first render", () => {
+    localStorage.setItem(RAIL_STORAGE_KEY, "collapsed");
+    const { aside } = mountNavigation();
+    assert.ok(aside.querySelector("#rail-find-open"), "no strip find button");
+    assert.ok(aside.querySelector("#find") === null, "find in the strip");
+    assert.equal(document.body.dataset.rail, "collapsed");
+  });
+
+  test("the toggle flips state, storage, the body and focus", () => {
+    const { aside } = mountNavigation();
+    assert.ok(aside.querySelector("#find"));
+    assert.equal(document.body.dataset.rail, undefined);
+
+    click(toggle());
+    assert.equal(localStorage.getItem(RAIL_STORAGE_KEY), "collapsed");
+    assert.equal(document.body.dataset.rail, "collapsed");
+    const expand = toggle();
+    assert.equal(expand?.getAttribute("aria-label"), "Expand sidebar");
+    assert.ok(document.activeElement === expand, "focus did not follow to Expand sidebar");
+
+    click(expand);
+    assert.equal(localStorage.getItem(RAIL_STORAGE_KEY), "expanded");
+    assert.equal(document.body.dataset.rail, undefined);
+    const collapse = toggle();
+    assert.equal(collapse?.getAttribute("aria-label"), "Collapse sidebar");
+    assert.ok(document.activeElement === collapse, "focus did not follow to Collapse sidebar");
+  });
+
+  test("a store that throws renders expanded and toggles in memory", () => {
+    const store = Object.getPrototypeOf(localStorage) as Storage;
+    const getItem = store.getItem;
+    const setItem = store.setItem;
+    store.getItem = () => {
+      throw new Error("blocked");
+    };
+    store.setItem = () => {
+      throw new Error("blocked");
+    };
+    try {
+      const { aside } = mountNavigation();
+      assert.ok(aside.querySelector("#find"), "a throwing store did not render expanded");
+      click(toggle());
+      assert.ok(aside.querySelector("#rail-find-open"), "the toggle did not collapse");
+      assert.equal(document.body.dataset.rail, "collapsed");
+    } finally {
+      store.getItem = getItem;
+      store.setItem = setItem;
+    }
+  });
+
+  test("unmount clears the body attribute", () => {
+    localStorage.setItem(RAIL_STORAGE_KEY, "collapsed");
+    mountNavigation();
+    assert.equal(document.body.dataset.rail, "collapsed");
+    cleanup();
+    assert.equal(document.body.dataset.rail, undefined);
+  });
+
+  test("the drawer is always expanded", () => {
+    localStorage.setItem(RAIL_STORAGE_KEY, "collapsed");
+    setViewport(390);
+    mountNavigation();
+    click(document.querySelector("#rail-menu"));
+    const dialog = drawer();
+    assert.ok(dialog);
+    assert.ok(dialog.querySelector("#find"), "no find in the drawer");
+    assert.equal(dialog.querySelectorAll("[data-site]").length, 8);
+    assert.ok(dialog.querySelector("#rail-toggle") === null, "a collapse button in the drawer");
+    assert.equal(finds().length, 1);
+  });
+
+  test("⌘K while collapsed and narrow opens the drawer on find", () => {
+    localStorage.setItem(RAIL_STORAGE_KEY, "collapsed");
+    setViewport(390);
+    mountNavigation();
+    const elsewhere = document.querySelector<HTMLTextAreaElement>("#elsewhere");
+    assert.ok(elsewhere);
+    act(() => elsewhere.focus());
+    press(elsewhere, "k", { metaKey: true });
+    const dialog = drawer();
+    assert.ok(dialog?.open, "⌘K did not open the drawer");
+    const input = finds()[0];
+    assert.ok(input && dialog.contains(input));
+    assert.ok(document.activeElement === input, "find is not focused");
+
+    press(input, "Escape");
+    press(input, "Escape");
+    assert.equal(drawer(), null);
+    assert.ok(document.activeElement === elsewhere, "focus did not go back");
+  });
+
+  test("keeps exactly one document keydown listener while collapsed", () => {
+    localStorage.setItem(RAIL_STORAGE_KEY, "collapsed");
+    const live = new Set<EventListenerOrEventListenerObject>();
+    const add = document.addEventListener.bind(document);
+    const remove = document.removeEventListener.bind(document);
+    document.addEventListener = ((type: string, fn: EventListenerOrEventListenerObject, opts?: unknown) => {
+      if (type === "keydown") live.add(fn);
+      add(type, fn, opts as AddEventListenerOptions);
+    }) as typeof document.addEventListener;
+    document.removeEventListener = ((type: string, fn: EventListenerOrEventListenerObject, opts?: unknown) => {
+      if (type === "keydown") live.delete(fn);
+      remove(type, fn, opts as EventListenerOptions);
+    }) as typeof document.removeEventListener;
+    try {
+      setViewport(390);
+      mountNavigation();
+      assert.equal(live.size, 1);
+      click(document.querySelector("#rail-menu"));
+      assert.equal(live.size, 1);
+      const dialog = drawer();
+      assert.ok(dialog);
+      press(dialog, "Escape");
+      assert.equal(live.size, 1);
+      click(toggle());
+      assert.equal(live.size, 1, "the expanded rail's find and the collapsed listener both live");
+    } finally {
+      document.addEventListener = add;
+      document.removeEventListener = remove;
+    }
+  });
+
+  test("the body class names the collapsed grid", () => {
+    const html = readFileSync(path.join(__dirname, "..", "..", "..", "index.html"), "utf8");
+    assert.ok(html.includes("min-[900px]:data-[rail=collapsed]:grid-cols-[56px_minmax(0,1fr)]"));
   });
 });
 

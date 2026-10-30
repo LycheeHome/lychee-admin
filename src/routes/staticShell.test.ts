@@ -178,10 +178,15 @@ describe("index.html, the Vite input", () => {
   // The body is only the root and the entry script: the bundle is the only
   // script any page loads (no /app.js, no actionPoll.js), which the retired
   // shell.test.ts and clientShell.test.ts checked of the server's pages.
+  // Plus, since 2026-10-29, the collapsed rail's narrower grid (spec
+  // 2026-10-29-collapsible-rail), which Navigation turns on with data-rail.
   test("its body has the retired shell's classes and holds only the root and the entry script", () => {
     const body = source.match(/<body class="([^"]*)">([\s\S]*)<\/body>/);
     assert.ok(body, "no <body class> in index.html");
-    assert.equal(body[1], "min-h-screen bg-stone-900 font-sans text-stone-50 m-0 min-[900px]:grid min-[900px]:grid-cols-[250px_minmax(0,1fr)]");
+    assert.equal(
+      body[1],
+      "min-h-screen bg-stone-900 font-sans text-stone-50 m-0 min-[900px]:grid min-[900px]:grid-cols-[250px_minmax(0,1fr)] min-[900px]:data-[rail=collapsed]:grid-cols-[56px_minmax(0,1fr)]",
+    );
     assert.equal(
       body[2].trim().replace(/\s*\n\s*/g, "\n"),
       '<div id="react-root" class="contents"></div>\n<script type="module" src="/src/client/main.tsx"></script>',
