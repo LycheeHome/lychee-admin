@@ -10,6 +10,8 @@ import { MemoryRouter, useLocation, useNavigate } from "react-router";
 import { MENU_BADGE, RAIL_SIGNAL_COUNT, RAIL_SIGNAL_DOT } from "../../views/overviewModel";
 import {
   RAIL_BADGE,
+  RAIL_BADGE_COUNT,
+  RAIL_BADGE_DOT,
   RAIL_CELL,
   RAIL_CELL_ICON,
   RAIL_DIVIDER,
@@ -494,6 +496,8 @@ describe("the collapsed strip", () => {
     assert.equal(badge.textContent, "5");
     assert.ok(badge.querySelector(".bg-red-300"), "not the bad dot");
     assert.ok(badge.querySelector(".size-\\[5px\\]"), "not the 5px dot");
+    assert.equal(badge.querySelector(".size-\\[5px\\]")?.getAttribute("class"), RAIL_BADGE_DOT.bad);
+    assert.equal(badge.querySelector(".font-mono")?.getAttribute("class"), RAIL_BADGE_COUNT.bad);
     assert.match(accessibleName(overview(bad.container)), /^overview, 5 need attention/);
     bad.unmount();
 
@@ -501,6 +505,8 @@ describe("the collapsed strip", () => {
     badge = overview(neutral.container).querySelector("[data-signal]");
     assert.equal(badge?.textContent, "3");
     assert.ok(badge?.querySelector(".bg-stone-400"), "not the neutral dot");
+    assert.equal(badge?.querySelector(".bg-stone-400")?.getAttribute("class"), RAIL_BADGE_DOT.neutral);
+    assert.equal(badge?.querySelector(".font-mono")?.getAttribute("class"), RAIL_BADGE_COUNT.neutral);
     assert.ok(badge?.querySelector(".bg-red-300") === null, "a Scorch dot on unknowns");
     neutral.unmount();
 

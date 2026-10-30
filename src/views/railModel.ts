@@ -224,6 +224,18 @@ export const RAIL_TIP =
 export const RAIL_BADGE =
   "pointer-events-none absolute top-0.5 right-px inline-flex items-center gap-0.5 font-mono text-[0.7rem] leading-none";
 
+/** The badge's dot: the overview signal's dot (RAIL_SIGNAL_DOT) at 5px. */
+export const RAIL_BADGE_DOT: Record<"bad" | "neutral", string> = {
+  bad: "inline-block size-[5px] rounded-full bg-red-300",
+  neutral: "inline-block size-[5px] rounded-full bg-stone-400",
+};
+
+/** The badge's count: the signal's count (RAIL_SIGNAL_COUNT) with no size of its own, so RAIL_BADGE's 0.7rem applies. */
+export const RAIL_BADGE_COUNT: Record<"bad" | "neutral", string> = {
+  bad: "font-mono text-red-300",
+  neutral: "font-mono text-stone-400",
+};
+
 /** The strip's wordmark: the `l` monogram in Display, standing for `lychee admin` when there is no room for it. */
 export const RAIL_MONOGRAM = `font-display text-2xl leading-none text-stone-50 no-underline ${FOCUS_RING}`;
 
@@ -311,9 +323,16 @@ export const RAIL_DRAWER =
   "fixed inset-y-0 left-0 m-0 p-0 h-dvh max-h-none w-[280px] max-w-[calc(100vw-3rem)] " +
   "font-sans bg-stone-900 text-stone-50 border-0 border-r border-stone-700 open:flex flex-col backdrop:bg-black/60";
 
-/** The rail's `<aside>`: hidden below 900px, a sticky full-height column from there. */
+/**
+ * The rail's `<aside>`: hidden below 900px, a sticky full-height column from
+ * there. `sticky` makes it a stacking context, so the z-40 of what floats out
+ * of it (the peek, the strip's tooltips, the find panel) counts only inside
+ * it; `z-30` lifts the whole rail above positioned content in `<main>`, which
+ * otherwise painted over the peek and took its clicks. Below the toast and
+ * skip link (z-50); the drawer is in the top layer.
+ */
 export const RAIL_ASIDE =
-  "hidden min-[900px]:flex flex-col sticky top-0 self-start h-screen border-r border-stone-700 bg-stone-900";
+  "hidden min-[900px]:flex flex-col sticky top-0 z-30 self-start h-screen border-r border-stone-700 bg-stone-900";
 
 /** The narrow-screen top bar's `<header>`, which stands in for the rail below 900px. */
 export const TOP_BAR =

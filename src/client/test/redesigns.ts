@@ -407,6 +407,15 @@ export const REDESIGNS: Redesign[] = [
     anchor: '<h1 class="m-0 px-2 text-base font-normal leading-none">',
   },
   {
+    id: "rail-aside-stacks",
+    since: "2026-10-29",
+    why:
+      "The rail's <aside> takes z-30: being sticky makes it a stacking context, so the collapsed rail's peek, its tooltips and the find panel (z-40 inside it) were painted over, and clicked through, by positioned content in <main> (spec 2026-10-29-collapsible-rail, final review).",
+    from: /(<aside id="rail" [^>]*class="[^"]*?sticky top-0) (self-start h-screen)/g,
+    to: "$1 z-30 $2",
+    anchor: '<aside id="rail" ',
+  },
+  {
     id: "find-placeholder-sans",
     since: "2026-10-29",
     why: "The find box's placeholder is an instruction, not an example value, so it reads `Find` in Nunito; what is typed stays mono.",

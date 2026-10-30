@@ -282,4 +282,23 @@ describe("the rail's places", () => {
     // every strip tooltip off at the column's edge.
     assert.doesNotMatch(railModel.RAIL_STRIP, /(^|\s)overflow-/);
   });
+
+  test("the rail stacks above the page, so its peek, tooltips and find panel are on top", () => {
+    // `sticky` makes the aside a stacking context, so the z-40 of RAIL_PEEK,
+    // RAIL_TIP and FIND_PANEL counted only inside it, and positioned content
+    // later in <main> (CommandBlock's relative wrapper, copy buttons) painted
+    // over the peek and took its clicks (final review, 2026-10-29). happy-dom
+    // cannot render stacking, so this pins the class that fixes it.
+    assert.match(railModel.RAIL_ASIDE, /(^|\s)sticky(\s|$)/);
+    assert.match(railModel.RAIL_ASIDE, /(^|\s)z-30(\s|$)/);
+  });
+
+  test("the strip badge is the signal's mark, smaller: a 5px dot, and a count sized by the badge", () => {
+    assert.deepEqual(railModel.RAIL_BADGE_DOT, {
+      bad: "inline-block size-[5px] rounded-full bg-red-300",
+      neutral: "inline-block size-[5px] rounded-full bg-stone-400",
+    });
+    assert.deepEqual(railModel.RAIL_BADGE_COUNT, { bad: "font-mono text-red-300", neutral: "font-mono text-stone-400" });
+    assert.match(railModel.RAIL_BADGE, /text-\[0\.7rem\]/);
+  });
 });

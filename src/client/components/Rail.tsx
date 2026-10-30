@@ -4,6 +4,8 @@ import type { HealthPayload } from "../../shared/health";
 import {
   RAIL_ASIDE,
   RAIL_BADGE,
+  RAIL_BADGE_COUNT,
+  RAIL_BADGE_DOT,
   RAIL_CELL,
   RAIL_CELL_ICON,
   RAIL_MONOGRAM,
@@ -151,11 +153,8 @@ function SignalBadge({ signal }: { signal: ReturnType<typeof overviewSignal> }) 
   return (
     <>
       <span data-signal="" aria-hidden="true" className={RAIL_BADGE}>
-        <span className={RAIL_SIGNAL_DOT[signal.tone].replace("size-1.5", "size-[5px]")} />
-        {signal.count === null ? null : (
-          // The badge sets its own, smaller size.
-          <span className={RAIL_SIGNAL_COUNT[signal.tone].replace(/\s*text-\[[^\]]*rem\]/, "")}>{signal.count}</span>
-        )}
+        <span className={RAIL_BADGE_DOT[signal.tone]} />
+        {signal.count === null ? null : <span className={RAIL_BADGE_COUNT[signal.tone]}>{signal.count}</span>}
       </span>
       <span className="sr-only">{signal.spoken}</span>
     </>
