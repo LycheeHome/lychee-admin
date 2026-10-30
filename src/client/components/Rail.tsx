@@ -3,18 +3,24 @@ import { splitHostnameForDisplay } from "../../lib/siteDisplay";
 import type { HealthPayload } from "../../shared/health";
 import {
   RAIL_ASIDE,
+  RAIL_DIVIDER,
   RAIL_DRAWER,
+  RAIL_HEAD,
   RAIL_HINT,
   RAIL_HOSTNAME,
+  RAIL_ICON,
   RAIL_MENU,
   RAIL_NOTE,
   RAIL_PLACE,
+  RAIL_PLACES,
   RAIL_ROW,
+  RAIL_TOGGLE,
   RAIL_WIDE_QUERY,
   TOP_BAR,
+  type RailPlace,
 } from "../../views/railModel";
 import { MENU_BADGE, RAIL_SIGNAL, RAIL_SIGNAL_COUNT, RAIL_SIGNAL_DOT, overviewSignal } from "../../views/overviewModel";
-import { FOCUS_RING, ICONS } from "../../views/shared";
+import { FOCUS_RING, ICON_CLASS, ICONS } from "../../views/shared";
 import type { RailCurrent, RailData } from "../../shared/rail";
 import { FindPanel } from "./FindPanel";
 import {
@@ -58,6 +64,12 @@ export interface RailProps {
   inDrawer?: boolean;
   /** ⌘K while the rail is collapsed (below 900px): open the drawer on find. */
   onNarrowShortcut?: (previous: Element | null) => void;
+  /** The wide rail is the icon strip (spec 2026-10-29-collapsible-rail). */
+  collapsed?: boolean;
+  /** The collapse button was pressed; it is passed so focus can follow it. */
+  onToggle?: (button: HTMLButtonElement) => void;
+  /** The strip's find button was pressed. */
+  onFindOpen?: (button: HTMLButtonElement) => void;
 }
 
 const isPage = (current: RailCurrent, page: string): boolean =>
@@ -80,11 +92,11 @@ function Wordmark() {
   );
 }
 
-/** An icon from shared.ts's ICONS, as the retired server rail drew it. */
-function Icon({ name }: { name: keyof typeof ICONS }) {
+/** An icon from shared.ts's ICONS, as the retired server rail drew it; a place row's at RAIL_ICON. */
+function Icon({ name, className = ICON_CLASS }: { name: keyof typeof ICONS; className?: string }) {
   return (
     <svg
-      className="w-[1em] h-[1em] shrink-0"
+      className={className}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -116,11 +128,23 @@ function Signal({ signal }: { signal: ReturnType<typeof overviewSignal> }) {
   );
 }
 
-const HOST_LINKS = [
-  { href: "/services", label: "services", page: "services" },
-  { href: "/reconciler", label: "reconciler", page: "reconciler" },
-  { href: "/infrastructure", label: "infrastructure", page: "infrastructure" },
-] as const;
+const placeOf = (place: RailPlace) => RAIL_PLACES.find((p) => p.place === place)!;
+
+/**
+ * A place row: its icon, then its word. No `justify-between`, which the
+ * frozen overview and host rows carried: beside an icon it would push the
+ * word to the row's far edge. Overview's signal keeps right with its own
+ * `ml-auto`.
+ */
+function PlaceLink({ place, current, children }: { place: RailPlace; current: RailCurrent; children?: ReactNode }) {
+  return (
+    <RailLink href={placeOf(place).href} className={RAIL_PLACE} aria-current={ariaCurrent(isPage(current, place))}>
+      <Icon name={place} className={RAIL_ICON} />
+      {place}
+      {children}
+    </RailLink>
+  );
+}
 
 /** Each board route's rail item. */
 const ROUTE_PAGE: Record<BoardRoute, "services" | "reconciler" | "infrastructure"> = {
@@ -138,6 +162,7 @@ export function Rail({
   navigate,
   inDrawer,
   onNarrowShortcut,
+  onToggle,
 }: RailProps) {
   // On a client route the router's location is where the operator is. The
   // add page marks nothing: the rail has no Add site, and its breadcrumb
@@ -164,13 +189,34 @@ export function Rail({
   // and anything drawn from it would be a lie about now.
   const live = healthError ? null : health;
   const signal = overviewSignal(health, healthError);
+  const heading = (
+    <h1 className="m-0 px-2 text-base font-normal leading-none">
+      <Wordmark />
+    </h1>
+  );
 
   return (
     <>
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-5 px-3 py-5">
-        <h1 className="m-0 px-2 text-base font-normal leading-none">
-          <Wordmark />
-        </h1>
+        {inDrawer ? (
+          heading
+        ) : (
+          // The drawer has no collapse: below 900px the rail is never a strip.
+          <div className={RAIL_HEAD}>
+            {heading}
+            <button
+              type="button"
+              id="rail-toggle"
+              className={RAIL_TOGGLE}
+              aria-label="Collapse sidebar"
+              aria-expanded="true"
+              aria-controls="rail"
+              onClick={(e) => onToggle?.(e.currentTarget)}
+            >
+              <Icon name="panelClose" />
+            </button>
+          </div>
+        )}
         <FindPanel
           health={live}
           railSites={rail.sites}
@@ -183,22 +229,13 @@ export function Rail({
           onNarrowShortcut={onNarrowShortcut}
         />
         <nav aria-label="Overview" className="flex flex-col gap-0.5">
-          <RailLink
-            href={OVERVIEW_ROUTE}
-            className={`${RAIL_PLACE} justify-between`}
-            aria-current={ariaCurrent(isPage(current, "overview"))}
-          >
-            overview
+          <PlaceLink place="overview" current={current}>
             <Signal signal={signal} />
-          </RailLink>
-          <RailLink href={ACTIVITY_ROUTE} className={RAIL_PLACE} aria-current={ariaCurrent(isPage(current, "activity"))}>
-            activity
-          </RailLink>
+          </PlaceLink>
+          <PlaceLink place="activity" current={current} />
         </nav>
         <nav aria-label="Sites" className="flex flex-col gap-0.5">
-          <RailLink href={SITES_ROUTE} className={RAIL_PLACE} aria-current={ariaCurrent(isPage(current, "sites"))}>
-            sites
-          </RailLink>
+          <PlaceLink place="sites" current={current} />
           {rail.sites === null ? (
             <p className={RAIL_NOTE}>Can&apos;t read the Caddyfile</p>
           ) : (
@@ -227,16 +264,10 @@ export function Rail({
             </ul>
           )}
         </nav>
+        <div aria-hidden="true" className={RAIL_DIVIDER} />
         <nav aria-label="Host" className="flex flex-col gap-0.5">
-          {HOST_LINKS.map((link) => (
-            <RailLink
-              key={link.href}
-              href={link.href}
-              className={`${RAIL_PLACE} justify-between`}
-              aria-current={ariaCurrent(isPage(current, link.page))}
-            >
-              {link.label}
-            </RailLink>
+          {RAIL_PLACES.filter((p) => p.group === "host").map((p) => (
+            <PlaceLink key={p.place} place={p.place} current={current} />
           ))}
           {rail.hostAvailable ? null : <p className={RAIL_NOTE}>Inventory unavailable</p>}
         </nav>

@@ -7,6 +7,7 @@ import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
 import { MENU_BADGE, RAIL_SIGNAL_COUNT, RAIL_SIGNAL_DOT } from "../../views/overviewModel";
+import { RAIL_DIVIDER, RAIL_ICON, RAIL_PLACES } from "../../views/railModel";
 import { BUTTON_PRIMARY, FOCUS_RING } from "../../views/shared";
 import { ClientNavContext } from "../clientNav";
 import type { RailData } from "../../shared/rail";
@@ -297,7 +298,12 @@ describe("Rail with health", () => {
     const links = Array.from(container.querySelectorAll('nav[aria-label="Overview"] > a'));
     assert.deepEqual(links.map((a) => a.getAttribute("href")), ["/", "/activity"]);
     assert.equal(links[1]?.textContent, "activity");
-    assert.equal(links[1]?.children.length, 0, "the activity row carries a mark");
+    // Its icon alone: no signal beside the word.
+    assert.deepEqual(
+      Array.from(links[1]?.children ?? []).map((c) => c.tagName.toLowerCase()),
+      ["svg"],
+      "the activity row carries a mark",
+    );
   });
 
   test("the find hint is the one it is given", () => {
@@ -350,6 +356,55 @@ describe("rail rows show the label only", () => {
     assert.ok(heading);
     assert.equal(heading.textContent, "sites");
     assert.equal(heading.querySelector("[data-rail-domain]"), null);
+  });
+});
+
+// Spec 2026-10-29-collapsible-rail: every place row leads with an icon, a rule
+// splits the app's places from the host boards, and a collapse button sits
+// beside the wordmark on the wide rail.
+describe("the expanded rail's icons, divider and toggle", () => {
+  test("each place row leads with its icon", () => {
+    const { container } = render(<Rail rail={railData()} health={null} healthError={false} />);
+    for (const { place, href } of RAIL_PLACES) {
+      const link = container.querySelector(`nav a[href="${href}"]:not([aria-label])`);
+      assert.ok(link, `no ${place} row`);
+      const icon = link.firstElementChild;
+      assert.equal(icon?.tagName.toLowerCase(), "svg", `${place} leads with ${icon?.tagName}`);
+      assert.equal(icon?.getAttribute("aria-hidden"), "true", place);
+      assert.equal(icon?.getAttribute("class"), RAIL_ICON, place);
+      assert.equal(link.textContent, place);
+      // justify-between would push the word away from its icon to the row's far edge.
+      assert.ok(!link.classList.contains("justify-between"), `${place} spreads its icon from its word`);
+    }
+  });
+
+  test("a divider separates the app's places from the host boards", () => {
+    const { container } = render(<Rail rail={railData()} health={null} healthError={false} />);
+    const sites = container.querySelector('nav[aria-label="Sites"]');
+    const divider = sites?.nextElementSibling;
+    // Compared by identity: a failing assert.equal would print the whole DOM node.
+    assert.ok(divider?.nextElementSibling === container.querySelector('nav[aria-label="Host"]'), "the Host nav follows the divider");
+    assert.equal(divider?.getAttribute("class"), RAIL_DIVIDER);
+    assert.equal(divider?.getAttribute("aria-hidden"), "true");
+  });
+
+  test("the collapse button sits beside the wordmark, and not in the drawer", () => {
+    const toggled: HTMLButtonElement[] = [];
+    const { container } = render(
+      <Rail rail={railData()} health={null} healthError={false} onToggle={(b) => toggled.push(b)} />,
+    );
+    const button = container.querySelector<HTMLButtonElement>("#rail-toggle");
+    assert.ok(button, "no #rail-toggle");
+    assert.equal(button.getAttribute("aria-label"), "Collapse sidebar");
+    assert.equal(button.getAttribute("aria-expanded"), "true");
+    assert.equal(button.getAttribute("aria-controls"), "rail");
+    assert.equal(button.previousElementSibling?.tagName.toLowerCase(), "h1");
+    fireEvent.click(button);
+    assert.equal(toggled.length, 1);
+    assert.ok(toggled[0] === button, "onToggle gets the button");
+    cleanup();
+    const drawer = render(<Rail rail={railData()} health={null} healthError={false} inDrawer />);
+    assert.equal(drawer.container.querySelector("#rail-toggle"), null);
   });
 });
 

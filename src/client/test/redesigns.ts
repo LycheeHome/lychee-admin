@@ -1,6 +1,15 @@
-import { RAIL_FIND, RAIL_FIND_PLACEHOLDER, RAIL_PLACE, RAIL_ROW } from "../../views/railModel";
+import {
+  RAIL_DIVIDER,
+  RAIL_FIND,
+  RAIL_FIND_PLACEHOLDER,
+  RAIL_HEAD,
+  RAIL_ICON,
+  RAIL_PLACE,
+  RAIL_ROW,
+  RAIL_TOGGLE,
+} from "../../views/railModel";
 import { SITE_HEADER_ACTIONS } from "../../views/siteDetailModel";
-import { BODY, BUTTON_SECONDARY, CAPTION, CAPTION_FILE, CAPTION_KEEP, SKIP_LINK } from "../../views/shared";
+import { BODY, BUTTON_SECONDARY, CAPTION, CAPTION_FILE, CAPTION_KEEP, ICON_CLASS, ICONS, SKIP_LINK } from "../../views/shared";
 
 /*
  * Declared redesigns of the frozen parity fixtures (src/dev/fixtures/).
@@ -38,6 +47,17 @@ const FROZEN_RAIL_ROW =
   `aria-[current=page]:border-l-2 aria-[current=page]:border-l-rose-800 ${FOCUS}`;
 
 const RAIL_WHY = "The rail is navigation plus one whole-host signal on overview (spec 2026-10-28-overview-page).";
+
+const RAIL_ICONS_WHY =
+  "Place rows lead with an icon, the app's places and the host boards are split by a divider, and a collapse button sits beside the wordmark (spec 2026-10-29-collapsible-rail).";
+
+/** Rail.tsx's `<Icon>` as React's static markup writes it: a place row's at RAIL_ICON. */
+function railIcon(name: keyof typeof ICONS, className = RAIL_ICON): string {
+  return (
+    `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ` +
+    `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`
+  );
+}
 
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -188,7 +208,8 @@ export const REDESIGNS: Redesign[] = [
     since: "2026-10-29",
     why: "Sites is a page, so its heading becomes a place row like Overview, at /sites since the list moved there (2026-10-28), with its site rows indented beneath it and no domain beside it (rail structure, 2026-10-29).",
     from: /<a href="\/" class="flex items-center justify-between font-mono text-\[0\.75rem\][^"]*"([^>]*)>sites<span data-count="sites"><\/span><\/a>/g,
-    to: `<a href="/sites" class="${RAIL_PLACE}"$1>sites</a>`,
+    // With its icon since 2026-10-29 (collapsible rail).
+    to: `<a href="/sites" class="${RAIL_PLACE}"$1>${railIcon("sites")}sites</a>`,
     anchor: '>sites<span data-count="sites"></span></a>',
   },
   {
@@ -320,8 +341,11 @@ export const REDESIGNS: Redesign[] = [
     why: RAIL_WHY,
     // With health null the row carries no signal, so it is fixed text. The nav also holds the plain activity row (spec 2026-10-28-activity-page).
     from: /<nav aria-label="Sites"/g,
-    // The rows are place rows, sans since 2026-10-29 (rail-place-sans).
-    to: `<nav aria-label="Overview" class="flex flex-col gap-0.5"><a href="/" class="${RAIL_PLACE} justify-between">overview</a><a href="/activity" class="${RAIL_PLACE}">activity</a></nav><nav aria-label="Sites"`,
+    // The rows are place rows, sans since 2026-10-29 (rail-place-sans), each
+    // leading with its icon the same day (collapsible rail), when overview
+    // lost `justify-between`: beside an icon it would push the word to the far
+    // edge, and the signal keeps right with its own `ml-auto`.
+    to: `<nav aria-label="Overview" class="flex flex-col gap-0.5"><a href="/" class="${RAIL_PLACE}">${railIcon("overview")}overview</a><a href="/activity" class="${RAIL_PLACE}">${railIcon("activity")}activity</a></nav><nav aria-label="Sites"`,
     anchor: '<nav aria-label="Sites"',
   },
   {
@@ -334,15 +358,19 @@ export const REDESIGNS: Redesign[] = [
     anchor: ">Visit ",
   },
   // The rail's place words are words, not machine facts: sans, while site rows,
-  // hints, counts and the find box stay mono.
-  {
-    id: "rail-place-sans:links",
-    since: "2026-10-29",
-    why: "A host link names a place, so sans; site rows stay mono (rail place words, 2026-10-29).",
-    from: new RegExp(escapeRegExp(`class="${FROZEN_RAIL_ROW} justify-between"`), "g"),
-    to: `class="${RAIL_PLACE} justify-between"`,
-    anchor: `class="${FROZEN_RAIL_ROW} justify-between"`,
-  },
+  // hints, counts and the find box stay mono. One entry per host link, since
+  // each leads with its own icon (collapsible rail, the same day), and none
+  // keeps `justify-between`, which would push the word away from its icon.
+  ...(["services", "reconciler", "infrastructure"] as const).map(
+    (place): Redesign => ({
+      id: `rail-place-sans:${place}`,
+      since: "2026-10-29",
+      why: `A host link names a place, so sans; site rows stay mono (rail place words, 2026-10-29). ${RAIL_ICONS_WHY}`,
+      from: new RegExp(`${escapeRegExp(`href="/${place}" class="${FROZEN_RAIL_ROW} justify-between"`)}([^>]*)>`, "g"),
+      to: `href="/${place}" class="${RAIL_PLACE}"$1>${railIcon(place)}`,
+      anchor: `href="/${place}" class="${FROZEN_RAIL_ROW} justify-between"`,
+    }),
+  ),
   {
     id: "rail-row-hover",
     since: "2026-10-29",
@@ -358,6 +386,25 @@ export const REDESIGNS: Redesign[] = [
     from: /\s*<p class="flex items-center justify-between font-mono text-\[0\.75rem\] text-stone-400 px-2 py-1 m-0">host<\/p>/g,
     to: "",
     anchor: ">host</p>",
+  },
+  {
+    id: "rail-divider",
+    since: "2026-10-29",
+    why: RAIL_ICONS_WHY,
+    from: /<nav aria-label="Host"/g,
+    to: `<div aria-hidden="true" class="${RAIL_DIVIDER}"></div><nav aria-label="Host"`,
+    anchor: '<nav aria-label="Host"',
+  },
+  {
+    id: "rail-head-toggle",
+    since: "2026-10-29",
+    why: RAIL_ICONS_WHY,
+    // The rail's h1 only: the top bar's has no px-2.
+    from: /(<h1 class="m-0 px-2 text-base font-normal leading-none">[\s\S]*?<\/h1>)/g,
+    to:
+      `<div class="${RAIL_HEAD}">$1<button type="button" id="rail-toggle" class="${RAIL_TOGGLE}" ` +
+      `aria-label="Collapse sidebar" aria-expanded="true" aria-controls="rail">${railIcon("panelClose", ICON_CLASS)}</button></div>`,
+    anchor: '<h1 class="m-0 px-2 text-base font-normal leading-none">',
   },
   {
     id: "find-placeholder-sans",
