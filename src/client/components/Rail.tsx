@@ -167,14 +167,17 @@ const placeOf = (place: RailPlace) => RAIL_PLACES.find((p) => p.place === place)
 /**
  * A strip cell: the place's icon alone, its word kept for screen readers and
  * shown as a tooltip (`aria-hidden`, so it is not heard twice) on hover and
- * keyboard focus.
+ * keyboard focus. The tip's capital is `first-letter:uppercase`, never
+ * `capitalize`: the tip's text follows the `sr-only` word with no space
+ * between, so `capitalize` read the two as one word and capitalized neither.
+ * The tip is absolutely positioned, so a block, and `::first-letter` applies.
  */
 function PlaceCell({ place, current, children }: { place: RailPlace; current: RailCurrent; children?: ReactNode }) {
   return (
     <RailLink href={placeOf(place).href} className={RAIL_CELL} aria-current={ariaCurrent(isPage(current, place))}>
       <Icon name={place} className={RAIL_CELL_ICON} />
       <span className="sr-only">{place}</span>
-      <span aria-hidden="true" className={`${RAIL_TIP} capitalize`}>
+      <span aria-hidden="true" className={`${RAIL_TIP} first-letter:uppercase`}>
         {place}
       </span>
       {children}

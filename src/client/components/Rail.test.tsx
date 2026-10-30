@@ -479,7 +479,8 @@ describe("the collapsed strip", () => {
       const tips = cell.querySelectorAll(`[aria-hidden="true"]:not(svg):not([data-signal])`);
       assert.equal(tips.length, 1, `${word}: ${tips.length} tooltips`);
       assert.equal(tips[0]?.textContent, word);
-      assert.equal(tips[0]?.getAttribute("class"), `${RAIL_TIP} capitalize`);
+      // Not `capitalize`, which reads the tip as one word with the sr-only text before it.
+      assert.equal(tips[0]?.getAttribute("class"), `${RAIL_TIP} first-letter:uppercase`);
     }
   });
 
