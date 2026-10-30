@@ -190,12 +190,12 @@ describe("status on the site list", () => {
 describe("the site list's ledger rows", () => {
   test("a subdomain's shared suffix is dimmed, as it already is on the detail page", () => {
     const cell = hostnameCell(rowFor(listMarkup([STATIC_SITE], {}, "lychee.land"), "blog.lychee.land"));
-    assert.match(cell, /^blog<span [^>]*>\.lychee\.land<\/span>$/);
+    assert.match(cell, /^<span class="inline-block max-w-full">blog<\/span><span [^>]*>\.lychee\.land<\/span>$/);
   });
 
   test("the apex domain has no shared suffix to dim, so it stays whole", () => {
     const cell = hostnameCell(rowFor(listMarkup([APEX_SITE], {}, "lychee.land"), "lychee.land"));
-    assert.equal(cell, "lychee.land");
+    assert.equal(cell, '<span class="inline-block max-w-full">lychee.land</span>');
   });
 
   test("a static row states its path with no key label in front of it", () => {

@@ -1,5 +1,6 @@
 import { RAIL_ROW } from "../../views/railModel";
 import { SITE_HEADER_ACTIONS } from "../../views/siteDetailModel";
+import { SITE_HOSTNAME, SITE_HOSTNAME_LABEL } from "../../views/siteListModel";
 import { BODY, BUTTON_SECONDARY, CAPTION, CAPTION_FILE, CAPTION_KEEP, SKIP_LINK } from "../../views/shared";
 
 /*
@@ -326,6 +327,22 @@ export const REDESIGNS: Redesign[] = [
     from: /(<a href="https:\/\/([^"]+)" target="_blank" rel="noopener noreferrer" class="[^"]*">Visit [\s\S]*?<\/a>)/g,
     to: `<div class="${SITE_HEADER_ACTIONS}"><a href="/activity?subject=$2" class="${BUTTON_SECONDARY} no-underline shrink-0">Activity</a>$1</div>`,
     anchor: ">Visit ",
+  },
+  {
+    id: "list-hostname-mono",
+    since: "2026-10-29",
+    why: "A list row's hostname is a machine fact, so DM Mono like every other one; Poetsen One is kept for the wordmark alone.",
+    from: /class="font-display text-base leading-relaxed text-stone-50 break-words"/g,
+    to: `class="${SITE_HOSTNAME}"`,
+    anchor: 'class="font-display text-base leading-relaxed text-stone-50 break-words"',
+  },
+  {
+    id: "list-hostname-label",
+    since: "2026-10-29",
+    why: "Mono is wider than Poetsen, so a row's label is held as one unit and a narrow row breaks before the domain, never mid-label (as the site headline does).",
+    from: /(data-hostname>)([^<]+)/g,
+    to: `$1<span class="${SITE_HOSTNAME_LABEL}">$2</span>`,
+    anchor: "data-hostname>",
   },
 ];
 
