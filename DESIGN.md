@@ -34,8 +34,9 @@ typography:
     lineHeight: 1.2
     letterSpacing: "-0.01em"
   title:
-    fontFamily: "Poetsen One, ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "DM Mono, ui-monospace, SFMono-Regular, Consolas, monospace"
     fontSize: "1rem"
+    fontWeight: 500
     lineHeight: 1.625
   eyebrow:
     fontFamily: "DM Mono, ui-monospace, SFMono-Regular, Consolas, monospace"
@@ -285,7 +286,7 @@ costume.
 - Flat tonal layering at rest; shadow only as a response to state or float.
 - Uppercase letterspaced micro-labels as the structural device.
 - Nothing folded, capped, or truncated — one operator, one wide viewport.
-- Poetsen One as a signature, twice, small.
+- Poetsen One as a signature, once, small: the wordmark.
 
 ## Colors
 
@@ -437,8 +438,8 @@ outlined Scorch on transparent, never filled Ember.
 **Character:** DM Mono is the working voice of the interface — narrow, even,
 unemphatic, and correct about a hostname's every character. Nunito softens the
 sentences around it without ever competing. Poetsen One is the signature: one
-rounded, warm, slightly toy-like face used twice, at small sizes, where the app
-says its own name and names a site.
+rounded, warm, slightly toy-like face used once, at a small size, where the app
+says its own name.
 
 ### Hierarchy
 
@@ -446,9 +447,9 @@ says its own name and names a site.
   `lychee`, followed by `admin` as a qualifier in DM Mono 0.85rem (the nav
   items' size), Smoke Light, 0.35em after it on the same baseline. `admin` is mono because
   `lychee-admin` is the service's name, a machine fact. There is no dot
-  between the two parts: the first row of the site list is `lychee.land` in
-  the same face, and a dotted wordmark directly above it read as another
-  hostname. The link's accessible name is `lychee-admin`. (Until 2026-10-11 it
+  between the two parts: the first row of the site list was `lychee.land` in
+  the same face when the wordmark was chosen, and a dotted wordmark directly
+  above it read as another hostname. The link's accessible name is `lychee-admin`. (Until 2026-10-11 it
   was `lyly` + an Ember period + `admin`.)
 - **Headline** (DM Mono, 1.7rem, line-height 1.2, tracking -0.01em): A site's
   hostname on the page that owns it — its detail page, and the add-site page
@@ -459,9 +460,13 @@ says its own name and names a site.
   inline block), so a narrow line breaks before the suffix, never at a hyphen
   inside the label; the headline is `overflow-wrap: anywhere`, so a label
   wider than the line still wraps inside itself.
-- **Title** (Poetsen One, 1rem, line-height 1.625): A list row's hostname, with
-  the shared `.<domain>` suffix dropped to Smoke beside it. The only other place
-  the display face appears.
+- **Title** (DM Mono, 1rem, weight 500, line-height 1.625): A list row's
+  hostname, in Chalk, with the shared `.<domain>` suffix dropped to Smoke beside
+  it. It leads the row's address, also mono, by size, weight and tone: 1rem 500
+  Chalk over 0.8rem 400 Smoke. The label is held as one unit (an inline block),
+  so a narrow row breaks before the suffix, never inside the label, as the
+  Headline does. (Until 2026-10-29 it was Poetsen One, the display face; a
+  hostname is a machine fact, so it went mono like every other one.)
 - **Eyebrow** (DM Mono, 0.85rem, weight 500, uppercase, tracking 0.08em, Smoke):
   Section and dialog headings — "Sites", "Add a site", "Remove site".
 - **Label** (DM Mono, 0.75rem, weight 500, uppercase, tracking 0.1em, Smoke Light):
@@ -505,8 +510,8 @@ span in Chalk, within the sentence's Nunito. A line that pairs a status word
 with a reason (`● deploy waiting · <reason>`, `● retiring · <reason>`) sets the
 word in mono and the reason in Nunito.
 
-**The Signature-Twice Rule.** Poetsen One appears in exactly two places: the
-wordmark and a list row's hostname. It is never a page heading, never above
+**The Signature-Once Rule.** Poetsen One appears in exactly one place: the
+wordmark. It is never a page heading, never above
 1.5rem, never body copy, and never used for emphasis. The family also ships a
 single weight — do not request 600 and let the browser synthesize it.
 
@@ -1577,8 +1582,8 @@ stops the container, and when.
   are The Show-It Rule's: a finished host action's log, and a finished
   runbook step, at rest; its named scroll boxes are the rail, the find
   panel's list, and the activity tables below their width.
-- **Don't** use Poetsen One anywhere except the wordmark and a list row's
-  hostname, and never above 1.5rem or at a weight it doesn't ship.
+- **Don't** use Poetsen One anywhere except the wordmark, and never above
+  1.5rem or at a weight it doesn't ship.
 - **Don't** fill a destructive button with Ember or make it the largest control
   on screen — Scorch outline, one size down.
 - **Don't** introduce a second accent hue, a gradient, or a chart. This app has
