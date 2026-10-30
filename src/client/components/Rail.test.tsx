@@ -570,12 +570,19 @@ describe("the collapsed strip", () => {
         </RoutedNav>
       </MemoryRouter>,
     );
-    const current = () => Array.from(container.querySelectorAll('a[aria-current="page"]')).map((a) => a.getAttribute("href"));
-    assert.deepEqual(current(), ["/reconciler"]);
+    // The expanded rail has the same hrefs, so check it is the strip, and a strip cell, each time.
+    const current = (when: string) => {
+      assert.equal(container.firstElementChild?.getAttribute("class"), RAIL_STRIP, `${when}: not the strip`);
+      assert.ok(container.querySelector("#find") === null, `${when}: a find box, so not the strip`);
+      const rows = Array.from(container.querySelectorAll('a[aria-current="page"]'));
+      for (const row of rows) assert.equal(row.getAttribute("class"), RAIL_CELL, `${when}: the current row is not a strip cell`);
+      return rows.map((a) => a.getAttribute("href"));
+    };
+    assert.deepEqual(current("at /reconciler"), ["/reconciler"]);
     act(() => {
       fireEvent.click(container.querySelector('a[href="/activity"]')!, { button: 0 });
     });
-    assert.deepEqual(current(), ["/activity"]);
+    assert.deepEqual(current("after the move"), ["/activity"]);
   });
 });
 
