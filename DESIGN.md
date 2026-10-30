@@ -967,11 +967,18 @@ after a failed read, nothing when clear, and the same spoken phrase. ⌘K still
 finds, through the peek.
 
 **The strip tooltip** names a cell on hover and on keyboard focus: the place
-word (or `Find`) in 0.8rem Nunito Chalk, capitalized, on a Hearth Lift ground
-with a `1px` Hairline edge, 6px radius, 4px 8px padding and the Overlay shadow,
-since it floats over the page, 10px to the cell's right and vertically centred
-on it. It is `aria-hidden`, because the cell's own word already names it; it
-never takes the pointer, and it never wraps.
+word (or `Find`) in Body type (0.8rem Nunito) at Chalk, capitalized, on a
+Hearth Lift ground with a `1px` Hairline edge, 6px radius, 4px 8px padding and
+the Overlay shadow, since it floats over the page, 10px to the cell's right and
+vertically centred on it. The capital comes from `::first-letter`, not
+`text-transform: capitalize`: the tip sits in the same cell as the
+screen-reader word, and `capitalize` would read the two as one run and leave
+the tip lower-case. It is `aria-hidden`, because the cell's own word already
+names it; it never takes the pointer, and it never wraps. The rail's column
+stacks above the content column (`z-30` on the sticky `<aside>`, which is a
+stacking context of its own), so positioned content in the page — a command
+block, a copy button — never paints over the tooltip, the peek or the find
+panel, or takes their clicks.
 
 **The peek** is find while collapsed. The strip's find cell or ⌘K opens the
 expanded rail, 250px wide, fixed over the content from the left edge at full
