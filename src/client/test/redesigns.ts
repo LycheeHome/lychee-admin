@@ -1,7 +1,16 @@
-import { RAIL_ROW } from "../../views/railModel";
+import {
+  RAIL_DIVIDER,
+  RAIL_FIND,
+  RAIL_FIND_PLACEHOLDER,
+  RAIL_HEAD,
+  RAIL_ICON,
+  RAIL_PLACE,
+  RAIL_ROW,
+  RAIL_TOGGLE,
+} from "../../views/railModel";
 import { SITE_HEADER_ACTIONS } from "../../views/siteDetailModel";
 import { SITE_HOSTNAME, SITE_HOSTNAME_LABEL } from "../../views/siteListModel";
-import { BODY, BUTTON_SECONDARY, CAPTION, CAPTION_FILE, CAPTION_KEEP, SKIP_LINK } from "../../views/shared";
+import { BODY, BUTTON_SECONDARY, CAPTION, CAPTION_FILE, CAPTION_KEEP, ICON_CLASS, ICONS, SKIP_LINK } from "../../views/shared";
 
 /*
  * Declared redesigns of the frozen parity fixtures (src/dev/fixtures/).
@@ -32,7 +41,28 @@ export type Redesign = {
 
 const FOCUS = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400 focus-visible:outline-offset-2";
 
+/** A site row's class exactly as the retired server rail wrote it, which every frozen rail fixture holds. */
+const FROZEN_RAIL_ROW =
+  "flex items-center gap-2 font-mono text-[0.85rem] no-underline text-stone-400 rounded-md px-2 py-1 " +
+  `hover:text-stone-50 aria-[current=page]:text-stone-50 aria-[current=page]:bg-stone-700 ` +
+  `aria-[current=page]:border-l-2 aria-[current=page]:border-l-rose-800 ${FOCUS}`;
+
 const RAIL_WHY = "The rail is navigation plus one whole-host signal on overview (spec 2026-10-28-overview-page).";
+
+const RAIL_ICONS_WHY =
+  "Place rows lead with an icon, the app's places and the host boards are split by a divider, and a collapse button sits beside the wordmark (spec 2026-10-29-collapsible-rail).";
+
+/** Rail.tsx's `<Icon>` as React's static markup writes it: a place row's at RAIL_ICON. */
+function railIcon(name: keyof typeof ICONS, className = RAIL_ICON): string {
+  return (
+    `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ` +
+    `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`
+  );
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 /** A fixture link to the sites list, by its exact class string, moved from / to /sites. */
 function sitesLink(id: string, className: string): Redesign {
@@ -41,7 +71,7 @@ function sitesLink(id: string, className: string): Redesign {
     id,
     since: "2026-10-28",
     why: "The sites list moved to /sites when / became the overview (spec 2026-10-28-overview-page).",
-    from: new RegExp(old.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
+    from: new RegExp(escapeRegExp(old), "g"),
     to: `href="/sites" class="${className}"`,
     anchor: old,
   };
@@ -170,13 +200,18 @@ export const REDESIGNS: Redesign[] = [
     to: "</span>",
     anchor: "<wbr></span>",
   },
+  // The sites heading, from its frozen markup to a place row in one step. It
+  // replaced two entries: rail-heading-domain (2026-10-27, the domain said
+  // once beside the heading, dropped 2026-10-29) and rail-sites-href
+  // (2026-10-28, the list's move to /sites).
   {
-    id: "rail-heading-domain",
-    since: "2026-10-27",
-    why: "The sites heading names the domain once, hidden from assistive tech, since each row's name still carries it.",
-    from: />sites<span data-count="sites"/g,
-    to: '><span>sites<span data-rail-domain aria-hidden="true"> · lychee.land</span></span><span data-count="sites"',
-    anchor: '>sites<span data-count="sites"',
+    id: "rail-sites-place",
+    since: "2026-10-29",
+    why: "Sites is a page, so its heading becomes a place row like Overview, at /sites since the list moved there (2026-10-28), with its site rows indented beneath it and no domain beside it (rail structure, 2026-10-29).",
+    from: /<a href="\/" class="flex items-center justify-between font-mono text-\[0\.75rem\][^"]*"([^>]*)>sites<span data-count="sites"><\/span><\/a>/g,
+    // With its icon since 2026-10-29 (collapsible rail).
+    to: `<a href="/sites" class="${RAIL_PLACE}"$1>${railIcon("sites")}sites</a>`,
+    anchor: '>sites<span data-count="sites"></span></a>',
   },
   {
     id: "type-option-static",
@@ -302,21 +337,16 @@ export const REDESIGNS: Redesign[] = [
     anchor: 'data-dot aria-hidden="true"',
   },
   {
-    id: "rail-sites-href",
-    since: "2026-10-28",
-    why: RAIL_WHY,
-    from: /<a href="\/" class="flex items-center justify-between font-mono text-\[0\.75rem\]/g,
-    to: '<a href="/sites" class="flex items-center justify-between font-mono text-[0.75rem]',
-    anchor: '<a href="/" class="flex items-center justify-between font-mono text-[0.75rem]',
-  },
-  {
     id: "rail-overview-row",
     since: "2026-10-28",
     why: RAIL_WHY,
     // With health null the row carries no signal, so it is fixed text. The nav also holds the plain activity row (spec 2026-10-28-activity-page).
     from: /<nav aria-label="Sites"/g,
-    // The row is a site row's RAIL_ROW, which the fixtures' own rows hold to its literal text.
-    to: `<nav aria-label="Overview" class="flex flex-col gap-0.5"><a href="/" class="${RAIL_ROW} justify-between">overview</a><a href="/activity" class="${RAIL_ROW}">activity</a></nav><nav aria-label="Sites"`,
+    // The rows are place rows, sans since 2026-10-29 (rail-place-sans), each
+    // leading with its icon the same day (collapsible rail), when overview
+    // lost `justify-between`: beside an icon it would push the word to the far
+    // edge, and the signal keeps right with its own `ml-auto`.
+    to: `<nav aria-label="Overview" class="flex flex-col gap-0.5"><a href="/" class="${RAIL_PLACE}">${railIcon("overview")}overview</a><a href="/activity" class="${RAIL_PLACE}">${railIcon("activity")}activity</a></nav><nav aria-label="Sites"`,
     anchor: '<nav aria-label="Sites"',
   },
   {
@@ -327,6 +357,72 @@ export const REDESIGNS: Redesign[] = [
     from: /(<a href="https:\/\/([^"]+)" target="_blank" rel="noopener noreferrer" class="[^"]*">Visit [\s\S]*?<\/a>)/g,
     to: `<div class="${SITE_HEADER_ACTIONS}"><a href="/activity?subject=$2" class="${BUTTON_SECONDARY} no-underline shrink-0">Activity</a>$1</div>`,
     anchor: ">Visit ",
+  },
+  // The rail's place words are words, not machine facts: sans, while site rows,
+  // hints, counts and the find box stay mono. One entry per host link, since
+  // each leads with its own icon (collapsible rail, the same day), and none
+  // keeps `justify-between`, which would push the word away from its icon.
+  ...(["services", "reconciler", "infrastructure"] as const).map(
+    (place): Redesign => ({
+      id: `rail-place-sans:${place}`,
+      since: "2026-10-29",
+      why: `A host link names a place, so sans; site rows stay mono (rail place words, 2026-10-29). ${RAIL_ICONS_WHY}`,
+      from: new RegExp(`${escapeRegExp(`href="/${place}" class="${FROZEN_RAIL_ROW} justify-between"`)}([^>]*)>`, "g"),
+      to: `href="/${place}" class="${RAIL_PLACE}"$1>${railIcon(place)}`,
+      anchor: `href="/${place}" class="${FROZEN_RAIL_ROW} justify-between"`,
+    }),
+  ),
+  {
+    id: "rail-row-hover",
+    since: "2026-10-29",
+    why: "A rail row's ground goes Hearth Lift on hover, as a sites-list row's does, so pointing at a site row visibly lands (rail hover comparison, \"01 Lift\"); the same row is indented 12px under Sites (rail structure, the same day).",
+    from: new RegExp(escapeRegExp(`class="${FROZEN_RAIL_ROW}"`), "g"),
+    to: `class="${RAIL_ROW}"`,
+    anchor: `class="${FROZEN_RAIL_ROW}"`,
+  },
+  {
+    id: "rail-no-host-heading",
+    since: "2026-10-29",
+    why: "The host heading is gone: Services, Reconciler and Infrastructure name themselves, and their nav keeps aria-label=\"Host\" (rail structure, 2026-10-29).",
+    from: /\s*<p class="flex items-center justify-between font-mono text-\[0\.75rem\] text-stone-400 px-2 py-1 m-0">host<\/p>/g,
+    to: "",
+    anchor: ">host</p>",
+  },
+  {
+    id: "rail-divider",
+    since: "2026-10-29",
+    why: RAIL_ICONS_WHY,
+    from: /<nav aria-label="Host"/g,
+    to: `<div aria-hidden="true" class="${RAIL_DIVIDER}"></div><nav aria-label="Host"`,
+    anchor: '<nav aria-label="Host"',
+  },
+  {
+    id: "rail-head-toggle",
+    since: "2026-10-29",
+    why: RAIL_ICONS_WHY,
+    // The rail's h1 only: the top bar's has no px-2.
+    from: /(<h1 class="m-0 px-2 text-base font-normal leading-none">[\s\S]*?<\/h1>)/g,
+    to:
+      `<div class="${RAIL_HEAD}">$1<button type="button" id="rail-toggle" class="${RAIL_TOGGLE}" ` +
+      `aria-label="Collapse sidebar" aria-expanded="true" aria-controls="rail">${railIcon("panelClose", ICON_CLASS)}</button></div>`,
+    anchor: '<h1 class="m-0 px-2 text-base font-normal leading-none">',
+  },
+  {
+    id: "rail-aside-stacks",
+    since: "2026-10-29",
+    why:
+      "The rail's <aside> takes z-30: being sticky makes it a stacking context, so the collapsed rail's peek, its tooltips and the find panel (z-40 inside it) were painted over, and clicked through, by positioned content in <main> (spec 2026-10-29-collapsible-rail, final review).",
+    from: /(<aside id="rail" [^>]*class="[^"]*?sticky top-0) (self-start h-screen)/g,
+    to: "$1 z-30 $2",
+    anchor: '<aside id="rail" ',
+  },
+  {
+    id: "find-placeholder-sans",
+    since: "2026-10-29",
+    why: "The find box's placeholder is an instruction, not an example value, so it reads `Find` in Nunito; what is typed stays mono.",
+    from: /placeholder="find"([^>]*) class="[^"]*w-full pr-10 text-\[0\.8rem\]"/g,
+    to: `placeholder="${RAIL_FIND_PLACEHOLDER}"$1 class="${RAIL_FIND}"`,
+    anchor: 'placeholder="find"',
   },
   {
     id: "list-hostname-mono",

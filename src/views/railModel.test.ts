@@ -214,3 +214,91 @@ describe("attentionCounts", () => {
     });
   });
 });
+
+describe("the rail's stored collapse state", () => {
+  const { readRailCollapsed, writeRailCollapsed, RAIL_STORAGE_KEY } = railModel;
+  const reading = (value: string | null) => ({ getItem: () => value });
+
+  test("only the word `collapsed` reads as collapsed", () => {
+    assert.equal(readRailCollapsed(reading("collapsed")), true);
+    for (const v of ["expanded", null, "yes"]) assert.equal(readRailCollapsed(reading(v)), false, String(v));
+    assert.equal(readRailCollapsed(undefined), false);
+    assert.equal(
+      readRailCollapsed({
+        getItem: () => {
+          throw new Error("blocked");
+        },
+      }),
+      false,
+    );
+  });
+
+  test("writing stores the word under the key, and never throws", () => {
+    const seen: [string, string][] = [];
+    const store = { setItem: (k: string, v: string) => void seen.push([k, v]) };
+    writeRailCollapsed(store, true);
+    writeRailCollapsed(store, false);
+    assert.deepEqual(seen, [
+      [RAIL_STORAGE_KEY, "collapsed"],
+      [RAIL_STORAGE_KEY, "expanded"],
+    ]);
+    assert.doesNotThrow(() =>
+      writeRailCollapsed(
+        {
+          setItem: () => {
+            throw new Error("full");
+          },
+        },
+        true,
+      ),
+    );
+    assert.doesNotThrow(() => writeRailCollapsed(undefined, true));
+  });
+});
+
+describe("the rail's places", () => {
+  test("six places in order, the app's three then the host's", () => {
+    assert.deepEqual(
+      railModel.RAIL_PLACES.map((p) => p.place),
+      ["overview", "activity", "sites", "services", "reconciler", "infrastructure"],
+    );
+    assert.deepEqual(
+      railModel.RAIL_PLACES.map((p) => p.group),
+      ["app", "app", "app", "host", "host", "host"],
+    );
+    assert.deepEqual(
+      railModel.RAIL_PLACES.map((p) => p.href),
+      ["/", "/activity", "/sites", "/services", "/reconciler", "/infrastructure"],
+    );
+  });
+
+  test("a site row sits 32px in, past the place icons", () => {
+    assert.match(railModel.RAIL_ROW, /(^|\s)pl-8(\s|$)/);
+    assert.doesNotMatch(railModel.RAIL_ROW, /(^|\s)pl-5(\s|$)/);
+  });
+
+  test("the strip never clips: its cells' tooltips overflow the 56px column", () => {
+    // Any overflow but visible (overflow-y-auto made overflow-x auto too) cut
+    // every strip tooltip off at the column's edge.
+    assert.doesNotMatch(railModel.RAIL_STRIP, /(^|\s)overflow-/);
+  });
+
+  test("the rail stacks above the page, so its peek, tooltips and find panel are on top", () => {
+    // `sticky` makes the aside a stacking context, so the z-40 of RAIL_PEEK,
+    // RAIL_TIP and FIND_PANEL counted only inside it, and positioned content
+    // later in <main> (CommandBlock's relative wrapper, copy buttons) painted
+    // over the peek and took its clicks (final review, 2026-10-29). happy-dom
+    // cannot render stacking, so this pins the class that fixes it.
+    assert.match(railModel.RAIL_ASIDE, /(^|\s)sticky(\s|$)/);
+    assert.match(railModel.RAIL_ASIDE, /(^|\s)z-30(\s|$)/);
+  });
+
+  test("the strip badge is the signal's mark, smaller: a 5px dot, and a count sized by the badge", () => {
+    assert.deepEqual(railModel.RAIL_BADGE_DOT, {
+      bad: "inline-block size-[5px] rounded-full bg-red-300",
+      neutral: "inline-block size-[5px] rounded-full bg-stone-400",
+    });
+    assert.deepEqual(railModel.RAIL_BADGE_COUNT, { bad: "font-mono text-red-300", neutral: "font-mono text-stone-400" });
+    assert.match(railModel.RAIL_BADGE, /text-\[0\.7rem\]/);
+  });
+});

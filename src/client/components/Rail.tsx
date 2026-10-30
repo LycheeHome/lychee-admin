@@ -3,21 +3,38 @@ import { splitHostnameForDisplay } from "../../lib/siteDisplay";
 import type { HealthPayload } from "../../shared/health";
 import {
   RAIL_ASIDE,
-  RAIL_HEADING,
-  RAIL_HEADING_LINK,
+  RAIL_BADGE,
+  RAIL_BADGE_COUNT,
+  RAIL_BADGE_DOT,
+  RAIL_CELL,
+  RAIL_CELL_ICON,
+  RAIL_MONOGRAM,
+  RAIL_STRIP,
+  RAIL_STRIP_DIVIDER,
+  RAIL_TIP,
+  RAIL_DIVIDER,
   RAIL_DRAWER,
+  RAIL_HEAD,
   RAIL_HINT,
   RAIL_HOSTNAME,
+  RAIL_ICON,
   RAIL_MENU,
   RAIL_NOTE,
+  RAIL_PEEK,
+  RAIL_PLACE,
+  RAIL_PLACES,
   RAIL_ROW,
+  RAIL_TOGGLE,
   RAIL_WIDE_QUERY,
   TOP_BAR,
+  readRailCollapsed,
+  writeRailCollapsed,
+  type RailPlace,
 } from "../../views/railModel";
 import { MENU_BADGE, RAIL_SIGNAL, RAIL_SIGNAL_COUNT, RAIL_SIGNAL_DOT, overviewSignal } from "../../views/overviewModel";
-import { FOCUS_RING, ICONS } from "../../views/shared";
+import { FOCUS_RING, ICON_CLASS, ICONS } from "../../views/shared";
 import type { RailCurrent, RailData } from "../../shared/rail";
-import { FindPanel } from "./FindPanel";
+import { FindPanel, isFindShortcut } from "./FindPanel";
 import {
   ADD_SITE_ROUTE,
   ACTIVITY_ROUTE,
@@ -57,8 +74,18 @@ export interface RailProps {
   navigate?: (href: string) => void;
   /** This rail is the narrow-screen drawer's, not the aside's. */
   inDrawer?: boolean;
-  /** ⌘K while the rail is collapsed (below 900px): open the drawer on find. */
+  /** This rail is in the peek, which closes on an Escape find leaves to it (the drawer's rail does this already). */
+  escapeToContainer?: boolean;
+  /** The id the expanded rail's collapse button controls: the aside (`rail`, the default), or the peek (`rail-peek`). */
+  toggleControls?: string;
+  /** ⌘K below 900px, where the aside, and the expanded rail's find with it, is hidden: open the drawer on find. */
   onNarrowShortcut?: (previous: Element | null) => void;
+  /** The wide rail is the icon strip (spec 2026-10-29-collapsible-rail). */
+  collapsed?: boolean;
+  /** The collapse button was pressed; it is passed so focus can follow it. */
+  onToggle?: (button: HTMLButtonElement) => void;
+  /** The strip's find button was pressed. */
+  onFindOpen?: (button: HTMLButtonElement) => void;
 }
 
 const isPage = (current: RailCurrent, page: string): boolean =>
@@ -81,11 +108,11 @@ function Wordmark() {
   );
 }
 
-/** An icon from shared.ts's ICONS, as the retired server rail drew it. */
-function Icon({ name }: { name: keyof typeof ICONS }) {
+/** An icon from shared.ts's ICONS, as the retired server rail drew it; a place row's at RAIL_ICON. */
+function Icon({ name, className = ICON_CLASS }: { name: keyof typeof ICONS; className?: string }) {
   return (
     <svg
-      className="w-[1em] h-[1em] shrink-0"
+      className={className}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -117,11 +144,63 @@ function Signal({ signal }: { signal: ReturnType<typeof overviewSignal> }) {
   );
 }
 
-const HOST_LINKS = [
-  { href: "/services", label: "services", page: "services" },
-  { href: "/reconciler", label: "reconciler", page: "reconciler" },
-  { href: "/infrastructure", label: "infrastructure", page: "infrastructure" },
-] as const;
+/**
+ * The strip's form of the signal: the same dot (at 5px) and count, pinned to
+ * the overview cell's corner as a badge, with the same spoken phrase.
+ */
+function SignalBadge({ signal }: { signal: ReturnType<typeof overviewSignal> }) {
+  if (!signal) return null;
+  return (
+    <>
+      <span data-signal="" aria-hidden="true" className={RAIL_BADGE}>
+        <span className={RAIL_BADGE_DOT[signal.tone]} />
+        {signal.count === null ? null : <span className={RAIL_BADGE_COUNT[signal.tone]}>{signal.count}</span>}
+      </span>
+      <span className="sr-only">{signal.spoken}</span>
+    </>
+  );
+}
+
+const placeOf = (place: RailPlace) => RAIL_PLACES.find((p) => p.place === place)!;
+
+/**
+ * A strip cell: the place's icon alone, its word kept for screen readers and
+ * shown as a tooltip (`aria-hidden`, so it is not heard twice) on hover and
+ * keyboard focus. The tip's capital is `first-letter:uppercase`, never
+ * `capitalize`: the tip's text follows the `sr-only` word with no space
+ * between, so `capitalize` read the two as one word and capitalized neither.
+ * The tip is absolutely positioned, so a block, and `::first-letter` applies.
+ */
+function PlaceCell({ place, current, children }: { place: RailPlace; current: RailCurrent; children?: ReactNode }) {
+  return (
+    <RailLink href={placeOf(place).href} className={RAIL_CELL} aria-current={ariaCurrent(isPage(current, place))}>
+      <Icon name={place} className={RAIL_CELL_ICON} />
+      <span className="sr-only">{place}</span>
+      <span aria-hidden="true" className={`${RAIL_TIP} first-letter:uppercase`}>
+        {place}
+      </span>
+      {children}
+    </RailLink>
+  );
+}
+
+const STRIP_NAV = "flex flex-col items-center gap-0.5";
+
+/**
+ * A place row: its icon, then its word. No `justify-between`, which the
+ * frozen overview and host rows carried: beside an icon it would push the
+ * word to the row's far edge. Overview's signal keeps right with its own
+ * `ml-auto`.
+ */
+function PlaceLink({ place, current, children }: { place: RailPlace; current: RailCurrent; children?: ReactNode }) {
+  return (
+    <RailLink href={placeOf(place).href} className={RAIL_PLACE} aria-current={ariaCurrent(isPage(current, place))}>
+      <Icon name={place} className={RAIL_ICON} />
+      {place}
+      {children}
+    </RailLink>
+  );
+}
 
 /** Each board route's rail item. */
 const ROUTE_PAGE: Record<BoardRoute, "services" | "reconciler" | "infrastructure"> = {
@@ -138,7 +217,12 @@ export function Rail({
   findInitial,
   navigate,
   inDrawer,
+  escapeToContainer,
+  toggleControls = "rail",
   onNarrowShortcut,
+  collapsed,
+  onToggle,
+  onFindOpen,
 }: RailProps) {
   // On a client route the router's location is where the operator is. The
   // add page marks nothing: the rail has no Add site, and its breadcrumb
@@ -166,12 +250,87 @@ export function Rail({
   const live = healthError ? null : health;
   const signal = overviewSignal(health, healthError);
 
+  // The strip: places only, as icons. No site rows, find box or notes; the
+  // peek (find's button) is where those are. Never in the drawer, which is
+  // always the full rail.
+  if (collapsed && !inDrawer) {
+    return (
+      <div className={RAIL_STRIP}>
+        <h1 className="m-0 text-base font-normal leading-none">
+          <RailLink href="/" aria-label="lychee-admin" className={RAIL_MONOGRAM}>
+            l
+          </RailLink>
+        </h1>
+        <button
+          type="button"
+          id="rail-toggle"
+          className={RAIL_TOGGLE}
+          aria-label="Expand sidebar"
+          aria-expanded="false"
+          aria-controls="rail"
+          onClick={(e) => onToggle?.(e.currentTarget)}
+        >
+          <Icon name="panelOpen" />
+        </button>
+        <button
+          type="button"
+          id="rail-find-open"
+          className={RAIL_CELL}
+          aria-label="Find"
+          onClick={(e) => onFindOpen?.(e.currentTarget)}
+        >
+          <Icon name="search" className={RAIL_CELL_ICON} />
+          <span aria-hidden="true" className={RAIL_TIP}>
+            Find
+          </span>
+        </button>
+        <nav aria-label="Overview" className={STRIP_NAV}>
+          <PlaceCell place="overview" current={current}>
+            <SignalBadge signal={signal} />
+          </PlaceCell>
+          <PlaceCell place="activity" current={current} />
+        </nav>
+        <nav aria-label="Sites" className={STRIP_NAV}>
+          <PlaceCell place="sites" current={current} />
+        </nav>
+        <div aria-hidden="true" className={RAIL_STRIP_DIVIDER} />
+        <nav aria-label="Host" className={STRIP_NAV}>
+          {RAIL_PLACES.filter((p) => p.group === "host").map((p) => (
+            <PlaceCell key={p.place} place={p.place} current={current} />
+          ))}
+        </nav>
+      </div>
+    );
+  }
+
+  const heading = (
+    <h1 className="m-0 px-2 text-base font-normal leading-none">
+      <Wordmark />
+    </h1>
+  );
+
   return (
     <>
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-5 px-3 py-5">
-        <h1 className="m-0 px-2 text-base font-normal leading-none">
-          <Wordmark />
-        </h1>
+        {inDrawer ? (
+          heading
+        ) : (
+          // The drawer has no collapse: below 900px the rail is never a strip.
+          <div className={RAIL_HEAD}>
+            {heading}
+            <button
+              type="button"
+              id="rail-toggle"
+              className={RAIL_TOGGLE}
+              aria-label="Collapse sidebar"
+              aria-expanded="true"
+              aria-controls={toggleControls}
+              onClick={(e) => onToggle?.(e.currentTarget)}
+            >
+              <Icon name="panelClose" />
+            </button>
+          </div>
+        )}
         <FindPanel
           health={live}
           railSites={rail.sites}
@@ -181,33 +340,17 @@ export function Rail({
           initialQuery={findInitial?.query}
           initialFocused={findInitial?.focused}
           inDrawer={inDrawer}
+          escapeToContainer={inDrawer || escapeToContainer}
           onNarrowShortcut={onNarrowShortcut}
         />
         <nav aria-label="Overview" className="flex flex-col gap-0.5">
-          <RailLink
-            href={OVERVIEW_ROUTE}
-            className={`${RAIL_ROW} justify-between`}
-            aria-current={ariaCurrent(isPage(current, "overview"))}
-          >
-            overview
+          <PlaceLink place="overview" current={current}>
             <Signal signal={signal} />
-          </RailLink>
-          <RailLink href={ACTIVITY_ROUTE} className={RAIL_ROW} aria-current={ariaCurrent(isPage(current, "activity"))}>
-            activity
-          </RailLink>
+          </PlaceLink>
+          <PlaceLink place="activity" current={current} />
         </nav>
         <nav aria-label="Sites" className="flex flex-col gap-0.5">
-          <RailLink href={SITES_ROUTE} className={RAIL_HEADING_LINK} aria-current={ariaCurrent(isPage(current, "sites"))}>
-            {/* The domain is said once here, so a row can show its label alone. */}
-            <span>
-              sites
-              {rail.domain ? (
-                <span data-rail-domain="" aria-hidden="true">
-                  {` · ${rail.domain}`}
-                </span>
-              ) : null}
-            </span>
-          </RailLink>
+          <PlaceLink place="sites" current={current} />
           {rail.sites === null ? (
             <p className={RAIL_NOTE}>Can&apos;t read the Caddyfile</p>
           ) : (
@@ -224,7 +367,7 @@ export function Rail({
                     >
                       <span className={RAIL_HOSTNAME}>
                         <span className="text-stone-50">{lead}</span>
-                        {/* Heard, not shown: the heading names the domain. */}
+                        {/* Heard, not shown: every row shares the domain, so a row shows its label alone. */}
                         {dimmed ? <span className="sr-only">{dimmed}</span> : null}
                       </span>
                       <span className="sr-only">, </span>
@@ -236,17 +379,10 @@ export function Rail({
             </ul>
           )}
         </nav>
+        <div aria-hidden="true" className={RAIL_DIVIDER} />
         <nav aria-label="Host" className="flex flex-col gap-0.5">
-          <p className={`${RAIL_HEADING} m-0`}>host</p>
-          {HOST_LINKS.map((link) => (
-            <RailLink
-              key={link.href}
-              href={link.href}
-              className={`${RAIL_ROW} justify-between`}
-              aria-current={ariaCurrent(isPage(current, link.page))}
-            >
-              {link.label}
-            </RailLink>
+          {RAIL_PLACES.filter((p) => p.group === "host").map((p) => (
+            <PlaceLink key={p.place} place={p.place} current={current} />
           ))}
           {rail.hostAvailable ? null : <p className={RAIL_NOTE}>Inventory unavailable</p>}
         </nav>
@@ -363,8 +499,72 @@ function Drawer({
   );
 }
 
-/** The rail's props, less the ones Navigation decides itself (where find starts, and the drawer). */
-export type NavigationProps = Omit<RailProps, "findInitial" | "inDrawer" | "onNarrowShortcut">;
+/**
+ * The peek (spec 2026-10-29-collapsible-rail): the expanded rail over the
+ * content while the rail is collapsed, for a quick find. Not modal, so the
+ * page stays live behind it. It closes on an Escape find leaves to it, a
+ * pointer down outside it, and focus leaving it (but not a window blur, whose
+ * `relatedTarget` is null). `onClose(restore)` is told whether focus should go
+ * back to the opener: an Escape or its collapse button, yes; a pointer or
+ * focus that has gone elsewhere, no, since it has somewhere to be already.
+ */
+function Peek({ onClose, children }: { onClose: (restore: boolean) => void; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // The document listener is registered once; it reads the latest callback here.
+  const close = useRef(onClose);
+  useEffect(() => {
+    close.current = onClose;
+  });
+
+  useEffect(() => {
+    const onPointerDown = (e: PointerEvent) => {
+      const root = ref.current;
+      if (root && e.target instanceof Node && root.contains(e.target)) return;
+      close.current(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      id="rail-peek"
+      role="dialog"
+      aria-modal="false"
+      aria-label="Navigation"
+      className={RAIL_PEEK}
+      onKeyDown={(e) => {
+        // Find's own Escape (closing its open panel) comes first and is prevented.
+        if (e.key !== "Escape" || e.defaultPrevented) return;
+        e.preventDefault();
+        onClose(true);
+      }}
+      onBlur={(e) => {
+        const next = e.relatedTarget;
+        if (next === null || e.currentTarget.contains(next)) return;
+        onClose(false);
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** The rail's props, less the ones Navigation decides itself (where find starts, the drawer, the peek and the collapse). */
+export type NavigationProps = Omit<
+  RailProps,
+  "findInitial" | "inDrawer" | "escapeToContainer" | "toggleControls" | "onNarrowShortcut" | "collapsed" | "onToggle" | "onFindOpen"
+>;
+
+/** The browser's store, or none where touching it throws (a sandbox, blocked site data). */
+function safeLocalStorage(): Storage | undefined {
+  try {
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
+}
 
 interface DrawerState {
   /** What opened the drawer, which gets focus back when it closes. */
@@ -373,22 +573,92 @@ interface DrawerState {
   focusFind: boolean;
 }
 
+interface PeekState {
+  /**
+   * What gets focus back on an Escape or the peek's collapse button: `strip`
+   * for the strip's find button, which unmounts while the peek takes the
+   * aside and is found again once the strip is back; otherwise what had focus
+   * before ⌘K, which stays in the document.
+   */
+  opener: HTMLElement | "strip" | null;
+}
+
+/** A focus target worth returning to: an element, and not the body (nothing had focus). */
+const focusTarget = (el: Element | null): HTMLElement | null =>
+  el instanceof HTMLElement && el !== document.body ? el : null;
+
 /**
  * The narrow-screen `<header id="top-bar">` and the rail's
  * `<aside id="rail">`, with the drawer inside the header. AppFrame renders
  * it first in the body, so the two are the body grid's first items.
  *
- * The drawer holds the rail itself: while it is open the rail renders inside
- * the dialog and not in the aside, so there is only ever one rail, one `#find`
- * and one ⌘K listener in the document.
+ * There is only ever one rail, one `#find` and one ⌘K listener in the
+ * document, across the aside, the drawer and the peek. The drawer holds the
+ * rail itself: while it is open the rail renders inside the dialog and not in
+ * the aside. Collapsed (from 900px, the stored choice), the aside holds the
+ * icon strip, which has no find: then Navigation holds the ⌘K listener
+ * itself, with FindPanel's own predicate, opening the drawer on find below
+ * 900px (the peek from 900px, spec 2026-10-29-collapsible-rail). The drawer
+ * always renders the expanded rail, whatever is stored.
  */
 export function Navigation(props: NavigationProps) {
   const [drawer, setDrawer] = useState<DrawerState | null>(null);
   const restoreTo = useRef<HTMLElement | null>(null);
 
-  const open = (opener: Element | null, focusFind: boolean) => {
-    setDrawer({ opener: opener instanceof HTMLElement && opener !== document.body ? opener : null, focusFind });
+  // Read synchronously, so the first paint is already in the stored state.
+  const [collapsed, setCollapsed] = useState(() => readRailCollapsed(safeLocalStorage()));
+  const asideRef = useRef<HTMLElement>(null);
+  const focusToggle = useRef(false);
+
+  const toggle = () => {
+    const next = !collapsed;
+    writeRailCollapsed(safeLocalStorage(), next);
+    focusToggle.current = true;
+    setCollapsed(next);
   };
+
+  // The body grid narrows to the strip from 900px (index.html's data-[rail] variant).
+  useLayoutEffect(() => {
+    if (collapsed) document.body.dataset.rail = "collapsed";
+    else delete document.body.dataset.rail;
+    return () => {
+      delete document.body.dataset.rail;
+    };
+  }, [collapsed]);
+
+  // After a flip focus moves to the other state's button, so a keyboard user keeps their place.
+  useEffect(() => {
+    if (!focusToggle.current) return;
+    focusToggle.current = false;
+    asideRef.current?.querySelector<HTMLElement>("#rail-toggle")?.focus();
+  }, [collapsed]);
+
+  const open = (opener: Element | null, focusFind: boolean) => {
+    setDrawer({ opener: focusTarget(opener), focusFind });
+  };
+
+  // The peek never touches the stored state: it is a look, not a flip.
+  const [peek, setPeek] = useState<PeekState | null>(null);
+  const peekRestoreTo = useRef<PeekState["opener"]>(null);
+  const openPeek = (opener: Element | null) => {
+    const target = focusTarget(opener);
+    setPeek({ opener: target?.id === "rail-find-open" && asideRef.current?.contains(target) ? "strip" : target });
+  };
+  const closePeek = (restore: boolean) => {
+    if (!peek) return;
+    peekRestoreTo.current = restore ? peek.opener : null;
+    setPeek(null);
+  };
+
+  // Focus goes back to the peek's opener when the close asked for it.
+  useEffect(() => {
+    if (peek) return;
+    const target = peekRestoreTo.current;
+    peekRestoreTo.current = null;
+    // The strip's find button is a new node now: find it in the aside, never the stale one.
+    const el = target === "strip" ? asideRef.current?.querySelector<HTMLElement>("#rail-find-open") : target;
+    if (el?.isConnected) el.focus();
+  }, [peek]);
 
   // Idempotent: Escape's cancel and a native `close` event can both arrive.
   // A close because the router moved returns focus nowhere: the new page's
@@ -413,6 +683,7 @@ export function Navigation(props: NavigationProps) {
   // layout effect, so the page is no longer inert by the time the new page's
   // own effect moves focus to its heading; then in state.
   const isOpen = drawer !== null;
+  const peekOpen = peek !== null;
   const dialogRef = useRef<HTMLDialogElement>(null);
   const navigatedAway = useRef(false);
   const locationKey = useClientNav()?.locationKey;
@@ -420,11 +691,29 @@ export function Navigation(props: NavigationProps) {
   useLayoutEffect(() => {
     if (locationKey === seenKey.current) return;
     seenKey.current = locationKey;
+    // The peek closes on a move the same way, returning focus nowhere.
+    if (peekOpen) {
+      peekRestoreTo.current = null;
+      setPeek(null);
+    }
     if (!isOpen) return;
     navigatedAway.current = true;
     dialogRef.current?.close();
     setDrawer(null);
-  }, [locationKey, isOpen]);
+  }, [locationKey, isOpen, peekOpen]);
+
+  // Narrowing below 900px hides the strip: the peek goes, and its opener with it.
+  useEffect(() => {
+    if (!peekOpen || typeof window.matchMedia !== "function") return;
+    const wide = window.matchMedia(RAIL_WIDE_QUERY);
+    const onChange = () => {
+      if (wide.matches) return;
+      peekRestoreTo.current = null;
+      setPeek(null);
+    };
+    wide.addEventListener("change", onChange);
+    return () => wide.removeEventListener("change", onChange);
+  }, [peekOpen]);
 
   // Widening past 900px brings the rail back beside the content: the drawer goes.
   useEffect(() => {
@@ -437,11 +726,54 @@ export function Navigation(props: NavigationProps) {
     return () => wide.removeEventListener("change", onChange);
   }, [isOpen]);
 
+  // The strip renders no FindPanel, so while collapsed with neither the drawer
+  // nor the peek open this is the document's one ⌘K listener: from 900px it
+  // opens the peek, below it the drawer on find. While either is open, the
+  // FindPanel inside it owns ⌘K. The callbacks are read through a ref, so the
+  // listener never calls a stale render's.
+  const openers = useRef({ open, openPeek });
+  useEffect(() => {
+    openers.current = { open, openPeek };
+  });
+  const stripShortcut = collapsed && !isOpen && !peekOpen;
+  useEffect(() => {
+    if (!stripShortcut) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (!isFindShortcut(e)) return;
+      e.preventDefault();
+      const wide = typeof window.matchMedia === "function" && window.matchMedia(RAIL_WIDE_QUERY).matches;
+      if (wide) openers.current.openPeek(document.activeElement);
+      else openers.current.open(document.activeElement, true);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [stripShortcut]);
+
   const rail = drawer ? (
     <Rail {...props} inDrawer findInitial={{ query: "", focused: drawer.focusFind }} />
+  ) : collapsed ? (
+    <Rail {...props} collapsed onToggle={toggle} onFindOpen={openPeek} />
   ) : (
-    <Rail {...props} onNarrowShortcut={(previous) => open(previous, true)} />
+    <Rail {...props} onToggle={toggle} onNarrowShortcut={(previous) => open(previous, true)} />
   );
+
+  // The peek holds the expanded rail, with find focused; its collapse button
+  // only closes it. While open it takes the strip's place in the aside, as the
+  // drawer takes the rail: one rail, one #rail-toggle, one h1 and one set of
+  // navs. It is fixed, and body[data-rail] keeps the column at 56px, so the
+  // page does not move.
+  const peekRail =
+    peek && collapsed && !drawer ? (
+      <Peek onClose={closePeek}>
+        <Rail
+          {...props}
+          escapeToContainer
+          toggleControls="rail-peek"
+          findInitial={{ query: "", focused: true }}
+          onToggle={() => closePeek(true)}
+        />
+      </Peek>
+    ) : null;
 
   return (
     <>
@@ -453,8 +785,8 @@ export function Navigation(props: NavigationProps) {
           </Drawer>
         ) : null}
       </header>
-      <aside id="rail" data-rail="" aria-label="Navigation" className={RAIL_ASIDE}>
-        {drawer ? null : rail}
+      <aside ref={asideRef} id="rail" data-rail="" aria-label="Navigation" className={RAIL_ASIDE}>
+        {drawer ? null : (peekRail ?? rail)}
       </aside>
     </>
   );

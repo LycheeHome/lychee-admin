@@ -2,11 +2,27 @@ import "../test/setup";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, describe, test } from "node:test";
+import { afterEach, beforeEach, describe, test } from "node:test";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation, useNavigate } from "react-router";
 import { MENU_BADGE, RAIL_SIGNAL_COUNT, RAIL_SIGNAL_DOT } from "../../views/overviewModel";
+import {
+  RAIL_BADGE,
+  RAIL_BADGE_COUNT,
+  RAIL_BADGE_DOT,
+  RAIL_CELL,
+  RAIL_CELL_ICON,
+  RAIL_DIVIDER,
+  RAIL_ICON,
+  RAIL_MONOGRAM,
+  RAIL_PLACES,
+  RAIL_STORAGE_KEY,
+  RAIL_STRIP,
+  RAIL_STRIP_DIVIDER,
+  RAIL_TIP,
+} from "../../views/railModel";
 import { BUTTON_PRIMARY, FOCUS_RING } from "../../views/shared";
 import { ClientNavContext } from "../clientNav";
 import type { RailData } from "../../shared/rail";
@@ -297,7 +313,12 @@ describe("Rail with health", () => {
     const links = Array.from(container.querySelectorAll('nav[aria-label="Overview"] > a'));
     assert.deepEqual(links.map((a) => a.getAttribute("href")), ["/", "/activity"]);
     assert.equal(links[1]?.textContent, "activity");
-    assert.equal(links[1]?.children.length, 0, "the activity row carries a mark");
+    // Its icon alone: no signal beside the word.
+    assert.deepEqual(
+      Array.from(links[1]?.children ?? []).map((c) => c.tagName.toLowerCase()),
+      ["svg"],
+      "the activity row carries a mark",
+    );
   });
 
   test("the find hint is the one it is given", () => {
@@ -315,9 +336,10 @@ describe("Rail with health", () => {
   });
 });
 
-// A row shows the label alone; the domain is said once, beside the heading
-// (critique 2026-10-26 minors, "01 Label only"). The full hostname stays the
-// row's text for assistive tech, as sr-only text, so its name is unchanged.
+// A row shows the label alone (critique 2026-10-26 minors, "01 Label only"),
+// and since 2026-10-29 the heading no longer names the domain either. The
+// full hostname stays the row's text for assistive tech, as sr-only text, so
+// its name is unchanged.
 describe("rail rows show the label only", () => {
   const rowOf = (container: HTMLElement, hostname: string): HTMLElement => {
     const row = container.querySelector<HTMLElement>(`[data-site="${hostname}"]`);
@@ -343,13 +365,232 @@ describe("rail rows show the label only", () => {
     assert.equal(name?.querySelector(".sr-only"), null);
   });
 
-  test("the sites heading names the domain once, hidden from assistive tech", () => {
+  test("the sites heading is the word alone, with no domain beside it", () => {
     const { container } = render(<Rail rail={railData()} health={null} healthError={false} />);
     const heading = container.querySelector('nav[aria-label="Sites"] > a[href="/sites"]');
     assert.ok(heading);
-    const domain = heading.querySelector("[data-rail-domain]");
-    assert.equal(domain?.textContent, " · lychee.land");
-    assert.equal(domain?.getAttribute("aria-hidden"), "true");
+    assert.equal(heading.textContent, "sites");
+    assert.equal(heading.querySelector("[data-rail-domain]"), null);
+  });
+});
+
+// Spec 2026-10-29-collapsible-rail: every place row leads with an icon, a rule
+// splits the app's places from the host boards, and a collapse button sits
+// beside the wordmark on the wide rail.
+describe("the expanded rail's icons, divider and toggle", () => {
+  test("each place row leads with its icon", () => {
+    const { container } = render(<Rail rail={railData()} health={null} healthError={false} />);
+    for (const { place, href } of RAIL_PLACES) {
+      const link = container.querySelector(`nav a[href="${href}"]:not([aria-label])`);
+      assert.ok(link, `no ${place} row`);
+      const icon = link.firstElementChild;
+      assert.equal(icon?.tagName.toLowerCase(), "svg", `${place} leads with ${icon?.tagName}`);
+      assert.equal(icon?.getAttribute("aria-hidden"), "true", place);
+      assert.equal(icon?.getAttribute("class"), RAIL_ICON, place);
+      assert.equal(link.textContent, place);
+      // justify-between would push the word away from its icon to the row's far edge.
+      assert.ok(!link.classList.contains("justify-between"), `${place} spreads its icon from its word`);
+    }
+  });
+
+  test("a divider separates the app's places from the host boards", () => {
+    const { container } = render(<Rail rail={railData()} health={null} healthError={false} />);
+    const sites = container.querySelector('nav[aria-label="Sites"]');
+    const divider = sites?.nextElementSibling;
+    // Compared by identity: a failing assert.equal would print the whole DOM node.
+    assert.ok(divider?.nextElementSibling === container.querySelector('nav[aria-label="Host"]'), "the Host nav follows the divider");
+    assert.equal(divider?.getAttribute("class"), RAIL_DIVIDER);
+    assert.equal(divider?.getAttribute("aria-hidden"), "true");
+  });
+
+  test("the collapse button sits beside the wordmark, and not in the drawer", () => {
+    const toggled: HTMLButtonElement[] = [];
+    const { container } = render(
+      <Rail rail={railData()} health={null} healthError={false} onToggle={(b) => toggled.push(b)} />,
+    );
+    const button = container.querySelector<HTMLButtonElement>("#rail-toggle");
+    assert.ok(button, "no #rail-toggle");
+    assert.equal(button.getAttribute("aria-label"), "Collapse sidebar");
+    assert.equal(button.getAttribute("aria-expanded"), "true");
+    assert.equal(button.getAttribute("aria-controls"), "rail");
+    assert.equal(button.previousElementSibling?.tagName.toLowerCase(), "h1");
+    fireEvent.click(button);
+    assert.equal(toggled.length, 1);
+    assert.ok(toggled[0] === button, "onToggle gets the button");
+    cleanup();
+    const drawer = render(<Rail rail={railData()} health={null} healthError={false} inDrawer />);
+    assert.equal(drawer.container.querySelector("#rail-toggle"), null);
+  });
+});
+
+/** A router-backed ClientNav, so a click on a strip cell really moves the route. */
+function RoutedNav({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  return (
+    <ClientNavContext.Provider
+      value={{ pathname: location.pathname, locationKey: location.key, navigate: (href) => void navigate(href), documentLoad: false }}
+    >
+      {children}
+    </ClientNavContext.Provider>
+  );
+}
+
+describe("the collapsed strip", () => {
+  const strip = (overrides: Partial<RailData> = {}, health: HealthPayload | null = null, healthError = false) =>
+    render(<Rail rail={railData(overrides)} health={health} healthError={healthError} collapsed />);
+
+  /** The strip's six place cells, in rail order. */
+  const cells = (root: ParentNode): HTMLAnchorElement[] =>
+    RAIL_PLACES.map(({ place, href }) => {
+      const cell = root.querySelector<HTMLAnchorElement>(`nav a[href="${href}"]`);
+      assert.ok(cell, `no ${place} cell`);
+      return cell;
+    });
+
+  test("renders inside the strip column", () => {
+    const { container } = strip();
+    assert.equal(container.firstElementChild?.getAttribute("class"), RAIL_STRIP);
+    const h1 = container.querySelector("h1");
+    const mono = h1?.querySelector("a");
+    assert.equal(mono?.getAttribute("href"), "/");
+    assert.equal(mono?.getAttribute("aria-label"), "lychee-admin");
+    assert.equal(mono?.textContent, "l");
+    assert.equal(mono?.getAttribute("class"), RAIL_MONOGRAM);
+  });
+
+  test("no site rows, no find box and no notes", () => {
+    const { container } = strip({ sites: null, hostAvailable: false });
+    // Compared by identity: a failing assert.equal would print the whole DOM node.
+    assert.ok(container.querySelector("a[data-site]") === null, "a site row in the strip");
+    assert.ok(container.querySelector("#find") === null, "a find box in the strip");
+    assert.doesNotMatch(container.textContent ?? "", /Can't read the Caddyfile|Inventory unavailable/);
+    const seeded = strip();
+    assert.ok(seeded.container.querySelector("a[data-site]") === null, "a seeded site row in the strip");
+  });
+
+  test("each place cell keeps its word", () => {
+    const { container } = strip({}, healthWith(3));
+    for (const [i, cell] of cells(container).entries()) {
+      const word = RAIL_PLACES[i]!.place;
+      assert.equal(cell.getAttribute("class"), RAIL_CELL, word);
+      const icon = cell.firstElementChild;
+      assert.equal(icon?.tagName.toLowerCase(), "svg", word);
+      assert.equal(icon?.getAttribute("class"), RAIL_CELL_ICON, word);
+      assert.equal(cell.querySelector("span.sr-only")?.textContent, word);
+      const tips = cell.querySelectorAll(`[aria-hidden="true"]:not(svg):not([data-signal])`);
+      assert.equal(tips.length, 1, `${word}: ${tips.length} tooltips`);
+      assert.equal(tips[0]?.textContent, word);
+      // Not `capitalize`, which reads the tip as one word with the sr-only text before it.
+      assert.equal(tips[0]?.getAttribute("class"), `${RAIL_TIP} first-letter:uppercase`);
+    }
+  });
+
+  test("the badge carries the signal", () => {
+    const overview = (root: ParentNode) => cells(root)[0]!;
+    const bad = strip({}, healthWith(3));
+    let badge = overview(bad.container).querySelector("[data-signal]");
+    assert.ok(badge, "no badge");
+    assert.equal(badge.getAttribute("class"), RAIL_BADGE);
+    assert.equal(badge.getAttribute("aria-hidden"), "true");
+    assert.equal(badge.textContent, "5");
+    assert.ok(badge.querySelector(".bg-red-300"), "not the bad dot");
+    assert.ok(badge.querySelector(".size-\\[5px\\]"), "not the 5px dot");
+    assert.equal(badge.querySelector(".size-\\[5px\\]")?.getAttribute("class"), RAIL_BADGE_DOT.bad);
+    assert.equal(badge.querySelector(".font-mono")?.getAttribute("class"), RAIL_BADGE_COUNT.bad);
+    assert.match(accessibleName(overview(bad.container)), /^overview, 5 need attention/);
+    bad.unmount();
+
+    const neutral = strip({}, healthWith(3, false));
+    badge = overview(neutral.container).querySelector("[data-signal]");
+    assert.equal(badge?.textContent, "3");
+    assert.ok(badge?.querySelector(".bg-stone-400"), "not the neutral dot");
+    assert.equal(badge?.querySelector(".bg-stone-400")?.getAttribute("class"), RAIL_BADGE_DOT.neutral);
+    assert.equal(badge?.querySelector(".font-mono")?.getAttribute("class"), RAIL_BADGE_COUNT.neutral);
+    assert.ok(badge?.querySelector(".bg-red-300") === null, "a Scorch dot on unknowns");
+    neutral.unmount();
+
+    const failed = strip({}, healthWith(3), true);
+    badge = overview(failed.container).querySelector("[data-signal]");
+    assert.ok(badge?.querySelector(".bg-stone-400"), "a failed poll is not neutral");
+    assert.doesNotMatch(badge?.textContent ?? "", /\d/);
+    failed.unmount();
+
+    const clean = strip({}, cleanHealth());
+    assert.ok(clean.container.querySelector("[data-signal]") === null, "a badge with nothing to report");
+  });
+
+  test("the toggle expands and find opens the peek", () => {
+    const opened: HTMLButtonElement[] = [];
+    const toggled: HTMLButtonElement[] = [];
+    const { container } = render(
+      <Rail
+        rail={railData()}
+        health={null}
+        healthError={false}
+        collapsed
+        onFindOpen={(b) => opened.push(b)}
+        onToggle={(b) => toggled.push(b)}
+      />,
+    );
+    const toggle = container.querySelector<HTMLButtonElement>("#rail-toggle");
+    assert.equal(toggle?.getAttribute("aria-label"), "Expand sidebar");
+    assert.equal(toggle?.getAttribute("aria-expanded"), "false");
+    assert.equal(toggle?.getAttribute("aria-controls"), "rail");
+    fireEvent.click(toggle!);
+    assert.ok(toggled[0] === toggle, "onToggle gets the button");
+    const find = container.querySelector<HTMLButtonElement>("#rail-find-open");
+    assert.ok(find, "no #rail-find-open");
+    assert.equal(find.getAttribute("type"), "button");
+    assert.equal(find.getAttribute("aria-label"), "Find");
+    assert.equal(find.getAttribute("class"), RAIL_CELL);
+    assert.equal(find.querySelector(`[aria-hidden="true"]:not(svg)`)?.textContent, "Find");
+    fireEvent.click(find);
+    assert.equal(opened.length, 1);
+    assert.ok(opened[0] === find, "onFindOpen gets the button");
+  });
+
+  test("the order: monogram, toggle, find, overview and sites navs, divider, host nav", () => {
+    const { container } = strip();
+    const kids = Array.from(container.firstElementChild?.children ?? []);
+    const shape = kids.map((k) => k.id || k.getAttribute("aria-label") || k.tagName.toLowerCase());
+    assert.deepEqual(shape, ["h1", "rail-toggle", "rail-find-open", "Overview", "Sites", "div", "Host"]);
+    for (const label of ["Overview", "Sites", "Host"]) {
+      const nav = container.querySelector(`nav[aria-label="${label}"]`);
+      assert.equal(nav?.getAttribute("class"), "flex flex-col items-center gap-0.5", label);
+    }
+    assert.equal(container.querySelectorAll('nav[aria-label="Host"] a').length, 3);
+  });
+
+  test("the divider is in the strip too", () => {
+    const { container } = strip();
+    const divider = container.querySelector('nav[aria-label="Sites"]')?.nextElementSibling;
+    assert.equal(divider?.getAttribute("class"), RAIL_STRIP_DIVIDER);
+    assert.equal(divider?.getAttribute("aria-hidden"), "true");
+    assert.ok(divider?.nextElementSibling === container.querySelector('nav[aria-label="Host"]'), "the Host nav follows the divider");
+  });
+
+  test("the current cell follows the route", () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={["/reconciler"]}>
+        <RoutedNav>
+          <Rail rail={railData()} health={null} healthError={false} collapsed />
+        </RoutedNav>
+      </MemoryRouter>,
+    );
+    // The expanded rail has the same hrefs, so check it is the strip, and a strip cell, each time.
+    const current = (when: string) => {
+      assert.equal(container.firstElementChild?.getAttribute("class"), RAIL_STRIP, `${when}: not the strip`);
+      assert.ok(container.querySelector("#find") === null, `${when}: a find box, so not the strip`);
+      const rows = Array.from(container.querySelectorAll('a[aria-current="page"]'));
+      for (const row of rows) assert.equal(row.getAttribute("class"), RAIL_CELL, `${when}: the current row is not a strip cell`);
+      return rows.map((a) => a.getAttribute("href"));
+    };
+    assert.deepEqual(current("at /reconciler"), ["/reconciler"]);
+    act(() => {
+      fireEvent.click(container.querySelector('a[href="/activity"]')!, { button: 0 });
+    });
+    assert.deepEqual(current("after the move"), ["/activity"]);
   });
 });
 
@@ -591,6 +832,372 @@ describe("the top bar and its drawer", () => {
 });
 
 /*
+ * The collapse state (spec 2026-10-29-collapsible-rail): Navigation owns it,
+ * reads it from storage on its first render, writes every flip, and marks the
+ * body so its grid narrows from 900px.
+ */
+describe("the rail's collapse state", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  const toggle = (): HTMLButtonElement | null => document.querySelector<HTMLButtonElement>("#rail-toggle");
+
+  test("a stored collapse renders the strip on the first render", () => {
+    localStorage.setItem(RAIL_STORAGE_KEY, "collapsed");
+    const { aside } = mountNavigation();
+    assert.ok(aside.querySelector("#rail-find-open"), "no strip find button");
+    assert.ok(aside.querySelector("#find") === null, "find in the strip");
+    assert.equal(document.body.dataset.rail, "collapsed");
+  });
+
+  test("the toggle flips state, storage, the body and focus", () => {
+    const { aside } = mountNavigation();
+    assert.ok(aside.querySelector("#find"));
+    assert.equal(document.body.dataset.rail, undefined);
+
+    click(toggle());
+    assert.equal(localStorage.getItem(RAIL_STORAGE_KEY), "collapsed");
+    assert.equal(document.body.dataset.rail, "collapsed");
+    const expand = toggle();
+    assert.equal(expand?.getAttribute("aria-label"), "Expand sidebar");
+    assert.ok(document.activeElement === expand, "focus did not follow to Expand sidebar");
+
+    click(expand);
+    assert.equal(localStorage.getItem(RAIL_STORAGE_KEY), "expanded");
+    assert.equal(document.body.dataset.rail, undefined);
+    const collapse = toggle();
+    assert.equal(collapse?.getAttribute("aria-label"), "Collapse sidebar");
+    assert.ok(document.activeElement === collapse, "focus did not follow to Collapse sidebar");
+  });
+
+  test("a store that throws renders expanded and toggles in memory", () => {
+    const store = Object.getPrototypeOf(localStorage) as Storage;
+    const getItem = store.getItem;
+    const setItem = store.setItem;
+    store.getItem = () => {
+      throw new Error("blocked");
+    };
+    store.setItem = () => {
+      throw new Error("blocked");
+    };
+    try {
+      const { aside } = mountNavigation();
+      assert.ok(aside.querySelector("#find"), "a throwing store did not render expanded");
+      click(toggle());
+      assert.ok(aside.querySelector("#rail-find-open"), "the toggle did not collapse");
+      assert.equal(document.body.dataset.rail, "collapsed");
+    } finally {
+      store.getItem = getItem;
+      store.setItem = setItem;
+    }
+  });
+
+  test("unmount clears the body attribute", () => {
+    localStorage.setItem(RAIL_STORAGE_KEY, "collapsed");
+    mountNavigation();
+    assert.equal(document.body.dataset.rail, "collapsed");
+    cleanup();
+    assert.equal(document.body.dataset.rail, undefined);
+  });
+
+  test("the drawer is always expanded", () => {
+    localStorage.setItem(RAIL_STORAGE_KEY, "collapsed");
+    setViewport(390);
+    mountNavigation();
+    click(document.querySelector("#rail-menu"));
+    const dialog = drawer();
+    assert.ok(dialog);
+    assert.ok(dialog.querySelector("#find"), "no find in the drawer");
+    assert.equal(dialog.querySelectorAll("[data-site]").length, 8);
+    assert.ok(dialog.querySelector("#rail-toggle") === null, "a collapse button in the drawer");
+    assert.equal(finds().length, 1);
+  });
+
+  test("⌘K while collapsed and narrow opens the drawer on find", () => {
+    localStorage.setItem(RAIL_STORAGE_KEY, "collapsed");
+    setViewport(390);
+    mountNavigation();
+    const elsewhere = document.querySelector<HTMLTextAreaElement>("#elsewhere");
+    assert.ok(elsewhere);
+    act(() => elsewhere.focus());
+    press(elsewhere, "k", { metaKey: true });
+    const dialog = drawer();
+    assert.ok(dialog?.open, "⌘K did not open the drawer");
+    const input = finds()[0];
+    assert.ok(input && dialog.contains(input));
+    assert.ok(document.activeElement === input, "find is not focused");
+
+    press(input, "Escape");
+    press(input, "Escape");
+    assert.equal(drawer(), null);
+    assert.ok(document.activeElement === elsewhere, "focus did not go back");
+  });
+
+  test("keeps exactly one document keydown listener while collapsed", () => {
+    localStorage.setItem(RAIL_STORAGE_KEY, "collapsed");
+    const live = new Set<EventListenerOrEventListenerObject>();
+    const add = document.addEventListener.bind(document);
+    const remove = document.removeEventListener.bind(document);
+    document.addEventListener = ((type: string, fn: EventListenerOrEventListenerObject, opts?: unknown) => {
+      if (type === "keydown") live.add(fn);
+      add(type, fn, opts as AddEventListenerOptions);
+    }) as typeof document.addEventListener;
+    document.removeEventListener = ((type: string, fn: EventListenerOrEventListenerObject, opts?: unknown) => {
+      if (type === "keydown") live.delete(fn);
+      remove(type, fn, opts as EventListenerOptions);
+    }) as typeof document.removeEventListener;
+    try {
+      setViewport(390);
+      mountNavigation();
+      assert.equal(live.size, 1);
+      click(document.querySelector("#rail-menu"));
+      assert.equal(live.size, 1);
+      const dialog = drawer();
+      assert.ok(dialog);
+      press(dialog, "Escape");
+      assert.equal(live.size, 1);
+      click(toggle());
+      assert.equal(live.size, 1, "the expanded rail's find and the collapsed listener both live");
+    } finally {
+      document.addEventListener = add;
+      document.removeEventListener = remove;
+    }
+  });
+
+  test("the body class names the collapsed grid", () => {
+    const html = readFileSync(path.join(__dirname, "..", "..", "..", "index.html"), "utf8");
+    assert.ok(html.includes("min-[900px]:data-[rail=collapsed]:grid-cols-[56px_minmax(0,1fr)]"));
+  });
+});
+
+/*
+ * The peek (spec 2026-10-29-collapsible-rail): find while collapsed. The
+ * expanded rail in a fixed overlay, find focused, the stored state untouched.
+ */
+describe("the find peek", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem(RAIL_STORAGE_KEY, "collapsed");
+    setViewport(1280);
+  });
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  const peek = (): HTMLElement | null => document.querySelector<HTMLElement>("#rail-peek");
+  const findOpen = (): HTMLButtonElement | null => document.querySelector<HTMLButtonElement>("#rail-find-open");
+  const stored = (): string | null => localStorage.getItem(RAIL_STORAGE_KEY);
+
+  function assertOpen(when: string): HTMLInputElement {
+    const root = peek();
+    assert.ok(root, `${when}: no peek`);
+    assert.equal(root.getAttribute("role"), "dialog");
+    assert.equal(root.getAttribute("aria-modal"), "false");
+    assert.equal(root.getAttribute("aria-label"), "Navigation");
+    assert.equal(finds().length, 1, `${when}: not exactly one #find`);
+    const input = finds()[0];
+    assert.ok(input && root.contains(input), `${when}: find is not in the peek`);
+    assert.ok(document.activeElement === input, `${when}: find is not focused`);
+    assert.equal(stored(), "collapsed", `${when}: the stored state changed`);
+    return input;
+  }
+
+  test("the find button opens the peek with find focused", () => {
+    const { aside } = mountNavigation();
+    click(findOpen());
+    assertOpen("after the click");
+    // The peek takes the strip's place in the aside, as the drawer takes the rail.
+    assert.ok(aside.contains(peek()), "the peek is not in the aside");
+    assert.ok(findOpen() === null, "the strip is still mounted under the peek");
+    assert.equal(peek()?.querySelectorAll("[data-site]").length, 8);
+    assert.ok(document.body.querySelectorAll("[inert]").length === 0, "the peek made the page inert");
+  });
+
+  test("while the peek is open there is one toggle, one heading and one set of navs", () => {
+    const { aside } = mountNavigation();
+    click(findOpen());
+    assert.ok(peek());
+    assert.equal(document.querySelectorAll("#rail-toggle").length, 1);
+    assert.equal(aside.querySelectorAll("h1").length, 1);
+    for (const label of ["Overview", "Sites", "Host"]) {
+      assert.equal(document.querySelectorAll(`nav[aria-label="${label}"]`).length, 1, label);
+    }
+    const toggle = peek()?.querySelector("#rail-toggle");
+    assert.equal(toggle?.getAttribute("aria-controls"), "rail-peek");
+    assert.equal(toggle?.getAttribute("aria-expanded"), "true");
+    assert.equal(toggle?.getAttribute("aria-label"), "Collapse sidebar");
+  });
+
+  test("⌘K while collapsed and wide opens the peek, not the drawer, and Escape closes it", () => {
+    mountNavigation();
+    const elsewhere = document.querySelector<HTMLTextAreaElement>("#elsewhere");
+    assert.ok(elsewhere);
+    act(() => elsewhere.focus());
+    const event = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true, cancelable: true });
+    act(() => {
+      elsewhere.dispatchEvent(event);
+    });
+    assert.ok(event.defaultPrevented, "⌘K kept the browser's own shortcut");
+    assert.ok(drawer() === null, "⌘K opened the drawer");
+    const input = assertOpen("after ⌘K");
+
+    press(input, "Escape");
+    press(input, "Escape");
+    assert.ok(peek() === null, "Escape left the peek open");
+    assert.ok(document.activeElement === elsewhere, "focus did not go back to what had it before ⌘K");
+    assert.equal(stored(), "collapsed");
+  });
+
+  test("Escape closes find's panel first, then the peek", () => {
+    mountNavigation();
+    click(findOpen());
+    const input = assertOpen("open");
+    act(() => {
+      fireEvent.change(input, { target: { value: "api" } });
+    });
+    assert.equal(input.getAttribute("aria-expanded"), "true");
+
+    press(input, "Escape");
+    assert.ok(peek(), "the first Escape closed the peek");
+    assert.equal(input.getAttribute("aria-expanded"), "false");
+
+    press(input, "Escape");
+    assert.ok(peek() === null, "the second Escape left the peek open");
+    assert.ok(document.activeElement === findOpen(), "focus did not go back to the find button");
+  });
+
+  test("a rail link inside the peek closes it on the move", () => {
+    render(
+      <MemoryRouter initialEntries={["/sites"]}>
+        <RoutedNav>
+          <Navigation rail={railData()} health={seedHealth()} healthError={false} />
+        </RoutedNav>
+      </MemoryRouter>,
+    );
+    click(findOpen());
+    const root = peek();
+    assert.ok(root);
+    click(root.querySelector('a[href="/services"]'), { button: 0 });
+    assert.ok(peek() === null, "the move left the peek open");
+    const cell = document.querySelector('aside#rail a[href="/services"]');
+    assert.equal(cell?.getAttribute("aria-current"), "page");
+    // A move returns focus nowhere: in the app the new page's heading takes it
+    // (AppFrame), which this harness has none of, so focus is on the body.
+    assert.ok(document.activeElement === document.body, "the peek's close moved focus after a move");
+    assert.equal(stored(), "collapsed");
+  });
+
+  test("a pointer down outside closes it; one inside does not", () => {
+    mountNavigation();
+    click(findOpen());
+    const root = peek();
+    assert.ok(root);
+    act(() => {
+      root.querySelector("nav")?.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    });
+    assert.ok(peek(), "a pointer down inside closed the peek");
+    act(() => {
+      document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    });
+    assert.ok(peek() === null, "a pointer down outside left the peek open");
+  });
+
+  test("focus leaving it closes it; a window blur does not", () => {
+    mountNavigation();
+    click(findOpen());
+    const input = assertOpen("open");
+    act(() => {
+      input.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: null }));
+    });
+    assert.ok(peek(), "a focusout to nowhere closed the peek");
+    const elsewhere = document.querySelector<HTMLTextAreaElement>("#elsewhere");
+    act(() => {
+      input.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: elsewhere }));
+    });
+    assert.ok(peek() === null, "focus leaving left the peek open");
+  });
+
+  test("the peek's collapse button closes it and keeps the stored state", () => {
+    mountNavigation();
+    click(findOpen());
+    const toggle = peek()?.querySelector<HTMLButtonElement>("#rail-toggle");
+    assert.equal(toggle?.getAttribute("aria-label"), "Collapse sidebar");
+    click(toggle ?? null);
+    assert.ok(peek() === null, "the collapse button left the peek open");
+    assert.equal(stored(), "collapsed");
+    assert.equal(document.body.dataset.rail, "collapsed");
+    assert.ok(findOpen(), "the strip did not come back");
+    assert.ok(document.activeElement === findOpen(), "focus did not go back to the strip's find button");
+  });
+
+  // happy-dom's MediaQueryList starts its change tracking at `false`, so a
+  // wide-to-narrow resize never fires `change`: the query is stubbed instead.
+  test("narrowing closes the peek", () => {
+    const real = window.matchMedia;
+    const listeners = new Set<() => void>();
+    let matches = true;
+    window.matchMedia = ((media: string) => ({
+      media,
+      get matches() {
+        return matches;
+      },
+      addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+      removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
+    })) as unknown as typeof window.matchMedia;
+    try {
+      mountNavigation();
+      click(findOpen());
+      assert.ok(peek());
+      assert.ok(listeners.size > 0, "nothing listens for the width");
+      matches = false;
+      act(() => {
+        for (const fn of Array.from(listeners)) fn();
+      });
+      assert.ok(peek() === null, "narrowing left the peek open");
+      assert.equal(stored(), "collapsed");
+    } finally {
+      window.matchMedia = real;
+    }
+  });
+
+  test("keeps exactly one document keydown listener through the peek", () => {
+    const live = new Set<EventListenerOrEventListenerObject>();
+    const add = document.addEventListener.bind(document);
+    const remove = document.removeEventListener.bind(document);
+    let peak = 0;
+    document.addEventListener = ((type: string, fn: EventListenerOrEventListenerObject, opts?: unknown) => {
+      if (type === "keydown") live.add(fn);
+      peak = Math.max(peak, live.size);
+      add(type, fn, opts as AddEventListenerOptions);
+    }) as typeof document.addEventListener;
+    document.removeEventListener = ((type: string, fn: EventListenerOrEventListenerObject, opts?: unknown) => {
+      if (type === "keydown") live.delete(fn);
+      remove(type, fn, opts as EventListenerOptions);
+    }) as typeof document.removeEventListener;
+    try {
+      mountNavigation();
+      assert.equal(live.size, 1);
+      click(findOpen());
+      assert.equal(live.size, 1, "the peek's find and the collapsed listener both live");
+      const input = finds()[0];
+      assert.ok(input);
+      press(input, "Escape");
+      press(input, "Escape");
+      assert.ok(peek() === null);
+      assert.equal(live.size, 1, "the collapsed listener did not come back");
+      assert.equal(peak, 1);
+    } finally {
+      document.addEventListener = add;
+      document.removeEventListener = remove;
+    }
+  });
+});
+
+/*
  * DESIGN.md's rules for the rail, asserted by name. The frozen fixtures pin
  * them only for a health-free rail with nothing open; these hold them in the
  * states the fixtures cannot express, and say what each rule is, so a
@@ -599,7 +1206,8 @@ describe("the top bar and its drawer", () => {
 describe("the rail's design rules, in states the fixtures cannot hold", () => {
   const RING = FOCUS_RING.split(" ");
 
-  function assertRules(root: Element, state: string): void {
+  /** `currentRows` is 1, or 0 where the current place is a site the state does not show (the strip). */
+  function assertRules(root: Element, state: string, currentRows = 1): void {
     const links = root.querySelectorAll("a[href]");
     assert.ok(links.length > 0, `${state}: no links`);
     for (const el of Array.from(root.querySelectorAll("a[href], button"))) {
@@ -616,10 +1224,12 @@ describe("the rail's design rules, in states the fixtures cannot hold", () => {
     assert.doesNotMatch(html, /\bbg-rose-950\b/, `${state}: an Ember-tinted row`);
     assert.doesNotMatch(html, /\btruncate\b/, `${state}: a truncated row`);
     const current = root.querySelectorAll('a[aria-current="page"]');
-    assert.equal(current.length, 1, `${state}: ${current.length} current rows`);
+    assert.equal(current.length, currentRows, `${state}: ${current.length} current rows`);
     const cls = current[0]?.getAttribute("class") ?? "";
-    assert.ok(cls.includes("aria-[current=page]:bg-stone-700"), `${state}: the current row is not on Hairline`);
-    assert.ok(cls.includes("aria-[current=page]:border-l-rose-800"), `${state}: the current row has no Ember Edge`);
+    if (currentRows > 0) {
+      assert.ok(cls.includes("aria-[current=page]:bg-stone-700"), `${state}: the current row is not on Hairline`);
+    }
+    assert.doesNotMatch(cls, /\bborder-l/, `${state}: the current row has a left rule`);
   }
 
   test("with health filled in, trouble on a site and a unit, a site current", () => {
@@ -668,9 +1278,9 @@ describe("the rail's design rules, in states the fixtures cannot hold", () => {
         const row = root.querySelector('a[aria-current="page"]');
         row?.setAttribute("class", (row.getAttribute("class") ?? "").replace("aria-[current=page]:bg-stone-700", ""));
       }],
-      ["a current row without its Ember Edge", (root) => {
+      ["a current row with a left rule", (root) => {
         const row = root.querySelector('a[aria-current="page"]');
-        row?.setAttribute("class", (row.getAttribute("class") ?? "").replace("aria-[current=page]:border-l-rose-800", ""));
+        row?.setAttribute("class", `${row.getAttribute("class") ?? ""} aria-[current=page]:border-l-2 aria-[current=page]:border-l-rose-800`);
       }],
     ];
     for (const [name, breakIt] of broken) {
@@ -678,6 +1288,20 @@ describe("the rail's design rules, in states the fixtures cannot hold", () => {
       breakIt(container);
       assert.throws(() => assertRules(container, name), assert.AssertionError, `${name} was not caught`);
     }
+  });
+
+  test("the strip keeps the rail's rules", () => {
+    const site = render(
+      <Rail rail={railData({ current: { site: "broken.lychee.land" } })} health={seedHealth()} healthError={false} collapsed />,
+    );
+    assert.ok(site.container.querySelector("[data-signal]"), "the state has no trouble");
+    // The current place is a site, and the strip shows no site rows.
+    assertRules(site.container, "strip on a site", 0);
+    site.unmount();
+    const board = render(
+      <Rail rail={railData({ current: { page: "services" } })} health={seedHealth()} healthError={false} collapsed />,
+    );
+    assertRules(board.container, "strip on a board");
   });
 
   test("inside the narrow drawer", () => {

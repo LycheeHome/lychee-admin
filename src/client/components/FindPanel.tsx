@@ -9,6 +9,7 @@ import {
   FIND_PANEL,
   FIND_TROUBLE,
   RAIL_FIND,
+  RAIL_FIND_PLACEHOLDER,
   RAIL_FIND_HINT,
   RAIL_WIDE_QUERY,
 } from "../../views/railModel";
@@ -41,10 +42,16 @@ export interface FindPanelProps {
   initialFocused?: boolean;
   /**
    * This box is inside the narrow-screen drawer. The panel then opens below
-   * the box rather than beside the rail, and Escape on a closed panel is left
-   * to the drawer, so a first Escape closes find and a second the drawer.
+   * the box rather than beside the rail.
    */
   inDrawer?: boolean;
+  /**
+   * This box is inside a container that closes on Escape (the drawer, the
+   * peek). An open panel takes the first Escape and keeps focus in the box;
+   * Escape on a closed panel is left to the container, so a first Escape
+   * closes find and a second the container.
+   */
+  escapeToContainer?: boolean;
   /**
    * Below 900px the rail, and this box with it, is collapsed: ⌘K calls this
    * with whatever had focus, and Navigation opens the rail as a drawer on find.
@@ -82,7 +89,7 @@ export const optionId = (href: string): string =>
 const headingId = (key: FindGroupKey): string => `find-group-${key}`;
 
 /** ⌘K on Apple platforms, Ctrl+K elsewhere: either opens find, from anywhere. */
-const isFindShortcut = (e: globalThis.KeyboardEvent): boolean =>
+export const isFindShortcut = (e: globalThis.KeyboardEvent): boolean =>
   (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k";
 
 function Pill({ item }: { item: FindItem }) {
@@ -129,6 +136,7 @@ export function FindPanel({
   initialQuery = "",
   initialFocused = false,
   inDrawer = false,
+  escapeToContainer = false,
   onNarrowShortcut,
 }: FindPanelProps) {
   // A row in another board group (`/reconciler#service-…`) opens in-app from
@@ -216,7 +224,8 @@ export function FindPanel({
       setPlace({ top: box.bottom + 6, left: box.left });
       return;
     }
-    const rail = input.closest("aside")?.getBoundingClientRect();
+    // The peek is the rail's box while it is open; otherwise the aside.
+    const rail = input.closest("#rail-peek, aside")?.getBoundingClientRect();
     setPlace({ top: box.top, left: rail ? rail.right + 8 : box.left });
   }, [open, inDrawer]);
 
@@ -253,10 +262,10 @@ export function FindPanel({
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Escape") {
-      if (inDrawer) {
-        // A closed panel leaves Escape to the drawer, which closes on it.
+      if (escapeToContainer) {
+        // A closed panel leaves Escape to the drawer or peek, which closes on it.
         if (!open) return;
-        // An open one closes and keeps focus in the box, inside the drawer.
+        // An open one closes and keeps focus in the box, inside its container.
         e.preventDefault();
         setOpen(false);
         clearQuery();
@@ -298,7 +307,7 @@ export function FindPanel({
         type="text"
         autoComplete="off"
         spellCheck={false}
-        placeholder="find"
+        placeholder={RAIL_FIND_PLACEHOLDER}
         aria-label="Find a site or unit"
         role="combobox"
         aria-expanded={open}

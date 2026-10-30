@@ -151,24 +151,154 @@ export function attentionCounts(
   };
 }
 
-// The rail's class strings: the retired server rail's exactly, which the frozen rail fixtures pin.
-// The current-item treatment is the old header's: Chalk on Hairline with a 2px Ember Edge rule.
-const RAIL_CURRENT =
-  `aria-[current=page]:text-stone-50 aria-[current=page]:bg-stone-700 ` +
-  `aria-[current=page]:border-l-2 aria-[current=page]:border-l-rose-800`;
+// The rail's class strings: the retired server rail's, which the frozen rail fixtures pin, less
+// the changes declared in src/client/test/redesigns.ts. The current-item treatment is Chalk on
+// Hairline, the ground alone: the 2px Ember Edge left rule it carried until 2026-10-29 went.
+const RAIL_CURRENT = `aria-[current=page]:text-stone-50 aria-[current=page]:bg-stone-700`;
 
+/**
+ * A row's hover: the ground goes Hearth Lift, as a sites-list row's does, so
+ * pointing at a site row (whose label is already Chalk) visibly lands. The
+ * current row's Hairline fill wins over it, since `aria-*` variants follow
+ * `hover:` in the generated CSS.
+ */
+const RAIL_HOVER = "motion-safe:transition-colors motion-safe:duration-150 hover:bg-stone-800";
+
+/**
+ * A site row: indented 32px, past the 16px icon and 8px gap that open each
+ * place row, so a hostname lines up under the place words (`Sites`) rather
+ * than under their icons, and the nesting shows without a heading.
+ */
 export const RAIL_ROW =
-  `flex items-center gap-2 font-mono text-[0.85rem] no-underline text-stone-400 rounded-md px-2 py-1 ` +
-  `hover:text-stone-50 ${RAIL_CURRENT} ${FOCUS_RING}`;
+  `flex items-center gap-2 font-mono text-[0.85rem] no-underline text-stone-400 rounded-md pl-8 pr-2 py-1 ` +
+  `hover:text-stone-50 ${RAIL_HOVER} ${RAIL_CURRENT} ${FOCUS_RING}`;
 
-export const RAIL_HEADING = `flex items-center justify-between font-mono text-[0.75rem] text-stone-400 px-2 py-1`;
+/** A place row's icon, one 16px square the row's text colour paints (`currentColor`), never shrunk by flex. */
+export const RAIL_ICON = "w-4 h-4 shrink-0";
 
-/** A section heading that is also a link (`sites`): the heading's type, a row's current and focus treatment. */
-export const RAIL_HEADING_LINK = `${RAIL_HEADING} no-underline rounded-md hover:text-stone-50 ${RAIL_CURRENT} ${FOCUS_RING}`;
+/**
+ * The expanded rail's top line: the wordmark and the collapse toggle, a space
+ * apart. No padding of its own: the h1 inside carries `px-2`, which puts the
+ * wordmark 8px in, over the place rows' icons.
+ */
+export const RAIL_HEAD = "flex items-center justify-between gap-2";
+
+/** The collapse and expand button: a 32px square in Smoke, lit to Chalk on a Hearth Lift ground on hover. */
+export const RAIL_TOGGLE =
+  `inline-flex items-center justify-center size-8 rounded-md bg-transparent border-0 text-stone-400 cursor-pointer ` +
+  `hover:text-stone-50 hover:bg-stone-800 ${RAIL_HOVER} ${FOCUS_RING}`;
+
+/** The expanded rail's rule between its groups: 1px Hairline, inset 8px each side. */
+export const RAIL_DIVIDER = "h-px bg-stone-700 mx-2";
+
+/** The strip's rule between its groups: 24px of Hairline, centred in the 56px column. */
+export const RAIL_STRIP_DIVIDER = "h-px w-6 bg-stone-700 mx-auto my-0.5";
+
+/**
+ * The strip's inner column: its cells centred. No `overflow-*`: the cells'
+ * tooltips must overflow the 56px column to its right (any overflow other
+ * than visible clips them), and the strip holds about ten fixed items, so it
+ * never needs to scroll.
+ */
+export const RAIL_STRIP = "flex-1 min-h-0 flex flex-col items-center gap-4 px-2 py-5";
+
+/** One strip cell, 40x36: an icon alone, so its tooltip and screen-reader word carry the name. Current is Chalk on Hairline. */
+export const RAIL_CELL =
+  `group relative flex items-center justify-center w-10 h-9 rounded-md text-stone-400 no-underline hover:text-stone-50 ` +
+  `${RAIL_HOVER} ${RAIL_CURRENT} ${FOCUS_RING}`;
+
+/** A strip cell's icon: 18px, two more than an expanded row's, since it has no word beside it. */
+export const RAIL_CELL_ICON = "w-[18px] h-[18px]";
+
+/**
+ * A strip cell's tooltip, to the cell's right. It shows on hover and keyboard
+ * focus through the cell's `group`, is `aria-hidden` (the cell's `sr-only`
+ * word is its name), and takes the Overlay shadow since it floats.
+ */
+export const RAIL_TIP =
+  `bg-stone-800 border border-stone-700 rounded-md text-[0.8rem] font-sans text-stone-50 px-2 py-1 shadow-lg shadow-black/40 ` +
+  `pointer-events-none absolute left-[calc(100%+10px)] top-1/2 -translate-y-1/2 z-40 whitespace-nowrap hidden ` +
+  `group-hover:block group-focus-visible:block`;
+
+/** A strip cell's attention badge: the overview signal's dot and count, pinned to the cell's top right corner. */
+export const RAIL_BADGE =
+  "pointer-events-none absolute top-0.5 right-px inline-flex items-center gap-0.5 font-mono text-[0.7rem] leading-none";
+
+/** The badge's dot: the overview signal's dot (RAIL_SIGNAL_DOT) at 5px. */
+export const RAIL_BADGE_DOT: Record<"bad" | "neutral", string> = {
+  bad: "inline-block size-[5px] rounded-full bg-red-300",
+  neutral: "inline-block size-[5px] rounded-full bg-stone-400",
+};
+
+/** The badge's count: the signal's count (RAIL_SIGNAL_COUNT) with no size of its own, so RAIL_BADGE's 0.7rem applies. */
+export const RAIL_BADGE_COUNT: Record<"bad" | "neutral", string> = {
+  bad: "font-mono text-red-300",
+  neutral: "font-mono text-stone-400",
+};
+
+/** The strip's wordmark: the `l` monogram in Display, standing for `lychee admin` when there is no room for it. */
+export const RAIL_MONOGRAM = `font-display text-2xl leading-none text-stone-50 no-underline ${FOCUS_RING}`;
+
+/**
+ * The collapsed rail's peek: the full rail floated over the page on pointer or
+ * focus, 250px wide, with the Overlay shadow since it covers content. Fixed,
+ * so the strip's own width (and the page grid) never changes under it.
+ */
+export const RAIL_PEEK =
+  "fixed inset-y-0 left-0 z-40 w-[250px] flex flex-col bg-stone-900 border-r border-stone-700 shadow-lg shadow-black/40";
+
+export type RailPlace = "overview" | "activity" | "sites" | "services" | "reconciler" | "infrastructure";
+
+/** The rail's places in order, with where each goes and the group it sits in (a divider falls between groups). */
+export const RAIL_PLACES: readonly { place: RailPlace; href: string; group: "app" | "host" }[] = [
+  { place: "overview", href: "/", group: "app" },
+  { place: "activity", href: "/activity", group: "app" },
+  { place: "sites", href: "/sites", group: "app" },
+  { place: "services", href: "/services", group: "host" },
+  { place: "reconciler", href: "/reconciler", group: "host" },
+  { place: "infrastructure", href: "/infrastructure", group: "host" },
+];
+
+/** Where the collapse choice is kept: per browser, and only ever the words below. */
+export const RAIL_STORAGE_KEY = "lychee-admin:rail";
+
+/** Collapsed only when the stored word says so; anything else, a missing or throwing store included, is expanded. */
+export function readRailCollapsed(storage: { getItem(key: string): string | null } | undefined): boolean {
+  try {
+    return storage?.getItem(RAIL_STORAGE_KEY) === "collapsed";
+  } catch {
+    return false;
+  }
+}
+
+/** Remembers the choice. A store that is missing, full or blocked loses it silently: the rail still toggles. */
+export function writeRailCollapsed(storage: { setItem(key: string, value: string): void } | undefined, collapsed: boolean): void {
+  try {
+    storage?.setItem(RAIL_STORAGE_KEY, collapsed ? "collapsed" : "expanded");
+  } catch {
+    // Not persisted; nothing else depends on it.
+  }
+}
+
+/**
+ * A row naming a place (`overview`, `activity`, the host links): a site row's
+ * shape in sans, since a place word is a word and not a machine fact, shown
+ * capitalized (`Overview`) by CSS so the text and accessible name stay the
+ * word itself. Site rows stay mono, as every hostname and port does.
+ */
+export const RAIL_PLACE =
+  `flex items-center gap-2 font-sans capitalize text-[0.85rem] no-underline text-stone-400 rounded-md px-2 py-1 ` +
+  `hover:text-stone-50 ${RAIL_HOVER} ${RAIL_CURRENT} ${FOCUS_RING}`;
 
 
-/** The find box: the shared input, full width, with room on the right for the printed shortcut. */
-export const RAIL_FIND = `${INPUT} w-full pr-10 text-[0.8rem]`;
+
+/**
+ * The find box: the shared input, full width, with room on the right for the
+ * printed shortcut. Its placeholder, `Find`, is an instruction and not an
+ * example value, so it is Nunito; what is typed stays mono, like the results.
+ */
+export const RAIL_FIND = `${INPUT} w-full pr-10 text-[0.8rem] placeholder:font-sans`;
+export const RAIL_FIND_PLACEHOLDER = "Find";
 
 /** The shortcut printed inside the find box, `⌘K` or `Ctrl K`. */
 export const RAIL_FIND_HINT =
@@ -193,9 +323,16 @@ export const RAIL_DRAWER =
   "fixed inset-y-0 left-0 m-0 p-0 h-dvh max-h-none w-[280px] max-w-[calc(100vw-3rem)] " +
   "font-sans bg-stone-900 text-stone-50 border-0 border-r border-stone-700 open:flex flex-col backdrop:bg-black/60";
 
-/** The rail's `<aside>`: hidden below 900px, a sticky full-height column from there. */
+/**
+ * The rail's `<aside>`: hidden below 900px, a sticky full-height column from
+ * there. `sticky` makes it a stacking context, so the z-40 of what floats out
+ * of it (the peek, the strip's tooltips, the find panel) counts only inside
+ * it; `z-30` lifts the whole rail above positioned content in `<main>`, which
+ * otherwise painted over the peek and took its clicks. Below the toast and
+ * skip link (z-50); the drawer is in the top layer.
+ */
 export const RAIL_ASIDE =
-  "hidden min-[900px]:flex flex-col sticky top-0 self-start h-screen border-r border-stone-700 bg-stone-900";
+  "hidden min-[900px]:flex flex-col sticky top-0 z-30 self-start h-screen border-r border-stone-700 bg-stone-900";
 
 /** The narrow-screen top bar's `<header>`, which stands in for the rail below 900px. */
 export const TOP_BAR =
@@ -226,8 +363,8 @@ export const FIND_PANEL =
 /** The listbox, scrolling inside the panel once it is taller than the viewport allows. */
 export const FIND_LIST = "max-h-[calc(100vh-8rem)] overflow-y-auto p-1.5 flex flex-col gap-2";
 
-/** A group's label (`sites`, `services`, …): mono, the rail heading's size. */
-export const FIND_HEADING = "m-0 px-2 pt-1 pb-0.5 font-mono text-[0.72rem] text-stone-400";
+/** A group's label (`sites`, `services`, …): structure, so sans, uppercase and tracked, at 0.72rem. */
+export const FIND_HEADING = "m-0 px-2 pt-1 pb-0.5 font-sans uppercase tracking-[0.1em] text-[0.72rem] text-stone-400";
 
 /** One option. The highlight is the rail's current fill, Chalk on Hairline. */
 export const FIND_OPTION =
