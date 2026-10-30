@@ -83,7 +83,7 @@ Each cell shows its place word in a tooltip to its right on hover and on keyboar
   - The peek never changes the stored state. Its own collapse button reads "Collapse sidebar" and closes the peek.
   - There is only ever one rail, one `#find` and one ⌘K listener: while the peek is open, the rail renders in the peek and the aside holds the strip without find, as the drawer already does with the aside.
 - **Below 900px** the collapsed state has no effect. The aside is hidden there, the `data-rail` grid variant applies only from 900px, and the drawer renders the expanded rail regardless of the stored state. Widening past 900px with the drawer open closes it, as today.
-- **⌘K routing.** `FindPanel` already routes ⌘K to `onNarrowShortcut` below 900px, where its input is not displayed. It gains a sibling, `onCollapsedShortcut`, used from 900px when the rail is collapsed, which opens the peek. The expanded rail's ⌘K is unchanged.
+- **⌘K routing.** `FindPanel` owns ⌘K wherever it is mounted, and it is not mounted in the strip. So while the rail is collapsed and no peek is open, `Navigation` holds the one ⌘K listener itself, using `FindPanel`'s own shortcut predicate: from 900px it opens the peek, and below 900px it opens the drawer on find, as `FindPanel`'s narrow branch does today. While the peek or the drawer is open, the `FindPanel` inside it owns ⌘K. The expanded rail's ⌘K is unchanged. (Amended while planning: the spec first gave `FindPanel` an `onCollapsedShortcut` branch, which cannot fire from a panel the strip does not render.)
 
 ### Implementation shape
 
@@ -93,7 +93,7 @@ Each cell shows its place word in a tooltip to its right on hover and on keyboar
   - A small `Peek` component holds the overlay, its outside-pointer and focus-out handling and focus restoration, alongside `Drawer`.
 - `src/views/railModel.ts`: class constants for the strip aside, the icon cell, the toggle button, the divider (both widths), the badge, the tooltip, the peek, and the realigned `RAIL_ROW`. The storage key and the two stored values are constants here too.
 - `src/views/shared.ts`: the seven new icon paths in `ICONS`.
-- `src/client/components/FindPanel.tsx`: the `onCollapsedShortcut` branch.
+- `src/client/components/FindPanel.tsx`: exports its shortcut predicate for `Navigation`'s collapsed listener.
 - `index.html`: the collapsed grid variant on `<body>`.
 
 ## Testing
