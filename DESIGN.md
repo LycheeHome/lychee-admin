@@ -211,6 +211,36 @@ components:
     textColor: "{colors.smoke-light}"
     rounded: "{rounded.md}"
     padding: "0 10px"
+  rail-toggle:
+    backgroundColor: "transparent"
+    textColor: "{colors.smoke}"
+    rounded: "{rounded.control}"
+    size: "32px"
+  rail-toggle-hover:
+    backgroundColor: "{colors.hearth-lift}"
+    textColor: "{colors.chalk}"
+  rail-strip-cell:
+    backgroundColor: "transparent"
+    textColor: "{colors.smoke}"
+    rounded: "{rounded.control}"
+    width: "40px"
+    height: "36px"
+  rail-strip-cell-hover:
+    backgroundColor: "{colors.hearth-lift}"
+    textColor: "{colors.chalk}"
+  rail-strip-cell-current:
+    backgroundColor: "{colors.hairline}"
+    textColor: "{colors.chalk}"
+  rail-strip-tooltip:
+    backgroundColor: "{colors.hearth-lift}"
+    textColor: "{colors.chalk}"
+    typography: "{typography.body}"
+    rounded: "{rounded.control}"
+    padding: "4px 8px"
+  rail-peek:
+    backgroundColor: "{colors.hearth}"
+    textColor: "{colors.chalk}"
+    width: "250px"
 ---
 
 # Design System: lychee-admin
@@ -514,7 +544,9 @@ At 900px and wider the page is two columns: a 250px rail fixed to the left edge
 at full viewport height, scrolling on its own behind a `1px` Hairline right rule,
 and the content column beside it, where the 1080px frame centres in the
 remaining width with 24px of horizontal padding and 24px
-gaps between sections. Below 900px the rail gives way to a top bar (a `1px`
+gaps between sections. Collapsed (see Navigation), the rail is a 56px icon
+strip and the content column takes the 194px it gives back; the frame and its
+padding do not change. Below 900px the rail gives way to a top bar (a `1px`
 Hairline bottom rule, 16px side padding) and the content column takes the whole
 viewport. Content width is therefore the viewport less the rail, which is why
 `sm` (640px) still describes the content box only below 900px.
@@ -537,7 +569,7 @@ appears and the top bar goes. It is a usable fallback for reaching the app from
 a tailnet phone, not a mobile design.
 
 Spacing steps in use: 6px, 8px, 10px, 12px, 14px, 16px, 20px, 24px. Nothing in
-between, and nothing above 24px except the rail's width.
+between, and nothing above 24px except the rail's two widths.
 
 ### Named Rules
 
@@ -593,8 +625,9 @@ edges), and that remains the lighter-touch option to reach for first.
 ### Shadow Vocabulary
 
 - **Overlay** (`box-shadow: 0 10px 15px -3px rgba(0,0,0,0.4), 0 4px 6px -4px
-  rgba(0,0,0,0.4)`): Elements fixed above the page — the flash banner. Nothing
-  in normal document flow gets this.
+  rgba(0,0,0,0.4)`): Elements fixed above the page — the flash banner, the find
+  panel, the icon strip's tooltips and the peek. Nothing in normal document
+  flow gets this.
 - **Scrim** (`background: rgba(0,0,0,0.6)` on `::backdrop`): How a dialog
   separates from the page.
 
@@ -628,7 +661,12 @@ above), and an Ember Edge rule there read as Scorch beside an invalid field.
 
 Icons are 24×24 stroked line icons at `1em`, `stroke-width: 2`, round caps and
 joins, inheriting `currentColor` — plus, trash, clipboard, check, external
-link, chevron down, layout grid. Status is marked by a `●` glyph inside the
+link, chevron down, layout grid, search, menu, and since 2026-10-29 the rail's
+place icons (Lucide's `layout-dashboard` for overview, `activity`, `globe` for
+sites, `box` for services, `refresh-cw` for reconciler, `server` for
+infrastructure) and `panel-left-close` / `panel-left-open` for its collapse
+button. A rail row draws its icon at 16px and a strip cell at 18px rather than
+at `1em`. Status is marked by a `●` glyph inside the
 pill, not by an icon. Nothing in the system is filled, gradient-filled, or
 beveled.
 
@@ -650,7 +688,9 @@ already on has stated the action: the add-site page's submit button is a bare
 sides, and a purely decorative icon is not a fourth option. An icon-only
 control — the copy button — and a label-only control with nothing to add,
 like Cancel, sit outside this rule's domain rather than counting as
-exceptions to it.
+exceptions to it. So do the rail's place icons and its collapse button: a
+place row is a link, not an action, and its leading icon names the place, so
+that the collapsed strip can show the icon alone.
 
 ## Components
 
@@ -820,14 +860,21 @@ One rail, on every page, and one way to search it.
 
 **The rail** is the app's only navigation: Hearth, the page's own ground, so it
 reads as part of the page rather than a panel laid over it, separated from the
-content by a `1px` Hairline rule. Top to bottom, at 20px gaps:
+content by a `1px` Hairline rule. It has two states from 900px, expanded
+(250px, described here) and collapsed to an icon strip (56px, below). Top to
+bottom, at 20px gaps:
 
-- the `lychee` `admin` wordmark as a home link at Display 1.5rem, the page's h1;
+- the `lychee` `admin` wordmark as a home link at Display 1.5rem, the page's h1,
+  8px in so it stands over the place rows' icons, with the collapse button at
+  the line's right edge (below);
 - the find box (below);
 - **overview**, a row linking to `/`, carrying the rail's one health mark
   (below), and under it **activity**, a plain row linking to `/activity`;
 - **Sites**, a row linking to the list at `/sites` like the two above it, then
-  every managed site in Caddyfile order, indented 12px under it: the label and a right-aligned `static` or `:<port>` hint in
+  every managed site in Caddyfile order, indented 32px from the rail's inner
+  edge so each label starts under the place words rather than under their
+  icons (12px under Sites' own text until 2026-10-29, when the rows had no
+  icons): the label and a right-aligned `static` or `:<port>` hint in
   Smoke Light, with no status mark. The label is Chalk; the domain is not shown (it was, as `· lychee.land`
   beside the heading, from 2026-10-27 to 2026-10-29), and each row keeps it as
   screen-reader text, so a row's accessible name is still its full hostname.
@@ -839,7 +886,33 @@ content by a `1px` Hairline rule. Top to bottom, at 20px gaps:
   hears the group). Until 2026-10-29 `sites` and `host` were headings, in
   tracked caps for a day before that, and the site rows sat flush under
   `sites`; once Sites read as the page it links to, the indent carried the
-  nesting and `host` named nothing the three words do not.
+  nesting and `host` named nothing the three words do not. A short Hairline
+  divider (1px, inset 8px either side) sits between Sites and Services, so
+  the app's own places and the host's three boards read as two groups in
+  both states.
+
+Every place row (Overview, Activity, Sites and the three boards) opens with a
+16px line icon in the row's own colour, 8px before its word: `overview` is a
+dashboard of four unequal panels, `activity` a pulse line, `sites` a globe,
+`services` a box, `reconciler` two cycling arrows and `infrastructure` two
+stacked server units (see Shapes). The icon names the place, so the strip can
+show it alone. Site rows carry no icon. A place row does not spread its
+content to the row's edges: the word follows the icon, and Overview's signal
+keeps right with its own `margin-left: auto`. Until 2026-10-29 the place rows
+had no icons.
+
+**The collapse button** sits at the right of the wordmark's line: a 32px
+square, transparent, with a `panel-left-close` icon in Smoke that goes Chalk on
+a Hearth Lift ground on hover, the shared focus ring, the label `Collapse
+sidebar`, `aria-expanded="true"` and `aria-controls` naming the rail. In the
+strip it becomes `panel-left-open`, `Expand sidebar`, `aria-expanded="false"`.
+After a flip focus moves to the other state's button, so a keyboard user keeps
+their place. The choice is per browser, stored under `lychee-admin:rail` as
+`collapsed` or `expanded`, and read before the first paint, so a reload never
+flashes the other state; a store that cannot be read or written means
+expanded, and the button still flips the rail. There is no shortcut for it and
+no animation: the column changes width in one step. Below 900px the stored
+choice has no effect, and the drawer always holds the expanded rail.
 
 The rail is navigation only and carries no action: Add site lives beside the
 site list's heading as that page's Primary.
@@ -873,6 +946,48 @@ site and its container as one thing, bad if either is, with the same function
 as the overview's strip and attention list, so the three always agree. The dot
 and number are `aria-hidden`; the link's accessible name carries the same facts
 (`overview, 3 need attention`).
+
+**The icon strip** is the collapsed rail: the same Hearth column and Hairline
+rule, 56px wide, the page grid's first column narrowing with it so the content
+gains 194px. Top to bottom, centred, at 16px gaps: the wordmark collapsed to a
+Poetsen `l` monogram at Display 1.5rem, still the home link inside the page's
+h1 with the accessible name `lychee-admin` (it is the wordmark, so The
+Signature-Twice Rule still counts two places); the expand button; a find cell;
+Overview, Activity and Sites; the divider, 24px wide; then Services,
+Reconciler and Infrastructure. A cell is 40×36, 6px radius, its icon 18px (two
+more than a row's, since it stands alone), Smoke at rest, Chalk on Hearth Lift
+on hover, and current as a row is, Chalk on Hairline; cells within a group sit
+2px apart. Site rows, the find box and its `⌘K` hint, the `admin` qualifier
+and the rail's two notes are not rendered at all, so none of them is in the
+tab order. Each cell keeps its place word as screen-reader text, so its
+accessible name is the one its row has expanded. The overview signal becomes
+a badge pinned to the Overview cell's top-right corner: a 5px dot and the
+count in 0.7rem mono (the type floor), in the signal's tone, the dot alone
+after a failed read, nothing when clear, and the same spoken phrase. ⌘K still
+finds, through the peek.
+
+**The strip tooltip** names a cell on hover and on keyboard focus: the place
+word (or `Find`) in 0.8rem Nunito Chalk, capitalized, on a Hearth Lift ground
+with a `1px` Hairline edge, 6px radius, 4px 8px padding and the Overlay shadow,
+since it floats over the page, 10px to the cell's right and vertically centred
+on it. It is `aria-hidden`, because the cell's own word already names it; it
+never takes the pointer, and it never wraps.
+
+**The peek** is find while collapsed. The strip's find cell or ⌘K opens the
+expanded rail, 250px wide, fixed over the content from the left edge at full
+height, on the rail's own Hearth with its Hairline right edge and the Overlay
+shadow (a modal drawer over a backdrop was the alternative, and was not
+chosen: the page stays live behind the peek), with the find box focused. While
+it is open it takes the strip's place in the rail, as the drawer takes the
+rail out of it, so there is only ever one wordmark, one find box and one set of
+navigation landmarks; the page grid keeps its 56px column, so nothing beneath
+it moves. It closes on Escape (a first Escape closes find's open panel, a
+second the peek), on its own collapse button, on a pointer down outside it, on
+focus leaving it, on narrowing below 900px, and on any in-app move. An Escape
+or the collapse button returns focus to what opened it (the strip's find cell,
+or whatever had focus before ⌘K); every other close leaves focus where it
+went, and a move hands it to the new page's heading. The peek never changes the
+stored choice.
 
 Until 2026-10-28 every site row carried an 8px status dot (hollow for a static
 site), every page link two attention chips, and the top bar an overall count:
