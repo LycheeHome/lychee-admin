@@ -3,6 +3,13 @@ import { splitHostnameForDisplay } from "../../lib/siteDisplay";
 import type { HealthPayload } from "../../shared/health";
 import {
   RAIL_ASIDE,
+  RAIL_BADGE,
+  RAIL_CELL,
+  RAIL_CELL_ICON,
+  RAIL_MONOGRAM,
+  RAIL_STRIP,
+  RAIL_STRIP_DIVIDER,
+  RAIL_TIP,
   RAIL_DIVIDER,
   RAIL_DRAWER,
   RAIL_HEAD,
@@ -128,7 +135,47 @@ function Signal({ signal }: { signal: ReturnType<typeof overviewSignal> }) {
   );
 }
 
+/**
+ * The strip's form of the signal: the same dot (at 5px) and count, pinned to
+ * the overview cell's corner as a badge, with the same spoken phrase.
+ */
+function SignalBadge({ signal }: { signal: ReturnType<typeof overviewSignal> }) {
+  if (!signal) return null;
+  return (
+    <>
+      <span data-signal="" aria-hidden="true" className={RAIL_BADGE}>
+        <span className={RAIL_SIGNAL_DOT[signal.tone].replace("size-1.5", "size-[5px]")} />
+        {signal.count === null ? null : (
+          // The badge sets its own, smaller size.
+          <span className={RAIL_SIGNAL_COUNT[signal.tone].replace(/\s*text-\[[^\]]*rem\]/, "")}>{signal.count}</span>
+        )}
+      </span>
+      <span className="sr-only">{signal.spoken}</span>
+    </>
+  );
+}
+
 const placeOf = (place: RailPlace) => RAIL_PLACES.find((p) => p.place === place)!;
+
+/**
+ * A strip cell: the place's icon alone, its word kept for screen readers and
+ * shown as a tooltip (`aria-hidden`, so it is not heard twice) on hover and
+ * keyboard focus.
+ */
+function PlaceCell({ place, current, children }: { place: RailPlace; current: RailCurrent; children?: ReactNode }) {
+  return (
+    <RailLink href={placeOf(place).href} className={RAIL_CELL} aria-current={ariaCurrent(isPage(current, place))}>
+      <Icon name={place} className={RAIL_CELL_ICON} />
+      <span className="sr-only">{place}</span>
+      <span aria-hidden="true" className={`${RAIL_TIP} capitalize`}>
+        {place}
+      </span>
+      {children}
+    </RailLink>
+  );
+}
+
+const STRIP_NAV = "flex flex-col items-center gap-0.5";
 
 /**
  * A place row: its icon, then its word. No `justify-between`, which the
@@ -162,7 +209,9 @@ export function Rail({
   navigate,
   inDrawer,
   onNarrowShortcut,
+  collapsed,
   onToggle,
+  onFindOpen,
 }: RailProps) {
   // On a client route the router's location is where the operator is. The
   // add page marks nothing: the rail has no Add site, and its breadcrumb
@@ -189,6 +238,60 @@ export function Rail({
   // and anything drawn from it would be a lie about now.
   const live = healthError ? null : health;
   const signal = overviewSignal(health, healthError);
+
+  // The strip: places only, as icons. No site rows, find box or notes; the
+  // peek (find's button) is where those are. Never in the drawer, which is
+  // always the full rail.
+  if (collapsed && !inDrawer) {
+    return (
+      <div className={RAIL_STRIP}>
+        <h1 className="m-0 text-base font-normal leading-none">
+          <RailLink href="/" aria-label="lychee-admin" className={RAIL_MONOGRAM}>
+            l
+          </RailLink>
+        </h1>
+        <button
+          type="button"
+          id="rail-toggle"
+          className={RAIL_TOGGLE}
+          aria-label="Expand sidebar"
+          aria-expanded="false"
+          aria-controls="rail"
+          onClick={(e) => onToggle?.(e.currentTarget)}
+        >
+          <Icon name="panelOpen" />
+        </button>
+        <button
+          type="button"
+          id="rail-find-open"
+          className={RAIL_CELL}
+          aria-label="Find"
+          onClick={(e) => onFindOpen?.(e.currentTarget)}
+        >
+          <Icon name="search" className={RAIL_CELL_ICON} />
+          <span aria-hidden="true" className={RAIL_TIP}>
+            Find
+          </span>
+        </button>
+        <nav aria-label="Overview" className={STRIP_NAV}>
+          <PlaceCell place="overview" current={current}>
+            <SignalBadge signal={signal} />
+          </PlaceCell>
+          <PlaceCell place="activity" current={current} />
+        </nav>
+        <nav aria-label="Sites" className={STRIP_NAV}>
+          <PlaceCell place="sites" current={current} />
+        </nav>
+        <div aria-hidden="true" className={RAIL_STRIP_DIVIDER} />
+        <nav aria-label="Host" className={STRIP_NAV}>
+          {RAIL_PLACES.filter((p) => p.group === "host").map((p) => (
+            <PlaceCell key={p.place} place={p.place} current={current} />
+          ))}
+        </nav>
+      </div>
+    );
+  }
+
   const heading = (
     <h1 className="m-0 px-2 text-base font-normal leading-none">
       <Wordmark />

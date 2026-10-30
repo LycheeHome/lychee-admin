@@ -176,8 +176,12 @@ export const RAIL_ROW =
 /** A place row's icon, one 16px square the row's text colour paints (`currentColor`), never shrunk by flex. */
 export const RAIL_ICON = "w-4 h-4 shrink-0";
 
-/** The expanded rail's top line: the wordmark and the collapse toggle, a space apart. */
-export const RAIL_HEAD = "flex items-center justify-between gap-2 px-2";
+/**
+ * The expanded rail's top line: the wordmark and the collapse toggle, a space
+ * apart. No padding of its own: the h1 inside carries `px-2`, which puts the
+ * wordmark 8px in, over the place rows' icons.
+ */
+export const RAIL_HEAD = "flex items-center justify-between gap-2";
 
 /** The collapse and expand button: a 32px square in Smoke, lit to Chalk on a Hearth Lift ground on hover. */
 export const RAIL_TOGGLE =

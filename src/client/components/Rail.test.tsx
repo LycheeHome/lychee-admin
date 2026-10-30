@@ -4,10 +4,22 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, test } from "node:test";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation, useNavigate } from "react-router";
 import { MENU_BADGE, RAIL_SIGNAL_COUNT, RAIL_SIGNAL_DOT } from "../../views/overviewModel";
-import { RAIL_DIVIDER, RAIL_ICON, RAIL_PLACES } from "../../views/railModel";
+import {
+  RAIL_BADGE,
+  RAIL_CELL,
+  RAIL_CELL_ICON,
+  RAIL_DIVIDER,
+  RAIL_ICON,
+  RAIL_MONOGRAM,
+  RAIL_PLACES,
+  RAIL_STRIP,
+  RAIL_STRIP_DIVIDER,
+  RAIL_TIP,
+} from "../../views/railModel";
 import { BUTTON_PRIMARY, FOCUS_RING } from "../../views/shared";
 import { ClientNavContext } from "../clientNav";
 import type { RailData } from "../../shared/rail";
@@ -408,6 +420,165 @@ describe("the expanded rail's icons, divider and toggle", () => {
   });
 });
 
+/** A router-backed ClientNav, so a click on a strip cell really moves the route. */
+function RoutedNav({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  return (
+    <ClientNavContext.Provider
+      value={{ pathname: location.pathname, locationKey: location.key, navigate: (href) => void navigate(href), documentLoad: false }}
+    >
+      {children}
+    </ClientNavContext.Provider>
+  );
+}
+
+describe("the collapsed strip", () => {
+  const strip = (overrides: Partial<RailData> = {}, health: HealthPayload | null = null, healthError = false) =>
+    render(<Rail rail={railData(overrides)} health={health} healthError={healthError} collapsed />);
+
+  /** The strip's six place cells, in rail order. */
+  const cells = (root: ParentNode): HTMLAnchorElement[] =>
+    RAIL_PLACES.map(({ place, href }) => {
+      const cell = root.querySelector<HTMLAnchorElement>(`nav a[href="${href}"]`);
+      assert.ok(cell, `no ${place} cell`);
+      return cell;
+    });
+
+  test("renders inside the strip column", () => {
+    const { container } = strip();
+    assert.equal(container.firstElementChild?.getAttribute("class"), RAIL_STRIP);
+    const h1 = container.querySelector("h1");
+    const mono = h1?.querySelector("a");
+    assert.equal(mono?.getAttribute("href"), "/");
+    assert.equal(mono?.getAttribute("aria-label"), "lychee-admin");
+    assert.equal(mono?.textContent, "l");
+    assert.equal(mono?.getAttribute("class"), RAIL_MONOGRAM);
+  });
+
+  test("no site rows, no find box and no notes", () => {
+    const { container } = strip({ sites: null, hostAvailable: false });
+    // Compared by identity: a failing assert.equal would print the whole DOM node.
+    assert.ok(container.querySelector("a[data-site]") === null, "a site row in the strip");
+    assert.ok(container.querySelector("#find") === null, "a find box in the strip");
+    assert.doesNotMatch(container.textContent ?? "", /Can't read the Caddyfile|Inventory unavailable/);
+    const seeded = strip();
+    assert.ok(seeded.container.querySelector("a[data-site]") === null, "a seeded site row in the strip");
+  });
+
+  test("each place cell keeps its word", () => {
+    const { container } = strip({}, healthWith(3));
+    for (const [i, cell] of cells(container).entries()) {
+      const word = RAIL_PLACES[i]!.place;
+      assert.equal(cell.getAttribute("class"), RAIL_CELL, word);
+      const icon = cell.firstElementChild;
+      assert.equal(icon?.tagName.toLowerCase(), "svg", word);
+      assert.equal(icon?.getAttribute("class"), RAIL_CELL_ICON, word);
+      assert.equal(cell.querySelector("span.sr-only")?.textContent, word);
+      const tips = cell.querySelectorAll(`[aria-hidden="true"]:not(svg):not([data-signal])`);
+      assert.equal(tips.length, 1, `${word}: ${tips.length} tooltips`);
+      assert.equal(tips[0]?.textContent, word);
+      assert.equal(tips[0]?.getAttribute("class"), `${RAIL_TIP} capitalize`);
+    }
+  });
+
+  test("the badge carries the signal", () => {
+    const overview = (root: ParentNode) => cells(root)[0]!;
+    const bad = strip({}, healthWith(3));
+    let badge = overview(bad.container).querySelector("[data-signal]");
+    assert.ok(badge, "no badge");
+    assert.equal(badge.getAttribute("class"), RAIL_BADGE);
+    assert.equal(badge.getAttribute("aria-hidden"), "true");
+    assert.equal(badge.textContent, "5");
+    assert.ok(badge.querySelector(".bg-red-300"), "not the bad dot");
+    assert.ok(badge.querySelector(".size-\\[5px\\]"), "not the 5px dot");
+    assert.match(accessibleName(overview(bad.container)), /^overview, 5 need attention/);
+    bad.unmount();
+
+    const neutral = strip({}, healthWith(3, false));
+    badge = overview(neutral.container).querySelector("[data-signal]");
+    assert.equal(badge?.textContent, "3");
+    assert.ok(badge?.querySelector(".bg-stone-400"), "not the neutral dot");
+    assert.ok(badge?.querySelector(".bg-red-300") === null, "a Scorch dot on unknowns");
+    neutral.unmount();
+
+    const failed = strip({}, healthWith(3), true);
+    badge = overview(failed.container).querySelector("[data-signal]");
+    assert.ok(badge?.querySelector(".bg-stone-400"), "a failed poll is not neutral");
+    assert.doesNotMatch(badge?.textContent ?? "", /\d/);
+    failed.unmount();
+
+    const clean = strip({}, cleanHealth());
+    assert.ok(clean.container.querySelector("[data-signal]") === null, "a badge with nothing to report");
+  });
+
+  test("the toggle expands and find opens the peek", () => {
+    const opened: HTMLButtonElement[] = [];
+    const toggled: HTMLButtonElement[] = [];
+    const { container } = render(
+      <Rail
+        rail={railData()}
+        health={null}
+        healthError={false}
+        collapsed
+        onFindOpen={(b) => opened.push(b)}
+        onToggle={(b) => toggled.push(b)}
+      />,
+    );
+    const toggle = container.querySelector<HTMLButtonElement>("#rail-toggle");
+    assert.equal(toggle?.getAttribute("aria-label"), "Expand sidebar");
+    assert.equal(toggle?.getAttribute("aria-expanded"), "false");
+    assert.equal(toggle?.getAttribute("aria-controls"), "rail");
+    fireEvent.click(toggle!);
+    assert.ok(toggled[0] === toggle, "onToggle gets the button");
+    const find = container.querySelector<HTMLButtonElement>("#rail-find-open");
+    assert.ok(find, "no #rail-find-open");
+    assert.equal(find.getAttribute("type"), "button");
+    assert.equal(find.getAttribute("aria-label"), "Find");
+    assert.equal(find.getAttribute("class"), RAIL_CELL);
+    assert.equal(find.querySelector(`[aria-hidden="true"]:not(svg)`)?.textContent, "Find");
+    fireEvent.click(find);
+    assert.equal(opened.length, 1);
+    assert.ok(opened[0] === find, "onFindOpen gets the button");
+  });
+
+  test("the order: monogram, toggle, find, overview and sites navs, divider, host nav", () => {
+    const { container } = strip();
+    const kids = Array.from(container.firstElementChild?.children ?? []);
+    const shape = kids.map((k) => k.id || k.getAttribute("aria-label") || k.tagName.toLowerCase());
+    assert.deepEqual(shape, ["h1", "rail-toggle", "rail-find-open", "Overview", "Sites", "div", "Host"]);
+    for (const label of ["Overview", "Sites", "Host"]) {
+      const nav = container.querySelector(`nav[aria-label="${label}"]`);
+      assert.equal(nav?.getAttribute("class"), "flex flex-col items-center gap-0.5", label);
+    }
+    assert.equal(container.querySelectorAll('nav[aria-label="Host"] a').length, 3);
+  });
+
+  test("the divider is in the strip too", () => {
+    const { container } = strip();
+    const divider = container.querySelector('nav[aria-label="Sites"]')?.nextElementSibling;
+    assert.equal(divider?.getAttribute("class"), RAIL_STRIP_DIVIDER);
+    assert.equal(divider?.getAttribute("aria-hidden"), "true");
+    assert.ok(divider?.nextElementSibling === container.querySelector('nav[aria-label="Host"]'), "the Host nav follows the divider");
+  });
+
+  test("the current cell follows the route", () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={["/reconciler"]}>
+        <RoutedNav>
+          <Rail rail={railData()} health={null} healthError={false} collapsed />
+        </RoutedNav>
+      </MemoryRouter>,
+    );
+    const current = () => Array.from(container.querySelectorAll('a[aria-current="page"]')).map((a) => a.getAttribute("href"));
+    assert.deepEqual(current(), ["/reconciler"]);
+    act(() => {
+      fireEvent.click(container.querySelector('a[href="/activity"]')!, { button: 0 });
+    });
+    assert.deepEqual(current(), ["/activity"]);
+  });
+});
+
 /** The frozen server top bar's inner markup: TopBar renders the header's children. */
 const serverTopBarInner = (): string => fixtureInner("top-bar", "header#top-bar");
 
@@ -654,7 +825,8 @@ describe("the top bar and its drawer", () => {
 describe("the rail's design rules, in states the fixtures cannot hold", () => {
   const RING = FOCUS_RING.split(" ");
 
-  function assertRules(root: Element, state: string): void {
+  /** `currentRows` is 1, or 0 where the current place is a site the state does not show (the strip). */
+  function assertRules(root: Element, state: string, currentRows = 1): void {
     const links = root.querySelectorAll("a[href]");
     assert.ok(links.length > 0, `${state}: no links`);
     for (const el of Array.from(root.querySelectorAll("a[href], button"))) {
@@ -671,9 +843,11 @@ describe("the rail's design rules, in states the fixtures cannot hold", () => {
     assert.doesNotMatch(html, /\bbg-rose-950\b/, `${state}: an Ember-tinted row`);
     assert.doesNotMatch(html, /\btruncate\b/, `${state}: a truncated row`);
     const current = root.querySelectorAll('a[aria-current="page"]');
-    assert.equal(current.length, 1, `${state}: ${current.length} current rows`);
+    assert.equal(current.length, currentRows, `${state}: ${current.length} current rows`);
     const cls = current[0]?.getAttribute("class") ?? "";
-    assert.ok(cls.includes("aria-[current=page]:bg-stone-700"), `${state}: the current row is not on Hairline`);
+    if (currentRows > 0) {
+      assert.ok(cls.includes("aria-[current=page]:bg-stone-700"), `${state}: the current row is not on Hairline`);
+    }
     assert.doesNotMatch(cls, /\bborder-l/, `${state}: the current row has a left rule`);
   }
 
@@ -733,6 +907,20 @@ describe("the rail's design rules, in states the fixtures cannot hold", () => {
       breakIt(container);
       assert.throws(() => assertRules(container, name), assert.AssertionError, `${name} was not caught`);
     }
+  });
+
+  test("the strip keeps the rail's rules", () => {
+    const site = render(
+      <Rail rail={railData({ current: { site: "broken.lychee.land" } })} health={seedHealth()} healthError={false} collapsed />,
+    );
+    assert.ok(site.container.querySelector("[data-signal]"), "the state has no trouble");
+    // The current place is a site, and the strip shows no site rows.
+    assertRules(site.container, "strip on a site", 0);
+    site.unmount();
+    const board = render(
+      <Rail rail={railData({ current: { page: "services" } })} health={seedHealth()} healthError={false} collapsed />,
+    );
+    assertRules(board.container, "strip on a board");
   });
 
   test("inside the narrow drawer", () => {
