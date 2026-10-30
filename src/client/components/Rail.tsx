@@ -74,6 +74,8 @@ export interface RailProps {
   inDrawer?: boolean;
   /** This rail is in the peek, which closes on an Escape find leaves to it (the drawer's rail does this already). */
   escapeToContainer?: boolean;
+  /** The id the expanded rail's collapse button controls: the aside (`rail`, the default), or the peek (`rail-peek`). */
+  toggleControls?: string;
   /** ⌘K below 900px, where the aside, and the expanded rail's find with it, is hidden: open the drawer on find. */
   onNarrowShortcut?: (previous: Element | null) => void;
   /** The wide rail is the icon strip (spec 2026-10-29-collapsible-rail). */
@@ -214,6 +216,7 @@ export function Rail({
   navigate,
   inDrawer,
   escapeToContainer,
+  toggleControls = "rail",
   onNarrowShortcut,
   collapsed,
   onToggle,
@@ -319,7 +322,7 @@ export function Rail({
               className={RAIL_TOGGLE}
               aria-label="Collapse sidebar"
               aria-expanded="true"
-              aria-controls="rail"
+              aria-controls={toggleControls}
               onClick={(e) => onToggle?.(e.currentTarget)}
             >
               <Icon name="panelClose" />
@@ -549,7 +552,7 @@ function Peek({ onClose, children }: { onClose: (restore: boolean) => void; chil
 /** The rail's props, less the ones Navigation decides itself (where find starts, the drawer, the peek and the collapse). */
 export type NavigationProps = Omit<
   RailProps,
-  "findInitial" | "inDrawer" | "escapeToContainer" | "onNarrowShortcut" | "collapsed" | "onToggle" | "onFindOpen"
+  "findInitial" | "inDrawer" | "escapeToContainer" | "toggleControls" | "onNarrowShortcut" | "collapsed" | "onToggle" | "onFindOpen"
 >;
 
 /** The browser's store, or none where touching it throws (a sandbox, blocked site data). */
@@ -569,8 +572,13 @@ interface DrawerState {
 }
 
 interface PeekState {
-  /** The strip's find button, or what had focus before ⌘K: it gets focus back on an Escape. */
-  opener: HTMLElement | null;
+  /**
+   * What gets focus back on an Escape or the peek's collapse button: `strip`
+   * for the strip's find button, which unmounts while the peek takes the
+   * aside and is found again once the strip is back; otherwise what had focus
+   * before ⌘K, which stays in the document.
+   */
+  opener: HTMLElement | "strip" | null;
 }
 
 /** A focus target worth returning to: an element, and not the body (nothing had focus). */
@@ -629,9 +637,10 @@ export function Navigation(props: NavigationProps) {
 
   // The peek never touches the stored state: it is a look, not a flip.
   const [peek, setPeek] = useState<PeekState | null>(null);
-  const peekRestoreTo = useRef<HTMLElement | null>(null);
+  const peekRestoreTo = useRef<PeekState["opener"]>(null);
   const openPeek = (opener: Element | null) => {
-    setPeek({ opener: focusTarget(opener) });
+    const target = focusTarget(opener);
+    setPeek({ opener: target?.id === "rail-find-open" && asideRef.current?.contains(target) ? "strip" : target });
   };
   const closePeek = (restore: boolean) => {
     if (!peek) return;
@@ -644,7 +653,9 @@ export function Navigation(props: NavigationProps) {
     if (peek) return;
     const target = peekRestoreTo.current;
     peekRestoreTo.current = null;
-    if (target?.isConnected) target.focus();
+    // The strip's find button is a new node now: find it in the aside, never the stale one.
+    const el = target === "strip" ? asideRef.current?.querySelector<HTMLElement>("#rail-find-open") : target;
+    if (el?.isConnected) el.focus();
   }, [peek]);
 
   // Idempotent: Escape's cancel and a native `close` event can both arrive.
@@ -739,17 +750,26 @@ export function Navigation(props: NavigationProps) {
   const rail = drawer ? (
     <Rail {...props} inDrawer findInitial={{ query: "", focused: drawer.focusFind }} />
   ) : collapsed ? (
-    // The strip, unchanged under the peek, though its find button does nothing while the peek is open.
-    <Rail {...props} collapsed onToggle={toggle} onFindOpen={peekOpen ? undefined : openPeek} />
+    <Rail {...props} collapsed onToggle={toggle} onFindOpen={openPeek} />
   ) : (
     <Rail {...props} onToggle={toggle} onNarrowShortcut={(previous) => open(previous, true)} />
   );
 
-  // The peek holds the expanded rail, with find focused; its collapse button only closes it.
+  // The peek holds the expanded rail, with find focused; its collapse button
+  // only closes it. While open it takes the strip's place in the aside, as the
+  // drawer takes the rail: one rail, one #rail-toggle, one h1 and one set of
+  // navs. It is fixed, and body[data-rail] keeps the column at 56px, so the
+  // page does not move.
   const peekRail =
     peek && collapsed && !drawer ? (
       <Peek onClose={closePeek}>
-        <Rail {...props} escapeToContainer findInitial={{ query: "", focused: true }} onToggle={() => closePeek(true)} />
+        <Rail
+          {...props}
+          escapeToContainer
+          toggleControls="rail-peek"
+          findInitial={{ query: "", focused: true }}
+          onToggle={() => closePeek(true)}
+        />
       </Peek>
     ) : null;
 
@@ -764,9 +784,8 @@ export function Navigation(props: NavigationProps) {
         ) : null}
       </header>
       <aside ref={asideRef} id="rail" data-rail="" aria-label="Navigation" className={RAIL_ASIDE}>
-        {drawer ? null : rail}
+        {drawer ? null : (peekRail ?? rail)}
       </aside>
-      {peekRail}
     </>
   );
 }

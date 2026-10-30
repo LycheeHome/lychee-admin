@@ -1003,11 +1003,26 @@ describe("the find peek", () => {
     const { aside } = mountNavigation();
     click(findOpen());
     assertOpen("after the click");
-    // The aside still holds the strip, and the peek holds the expanded rail.
-    assert.ok(aside.querySelector("#rail-find-open"), "the strip left the aside");
-    assert.ok(!aside.contains(peek()), "the peek sits inside the strip");
+    // The peek takes the strip's place in the aside, as the drawer takes the rail.
+    assert.ok(aside.contains(peek()), "the peek is not in the aside");
+    assert.ok(findOpen() === null, "the strip is still mounted under the peek");
     assert.equal(peek()?.querySelectorAll("[data-site]").length, 8);
     assert.ok(document.body.querySelectorAll("[inert]").length === 0, "the peek made the page inert");
+  });
+
+  test("while the peek is open there is one toggle, one heading and one set of navs", () => {
+    const { aside } = mountNavigation();
+    click(findOpen());
+    assert.ok(peek());
+    assert.equal(document.querySelectorAll("#rail-toggle").length, 1);
+    assert.equal(aside.querySelectorAll("h1").length, 1);
+    for (const label of ["Overview", "Sites", "Host"]) {
+      assert.equal(document.querySelectorAll(`nav[aria-label="${label}"]`).length, 1, label);
+    }
+    const toggle = peek()?.querySelector("#rail-toggle");
+    assert.equal(toggle?.getAttribute("aria-controls"), "rail-peek");
+    assert.equal(toggle?.getAttribute("aria-expanded"), "true");
+    assert.equal(toggle?.getAttribute("aria-label"), "Collapse sidebar");
   });
 
   test("⌘K while collapsed and wide opens the peek, not the drawer, and Escape closes it", () => {
@@ -1063,7 +1078,9 @@ describe("the find peek", () => {
     assert.ok(peek() === null, "the move left the peek open");
     const cell = document.querySelector('aside#rail a[href="/services"]');
     assert.equal(cell?.getAttribute("aria-current"), "page");
-    assert.ok(document.activeElement !== findOpen(), "focus went back to the find button after a move");
+    // A move returns focus nowhere: in the app the new page's heading takes it
+    // (AppFrame), which this harness has none of, so focus is on the body.
+    assert.ok(document.activeElement === document.body, "the peek's close moved focus after a move");
     assert.equal(stored(), "collapsed");
   });
 
@@ -1106,7 +1123,8 @@ describe("the find peek", () => {
     assert.ok(peek() === null, "the collapse button left the peek open");
     assert.equal(stored(), "collapsed");
     assert.equal(document.body.dataset.rail, "collapsed");
-    assert.ok(findOpen(), "the strip is gone");
+    assert.ok(findOpen(), "the strip did not come back");
+    assert.ok(document.activeElement === findOpen(), "focus did not go back to the strip's find button");
   });
 
   // happy-dom's MediaQueryList starts its change tracking at `false`, so a

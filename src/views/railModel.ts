@@ -217,7 +217,7 @@ export const RAIL_TIP =
 
 /** A strip cell's attention badge: the overview signal's dot and count, pinned to the cell's top right corner. */
 export const RAIL_BADGE =
-  "pointer-events-none absolute top-0.5 right-px inline-flex items-center gap-0.5 font-mono text-[0.6rem] leading-none";
+  "pointer-events-none absolute top-0.5 right-px inline-flex items-center gap-0.5 font-mono text-[0.7rem] leading-none";
 
 /** The strip's wordmark: the `l` monogram in Display, standing for `lychee admin` when there is no room for it. */
 export const RAIL_MONOGRAM = `font-display text-2xl leading-none text-stone-50 no-underline ${FOCUS_RING}`;
