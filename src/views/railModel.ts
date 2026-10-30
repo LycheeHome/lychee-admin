@@ -194,8 +194,13 @@ export const RAIL_DIVIDER = "h-px bg-stone-700 mx-2";
 /** The strip's rule between its groups: 24px of Hairline, centred in the 56px column. */
 export const RAIL_STRIP_DIVIDER = "h-px w-6 bg-stone-700 mx-auto my-0.5";
 
-/** The strip's inner column: its cells centred and scrolling inside the rail when the viewport is short. */
-export const RAIL_STRIP = "flex-1 min-h-0 overflow-y-auto flex flex-col items-center gap-4 px-2 py-5";
+/**
+ * The strip's inner column: its cells centred. No `overflow-*`: the cells'
+ * tooltips must overflow the 56px column to its right (any overflow other
+ * than visible clips them), and the strip holds about ten fixed items, so it
+ * never needs to scroll.
+ */
+export const RAIL_STRIP = "flex-1 min-h-0 flex flex-col items-center gap-4 px-2 py-5";
 
 /** One strip cell, 40x36: an icon alone, so its tooltip and screen-reader word carry the name. Current is Chalk on Hairline. */
 export const RAIL_CELL =

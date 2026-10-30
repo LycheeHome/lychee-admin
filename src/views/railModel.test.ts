@@ -276,4 +276,10 @@ describe("the rail's places", () => {
     assert.match(railModel.RAIL_ROW, /(^|\s)pl-8(\s|$)/);
     assert.doesNotMatch(railModel.RAIL_ROW, /(^|\s)pl-5(\s|$)/);
   });
+
+  test("the strip never clips: its cells' tooltips overflow the 56px column", () => {
+    // Any overflow but visible (overflow-y-auto made overflow-x auto too) cut
+    // every strip tooltip off at the column's edge.
+    assert.doesNotMatch(railModel.RAIL_STRIP, /(^|\s)overflow-/);
+  });
 });
